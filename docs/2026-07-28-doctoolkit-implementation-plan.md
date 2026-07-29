@@ -125,8 +125,16 @@ Replace `src/DocToolkit/DocToolkit.csproj` with:
     <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!-- Keep the references Step 1 added - replacing the file wholesale would drop them. -->
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageReference Include="HtmlToOpenXml.dll" Version="3.5.0" />
+  </ItemGroup>
+
 </Project>
 ```
+
+> Later tasks add more `PackageReference` entries to this same `ItemGroup` via `dotnet add package`. Never replace this file wholesale again — edit it in place.
 
 Then multi-target the test project so both frameworks are actually exercised. In
 `tests/DocToolkit.Tests/DocToolkit.Tests.csproj`, change:
