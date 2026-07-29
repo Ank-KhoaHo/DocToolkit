@@ -1,7 +1,7 @@
 # DocToolkit — guidance for Claude Code
 
 A .NET library that converts **HTML → DOCX/PDF** and opens/edits **DOCX, XLSX, PPTX**, shipped
-as the `DocToolkit` NuGet package.
+as the `Ank.DocToolkit` NuGet package.
 
 Read `README.md` first for what it does. This file covers what will bite you while changing it.
 

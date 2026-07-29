@@ -38,7 +38,7 @@ every entry is a plain managed assembly with no native payload and no post-resto
 ## Install
 
 ```bash
-dotnet add package DocToolkit
+dotnet add package Ank.DocToolkit
 ```
 
 Targets `net8.0` and `net10.0`.

@@ -8,7 +8,7 @@ Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .
 Works after `dotnet restore` alone, runs on Linux, and makes **no network calls at runtime**.
 
 ```bash
-dotnet add package DocToolkit
+dotnet add package Ank.DocToolkit
 ```
 
 Targets `net8.0` and `net10.0`. MIT licensed.

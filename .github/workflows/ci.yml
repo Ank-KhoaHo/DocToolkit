@@ -152,11 +152,11 @@ jobs:
           print('package:', pkg)
           z = zipfile.ZipFile(pkg)
           names = z.namelist()
-          nuspec = z.read('DocToolkit.nuspec').decode('utf-8')
+          nuspec = z.read([n for n in names if n.endswith('.nuspec')][0]).decode('utf-8')
 
           failures = []
           for required in ['lib/net8.0/DocToolkit.dll', 'lib/net10.0/DocToolkit.dll',
-                           'README.md', 'THIRD-PARTY-NOTICES.txt', 'DocToolkit.nuspec']:
+                           'README.md', 'THIRD-PARTY-NOTICES.txt']:
               ok = required in names
               print(('OK   ' if ok else 'MISS ') + required)
               if not ok:

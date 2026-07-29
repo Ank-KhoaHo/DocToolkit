@@ -10,7 +10,7 @@
 
   <!-- NuGet package identity -->
   <PropertyGroup>
-    <PackageId>DocToolkit</PackageId>
+    <PackageId>Ank.DocToolkit</PackageId>
     <Version>0.1.0</Version>
     <Authors>Khoa Ho</Authors>
     <Description>
