@@ -38,4 +38,14 @@
     <Content Include="..\..\spike\out\big.pdf" Link="Fixtures\big.pdf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    A real one-slide PPTX ("Hello {{who}}" in a single text box), generated once with
+    ShapeCrawler before that package was removed (see PresentationEditorTests.cs). Building a
+    minimal valid PPTX by hand with the raw OpenXml SDK needs presentation/master/layout/theme
+    parts, so a committed real fixture is far less boilerplate than hand-rolling one.
+  -->
+  <ItemGroup>
+    <Content Include="assets\sample.pptx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
