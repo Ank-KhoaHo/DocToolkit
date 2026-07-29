@@ -6,7 +6,7 @@
 
 **Architecture:** A thin, stateless facade over the stack verified in `implementation/dotnet-doc-libs/spike/`, packaged for distribution. The core API is byte-array in / byte-array out so it works server-side with no temp files; path overloads are convenience wrappers. HTML→PDF is *composed* from HTML→DOCX plus DOCX→PDF rather than reimplemented — DOCX is the pivot format, because no permissive NuGet-only library renders HTML to PDF directly on Linux. The five underlying packages flow to consumers as transitive dependencies; consumers never reference them directly.
 
-**Tech Stack:** .NET 8 + .NET 10 · `DocumentFormat.OpenXml` (MIT) · `HtmlToOpenXml.dll` (MIT) · `OfficeIMO.Word.Pdf` (MIT) · `ClosedXML` (MIT) · `ShapeCrawler` (MIT) · xUnit
+**Tech Stack:** .NET 8 + .NET 10 · `DocumentFormat.OpenXml` (MIT) · `HtmlToOpenXml.dll` (MIT) · `OfficeIMO.Word.Pdf` (MIT) · `ClosedXML` (MIT) · xUnit
 
 **Source spec:** [`learning-docs/dotnet-doc-libs/report.html`](../../learning-docs/dotnet-doc-libs/report.html) — the research and licence verification behind every package choice.
 
@@ -1058,6 +1058,8 @@ git commit -m "feat(doctoolkit): add XLSX create/read/edit via ClosedXML"
 
 ### Task 7: Open and edit PPTX
 
+> **SUPERSEDED 2026-07-29.** This task originally used **ShapeCrawler**, which turned out to depend on SkiaSharp + Magick.NET — 38 native binaries, 664 MB of `runtimes/`, 26 CVE advisories — breaking the plan's own "no native binaries" constraint. PPTX is now implemented directly on `DocumentFormat.OpenXml` (already a dependency): same three public signatures, zero new packages, 0 native binaries. The ShapeCrawler code below is kept only as a record of what was originally specified. **Do not add ShapeCrawler.**
+
 **Files:**
 - Create: `src/DocToolkit/PresentationEditor.cs`, `tests/DocToolkit.Tests/PresentationEditorTests.cs`
 - Modify: `src/DocToolkit/DocToolkit.csproj` (add `ShapeCrawler`)
@@ -1419,10 +1421,6 @@ commercial use. Each is redistributed as a transitive NuGet dependency, not vend
 4. ClosedXML - MIT License
    Copyright (c) ClosedXML contributors
    https://github.com/ClosedXML/ClosedXML
-
-5. ShapeCrawler - MIT License
-   Copyright (c) ShapeCrawler contributors
-   https://github.com/ShapeCrawler/ShapeCrawler
 
 Transitively: AngleSharp (MIT), BouncyCastle.Cryptography (MIT),
 System.IO.Packaging (MIT), Microsoft.Extensions.Logging.Abstractions (MIT).
