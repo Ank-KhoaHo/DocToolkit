@@ -33,7 +33,7 @@ internal static class PptxFixtures
         using (var doc = PresentationDocument.Open(ms, true))
         {
             var presentationPart = doc.PresentationPart!;
-            var slideIdList = presentationPart.Presentation.SlideIdList!;
+            var slideIdList = presentationPart.Presentation!.SlideIdList!;
             var template = presentationPart.SlideParts.Single();
 
             SetSoleText(template, partOrderTexts[0]);

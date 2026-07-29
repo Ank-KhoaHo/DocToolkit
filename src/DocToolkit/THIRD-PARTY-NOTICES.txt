@@ -22,6 +22,21 @@ Direct dependencies
    Copyright (c) ClosedXML contributors
    https://github.com/ClosedXML/ClosedXML
 
+5. SixLabors.Fonts - Apache License 2.0 - PINNED TO [1.0.0]
+   Copyright (c) Six Labors
+   https://github.com/SixLabors/Fonts
+
+   Referenced directly only in order to pin it. It arrives transitively through
+   OfficeIMO.Word, which requests the range [1.0.0, 3.0.0). Version 1.x is Apache-2.0;
+   version 2.x and later moved to the Six Labors Split License 1.0, which grants Apache-2.0
+   terms only to organisations under 1,000,000 USD annual gross revenue and requires a
+   commercial licence above that. Allowing NuGet to float this reference to 2.x would move
+   DocToolkit off permissive licensing without anyone noticing, so DocToolkit.csproj uses the
+   exact-version bracket [1.0.0] and DependencyGuardTests asserts the loaded assembly is 1.x.
+
+   If this pin ever has to be lifted - for instance because a future OfficeIMO release
+   requires 2.x - the licence change must be surfaced to consumers here first.
+
 Transitive dependencies (verified against the resolved dependency graph)
 --------------------------------------------------------------------------
 - AngleSharp - MIT License - https://github.com/AngleSharp/AngleSharp
@@ -35,7 +50,7 @@ Transitive dependencies (verified against the resolved dependency graph)
 - OfficeIMO.Security - MIT License - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word - MIT License - https://github.com/EvotecIT/OfficeIMO
 - RBush.Signed - MIT License - https://github.com/viceroypenguin/RBush
-- SixLabors.Fonts - Apache License 2.0 - https://github.com/SixLabors/Fonts
+- SixLabors.Fonts - Apache License 2.0 - see the pinning note under direct dependencies
 - System.IO.Packaging - MIT License - https://github.com/dotnet/runtime
 
 The full MIT licence text for DocToolkit itself is reproduced in the LICENSE file shipped
