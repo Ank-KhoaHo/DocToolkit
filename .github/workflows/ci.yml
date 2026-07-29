@@ -8,7 +8,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "fix/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -21,8 +21,8 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  SOLUTION: implementation/dotnet-doc-libs/DocToolkit.sln
-  PROJECT: implementation/dotnet-doc-libs/src/DocToolkit/DocToolkit.csproj
+  SOLUTION: DocToolkit.sln
+  PROJECT: src/DocToolkit/DocToolkit.csproj
 
 jobs:
   build-test:
@@ -89,7 +89,7 @@ jobs:
       # rewrite. Matches versioned sonames (libfoo.so.1) as well as *.so.
       - name: Assert zero native binaries
         run: |
-          mapfile -t native < <(find implementation/dotnet-doc-libs -path '*/bin/*' \
+          mapfile -t native < <(find . -path '*/bin/*' \
             \( -name '*.so' -o -name '*.so.*' -o -name '*.dylib' \) -print)
           printf 'native binaries found: %d\n' "${#native[@]}"
           if [ "${#native[@]}" -ne 0 ]; then
@@ -145,7 +145,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import glob, sys, zipfile
-          hits = glob.glob('implementation/dotnet-doc-libs/artifacts/*.nupkg')
+          hits = glob.glob('artifacts/*.nupkg')
           if not hits:
               sys.exit('no .nupkg produced')
           pkg = hits[0]
@@ -184,5 +184,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: DocToolkit-nupkg
-          path: implementation/dotnet-doc-libs/artifacts/*.nupkg
+          path: artifacts/*.nupkg
           if-no-files-found: error

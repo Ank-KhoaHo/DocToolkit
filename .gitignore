@@ -1,0 +1,19 @@
+# ─── .NET build output ───────────────────────────────────────────────
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+
+# ─── NuGet package output & local feed ───────────────────────────────
+artifacts/
+local-feed/
+*.nupkg
+*.snupkg
+
+# ─── OS / editor cruft ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vs/
+.vscode/
+.idea/
