@@ -134,7 +134,14 @@ replaced. The workflow therefore runs the full suite *and* all three premise gua
 pushes, and fails rather than shipping a package that broke them. **Do not add a `continue-on-error`
 or bypass to those steps.**
 
-Needs the `NUGET_API_KEY` repository secret. Never put a key in a file, a commit, or a log.
+Authentication is **Trusted Publishing (OIDC)** — no long-lived API key exists. The job needs
+`permissions: id-token: write`; without it the token request fails *silently* and `NuGet/login`
+returns nothing. The temporary key lasts one hour, so the login step sits immediately before the
+push, after every check has passed — do not hoist it to the top of the job.
+
+Config lives on nuget.org (policy: owner `Ank-KhoaHo`, repo `DocToolkit`, workflow `release.yml`)
+plus a `NUGET_USER` variable holding the nuget.org profile name, not an email. Never reintroduce a
+stored API key for CI.
 
 ## Layout
 

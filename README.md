@@ -153,9 +153,17 @@ unlisted but never deleted or replaced:
 
 A release that would break the package's own premise fails instead of shipping.
 
-**Setup, once:** add a repository secret `NUGET_API_KEY` under
-*Settings → Secrets and variables → Actions*. The workflow fails early with a clear message if it
-is missing, rather than part-way through.
+**Authentication is keyless.** Publishing uses [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing):
+GitHub mints a short-lived, signed OIDC token describing this repo and workflow, nuget.org
+validates it against a policy you configured, and hands back an API key valid for one hour. **No
+long-lived key is stored anywhere** — nothing to leak, expire, or rotate.
+
+**Setup, once:**
+1. On nuget.org → *your name → Trusted Publishing* → add a policy:
+   Repository Owner `Ank-KhoaHo`, Repository `DocToolkit`, Workflow File `release.yml`
+   (filename only, no path).
+2. Add `NUGET_USER` as a repository variable holding your nuget.org **profile name** — not your
+   email address. The workflow fails early with a clear message if it is missing.
 
 **Prereleases** work as expected — `v1.2.3-beta.1` is detected and marked pre-release on GitHub.
 
