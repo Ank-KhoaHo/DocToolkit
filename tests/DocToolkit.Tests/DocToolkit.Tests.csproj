@@ -24,4 +24,18 @@
     <ProjectReference Include="..\..\src\DocToolkit\DocToolkit.csproj" />
   </ItemGroup>
 
+  <!--
+    Fixture PDFs live under spike/out (read-only evidence, not owned by this project).
+    Copied into the test output dir rather than referenced via ".." walking from the test
+    assembly location: that walk-up path depth changes with configuration/TFM (bin/Debug/net8.0
+    vs bin/Release/net10.0 etc.), so it would be fragile across build configurations. Copying
+    puts the fixture next to the test DLL every time, so AppContext.BaseDirectory + a fixed
+    relative subpath resolves correctly regardless of the working directory `dotnet test` is
+    invoked from.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\spike\out\result.pdf" Link="Fixtures\result.pdf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\spike\out\big.pdf" Link="Fixtures\big.pdf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
