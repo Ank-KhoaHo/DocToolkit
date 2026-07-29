@@ -19,6 +19,7 @@
     </Description>
     <PackageTags>docx;pdf;xlsx;pptx;html;openxml;document;conversion</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ank-KhoaHo/DocToolkit</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts</PackageOutputPath>
     <IncludeSymbols>true</IncludeSymbols>
