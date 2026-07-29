@@ -1,0 +1,1 @@
+DocToolkit bundles the following third-party packages. Full notices are added in Task 9.
