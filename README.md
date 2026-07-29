@@ -131,6 +131,37 @@ docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
 docker run --rm doctoolkit-linux-test
 ```
 
+## Releasing
+
+Publishing is driven by tags. The tag is the single source of truth for the version — the
+`<Version>` in the csproj is only a local dev default.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+That runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which **re-proves
+everything before it pushes**, because a publish to nuget.org is irreversible — a version can be
+unlisted but never deleted or replaced:
+
+1. full build with `-warnaserror`, then the whole test suite on both target frameworks
+2. the three guards: no native binaries, no banned packages, `SixLabors.Fonts` still on 1.x
+3. pack at the tag's version, then verify the `.nupkg` (both TFMs, metadata, deps, MIT, no
+   `runtimes/` payload, version matches the tag)
+4. push to nuget.org, and create a GitHub Release with generated notes and the package attached
+
+A release that would break the package's own premise fails instead of shipping.
+
+**Setup, once:** add a repository secret `NUGET_API_KEY` under
+*Settings → Secrets and variables → Actions*. The workflow fails early with a clear message if it
+is missing, rather than part-way through.
+
+**Prereleases** work as expected — `v1.2.3-beta.1` is detected and marked pre-release on GitHub.
+
+**Dry run:** trigger the workflow manually from the Actions tab with *Run workflow*, give it a
+version, and leave *publish* unticked. It packs and verifies without pushing anything.
+
 ## Repository layout
 
 ```

@@ -1,0 +1,208 @@
+name: Release
+
+# Publishing to nuget.org is IRREVERSIBLE - a version can be unlisted but never
+# deleted or replaced. So this workflow re-proves everything before it pushes:
+# the full test suite AND the licence/native-binary guards that are the reason
+# this package exists. A release that breaks the premise is worse than no release.
+#
+# Trigger by pushing a tag:   git tag v1.0.0 && git push origin v1.0.0
+# The tag is the single source of truth for the version; the <Version> in the
+# csproj is only a local dev default.
+#
+# Requires one repository secret: NUGET_API_KEY
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 1.0.0). Dry-run unless 'publish' is ticked."
+        required: true
+      publish:
+        description: "Actually push to nuget.org"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # needed to create the GitHub Release
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  PROJECT: src/DocToolkit/DocToolkit.csproj
+  SOLUTION: DocToolkit.sln
+
+jobs:
+  release:
+    name: verify, pack and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so release notes can be generated
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # ---- version comes from the tag, so there is one source of truth ----
+      - name: Resolve version
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            PUBLISH="${{ inputs.publish }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"     # v1.2.3 -> 1.2.3
+            PUBLISH="true"
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$VERSION' is not a valid SemVer version. Tag as v1.2.3 or v1.2.3-beta.1."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          case "$VERSION" in *-*) echo "prerelease=true"  >> "$GITHUB_OUTPUT";;
+                             *)   echo "prerelease=false" >> "$GITHUB_OUTPUT";; esac
+          echo "Releasing version $VERSION (publish=$PUBLISH)"
+
+      - name: Fail early if the API key is missing
+        if: steps.v.outputs.publish == 'true'
+        run: |
+          if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
+            echo "::error::Repository secret NUGET_API_KEY is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "API key present"
+
+      # ---- never publish something that is not green ----
+      - name: Build
+        run: dotnet build ${{ env.SOLUTION }} -c Release -warnaserror
+
+      - name: Test
+        run: dotnet test ${{ env.SOLUTION }} -c Release --no-build
+
+      # ---- never publish something that broke the design premise ----
+      - name: Guard - no native binaries
+        run: |
+          mapfile -t native < <(find . -path '*/bin/*' \
+            \( -name '*.so' -o -name '*.so.*' -o -name '*.dylib' \) -print)
+          echo "native binaries found: ${#native[@]}"
+          if [ "${#native[@]}" -ne 0 ]; then
+            printf '  %s\n' "${native[@]}"
+            echo "::error::Refusing to publish - native binaries in build output."
+            exit 1
+          fi
+
+      - name: Guard - no banned packages
+        run: |
+          dotnet list ${{ env.PROJECT }} package --include-transitive > graph.txt
+          banned='EPPlus|NPOI|Spire\.|Syncfusion|QuestPDF|IronPDF|ShapeCrawler|SkiaSharp|Magick\.NET|System\.Drawing\.Common'
+          if grep -Eiq "$banned" graph.txt; then
+            grep -Ei "$banned" graph.txt
+            echo "::error::Refusing to publish - a package that is not free for commercial use, or carries native payload, is in the graph."
+            exit 1
+          fi
+          echo "no banned packages"
+
+      - name: Guard - SixLabors.Fonts still on the permissive 1.x line
+        run: |
+          resolved=$(dotnet list ${{ env.PROJECT }} package --include-transitive \
+            | grep -i 'SixLabors.Fonts' | awk '{print $NF}' | sort -u | head -1)
+          echo "SixLabors.Fonts resolved: ${resolved:-<not found>}"
+          case "$resolved" in
+            1.*) echo "ok - Apache-2.0" ;;
+            *)   echo "::error::Refusing to publish - SixLabors.Fonts is ${resolved:-missing}; 2.x is revenue-gated."; exit 1 ;;
+          esac
+
+      - name: Pack
+        run: |
+          dotnet pack ${{ env.PROJECT }} -c Release --no-build \
+            -p:Version=${{ steps.v.outputs.version }} \
+            -p:PackageVersion=${{ steps.v.outputs.version }}
+          ls -la artifacts/
+
+      - name: Verify package contents
+        run: |
+          python3 - "${{ steps.v.outputs.version }}" <<'PY'
+          import glob, sys, zipfile
+          version = sys.argv[1]
+          hits = sorted(glob.glob('artifacts/*.nupkg'))
+          if len(hits) != 1:
+              sys.exit(f'expected exactly one .nupkg, found {hits}')
+          pkg = hits[0]
+          if version not in pkg:
+              sys.exit(f'{pkg} does not carry version {version}')
+          z, failures = zipfile.ZipFile(pkg), []
+          names = z.namelist()
+          nuspec = [n for n in names if n.endswith('.nuspec')][0]
+          spec = z.read(nuspec).decode('utf-8')
+
+          for required in ['lib/net8.0/', 'lib/net10.0/', 'README.md', 'THIRD-PARTY-NOTICES.txt']:
+              ok = any(n.startswith(required) or n == required for n in names)
+              print(('OK   ' if ok else 'MISS ') + required)
+              if not ok: failures.append(required)
+
+          for dep in ['DocumentFormat.OpenXml', 'HtmlToOpenXml.dll', 'OfficeIMO.Word.Pdf', 'ClosedXML']:
+              ok = dep in spec
+              print(('OK   dep ' if ok else 'MISS dep ') + dep)
+              if not ok: failures.append('dep ' + dep)
+
+          if '<license type="expression">MIT' not in spec:
+              failures.append('MIT licence expression')
+          if any(n.startswith('runtimes/') for n in names):
+              failures.append('runtimes/ - native payload in package')
+          if f'<version>{version}</version>' not in spec:
+              failures.append(f'nuspec version is not {version}')
+
+          if failures:
+              sys.exit('package verification failed: ' + ', '.join(failures))
+          print(f'\n{pkg} verified')
+          PY
+
+      # ---- the irreversible bit ----
+      - name: Push to nuget.org
+        if: steps.v.outputs.publish == 'true'
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate
+          echo "published ${{ steps.v.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.v.outputs.publish == 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            ${{ steps.v.outputs.prerelease == 'true' && '--prerelease' || '' }} \
+            artifacts/*.nupkg artifacts/*.snupkg
+
+      - name: Upload package as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg-${{ steps.v.outputs.version }}
+          path: artifacts/*
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "### Release ${{ steps.v.outputs.version }}"
+            echo ""
+            if [ "${{ steps.v.outputs.publish }}" = "true" ]; then
+              echo "Published to nuget.org. Availability in search can lag by a few minutes."
+            else
+              echo "**Dry run** - packed and verified, nothing pushed."
+            fi
+            echo ""
+            echo "- prerelease: ${{ steps.v.outputs.prerelease }}"
+            echo "- guards: native binaries, banned packages, SixLabors.Fonts pin - all passed"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -123,6 +123,19 @@ docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
 docker run --rm doctoolkit-linux-test
 ```
 
+## Releasing
+
+Tag-driven: `git tag v1.2.3 && git push origin v1.2.3` runs `.github/workflows/release.yml`.
+The **tag is the authoritative version**; the csproj `<Version>` is only a local dev default, so
+do not expect them to match.
+
+Publishing to nuget.org is **irreversible** — a version can be unlisted, never deleted or
+replaced. The workflow therefore runs the full suite *and* all three premise guards before it
+pushes, and fails rather than shipping a package that broke them. **Do not add a `continue-on-error`
+or bypass to those steps.**
+
+Needs the `NUGET_API_KEY` repository secret. Never put a key in a file, a commit, or a log.
+
 ## Layout
 
 ```
