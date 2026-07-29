@@ -1,0 +1,16 @@
+# Normalise line endings for text, but never touch binaries.
+*                text=auto
+
+# OfficeIMO writes PDFs with UNCOMPRESSED content streams, so they contain
+# few NUL bytes and git's binary auto-detection guesses "text". It then does
+# LF->CRLF on checkout and injects stray \r into the file - result.pdf gained
+# 1743 bytes that way, corrupting its xref offsets. These are test fixtures
+# and cited evidence, so they must round-trip byte-for-byte.
+*.pdf            binary
+*.docx           binary
+*.xlsx           binary
+*.pptx           binary
+*.png            binary
+*.jpg            binary
+*.nupkg          binary
+*.snupkg         binary
