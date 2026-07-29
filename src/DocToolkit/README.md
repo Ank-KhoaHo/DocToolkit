@@ -5,6 +5,36 @@ Convert HTML to DOCX and PDF, and open/edit DOCX, XLSX and PPTX from .NET.
 **Pure managed.** No native binaries, no browser, no LibreOffice, no Office interop.
 Works after `dotnet restore` alone, and runs on Linux.
 
+## Offline by default — safe in air-gapped environments
+
+**No method on DocToolkit's public API opens a network connection.** Not for images, not for
+stylesheets, not for fonts, not for linked pictures or external workbook references. Once the
+package is restored, DocToolkit never needs the network again.
+
+There is exactly one way to change that, and you have to ask for it by name:
+
+```csharp
+// The ONLY API that makes an outbound request. It downloads and embeds the images the markup
+// names, so it FAILS in an air-gapped environment - a host that will not answer fails the whole
+// conversion, after a connect timeout. Leave it alone unless your machines have internet access.
+byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+```
+
+Everything else — `ConvertAsync(html)`, `ConvertToFileAsync`, `DocxToPdfConverter`, `DocxEditor`,
+`WorkbookEditor`, `PresentationEditor` — is offline, unconditionally.
+
+This is enforced, not merely intended. The test suite starts a real TCP listener on loopback,
+feeds every public API markup that names it as an `<img src>`, a `<link rel="stylesheet">`, a CSS
+`@import`, a `background-image`, an `<a href>`, an externally linked DOCX picture, an external
+XLSX workbook link and more, and requires the accepted-connection count to be **exactly zero**. A
+companion test points the same APIs at an unroutable address (TEST-NET-3) and requires them to
+return promptly rather than stall on a connect timeout.
+
+`dotnet restore` is the one step that still needs a package feed. `THIRD-PARTY-NOTICES.txt` lists
+the full dependency closure with resolved versions, so it can be mirrored onto an internal feed;
+every entry is a plain managed assembly with no native payload and no post-restore download.
+
 ## Install
 
 ```bash
@@ -71,20 +101,26 @@ The result is spliced back into only the runs a match actually overlaps, so:
 Keys are matched in one left-to-right pass, longest key first at any given offset, so a
 substituted value is never rescanned for further placeholders.
 
-## No network access
+## How the no-network guarantee is built
 
-`HtmlToDocxConverter` and `HtmlToPdfConverter` make **no outbound requests** by default.
-Images referenced by an absolute `http`/`https` URL are skipped; only `data:` URI images are
-embedded. The underlying HTML converter defaults to downloading them, which would give every
-caller of a `byte[]`-in/`byte[]`-out API an SSRF reach and an unbounded hang, so DocToolkit
-turns that off and makes it opt-in:
+`HtmlToOpenXml`, the HTML parser underneath, defaults to downloading every image it sees, and its
+resource loader also speaks `file://` — so left alone it would give every caller of a
+`byte[]`-in/`byte[]`-out API an SSRF reach, a read of the host's disk, and an unbounded hang.
+DocToolkit shuts that off in two independent places on the default path:
 
-```csharp
-// Only for markup you trust. Issues HTTP requests to whatever hosts the markup names, and a
-// host that fails to serve the image fails the whole conversion.
-byte[] withImages = await HtmlToDocxConverter.ConvertAsync(
-    html, allowRemoteImageDownload: true, ct);
-```
+1. **Image processing** is set to `EmbedDataUriOnly`. Only `data:` URI images are embedded;
+   `http`, `https` and `file` sources are skipped.
+2. **The resource loader is replaced** with one that supports no protocol and fetches nothing.
+   The component capable of making a request is never constructed, so the guarantee does not rest
+   on what a future release decides `EmbedDataUriOnly` means. It also keeps the default path away
+   from HtmlToOpenXml 3.5.0's process-wide static `HttpClient`, which is not thread-safe.
+
+Self-contained documents still convert in full: `data:` URI images are decoded by the parser and
+never go through the loader.
+
+The other converters and editors need no such handling — `DocumentFormat.OpenXml`, `ClosedXML`
+and `OfficeIMO` do not resolve external relationships, external workbook links or remote fonts.
+That is asserted, not assumed; see above.
 
 ## Errors
 

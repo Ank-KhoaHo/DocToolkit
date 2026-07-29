@@ -10,8 +10,10 @@ namespace DocToolkit;
 public static class HtmlToPdfConverter
 {
     /// <summary>
-    /// Converts <paramref name="html"/> straight to PDF bytes. No network access: remote images
-    /// are skipped rather than downloaded - see
+    /// Converts <paramref name="html"/> straight to PDF bytes.
+    ///
+    /// <b>No network access, and safe in an air-gapped environment.</b> Nothing the markup
+    /// references is fetched, and no font is resolved over the network - see
     /// <see cref="ConvertAsync(string, bool, CancellationToken)"/> to opt in.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="html"/> is null.</exception>
@@ -22,9 +24,13 @@ public static class HtmlToPdfConverter
 
     /// <summary>
     /// Converts <paramref name="html"/> straight to PDF bytes, optionally downloading and
-    /// embedding images referenced by absolute <c>http</c>/<c>https</c> URLs. See
-    /// <see cref="HtmlToDocxConverter.ConvertAsync(string, bool, CancellationToken)"/> for what
-    /// enabling that entails.
+    /// embedding images referenced by absolute <c>http</c>/<c>https</c> URLs.
+    ///
+    /// <b>Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> will fail in an
+    /// air-gapped or otherwise offline environment</b>, because the HTML stage then issues
+    /// outbound HTTP requests to whatever hosts the markup names and a host that does not answer
+    /// fails the whole conversion. See
+    /// <see cref="HtmlToDocxConverter.ConvertAsync(string, bool, CancellationToken)"/>.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="html"/> is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>

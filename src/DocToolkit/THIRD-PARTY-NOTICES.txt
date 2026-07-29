@@ -39,19 +39,34 @@ Direct dependencies
 
 Transitive dependencies (verified against the resolved dependency graph)
 --------------------------------------------------------------------------
-- AngleSharp - MIT License - https://github.com/AngleSharp/AngleSharp
-- BouncyCastle.Cryptography - MIT License - https://github.com/bcgit/bc-csharp
-- ClosedXML.Parser - MIT License - https://github.com/ClosedXML/ClosedXML.Parser
-- DocumentFormat.OpenXml.Framework - MIT License - https://github.com/dotnet/Open-XML-SDK
-- ExcelNumberFormat - MIT License
-- Microsoft.Extensions.Logging.Abstractions - MIT License - https://github.com/dotnet/runtime
-- OfficeIMO.Drawing - MIT License - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Pdf - MIT License - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Security - MIT License - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Word - MIT License - https://github.com/EvotecIT/OfficeIMO
-- RBush.Signed - MIT License - https://github.com/viceroypenguin/RBush
-- SixLabors.Fonts - Apache License 2.0 - see the pinning note under direct dependencies
+Resolved versions are listed because an offline or air-gapped consumer has to mirror this exact
+closure onto their own feed - see "Restoring without internet access" below.
+
+- AngleSharp 1.5.0 - MIT License - https://github.com/AngleSharp/AngleSharp
+- BouncyCastle.Cryptography 2.6.2 - MIT License - https://github.com/bcgit/bc-csharp
+- ClosedXML.Parser 2.0.0 - MIT License - https://github.com/ClosedXML/ClosedXML.Parser
+- DocumentFormat.OpenXml.Framework 3.5.1 - MIT License - https://github.com/dotnet/Open-XML-SDK
+- ExcelNumberFormat 1.1.0 - MIT License
+- Microsoft.Extensions.Logging.Abstractions 6.0.0 - MIT License - https://github.com/dotnet/runtime
+- OfficeIMO.Drawing 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Pdf 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Security 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Word 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- RBush.Signed 4.0.0 - MIT License - https://github.com/viceroypenguin/RBush
+- SixLabors.Fonts 1.0.0 - Apache License 2.0 - see the pinning note under direct dependencies
 - System.IO.Packaging - MIT License - https://github.com/dotnet/runtime
+  Resolves to 8.0.1 on net8.0 and 10.0.2 on net10.0. Both are needed if you build for both.
+
+The direct dependencies resolve as: ClosedXML 0.105.1, DocumentFormat.OpenXml 3.5.1,
+HtmlToOpenXml.dll 3.5.0, OfficeIMO.Word.Pdf 3.0.3, SixLabors.Fonts 1.0.0.
+
+Restoring without internet access
+---------------------------------
+Restore is the only step that needs a package feed. Nineteen packages in total (five direct,
+fourteen transitive counting both System.IO.Packaging versions) have to be reachable from the
+consumer's feed; after that DocToolkit itself makes no network calls at all. Every package above
+is a plain managed assembly - none of them carry a native runtime payload or a post-restore
+download step, so a mirrored feed is sufficient and nothing phones home at build or run time.
 
 The full MIT licence text for DocToolkit itself is reproduced in the LICENSE file shipped
 with this package. Each dependency above carries its own licence, reproduced by reference
