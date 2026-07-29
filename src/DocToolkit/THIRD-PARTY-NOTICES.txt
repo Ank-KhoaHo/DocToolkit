@@ -1,1 +1,55 @@
-DocToolkit bundles the following third-party packages. Full notices are added in Task 9.
+DocToolkit third-party notices
+==============================
+
+DocToolkit depends on the following packages. All are permissively licensed and free for
+commercial use. Each is redistributed as a transitive NuGet dependency, not vendored.
+
+Direct dependencies
+--------------------
+1. DocumentFormat.OpenXml - MIT License
+   Copyright (c) Microsoft Corporation
+   https://github.com/dotnet/Open-XML-SDK
+
+2. HtmlToOpenXml.dll - MIT License
+   Copyright (c) Olivier Nizet
+   https://github.com/onizet/html2openxml
+
+3. OfficeIMO.Word.Pdf (and OfficeIMO.Word, .Pdf, .Drawing, .Security) - MIT License
+   Copyright (c) Przemyslaw Klys / Evotec
+   https://github.com/EvotecIT/OfficeIMO
+
+4. ClosedXML - MIT License
+   Copyright (c) ClosedXML contributors
+   https://github.com/ClosedXML/ClosedXML
+
+Transitive dependencies (verified against the resolved dependency graph)
+--------------------------------------------------------------------------
+- AngleSharp - MIT License - https://github.com/AngleSharp/AngleSharp
+- BouncyCastle.Cryptography - MIT License - https://github.com/bcgit/bc-csharp
+- ClosedXML.Parser - MIT License - https://github.com/ClosedXML/ClosedXML.Parser
+- DocumentFormat.OpenXml.Framework - MIT License - https://github.com/dotnet/Open-XML-SDK
+- ExcelNumberFormat - MIT License
+- Microsoft.Extensions.Logging.Abstractions - MIT License - https://github.com/dotnet/runtime
+- OfficeIMO.Drawing - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Pdf - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Security - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Word - MIT License - https://github.com/EvotecIT/OfficeIMO
+- RBush.Signed - MIT License - https://github.com/viceroypenguin/RBush
+- SixLabors.Fonts - Apache License 2.0 - https://github.com/SixLabors/Fonts
+- System.IO.Packaging - MIT License - https://github.com/dotnet/runtime
+
+The full MIT licence text for DocToolkit itself is reproduced in the LICENSE file shipped
+with this package. Each dependency above carries its own licence, reproduced by reference
+via its NuGet package metadata (licence expression MIT or Apache-2.0).
+
+DELIBERATELY EXCLUDED
+---------------------
+The following are commonly used for these tasks but are NOT free for commercial use and
+must never be added: EPPlus >= 5 (Polyform Noncommercial), NPOI >= 2.8.0 (paid maintenance
+fee for revenue-generating users), Spire.* (feature-capped free editions),
+Syncfusion.* and QuestPDF (revenue-gated community licences), IronPDF (commercial).
+
+ShapeCrawler was evaluated for PPTX support and removed before release: it pulled in
+SkiaSharp and Magick.NET-Q16-AnyCPU, adding native .so/.dylib binaries and a large
+runtimes/ payload that broke this package's pure-managed, no-native-binaries premise.
+PPTX support is implemented directly on DocumentFormat.OpenXml instead.
