@@ -85,4 +85,81 @@ public class PresentationEditorTests
         Assert.Contains(texts, t => t.Contains("Hello world"));
         Assert.DoesNotContain(texts, t => t.Contains("{{who}}"));
     }
+
+    // -----------------------------------------------------------------------------------------
+    // Formatting (Blocker 3): the old merge wrote the whole paragraph onto run 0.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReplaceText_DoesNotImposeTheFirstRunsFormattingOnTheParagraph()
+    {
+        var deck = PptxFixtures.SampleWithRuns(("Bold ", true), ("plain {{x}} tail", false));
+
+        var edited = PresentationEditor.ReplaceText(deck,
+            new Dictionary<string, string> { ["{{x}}"] = "VALUE" });
+
+        Assert.Equal(
+            new[] { ("Bold ", true), ("plain VALUE tail", false) },
+            PptxFixtures.RunsOfFirstSlide(edited));
+    }
+
+    [Fact]
+    public void ReplaceText_KeepsTheReplacementInTheRunThatOwnsTheMatchStart()
+    {
+        var deck = PptxFixtures.SampleWithRuns(("{{na", true), ("me}} tail", false));
+
+        var edited = PresentationEditor.ReplaceText(deck,
+            new Dictionary<string, string> { ["{{name}}"] = "VALUE" });
+
+        Assert.Equal(
+            new[] { ("VALUE", true), (" tail", false) },
+            PptxFixtures.RunsOfFirstSlide(edited));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Deck order (I-4): SlideParts is part-relationship order, not the order PowerPoint shows.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ExtractText_ReturnsSlidesInDeckOrderNotPartOrder()
+    {
+        // Parts created as 1,2,3,4; p:sldIdLst then reversed, so the deck reads 4,3,2,1.
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3", "Slide 4" }, reverseDeckOrder: true);
+
+        Assert.Equal(4, PresentationEditor.SlideCount(deck));
+        Assert.Equal(
+            new[] { "Slide 4", "Slide 3", "Slide 2", "Slide 1" },
+            PresentationEditor.ExtractText(deck));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // I-5: ExtractText walked only p:sp while ReplaceText walked every a:p, so ReplaceText could
+    // change text ExtractText never reported.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ExtractText_ReportsTableCellTextThatReplaceTextCanReach()
+    {
+        var deck = PptxFixtures.SampleWithTableCell("Cell {{t}}");
+        Assert.Empty(PptxFixtures.Validate(deck));
+
+        Assert.Contains(PresentationEditor.ExtractText(deck), t => t.Contains("Cell {{t}}"));
+
+        var edited = PresentationEditor.ReplaceText(deck,
+            new Dictionary<string, string> { ["{{t}}"] = "filled" });
+
+        Assert.Contains(PresentationEditor.ExtractText(edited), t => t.Contains("Cell filled"));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Error handling (I-6).
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ExtractText_WrapsCorruptInputInDocumentConversionException()
+    {
+        Assert.Throws<DocumentConversionException>(
+            () => PresentationEditor.ExtractText(new byte[] { 1, 2, 3, 4, 5 }));
+    }
 }
