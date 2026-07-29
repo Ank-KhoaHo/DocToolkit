@@ -1,0 +1,85 @@
+DocToolkit third-party notices
+==============================
+
+DocToolkit depends on the following packages. All are permissively licensed and free for
+commercial use. Each is redistributed as a transitive NuGet dependency, not vendored.
+
+Direct dependencies
+--------------------
+1. DocumentFormat.OpenXml - MIT License
+   Copyright (c) Microsoft Corporation
+   https://github.com/dotnet/Open-XML-SDK
+
+2. HtmlToOpenXml.dll - MIT License
+   Copyright (c) Olivier Nizet
+   https://github.com/onizet/html2openxml
+
+3. OfficeIMO.Word.Pdf (and OfficeIMO.Word, .Pdf, .Drawing, .Security) - MIT License
+   Copyright (c) Przemyslaw Klys / Evotec
+   https://github.com/EvotecIT/OfficeIMO
+
+4. ClosedXML - MIT License
+   Copyright (c) ClosedXML contributors
+   https://github.com/ClosedXML/ClosedXML
+
+5. SixLabors.Fonts - Apache License 2.0 - PINNED TO [1.0.0]
+   Copyright (c) Six Labors
+   https://github.com/SixLabors/Fonts
+
+   Referenced directly only in order to pin it. It arrives transitively through
+   OfficeIMO.Word, which requests the range [1.0.0, 3.0.0). Version 1.x is Apache-2.0;
+   version 2.x and later moved to the Six Labors Split License 1.0, which grants Apache-2.0
+   terms only to organisations under 1,000,000 USD annual gross revenue and requires a
+   commercial licence above that. Allowing NuGet to float this reference to 2.x would move
+   DocToolkit off permissive licensing without anyone noticing, so DocToolkit.csproj uses the
+   exact-version bracket [1.0.0] and DependencyGuardTests asserts the loaded assembly is 1.x.
+
+   If this pin ever has to be lifted - for instance because a future OfficeIMO release
+   requires 2.x - the licence change must be surfaced to consumers here first.
+
+Transitive dependencies (verified against the resolved dependency graph)
+--------------------------------------------------------------------------
+Resolved versions are listed because an offline or air-gapped consumer has to mirror this exact
+closure onto their own feed - see "Restoring without internet access" below.
+
+- AngleSharp 1.5.0 - MIT License - https://github.com/AngleSharp/AngleSharp
+- BouncyCastle.Cryptography 2.6.2 - MIT License - https://github.com/bcgit/bc-csharp
+- ClosedXML.Parser 2.0.0 - MIT License - https://github.com/ClosedXML/ClosedXML.Parser
+- DocumentFormat.OpenXml.Framework 3.5.1 - MIT License - https://github.com/dotnet/Open-XML-SDK
+- ExcelNumberFormat 1.1.0 - MIT License
+- Microsoft.Extensions.Logging.Abstractions 6.0.0 - MIT License - https://github.com/dotnet/runtime
+- OfficeIMO.Drawing 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Pdf 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Security 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Word 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
+- RBush.Signed 4.0.0 - MIT License - https://github.com/viceroypenguin/RBush
+- SixLabors.Fonts 1.0.0 - Apache License 2.0 - see the pinning note under direct dependencies
+- System.IO.Packaging - MIT License - https://github.com/dotnet/runtime
+  Resolves to 8.0.1 on net8.0 and 10.0.2 on net10.0. Both are needed if you build for both.
+
+The direct dependencies resolve as: ClosedXML 0.105.1, DocumentFormat.OpenXml 3.5.1,
+HtmlToOpenXml.dll 3.5.0, OfficeIMO.Word.Pdf 3.0.3, SixLabors.Fonts 1.0.0.
+
+Restoring without internet access
+---------------------------------
+Restore is the only step that needs a package feed. Nineteen packages in total (five direct,
+fourteen transitive counting both System.IO.Packaging versions) have to be reachable from the
+consumer's feed; after that DocToolkit itself makes no network calls at all. Every package above
+is a plain managed assembly - none of them carry a native runtime payload or a post-restore
+download step, so a mirrored feed is sufficient and nothing phones home at build or run time.
+
+The full MIT licence text for DocToolkit itself is reproduced in the LICENSE file shipped
+with this package. Each dependency above carries its own licence, reproduced by reference
+via its NuGet package metadata (licence expression MIT or Apache-2.0).
+
+DELIBERATELY EXCLUDED
+---------------------
+The following are commonly used for these tasks but are NOT free for commercial use and
+must never be added: EPPlus >= 5 (Polyform Noncommercial), NPOI >= 2.8.0 (paid maintenance
+fee for revenue-generating users), Spire.* (feature-capped free editions),
+Syncfusion.* and QuestPDF (revenue-gated community licences), IronPDF (commercial).
+
+ShapeCrawler was evaluated for PPTX support and removed before release: it pulled in
+SkiaSharp and Magick.NET-Q16-AnyCPU, adding native .so/.dylib binaries and a large
+runtimes/ payload that broke this package's pure-managed, no-native-binaries premise.
+PPTX support is implemented directly on DocumentFormat.OpenXml instead.

@@ -1,0 +1,14 @@
+# Verifies the whole stack really is Linux-safe with no native dependencies.
+# Build context is implementation/dotnet-doc-libs/
+# SDK 10 is required: the projects multi-target net8.0;net10.0, and the 8.0 SDK
+# cannot build a net10.0 target (fails restore with NETSDK1045). The 10.0 SDK
+# builds both, so this image covers the full matrix.
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+WORKDIR /src
+COPY DocToolkit.sln ./
+COPY src/ ./src/
+COPY tests/ ./tests/
+
+RUN dotnet restore DocToolkit.sln
+CMD ["dotnet", "test", "DocToolkit.sln", "--logger", "console;verbosity=normal"]

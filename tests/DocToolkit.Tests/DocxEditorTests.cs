@@ -1,0 +1,218 @@
+using DocumentFormat.OpenXml.Wordprocessing;
+using DocToolkit;
+using Xunit;
+using static DocToolkit.Tests.DocxFixtures;
+
+namespace DocToolkit.Tests;
+
+public class DocxEditorTests
+{
+    private static Dictionary<string, string> Map(string key, string value) => new() { [key] = value };
+
+    [Fact]
+    public async Task ReplaceText_SubstitutesPlaceholders()
+    {
+        var docx = await HtmlToDocxConverter.ConvertAsync(
+            "<p>Dear {{name}}, your balance is {{balance}}.</p>");
+
+        var edited = DocxEditor.ReplaceText(docx, new Dictionary<string, string>
+        {
+            ["{{name}}"] = "Contoso Ltd",
+            ["{{balance}}"] = "4,250.00",
+        });
+
+        var text = DocxEditor.ExtractText(edited);
+        Assert.Contains("Contoso Ltd", text);
+        Assert.Contains("4,250.00", text);
+        Assert.DoesNotContain("{{name}}", text);
+        Assert.DoesNotContain("{{balance}}", text);
+    }
+
+    [Fact]
+    public async Task ReplaceText_LeavesTheDocumentOpenable()
+    {
+        var docx = await HtmlToDocxConverter.ConvertAsync("<p>Hello {{who}}</p>");
+
+        var edited = DocxEditor.ReplaceText(docx,
+            new Dictionary<string, string> { ["{{who}}"] = "world" });
+
+        // Still a valid package, and still renders.
+        Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, edited.Take(4).ToArray());
+        Assert.Contains("world", PdfProbe.ExtractText(DocxToPdfConverter.Convert(edited)));
+    }
+
+    [Fact]
+    public async Task ExtractText_ReturnsDocumentText()
+    {
+        var docx = await HtmlToDocxConverter.ConvertAsync("<h1>Title</h1><p>Body copy.</p>");
+        var text = DocxEditor.ExtractText(docx);
+
+        Assert.Contains("Title", text);
+        Assert.Contains("Body copy.", text);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Split runs. HtmlToOpenXml emits one w:t per paragraph, so the fixtures above can never
+    // reach the multi-run path - the whole reason DocxEditor does not just call Replace per run.
+    // These build the runs by hand instead.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReplaceText_SubstitutesPlaceholderSplitAcrossThreeRuns()
+    {
+        // "Dear {{name}}, hi" laid out as three w:t runs with the placeholder straddling both
+        // boundaries - exactly what Word produces after an edit inside a word.
+        var docx = Build(P(R("Dear {{na"), R("m"), R("e}}, hi")));
+
+        var edited = DocxEditor.ReplaceText(docx, Map("{{name}}", "Contoso Ltd"));
+
+        var paragraph = ReadBody(edited, b => b.Descendants<Paragraph>().First());
+        Assert.Equal("Dear Contoso Ltd, hi", OwnText(paragraph));
+    }
+
+    [Fact]
+    public void ReplaceText_KeepsTheReplacementInTheRunThatOwnsTheMatchStart()
+    {
+        // Documented contract: the value lands in the run holding the first matched character,
+        // and every run the match spans keeps whatever text the match did not cover.
+        var docx = Build(P(R("{{na"), R("me}} tail")));
+
+        var edited = DocxEditor.ReplaceText(docx, Map("{{name}}", "VALUE"));
+
+        var runs = ReadBody(edited, b => OwnRunTexts(b.Descendants<Paragraph>().First()));
+        Assert.Equal(new[] { "VALUE", " tail" }, runs);
+    }
+
+    [Fact]
+    public void ReplaceText_DoesNotImposeTheFirstRunsFormattingOnTheParagraph()
+    {
+        // Blocker 3: collapsing every run onto run 0 turned the whole paragraph bold.
+        var docx = Build(P(R("Bold ", bold: true), R("plain {{x}} tail")));
+
+        var edited = DocxEditor.ReplaceText(docx, Map("{{x}}", "VALUE"));
+
+        var runs = ReadBody(edited, b => b.Descendants<Paragraph>().First()
+            .Elements<Run>()
+            .Select(r => (Text: string.Concat(r.Elements<Text>().Select(t => t.Text)),
+                          Bold: r.RunProperties?.Bold is not null))
+            .ToArray());
+
+        Assert.Equal(2, runs.Length);
+        Assert.Equal(("Bold ", true), runs[0]);
+        Assert.Equal(("plain VALUE tail", false), runs[1]);
+    }
+
+    [Fact]
+    public void ReplaceText_LeavesHyperlinksIntact()
+    {
+        // w:hyperlink is a sibling of w:r under w:p, so the old merge swallowed its runs and left
+        // a dead, invisible link behind.
+        var docx = Build(P(
+            R("See {{doc}} at "),
+            new Hyperlink(R("example site")) { Anchor = "top" },
+            R(" now")));
+
+        var edited = DocxEditor.ReplaceText(docx, Map("{{doc}}", "the spec"));
+
+        var (linkText, paragraphText) = ReadBody(edited, b =>
+        {
+            var paragraph = b.Descendants<Paragraph>().First();
+            return (paragraph.Descendants<Hyperlink>().Single().InnerText, OwnText(paragraph));
+        });
+
+        Assert.Equal("example site", linkText);
+        Assert.Equal("See the spec at example site now", paragraphText);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Text boxes (Blocker 1). w:txbxContent nests a whole w:p inside a run of the outer w:p, so
+    // paragraph.Descendants<Text>() reaches into it and the merge hoisted the text box's content
+    // into the outer paragraph.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReplaceText_LeavesAnUnrelatedTextBoxByteIdentical()
+    {
+        var docx = Build(P(R("Outer {{a}} end"), TextBoxRun("Confidential sidebar")));
+        var before = ReadBody(docx, b => b.Descendants<TextBoxContent>().Single().OuterXml);
+
+        var edited = DocxEditor.ReplaceText(docx, Map("{{a}}", "X"));
+
+        var after = ReadBody(edited, b => b.Descendants<TextBoxContent>().Single().OuterXml);
+        Assert.Equal(before, after);
+
+        var outer = ReadBody(edited, b => OwnText(b.Descendants<Paragraph>().First()));
+        Assert.Equal("Outer X end", outer);
+    }
+
+    [Fact]
+    public void ReplaceText_SubstitutesInsideATextBox()
+    {
+        var docx = Build(P(R("Outer text"), TextBoxRun("Sidebar {{b}}")));
+
+        var edited = DocxEditor.ReplaceText(docx, Map("{{b}}", "Y"));
+
+        Assert.Equal("Sidebar Y", ReadBody(edited, b => b.Descendants<TextBoxContent>().Single().InnerText));
+        Assert.Equal("Outer text", ReadBody(edited, b => OwnText(b.Descendants<Paragraph>().First())));
+        Assert.Empty(Validate(edited));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Headers and footers (Blocker 4).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReplaceText_SubstitutesInHeadersAndFooters()
+    {
+        var docx = Build("Header {{h}}", "Footer {{f}}", P(R("Body {{b}}")));
+
+        var edited = DocxEditor.ReplaceText(docx, new Dictionary<string, string>
+        {
+            ["{{h}}"] = "H-VALUE",
+            ["{{f}}"] = "F-VALUE",
+            ["{{b}}"] = "B-VALUE",
+        });
+
+        var (header, footer, body) = Read(edited, main => (
+            main.HeaderParts.Single().Header!.InnerText,
+            main.FooterParts.Single().Footer!.InnerText,
+            main.Document!.Body!.InnerText));
+
+        Assert.Equal("Header H-VALUE", header);
+        Assert.Equal("Footer F-VALUE", footer);
+        Assert.Contains("Body B-VALUE", body);
+    }
+
+    [Fact]
+    public void ExtractText_OmitsHeadersAndFootersByDefaultAndIncludesThemOnRequest()
+    {
+        var docx = Build("Page header", "Page footer", P(R("Body copy.")));
+
+        var bodyOnly = DocxEditor.ExtractText(docx);
+        Assert.Contains("Body copy.", bodyOnly);
+        Assert.DoesNotContain("Page header", bodyOnly);
+        Assert.DoesNotContain("Page footer", bodyOnly);
+
+        var everything = DocxEditor.ExtractText(docx, includeHeadersAndFooters: true);
+        Assert.Contains("Body copy.", everything);
+        Assert.Contains("Page header", everything);
+        Assert.Contains("Page footer", everything);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Error handling (I-6).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ExtractText_WrapsCorruptInputInDocumentConversionException()
+    {
+        Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.ExtractText(new byte[] { 1, 2, 3, 4, 5 }));
+    }
+
+    [Fact]
+    public void ExtractText_RejectsEmptyInput()
+    {
+        Assert.Throws<ArgumentException>(() => DocxEditor.ExtractText(Array.Empty<byte>()));
+    }
+}

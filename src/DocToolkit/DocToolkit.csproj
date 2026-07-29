@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- NuGet package identity -->
+  <PropertyGroup>
+    <PackageId>DocToolkit</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Khoa Ho</Authors>
+    <Description>
+      Convert HTML to DOCX and PDF, and open/edit DOCX, XLSX and PPTX - pure managed,
+      no native binaries, no browser, no LibreOffice. Runs on Linux.
+    </Description>
+    <PackageTags>docx;pdf;xlsx;pptx;html;openxml;document;conversion</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts</PackageOutputPath>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageReference Include="HtmlToOpenXml.dll" Version="3.5.0" />
+    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.0.3" />
+
+    <!--
+      Pinned deliberately, not incidentally. OfficeIMO.Word asks for SixLabors.Fonts
+      [1.0.0, 3.0.0), and 1.x is Apache-2.0 while 2.x moved to the Six Labors Split License 1.0 -
+      Apache-2.0 only below $1M annual revenue, commercial above. Letting NuGet float to 2.x
+      would silently move this package off permissive licensing, which is its whole reason to
+      exist. The exact-version bracket keeps that from happening quietly; see
+      THIRD-PARTY-NOTICES.txt and the DependencyGuardTests guard.
+    -->
+    <PackageReference Include="SixLabors.Fonts" Version="[1.0.0]" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
