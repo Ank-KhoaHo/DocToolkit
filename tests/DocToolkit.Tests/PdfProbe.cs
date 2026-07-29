@@ -17,11 +17,19 @@ public static class PdfProbe
     private static readonly Regex HexText = new(@"<([0-9A-Fa-f]+)>\s*Tj", RegexOptions.Compiled);
 
     // A dictionary that may contain up to one level of nested "<< ... >>" (e.g. a Catalog's
-    // /Names dictionary, or a Page's /Resources dictionary). This is not a full PDF parser -
-    // it doesn't handle arbitrarily deep nesting - but it's enough to keep a match from
-    // spilling out of the dictionary it started in and into an unrelated neighboring object,
-    // which a plain non-greedy ".*?" (as the old implementation used) does not guard against.
-    private const string DictBody = @"<<(?:[^<>]|<<[^<>]*>>)*>>";
+    // /Names dictionary, or a Page's /Resources dictionary), and/or single-angle-bracket hex
+    // string tokens (e.g. a trailer's "/ID [<HEX> <HEX>]"). This is not a full PDF parser - it
+    // doesn't handle arbitrarily deep nesting - but it's enough to keep a match from spilling
+    // out of the dictionary it started in and into an unrelated neighboring object, which a
+    // plain non-greedy ".*?" (as the old implementation used) does not guard against.
+    //
+    // The "<[0-9A-Fa-f]*>" branch matters in practice: every real trailer PdfProbe has been
+    // pointed at (OfficeIMO's writer, at minimum) emits "/ID [<HEX> <HEX>]" in the trailer
+    // dictionary. Without this branch, TrailerDict below fails to match ANY real trailer, so
+    // TryPageCountViaCatalog silently returns null on every real PDF and PageCount always falls
+    // through to the max-/Count scan - the "preferred" catalog-resolution path documented below
+    // was dead code on real input until this branch was added.
+    private const string DictBody = @"<<(?:[^<>]|<<[^<>]*>>|<[0-9A-Fa-f]*>)*>>";
     private static readonly Regex TrailerDict = new(@"trailer\s*(" + DictBody + ")",
                                                      RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex RootRef = new(@"/Root\s+(\d+)\s+\d+\s+R", RegexOptions.Compiled);
@@ -29,12 +37,22 @@ public static class PdfProbe
     private static readonly Regex TypeIsPages = new(@"/Type\s*/Pages\b", RegexOptions.Compiled);
     private static readonly Regex CountField = new(@"/Count\s+(\d+)", RegexOptions.Compiled);
     private static readonly Regex AnyDict = new(DictBody, RegexOptions.Compiled | RegexOptions.Singleline);
+    // Matches every "<objNum> <gen> obj << ... >>" in the document in one pass; FindObjectDict
+    // below filters the pre-computed matches by object number instead of building a fresh,
+    // uncompiled Regex per call via string interpolation (as the old implementation did), so
+    // it's consistent with every other pattern in this class being a precompiled static field.
+    private static readonly Regex ObjectDict = new(@"\b(\d+)\s+\d+\s+obj\s*(" + DictBody + ")",
+                                                     RegexOptions.Compiled | RegexOptions.Singleline);
     // Matches the identity-scale text matrix "a b c d e f Tm" where a=d=1, b=c=0 - i.e. plain
     // translation, no rotation/scale - tolerating both OfficeIMO's integer form ("1 0 0 1 ...")
     // and a decimal form ("1.000000 0.000000 0.000000 1.000000 ..."). Deliberately does NOT
     // match rotated/scaled matrices (different a/b/c/d), so it stays as selective as before.
+    // The leading "(?<![-\d.])" anchors the match so it can't start partway through a larger
+    // number - without it, "21 0 0 1 x y Tm" would false-match the substring "1 0 0 1 x y Tm"
+    // (starting at the second digit of "21") and report a bogus Y position.
     private static readonly Regex TextMatrix =
-        new(@"1(?:\.0+)? 0(?:\.0+)? 0(?:\.0+)? 1(?:\.0+)? [-\d.]+ ([-\d.]+) Tm", RegexOptions.Compiled);
+        new(@"(?<![-\d.])1(?:\.0+)? 0(?:\.0+)? 0(?:\.0+)? 1(?:\.0+)? [-\d.]+ ([-\d.]+) Tm",
+            RegexOptions.Compiled);
 
     // The PDF simple fonts OfficeIMO declares here use /Encoding /WinAnsiEncoding (WinAnsi is
     // ~= Windows-1252). For byte values 0x20-0x7E and 0xA0-0xFF, WinAnsi and Latin-1 agree, so
@@ -127,9 +145,11 @@ public static class PdfProbe
     /// <summary>Finds "&lt;objNum&gt; &lt;gen&gt; obj &lt;&lt; ... &gt;&gt;" and returns the dictionary body.</summary>
     private static string? FindObjectDict(string raw, string objNum)
     {
-        var m = Regex.Match(raw, @"\b" + objNum + @"\s+\d+\s+obj\s*(" + DictBody + ")",
-                             RegexOptions.Singleline);
-        return m.Success ? m.Groups[1].Value : null;
+        foreach (Match m in ObjectDict.Matches(raw))
+        {
+            if (m.Groups[1].Value == objNum) return m.Groups[2].Value;
+        }
+        return null;
     }
 
     /// <summary>Y coordinate of every text-positioning operator. Negative values are drawn off-page.</summary>

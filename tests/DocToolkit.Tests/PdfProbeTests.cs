@@ -93,6 +93,45 @@ public class PdfProbeTests
     }
 
     [Fact]
+    public void PageCount_OnRealSinglePagePdf_ReturnsTheDocumentTotal()
+    {
+        // result.pdf is a genuine 1-page OfficeIMO-generated PDF (ground truth). This is the
+        // Finding-D coverage gap: nothing previously asserted PageCount against the single-page
+        // fixture, only the 5-page one.
+        Assert.Equal(1, PdfProbe.PageCount(File.ReadAllBytes(ResultPdfPath)));
+    }
+
+    [Fact]
+    public void PageCount_ViaCatalog_WinsOverMaxCountFallback_OnRealisticIdBearingTrailer()
+    {
+        // Finding A: every real fixture PDF (result.pdf, big.pdf) has a trailer of the shape
+        // "trailer << /Size N /Root R 0 R /Info I 0 R /ID [<HEX> <HEX>] >>" - a single-angle-
+        // bracket hex-string token that the old DictBody alternation (only "[^<>]" or one level
+        // of nested "<<...>>") cannot consume, so TrailerDict never matches on real PDFs and
+        // TryPageCountViaCatalog always returns null there, silently falling back to the
+        // max-/Count scan for every real document today.
+        //
+        // Both real fixtures happen to have exactly one /Type /Pages node, so the fallback
+        // gives the same (correct) answer as the catalog chain would - that alone doesn't prove
+        // the catalog path runs. This fixture instead has an /ID-bearing trailer (like the real
+        // ones) AND two /Type /Pages nodes with DIFFERENT /Count values: the one the catalog
+        // actually points to (/Count 3) and an unrelated orphan node with a higher count
+        // (/Count 99) that no live Catalog references. The fallback max-scan cannot tell these
+        // apart and would report 99; only genuinely resolving trailer -> /Root -> Catalog ->
+        // /Pages yields the correct 3. A test that passed under both mechanisms would prove
+        // nothing here.
+        var pdf = System.Text.Encoding.Latin1.GetBytes(
+            "%PDF-1.4\n" +
+            "1 0 obj\n<< /Type /Pages /Kids [ 2 0 R 3 0 R 4 0 R ] /Count 3 >>\nendobj\n" +
+            "5 0 obj\n<< /Type /Pages /Kids [ 6 0 R ] /Count 99 >>\nendobj\n" +
+            "17 0 obj\n<< /Type /Catalog /Pages 1 0 R >>\nendobj\n" +
+            "trailer\n<< /Size 18 /Root 17 0 R /ID [<BD81DB1E0BDC5C195FB28E64E5D337E9> " +
+            "<BD81DB1E0BDC5C195FB28E64E5D337E9>] >>\n");
+
+        Assert.Equal(3, PdfProbe.PageCount(pdf));
+    }
+
+    [Fact]
     public void IsPdf_ChecksTheHeaderMagic()
     {
         Assert.True(PdfProbe.IsPdf(System.Text.Encoding.Latin1.GetBytes("%PDF-1.4\n")));
@@ -113,6 +152,23 @@ public class PdfProbeTests
         var positions = PdfProbe.TextYPositions(pdf);
 
         Assert.Equal(new[] { 685.64, 700.00 }, positions);
+    }
+
+    [Fact]
+    public void TextYPositions_DoesNotFalseMatchInsideALargerLeadingNumber()
+    {
+        // Finding B: TextMatrix was unanchored, so "1 0 0 1 x y Tm" could match starting
+        // partway through an unrelated larger number - e.g. inside "21 0 0 1 72 685.64 Tm" it
+        // would match the substring "1 0 0 1 72 685.64 Tm" (starting at the second digit of
+        // "21") and report a bogus Y position of 685.64 that doesn't correspond to any real
+        // identity-scale text-positioning operator. TextYPositions is load-bearing for later
+        // "nothing drawn off-page" assertions, so a spurious value here could mask a real defect.
+        var pdf = System.Text.Encoding.Latin1.GetBytes(
+            "%PDF-1.4\nBT\n21 0 0 1 72 685.64 Tm\n<41> Tj\n1 0 0 1 72 700 Tm\n<42> Tj\nET\n");
+
+        var positions = PdfProbe.TextYPositions(pdf);
+
+        Assert.Equal(new[] { 700.0 }, positions);
     }
 
     [Fact]
