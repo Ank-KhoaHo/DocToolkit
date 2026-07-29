@@ -180,12 +180,24 @@ jobs:
       # ---- the irreversible bit ----
       # The temporary key is valid for ONE hour, so it is requested here - after
       # every check has passed - rather than at the top of the job.
+      #
+      # This runs on dry runs TOO, deliberately: it is the only way to prove the
+      # Trusted Publishing policy actually works without publishing. A dry run
+      # that skipped it would pass while the policy was misconfigured, and the
+      # failure would surface on the one run that cannot be undone.
       - name: NuGet login (OIDC exchange for a short-lived key)
-        if: steps.v.outputs.publish == 'true'
         id: login
         uses: NuGet/login@v1
         with:
           user: ${{ secrets.NUGET_USER || vars.NUGET_USER }}
+
+      - name: Confirm the OIDC exchange produced a key
+        run: |
+          if [ -z "${{ steps.login.outputs.NUGET_API_KEY }}" ]; then
+            echo "::error::OIDC exchange returned no key. Check: (a) permissions.id-token is 'write', (b) the nuget.org Trusted Publishing policy names owner '${{ github.repository_owner }}', repo '${{ github.event.repository.name }}' and workflow file 'release.yml', (c) NUGET_USER is your nuget.org profile name, not an email."
+            exit 1
+          fi
+          echo "Trusted Publishing OK - short-lived key obtained (valid 1 hour)"
 
       - name: Push to nuget.org
         if: steps.v.outputs.publish == 'true'
@@ -222,7 +234,7 @@ jobs:
             if [ "${{ steps.v.outputs.publish }}" = "true" ]; then
               echo "Published to nuget.org. Availability in search can lag by a few minutes."
             else
-              echo "**Dry run** - packed and verified, nothing pushed."
+              echo "**Dry run** - packed and verified, Trusted Publishing proven, nothing pushed."
             fi
             echo ""
             echo "- prerelease: ${{ steps.v.outputs.prerelease }}"
