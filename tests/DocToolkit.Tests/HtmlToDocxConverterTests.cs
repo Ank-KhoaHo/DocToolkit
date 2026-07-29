@@ -115,21 +115,25 @@ public class HtmlToDocxConverterTests
     {
         using var probe = new LoopbackProbe();
 
-        try
+        // Gated: HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient and
+        // mutates its headers per request, and this is no longer the only opt-in test in the suite.
+        await RemoteDownloadGate.RunAsync(async () =>
         {
-            await HtmlToDocxConverter.ConvertAsync(
-                $"""<p>Report <img src="{probe.Url}" alt="logo" /></p>""",
-                allowRemoteImageDownload: true);
-        }
-        catch (DocumentConversionException)
-        {
-            // HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient and
-            // mutates its headers per request, so concurrent conversions elsewhere in the suite
-            // can make the download itself blow up (NullReferenceException inside
-            // HttpConnection.WriteHeaderCollection). What is under test here is that the opt-in
-            // flag reaches the image processing mode at all - the outbound connection below
-            // proves that either way, and it is one more reason the default is no-network.
-        }
+            try
+            {
+                await HtmlToDocxConverter.ConvertAsync(
+                    $"""<p>Report <img src="{probe.Url}" alt="logo" /></p>""",
+                    allowRemoteImageDownload: true);
+            }
+            catch (DocumentConversionException)
+            {
+                // Even gated, the download can blow up (NullReferenceException inside
+                // HttpConnection.WriteHeaderCollection). What is under test here is that the
+                // opt-in flag reaches the image processing mode at all - the outbound connection
+                // below proves that either way, and it is one more reason the default is
+                // no-network.
+            }
+        });
 
         Assert.True(await probe.WasContactedAsync(),
             "The opt-in flag did not reach HtmlToOpenXml's image processing mode.");
