@@ -120,7 +120,7 @@ is pinned at **6.0.0** by OfficeIMO; the package is **`RBush.Signed`**, not `RBu
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 99 tests x 2 target frameworks
+dotnet test  DocToolkit.sln -c Release      # 182 tests x 2 target frameworks
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 ```
 
@@ -174,7 +174,7 @@ version, and leave *publish* unticked. It packs and verifies without pushing any
 
 ```
 src/DocToolkit/      the library
-tests/               99 tests, including the air-gap and dependency guards
+tests/               182 tests, including Stream-overload proofs and the air-gap/dependency guards
 spike/               the original proof-of-concept, kept as reference
 docs/                the implementation plan this was built from
 ```

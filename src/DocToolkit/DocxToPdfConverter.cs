@@ -25,7 +25,7 @@ public static class DocxToPdfConverter
         }
         catch (Exception ex)
         {
-            throw new DocumentConversionException("Failed to render DOCX to PDF.", ex);
+            throw new DocumentConversionException(FailureMessage, ex);
         }
     }
 
@@ -36,4 +36,79 @@ public static class DocxToPdfConverter
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         File.WriteAllBytes(outputPath, Convert(File.ReadAllBytes(inputPath)));
     }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and writes the rendered PDF to
+    /// <paramref name="destination"/>.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed or closed, and <paramref name="destination"/> is never
+    /// sought or read back, so both may be sockets, files or HTTP message bodies. Neither has to be
+    /// seekable.
+    ///
+    /// The PDF is written straight through to <paramref name="destination"/> as the renderer
+    /// produces it rather than being assembled into an array first, so a large document is
+    /// delivered without ever existing in full in memory. The consequence of streaming is that a
+    /// failure part-way through leaves whatever had already been produced on
+    /// <paramref name="destination"/>.
+    ///
+    /// <b>No network access, and safe in an air-gapped environment</b>, as for
+    /// <see cref="Convert(byte[])"/>.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="destination">The stream the PDF is written to.</param>
+    /// <param name="ct">Cancels the read, the render and the write.</param>
+    /// <exception cref="ArgumentNullException">Either stream is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The DOCX could not be rendered.</exception>
+    public static async Task ConvertAsync(Stream source, Stream destination, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), FailureMessage, ct)
+            .ConfigureAwait(false);
+
+        await RenderAsync(docx, destination, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Renders an already-buffered .docx package onto <paramref name="destination"/>.
+    ///
+    /// Split out so <see cref="HtmlToPdfConverter"/> can hand over the package
+    /// <see cref="HtmlToDocxConverter"/> has just built, rather than serialising it to an array and
+    /// reading it back. <paramref name="docx"/> is a scratch buffer this library owns; it is read
+    /// from its start and left to the caller to dispose.
+    /// </summary>
+    internal static async Task RenderAsync(MemoryStream docx, Stream destination, CancellationToken ct)
+    {
+        docx.Position = 0;
+
+        try
+        {
+            // OfficeIMO opens the package read/write, which is why this takes an expandable
+            // MemoryStream rather than a read-only view over someone else's buffer.
+            using var word = WordDocument.Load(docx);
+
+            // Writes directly onto the caller's destination. OfficeIMO's writer emits the PDF in
+            // pieces as it lays it out, so nothing here ever holds the whole rendered document.
+            await word.SaveAsPdfAsync(destination, cancellationToken: ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw new DocumentConversionException(FailureMessage, ex);
+        }
+    }
+
+    private const string FailureMessage = "Failed to render DOCX to PDF.";
 }

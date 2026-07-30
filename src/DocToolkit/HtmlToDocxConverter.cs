@@ -49,7 +49,84 @@ public static class HtmlToDocxConverter
         ArgumentNullException.ThrowIfNull(html);
         ct.ThrowIfCancellationRequested();
 
-        using var ms = new MemoryStream();
+        // ToArray() is valid after the WordprocessingDocument has been disposed - the
+        // MemoryStream keeps its buffer. It does, however, allocate a second full copy of the
+        // package, which is what ConvertAsync(html, destination, ct) exists to avoid.
+        using var package = await BuildPackageAsync(html, allowRemoteImageDownload, ct).ConfigureAwait(false);
+        return package.ToArray();
+    }
+
+    /// <summary>
+    /// Converts <paramref name="html"/> and writes the .docx to <paramref name="destination"/>.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought - it belongs to the caller, and may be write-only and
+    /// forward-only, such as an HTTP response body. Remote images are not downloaded; see
+    /// <see cref="ConvertAsync(string, bool, Stream, CancellationToken)"/> to opt in.
+    ///
+    /// <b>No network access, and safe in an air-gapped environment</b>, exactly as for
+    /// <see cref="ConvertAsync(string, CancellationToken)"/>.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="destination">The stream the .docx package is written to.</param>
+    /// <param name="ct">Cancels the conversion and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted or written.</exception>
+    public static Task ConvertAsync(string html, Stream destination, CancellationToken ct = default)
+        => ConvertAsync(html, allowRemoteImageDownload: false, destination, ct);
+
+    /// <summary>
+    /// Converts <paramref name="html"/> and writes the .docx to <paramref name="destination"/>,
+    /// optionally downloading and embedding images referenced by absolute <c>http</c>/<c>https</c>
+    /// URLs.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought - it belongs to the caller, and may be write-only and
+    /// forward-only, such as an HTTP response body.
+    ///
+    /// <b>Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> will fail in an
+    /// air-gapped or otherwise offline environment</b>; see
+    /// <see cref="ConvertAsync(string, bool, CancellationToken)"/> for what that costs.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="allowRemoteImageDownload">Whether to fetch images named by absolute URLs.</param>
+    /// <param name="destination">The stream the .docx package is written to.</param>
+    /// <param name="ct">Cancels the conversion and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted or written.</exception>
+    public static async Task ConvertAsync(
+        string html, bool allowRemoteImageDownload, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var package = await BuildPackageAsync(html, allowRemoteImageDownload, ct).ConfigureAwait(false);
+        await StreamPipeline
+            .EmitAsync(package, destination, "Failed to convert HTML to DOCX.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds the .docx package into a scratch buffer, positioned at 0.
+    ///
+    /// The one place the package is actually produced, so the <c>byte[]</c> overload and the
+    /// <see cref="Stream"/> overload cannot drift apart, and so
+    /// <see cref="HtmlToPdfConverter"/> can hand the buffer straight to the renderer instead of
+    /// round-tripping it through an array on the way.
+    ///
+    /// <c>WordprocessingDocument.Create</c> needs a readable, writable, seekable stream - a ZIP's
+    /// central directory is written at the end and the writer seeks back over its own output - so
+    /// the package cannot be built directly onto a caller's forward-only destination.
+    /// </summary>
+    internal static async Task<MemoryStream> BuildPackageAsync(
+        string html, bool allowRemoteImageDownload, CancellationToken ct)
+    {
+        var ms = new MemoryStream();
         try
         {
             using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
@@ -83,13 +160,19 @@ public static class HtmlToDocxConverter
                 mainPart.Document.Save();
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
         {
+            ms.Dispose();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ms.Dispose();
             throw new DocumentConversionException("Failed to convert HTML to DOCX.", ex);
         }
 
-        // ToArray() is valid after the package is disposed - MemoryStream keeps its buffer.
-        return ms.ToArray();
+        ms.Position = 0;
+        return ms;
     }
 
     /// <summary>

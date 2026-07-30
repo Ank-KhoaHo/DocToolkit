@@ -98,16 +98,40 @@ library renders HTML to PDF directly: the only free renderers *are* browsers, an
 native binary. `HtmlToPdfConverter` composes the other two converters — keep it a composition, do
 not reimplement conversion inside it.
 
+**Every `Stream` overload follows one shape.** Parameters are `Stream source` wherever the
+`byte[]` overload took bytes, then `Stream destination`, then `CancellationToken ct = default`.
+`StreamPipeline.RequireReadable`/`RequireWritable` guard by name before anything runs;
+`StreamPipeline.DrainAsync` reads a source into a scratch `MemoryStream` (this is where the async
+in these overloads is earned — a source may be an HTTP request body, forward-only and
+non-seekable); `StreamPipeline.EmitAsync` copies a finished buffer out. **Caller-owned streams are
+never disposed, closed or sought.** `DocxToPdfConverter.ConvertAsync` is the one exception that
+writes straight through as OfficeIMO's own writer produces the PDF, rather than buffering it —
+that is deliberate (see the class's doc comment), not an inconsistency to "fix". Every `*Core`
+method (`ReplaceTextCore`, `ExtractTextCore`, `SetCellCore`, …) holds the one real implementation
+that both the `byte[]` and `Stream` overloads call, so the two can never drift apart.
+
+`StreamOverloadTests` proves these properties with purpose-built stream doubles, not
+`MemoryStream`: `ForwardOnlySource`/`ForwardOnlySink` throw on `Seek`/`Length`/`Position`, so an
+implementation that rewinds a destination or reads back what it wrote fails there instead of
+against a real socket in production. `TrackingStream` counts sync vs. async read/write calls, so a
+`byte[]` round-trip wearing a `Stream` signature gets caught rather than passing by accident. If
+you add a new `Stream` overload, add it to the name lists at the top of that file — an overload
+missing from those lists is the only way to escape the whole suite.
+
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 99 tests → 198 results.
+  report *2N* results. 182 tests → 364 results.
 - **Never replace `src/DocToolkit/DocToolkit.csproj` wholesale** — it carries the package metadata
   (`PackageId`, version, licence expression, readme, symbol package). Use `dotnet add package`,
   which edits in place.
-- Public API is **static classes, `byte[]` in / `byte[]` out**, stateless and safe to call
-  concurrently. Failures are wrapped in `DocumentConversionException`. Adding overloads is fine;
-  changing existing names or signatures is a breaking change for consumers.
+- Public API is **static classes**, stateless and safe to call concurrently, with a `byte[]`
+  overload and a `Stream` overload for every capability (see above). Failures are wrapped in
+  `DocumentConversionException`. Adding overloads is fine; changing existing names or signatures is
+  a breaking change for consumers.
+- **Async where there is real I/O, sync where the work is CPU-bound.** A `Stream` overload is
+  async because draining/emitting a stream genuinely awaits; the document-processing logic inside
+  it (OpenXml, ClosedXML) is not wrapped in `Task.Run` to look async when it isn't.
 - **Commit messages must not contain a `Co-Authored-By` trailer.**
 - The build runs with `-warnaserror` and currently has **0 warnings**. Keep it there.
 
@@ -115,7 +139,7 @@ not reimplement conversion inside it.
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 99 tests x 2 TFMs = 198 results
+dotnet test  DocToolkit.sln -c Release            # 182 tests x 2 TFMs = 364 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 
 # Linux, the way CI checks it
@@ -147,7 +171,7 @@ stored API key for CI.
 
 ```
 src/DocToolkit/   the library
-tests/            99 tests, including AirGapGuardTests and DependencyGuardTests
+tests/            182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
 spike/            original proof-of-concept, kept as reference — do not modify
 docs/             the implementation plan this was built from
 ```

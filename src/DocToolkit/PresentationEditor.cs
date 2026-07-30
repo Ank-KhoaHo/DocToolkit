@@ -15,7 +15,32 @@ public static class PresentationEditor
     public static int SlideCount(byte[] pptx)
     {
         using var ms = OpenForWrite(pptx);
+        return SlideCountCore(ms);
+    }
 
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns its slide count, counted from the
+    /// deck's slide list. <paramref name="source"/> is <b>read</b> to its end and is neither
+    /// disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<int> SlideCountAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX.", ct)
+            .ConfigureAwait(false);
+
+        return SlideCountCore(ms);
+    }
+
+    private static int SlideCountCore(MemoryStream ms)
+    {
         try
         {
             using var doc = OpenDocument(ms, false);
@@ -43,7 +68,33 @@ public static class PresentationEditor
     public static IReadOnlyList<string> ExtractText(byte[] pptx)
     {
         using var ms = OpenForWrite(pptx);
+        return ExtractTextCore(ms);
+    }
 
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns all text found on every slide, one
+    /// entry per text-bearing body, in deck order — see <see cref="ExtractText(byte[])"/> for
+    /// exactly what counts as a text-bearing body. <paramref name="source"/> is <b>read</b> to its
+    /// end and is neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ExtractTextAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX.", ct)
+            .ConfigureAwait(false);
+
+        return ExtractTextCore(ms);
+    }
+
+    private static IReadOnlyList<string> ExtractTextCore(MemoryStream ms)
+    {
         try
         {
             using var doc = OpenDocument(ms, false);
@@ -98,6 +149,49 @@ public static class PresentationEditor
         ArgumentNullException.ThrowIfNull(replacements);
 
         using var ms = OpenForWrite(pptx);
+        ReplaceTextCore(ms, replacements);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, replaces every key with its value across all
+    /// slide text, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="ReplaceText"/> for exactly what counts as a match and how formatting survives it.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="replacements">Each key is replaced by its value, longest key wins per match.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task ReplaceTextAsync(
+        Stream source, IReadOnlyDictionary<string, string> replacements, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(replacements);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX.", ct)
+            .ConfigureAwait(false);
+
+        ReplaceTextCore(ms, replacements);
+
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX.", ct).ConfigureAwait(false);
+    }
+
+    private static void ReplaceTextCore(MemoryStream ms, IReadOnlyDictionary<string, string> replacements)
+    {
         try
         {
             using (var doc = OpenDocument(ms, true))
@@ -124,8 +218,6 @@ public static class PresentationEditor
         {
             throw new DocumentConversionException("Failed to edit PPTX.", ex);
         }
-
-        return ms.ToArray();
     }
 
     /// <summary>

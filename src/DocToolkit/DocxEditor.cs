@@ -42,6 +42,51 @@ public static class DocxEditor
         ms.Write(docx, 0, docx.Length);
         ms.Position = 0;
 
+        ReplaceTextCore(ms, replacements);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, replaces every key with its value, and writes
+    /// the result to <paramref name="destination"/>. See <see cref="ReplaceText"/> for exactly what
+    /// counts as a match and how formatting survives it — this overload applies the identical logic
+    /// via <paramref name="source"/> and <paramref name="destination"/> instead of a byte array.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable, so
+    /// both may be sockets, files or HTTP message bodies.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="replacements">Each key is replaced by its value, longest key wins per match.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task ReplaceTextAsync(
+        Stream source, IReadOnlyDictionary<string, string> replacements, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(replacements);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to edit DOCX.", ct)
+            .ConfigureAwait(false);
+
+        ReplaceTextCore(docx, replacements);
+
+        await StreamPipeline.EmitAsync(docx, destination, "Failed to edit DOCX.", ct).ConfigureAwait(false);
+    }
+
+    private static void ReplaceTextCore(MemoryStream ms, IReadOnlyDictionary<string, string> replacements)
+    {
         try
         {
             using (var doc = WordprocessingDocument.Open(ms, true))
@@ -87,8 +132,6 @@ public static class DocxEditor
         {
             throw new DocumentConversionException("Failed to edit DOCX.", ex);
         }
-
-        return ms.ToArray();
     }
 
     /// <summary>
@@ -114,9 +157,51 @@ public static class DocxEditor
         if (docx.Length == 0)
             throw new ArgumentException("DOCX content was empty.", nameof(docx));
 
+        using var ms = new MemoryStream(docx, writable: false);
+        return ExtractTextCore(ms, includeHeadersAndFooters);
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and returns the plain text of its body.
+    /// Headers, footers, footnotes and endnotes are <b>not</b> included — call
+    /// <see cref="ExtractTextAsync(Stream, bool, CancellationToken)"/> for those.
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static Task<string> ExtractTextAsync(Stream source, CancellationToken ct = default)
+        => ExtractTextAsync(source, includeHeadersAndFooters: false, ct);
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and returns its plain text. When
+    /// <paramref name="includeHeadersAndFooters"/> is true the body text is followed by each header
+    /// part and then each footer part; footnotes and endnotes are never included.
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<string> ExtractTextAsync(
+        Stream source, bool includeHeadersAndFooters, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .ConfigureAwait(false);
+
+        return ExtractTextCore(docx, includeHeadersAndFooters);
+    }
+
+    private static string ExtractTextCore(Stream ms, bool includeHeadersAndFooters)
+    {
         try
         {
-            using var ms = new MemoryStream(docx, writable: false);
             using var doc = WordprocessingDocument.Open(ms, false);
 
             var main = doc.MainDocumentPart;

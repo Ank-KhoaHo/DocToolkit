@@ -20,23 +20,66 @@ public static class WorkbookEditor
     /// <exception cref="DocumentConversionException">The workbook could not be built.</exception>
     public static byte[] Create(string sheetName, IEnumerable<IEnumerable<object?>> rows)
     {
+        var materialised = ValidateRows(sheetName, rows);
+        using var ms = CreateCore(sheetName, materialised);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Builds a workbook with one sheet populated from <paramref name="rows"/> and writes it to
+    /// <paramref name="destination"/>. See <see cref="Create"/> for the exact typing and culture
+    /// rules applied to each cell — this overload applies the identical logic, writing to
+    /// <paramref name="destination"/> instead of returning an array.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought — it belongs to the caller, and may be write-only and
+    /// forward-only, such as an HTTP response body.
+    /// </summary>
+    /// <param name="sheetName">The name of the sheet to create.</param>
+    /// <param name="rows">The rows to populate it with.</param>
+    /// <param name="destination">The stream the workbook is written to.</param>
+    /// <param name="ct">Cancels the build and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="rows"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sheetName"/> is blank, a row is null, or <paramref name="destination"/> is
+    /// not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be built or written.</exception>
+    public static async Task CreateAsync(
+        string sheetName, IEnumerable<IEnumerable<object?>> rows, Stream destination,
+        CancellationToken ct = default)
+    {
+        var materialised = ValidateRows(sheetName, rows);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = CreateCore(sheetName, materialised);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to create XLSX.", ct).ConfigureAwait(false);
+    }
+
+    private static List<IEnumerable<object?>> ValidateRows(string sheetName, IEnumerable<IEnumerable<object?>> rows)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
         ArgumentNullException.ThrowIfNull(rows);
 
         // Validated up front so a null row surfaces as the ArgumentException it is rather than as
         // a NullReferenceException wrapped in a conversion failure.
-        var materialised = rows
+        return rows
             .Select((row, index) => row
                 ?? throw new ArgumentException($"Row {index + 1} was null.", nameof(rows)))
             .ToList();
+    }
 
+    private static MemoryStream CreateCore(string sheetName, List<IEnumerable<object?>> rows)
+    {
         try
         {
             using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add(sheetName);
 
             var r = 1;
-            foreach (var row in materialised)
+            foreach (var row in rows)
             {
                 var c = 1;
                 foreach (var value in row)
@@ -44,9 +87,9 @@ public static class WorkbookEditor
                 r++;
             }
 
-            using var ms = new MemoryStream();
+            var ms = new MemoryStream();
             workbook.SaveAs(ms);
-            return ms.ToArray();
+            return ms;
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
@@ -75,6 +118,42 @@ public static class WorkbookEditor
         }
     }
 
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/> and returns a cell as a string.
+    /// <paramref name="cellRef"/> is an A1-style reference. <paramref name="source"/> is
+    /// <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or a name is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    public static async Task<string> ReadCellAsync(
+        Stream source, string sheetName, string cellRef, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(cellRef);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX.", ct)
+            .ConfigureAwait(false);
+
+        try
+        {
+            using var workbook = new XLWorkbook(xlsx);
+            return Sheet(workbook, sheetName).Cell(cellRef).GetString();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read XLSX.", ex);
+        }
+    }
+
     /// <summary>Sets a cell and returns the updated workbook bytes.</summary>
     /// <exception cref="ArgumentNullException">Any argument other than <paramref name="value"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or a name is blank.</exception>
@@ -93,6 +172,65 @@ public static class WorkbookEditor
             using var ms = new MemoryStream();
             workbook.SaveAs(ms);
             return ms.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to edit XLSX.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, sets one cell, and writes the result to
+    /// <paramref name="destination"/>. <paramref name="cellRef"/> is an A1-style reference.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet containing the cell.</param>
+    /// <param name="cellRef">An A1-style cell reference, e.g. <c>"B2"</c>.</param>
+    /// <param name="value">The value to write. <c>null</c> clears the cell.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/> or <paramref name="destination"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, a name is blank, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    public static async Task SetCellAsync(
+        Stream source, string sheetName, string cellRef, object? value, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(cellRef);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = SetCellCore(xlsx, sheetName, cellRef, value);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX.", ct).ConfigureAwait(false);
+    }
+
+    private static MemoryStream SetCellCore(Stream xlsx, string sheetName, string cellRef, object? value)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook(xlsx);
+            SetCellValue(Sheet(workbook, sheetName).Cell(cellRef), value);
+
+            var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms;
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
