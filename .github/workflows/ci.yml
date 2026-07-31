@@ -58,6 +58,7 @@ jobs:
       - name: Test
         run: >
           dotnet test ${{ env.SOLUTION }} -c Release --no-build
+          --collect:"XPlat Code Coverage"
           --logger "trx;LogFileName=${{ matrix.os }}.trx"
           --results-directory ${{ github.workspace }}/TestResults
 
@@ -68,6 +69,17 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: TestResults/
           if-no-files-found: warn
+
+      # Uploaded once, not once per OS: windows-latest exists in this matrix to catch
+      # Linux-only assumptions, not to double-report identical coverage numbers.
+      # token is optional - see CODECOV_TOKEN note in the design doc if this step
+      # ever starts failing with a token-required error.
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
 
   # The design premise, re-proven from the resolved graph on Linux.
   # Kept separate so a failure here is unambiguous: it is never a test bug.
