@@ -1,0 +1,3 @@
+Ank.DocToolkit.Extensions.DependencyInjection third-party notices
+===================================================================
+Full notices are added once every dependency is finalised (see Task 9 of the implementation plan).
