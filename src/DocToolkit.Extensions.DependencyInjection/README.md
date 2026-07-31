@@ -1,5 +1,7 @@
 # Ank.DocToolkit.Extensions.DependencyInjection
 
+[![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
+
 Dependency-injection registration for [Ank.DocToolkit](https://www.nuget.org/packages/Ank.DocToolkit) —
 `services.AddDocToolkit()` registers six injectable interfaces over the same pure-managed
 HTML/DOCX/PDF/XLSX/PPTX conversion and editing logic.

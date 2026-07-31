@@ -1,6 +1,8 @@
 # DocToolkit
 
 [![CI](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.svg?label=Ank.DocToolkit)](https://www.nuget.org/packages/Ank.DocToolkit/)
+[![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
 Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
 
@@ -72,13 +74,37 @@ concurrently. Failures are wrapped in `DocumentConversionException`.
 
 ## Dependency injection
 
-For ASP.NET Core / worker-service consumers:
+This repo ships two packages. `Ank.DocToolkit` (`src/DocToolkit/`) is the library itself — static
+classes, no DI container required. `Ank.DocToolkit.Extensions.DependencyInjection`
+(`src/DocToolkit.Extensions.DependencyInjection/`) is a thin extension package that sits on top of
+it: it adds injectable interfaces that each delegate one-for-one to the static API, without
+changing or duplicating any conversion logic. A console app, Lambda or script installs just the
+core package; an ASP.NET Core or worker-service app adds the extension alongside it.
 
 ```bash
 dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
 ```
 
-See that package's own README for `AddDocToolkit()` usage.
+```csharp
+using DocToolkit.Extensions.DependencyInjection;
+
+services.AddDocToolkit();
+// or, to allow remote image download for HTML->DOCX/PDF (fails in an air-gapped environment):
+services.AddDocToolkit(o => o.AllowRemoteImageDownload = true);
+```
+
+```csharp
+public class InvoiceService(IHtmlToPdfConverter toPdf)
+{
+    public Task<byte[]> RenderAsync(string html) => toPdf.ConvertAsync(html);
+}
+```
+
+`AddDocToolkit()` registers six interfaces as singletons — `IHtmlToDocxConverter`,
+`IDocxToPdfConverter`, `IHtmlToPdfConverter`, `IDocxEditor`, `IWorkbookEditor`,
+`IPresentationEditor` — one per static class above. See the
+[extension package's own README](src/DocToolkit.Extensions.DependencyInjection/README.md) for
+details, and versioning below for why it releases on its own tag prefix.
 
 ## Offline by default
 
@@ -180,6 +206,18 @@ long-lived key is stored anywhere** — nothing to leak, expire, or rotate.
 
 **Dry run:** trigger the workflow manually from the Actions tab with *Run workflow*, give it a
 version, and leave *publish* unticked. It packs and verifies without pushing anything.
+
+**The extensions package releases independently**, on its own tag prefix, since nuget.org Trusted
+Publishing policies are keyed to an exact workflow filename:
+
+```bash
+git tag ext-v1.0.0
+git push origin ext-v1.0.0
+```
+
+That runs [`.github/workflows/release-extensions.yml`](.github/workflows/release-extensions.yml) —
+the same guards and verification, against a separate Trusted Publishing policy with
+Workflow File `release-extensions.yml`.
 
 ## Repository layout
 
