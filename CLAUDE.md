@@ -188,11 +188,17 @@ at that same version, in the same run. The **tag is the authoritative version**;
 `<Version>` in each project is only a local dev default, so do not expect them to match. There is
 no separate tag prefix for the extensions package — see "The DI extensions package" above for why.
 
+**Before tagging, move `[Unreleased]` in `CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD`
+heading for the version you're about to release.** The release workflow greps for that heading
+and refuses to publish if it's missing — the same fail-fast treatment as the other premise guards,
+because a changelog gap is easy to forget under release pressure and easy to fix beforehand.
+
 Publishing to nuget.org is **irreversible** — a version can be unlisted, never deleted or
-replaced. The workflow therefore runs the full suite *and* all three premise guards (checked
-against both projects) before it pushes, and fails rather than shipping a package that broke
-them. `--skip-duplicate` on the push step means a version already published for one package but
-not the other is never an error. **Do not add a `continue-on-error` or bypass to those steps.**
+replaced. The workflow therefore runs the full suite *and* all four premise guards (checked
+against both projects, where applicable) before it pushes, and fails rather than shipping a
+package that broke them. `--skip-duplicate` on the push step means a version already published
+for one package but not the other is never an error. **Do not add a `continue-on-error` or bypass
+to those steps.**
 
 Authentication is **Trusted Publishing (OIDC)** — no long-lived API key exists. The job needs
 `permissions: id-token: write`; without it the token request fails *silently* and `NuGet/login`

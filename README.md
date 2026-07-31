@@ -13,7 +13,7 @@ Works after `dotnet restore` alone, runs on Linux, and makes **no network calls 
 dotnet add package Ank.DocToolkit
 ```
 
-Targets `net8.0` and `net10.0`. MIT licensed.
+Targets `net8.0` and `net10.0`. MIT licensed. See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Why this exists
 
@@ -184,12 +184,13 @@ That runs [`.github/workflows/release.yml`](.github/workflows/release.yml), whic
 everything before it pushes**, because a publish to nuget.org is irreversible — a version can be
 unlisted but never deleted or replaced:
 
-1. full build with `-warnaserror`, then the whole test suite on both target frameworks
-2. the three guards: no native binaries, no banned packages, `SixLabors.Fonts` still on 1.x —
+1. [`CHANGELOG.md`](CHANGELOG.md) has a `## [X.Y.Z]` entry for the tag's version
+2. full build with `-warnaserror`, then the whole test suite on both target frameworks
+3. the three guards: no native binaries, no banned packages, `SixLabors.Fonts` still on 1.x —
    checked against both projects
-3. pack both projects at the tag's version, then verify each `.nupkg` (both TFMs, metadata,
+4. pack both projects at the tag's version, then verify each `.nupkg` (both TFMs, metadata,
    deps, MIT, no `runtimes/` payload, version matches the tag)
-4. one OIDC exchange, then push both packages to nuget.org (`--skip-duplicate`, so a version
+5. one OIDC exchange, then push both packages to nuget.org (`--skip-duplicate`, so a version
    already published for one of them is never an error) and create a GitHub Release with
    generated notes and both packages attached
 
