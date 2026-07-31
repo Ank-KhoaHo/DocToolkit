@@ -1,6 +1,6 @@
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Options controlling the services registered by <c>AddDocToolkit</c> (see AddDocToolkit).</summary>
+/// <summary>Options controlling the services registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
 public sealed class DocToolkitOptions
 {
     /// <summary>

@@ -1,6 +1,6 @@
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Opens and edits an existing .docx package. Registered by <c>AddDocToolkit</c> (see AddDocToolkit).</summary>
+/// <summary>Opens and edits an existing .docx package. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
 public interface IDocxEditor
 {
     /// <summary>Replaces every key with its value across the document body, headers, footers, footnotes and endnotes.</summary>

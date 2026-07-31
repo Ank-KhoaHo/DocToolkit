@@ -1,6 +1,6 @@
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Opens and edits PowerPoint (.pptx) presentations. Registered by <c>AddDocToolkit</c> (see AddDocToolkit).</summary>
+/// <summary>Opens and edits PowerPoint (.pptx) presentations. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
 public interface IPresentationEditor
 {
     /// <summary>Number of slides in the deck, as counted from the deck's slide list.</summary>
