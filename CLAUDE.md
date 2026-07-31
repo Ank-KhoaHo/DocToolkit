@@ -135,6 +135,33 @@ missing from those lists is the only way to escape the whole suite.
 - **Commit messages must not contain a `Co-Authored-By` trailer.**
 - The build runs with `-warnaserror` and currently has **0 warnings**. Keep it there.
 
+## The DI extensions package
+
+`src/DocToolkit.Extensions.DependencyInjection/` ships as its own NuGet package,
+`Ank.DocToolkit.Extensions.DependencyInjection`, versioned and released independently of the core
+package (tag prefix `ext-v*`, via `.github/workflows/release-extensions.yml` — see that file's
+header comment for the matching nuget.org Trusted Publishing policy it needs).
+
+It references `Ank.DocToolkit` as a real `PackageReference`, never a `ProjectReference` — the
+whole point is to prove the extensions package works the way an external consumer's restore
+would, against the *published* core package, not against whatever is currently on `main`. Before
+changing an interface here, confirm the byte[] method it wraps actually exists in the core
+version this project's `Ank.DocToolkit` reference floor requires.
+
+Six interfaces mirror the six static classes 1:1 (`byte[]` in, `byte[]`/`string`/`int` out — no
+`Stream` overloads here; that was a deliberate scope decision, not an oversight, since the DI
+layer was designed before the static API's `Stream` overloads existed). Service implementations
+are `internal sealed` — never `public` — and are pure delegation, one line per method, to the
+matching static method. If a service method does anything more than call through, that logic
+belongs in the core static method instead.
+
+`DocToolkitOptions.AllowRemoteImageDownload` replaces the static API's per-call
+`allowRemoteImageDownload` bool: configured once at `AddDocToolkit(configure)`, not re-decided per
+call. `ServiceCollectionExtensionsTests` proves the wiring with a small self-contained loopback
+listener (not a copy of the core project's `AirGapGuardTests` — that already proves the
+*conversion* behaviour exhaustively; this only has to prove the option value reaches the static
+method's parameter).
+
 ## Commands
 
 ```bash

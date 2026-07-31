@@ -1,3 +1,19 @@
 Ank.DocToolkit.Extensions.DependencyInjection third-party notices
 ===================================================================
-Full notices are added once every dependency is finalised (see Task 9 of the implementation plan).
+
+This package depends on the following. All are permissively licensed and free for commercial use.
+
+1. Ank.DocToolkit - MIT License
+   Copyright (c) Khoa Ho
+   https://github.com/Ank-KhoaHo/DocToolkit
+   (See that package's own THIRD-PARTY-NOTICES.txt for its further dependencies.)
+
+2. Microsoft.Extensions.DependencyInjection.Abstractions - MIT License
+   Copyright (c) .NET Foundation and Contributors
+   https://github.com/dotnet/runtime
+
+3. Microsoft.Extensions.Options - MIT License
+   Copyright (c) .NET Foundation and Contributors
+   https://github.com/dotnet/runtime
+
+The full MIT licence text is reproduced in the LICENSE file in the parent repository.

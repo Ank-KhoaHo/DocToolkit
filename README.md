@@ -70,6 +70,16 @@ byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, stri
 Every method is `byte[]` in / `byte[]` out and stateless, so the static classes are safe to call
 concurrently. Failures are wrapped in `DocumentConversionException`.
 
+## Dependency injection
+
+For ASP.NET Core / worker-service consumers:
+
+```bash
+dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
+```
+
+See that package's own README for `AddDocToolkit()` usage.
+
 ## Offline by default
 
 The package performs **no network I/O** on any default code path. This is enforced, not intended:
