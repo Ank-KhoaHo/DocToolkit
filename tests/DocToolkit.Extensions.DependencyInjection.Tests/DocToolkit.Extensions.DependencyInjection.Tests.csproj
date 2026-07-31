@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\DocToolkit.Extensions.DependencyInjection\DocToolkit.Extensions.DependencyInjection.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\DocToolkit.Tests\assets\sample.pptx" Link="assets\sample.pptx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
