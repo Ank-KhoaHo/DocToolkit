@@ -103,6 +103,40 @@ dotnet sln add tests/DocToolkit.Extensions.DependencyInjection.Tests/DocToolkit.
 dotnet add tests/DocToolkit.Extensions.DependencyInjection.Tests reference src/DocToolkit.Extensions.DependencyInjection
 ```
 
+- [ ] **Step 1b: Multi-target the scaffolded test project**
+
+`dotnet new xunit -f net8.0` only emits `net8.0` — the core project's own test project (`tests/DocToolkit.Tests`) is multi-targeted, and this one needs to match it exactly (same package versions), or `dotnet test DocToolkit.sln` won't exercise `net10.0` for these tests at all. Replace the generated `tests/DocToolkit.Extensions.DependencyInjection.Tests/DocToolkit.Extensions.DependencyInjection.Tests.csproj` in full:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DocToolkit.Extensions.DependencyInjection\DocToolkit.Extensions.DependencyInjection.csproj" />
+  </ItemGroup>
+
+</Project>
+```
+
 - [ ] **Step 2: Write the final library csproj**
 
 Replace the generated `src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj` in full — this is a brand-new file with nothing yet to preserve, unlike the core project's csproj:
@@ -141,6 +175,16 @@ Replace the generated `src/DocToolkit.Extensions.DependencyInjection/DocToolkit.
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!--
+    Service classes are `internal sealed` (consumers depend on the interfaces only), but this
+    task's own tests construct them directly (`new HtmlToDocxConverterService(...)`) rather than
+    only through DI - InternalsVisibleTo is what lets that compile. Set once, whole-assembly:
+    later tasks' internal sealed services (Tasks 2-6) need no repeat of this.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DocToolkit.Extensions.DependencyInjection.Tests" />
   </ItemGroup>
 
 </Project>
@@ -227,7 +271,7 @@ Create `src/DocToolkit.Extensions.DependencyInjection/DocToolkitOptions.cs`:
 ```csharp
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Options controlling the services registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
+/// <summary>Options controlling the services registered by <c>AddDocToolkit</c> (added in Task 7 of this plan).</summary>
 public sealed class DocToolkitOptions
 {
     /// <summary>
@@ -294,7 +338,7 @@ namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>
 /// Converts HTML to a Word (.docx) package. Registered by
-/// <see cref="ServiceCollectionExtensions.AddDocToolkit"/>; remote image download is controlled
+/// <c>AddDocToolkit</c> (added in Task 7 of this plan); remote image download is controlled
 /// once, at registration, via <see cref="DocToolkitOptions.AllowRemoteImageDownload"/>.
 /// </summary>
 public interface IHtmlToDocxConverter
@@ -409,7 +453,7 @@ namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>
 /// Renders a Word (.docx) package to PDF. Registered by
-/// <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.
+/// <c>AddDocToolkit</c> (added in Task 7 of this plan).
 /// </summary>
 public interface IDocxToPdfConverter
 {
@@ -507,7 +551,7 @@ namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>
 /// Converts HTML straight to PDF by pivoting through DOCX. Registered by
-/// <see cref="ServiceCollectionExtensions.AddDocToolkit"/>; remote image download is controlled
+/// <c>AddDocToolkit</c> (added in Task 7 of this plan); remote image download is controlled
 /// once, at registration, via <see cref="DocToolkitOptions.AllowRemoteImageDownload"/>.
 /// </summary>
 public interface IHtmlToPdfConverter
@@ -635,7 +679,7 @@ Create `src/DocToolkit.Extensions.DependencyInjection/IDocxEditor.cs`:
 ```csharp
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Opens and edits an existing .docx package. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
+/// <summary>Opens and edits an existing .docx package. Registered by <c>AddDocToolkit</c> (added in Task 7 of this plan).</summary>
 public interface IDocxEditor
 {
     /// <summary>Replaces every key with its value across the document body, headers, footers, footnotes and endnotes.</summary>
@@ -755,7 +799,7 @@ Create `src/DocToolkit.Extensions.DependencyInjection/IWorkbookEditor.cs`:
 ```csharp
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Creates, reads and edits Excel (.xlsx) workbooks. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
+/// <summary>Creates, reads and edits Excel (.xlsx) workbooks. Registered by <c>AddDocToolkit</c> (added in Task 7 of this plan).</summary>
 public interface IWorkbookEditor
 {
     /// <summary>Creates a workbook with one sheet populated from <paramref name="rows"/>.</summary>
@@ -890,7 +934,7 @@ Create `src/DocToolkit.Extensions.DependencyInjection/IPresentationEditor.cs`:
 ```csharp
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Opens and edits PowerPoint (.pptx) presentations. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
+/// <summary>Opens and edits PowerPoint (.pptx) presentations. Registered by <c>AddDocToolkit</c> (added in Task 7 of this plan).</summary>
 public interface IPresentationEditor
 {
     /// <summary>Number of slides in the deck, as counted from the deck's slide list.</summary>

@@ -23,6 +23,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   SOLUTION: DocToolkit.sln
   PROJECT: src/DocToolkit/DocToolkit.csproj
+  EXTENSIONS_PROJECT: src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj
 
 jobs:
   build-test:
@@ -100,35 +101,52 @@ jobs:
 
       - name: Assert no banned packages in the resolved graph
         run: |
-          dotnet list ${{ env.PROJECT }} package --include-transitive > graph.txt
-          cat graph.txt
-          # Not free for commercial use, or drags in native payload.
           banned='EPPlus|NPOI|Spire\.|Syncfusion|QuestPDF|IronPDF|ShapeCrawler|SkiaSharp|Magick\.NET|System\.Drawing\.Common'
-          if grep -Eiq "$banned" graph.txt; then
-            grep -Ei "$banned" graph.txt
-            echo "::error::A banned package is in the dependency graph."
-            exit 1
-          fi
-          echo "no banned packages"
+          for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
+            echo "::group::$project"
+            dotnet list "$project" package --include-transitive > graph.txt
+            cat graph.txt
+            if grep -Eiq "$banned" graph.txt; then
+              grep -Ei "$banned" graph.txt
+              echo "::error::A banned package is in the dependency graph of $project."
+              exit 1
+            fi
+            echo "no banned packages"
+            echo "::endgroup::"
+          done
 
       # 2.x switches to the Six Labors Split License (Apache-2.0 only under
       # $1M revenue). Pinned to [1.0.0]; this asserts the pin actually held.
       - name: Assert SixLabors.Fonts stayed on 1.x
         run: |
-          resolved=$(dotnet list ${{ env.PROJECT }} package --include-transitive \
-            | grep -i 'SixLabors.Fonts' | awk '{print $NF}' | sort -u | head -1)
-          echo "SixLabors.Fonts resolved: ${resolved:-<not found>}"
-          case "$resolved" in
-            1.*) echo "ok - permissive Apache-2.0 line" ;;
-            *)   echo "::error::SixLabors.Fonts is ${resolved:-missing}; 2.x is revenue-gated."; exit 1 ;;
-          esac
+          for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
+            echo "::group::$project"
+            resolved=$(dotnet list "$project" package --include-transitive \
+              | grep -i 'SixLabors.Fonts' | awk '{print $NF}' | sort -u | head -1)
+            echo "SixLabors.Fonts resolved: ${resolved:-<not found>}"
+            case "$resolved" in
+              1.*) echo "ok - permissive Apache-2.0 line" ;;
+              *)   echo "::error::SixLabors.Fonts is ${resolved:-missing} in $project; 2.x is revenue-gated."; exit 1 ;;
+            esac
+            echo "::endgroup::"
+          done
 
-  # Proves the artifact consumers actually install is correct - not just that
+  # Proves the artifacts consumers actually install are correct - not just that
   # the solution compiles. Catches missing TFMs and metadata regressions.
   package:
-    name: pack & verify .nupkg
+    name: pack & verify .nupkg (${{ matrix.name }})
     runs-on: ubuntu-latest
     needs: build-test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            project: src/DocToolkit/DocToolkit.csproj
+            deps: "DocumentFormat.OpenXml,HtmlToOpenXml.dll,OfficeIMO.Word.Pdf,ClosedXML"
+          - name: extensions
+            project: src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj
+            deps: "Ank.DocToolkit,Microsoft.Extensions.DependencyInjection.Abstractions,Microsoft.Extensions.Options"
     steps:
       - uses: actions/checkout@v4
 
@@ -139,12 +157,15 @@ jobs:
             10.0.x
 
       - name: Pack
-        run: dotnet pack ${{ env.PROJECT }} -c Release
+        run: dotnet pack ${{ matrix.project }} -c Release
 
       - name: Verify package contents
+        env:
+          EXPECTED_DEPS: ${{ matrix.deps }}
         run: |
           python3 - <<'PY'
-          import glob, sys, zipfile
+          import glob, os, sys, zipfile
+          deps = os.environ['EXPECTED_DEPS'].split(',')
           hits = glob.glob('artifacts/*.nupkg')
           if not hits:
               sys.exit('no .nupkg produced')
@@ -155,15 +176,20 @@ jobs:
           nuspec = z.read([n for n in names if n.endswith('.nuspec')][0]).decode('utf-8')
 
           failures = []
-          for required in ['lib/net8.0/DocToolkit.dll', 'lib/net10.0/DocToolkit.dll',
-                           'README.md', 'THIRD-PARTY-NOTICES.txt']:
+          for required in ['README.md', 'THIRD-PARTY-NOTICES.txt']:
               ok = required in names
               print(('OK   ' if ok else 'MISS ') + required)
               if not ok:
                   failures.append(required)
 
-          for dep in ['DocumentFormat.OpenXml', 'HtmlToOpenXml.dll',
-                      'OfficeIMO.Word.Pdf', 'ClosedXML']:
+          has_net8 = any(n.startswith('lib/net8.0/') for n in names)
+          has_net10 = any(n.startswith('lib/net10.0/') for n in names)
+          print(('OK   ' if has_net8 else 'MISS ') + 'lib/net8.0/')
+          print(('OK   ' if has_net10 else 'MISS ') + 'lib/net10.0/')
+          if not has_net8: failures.append('lib/net8.0/')
+          if not has_net10: failures.append('lib/net10.0/')
+
+          for dep in deps:
               ok = dep in nuspec
               print(('OK   dep ' if ok else 'MISS dep ') + dep)
               if not ok:
@@ -171,7 +197,6 @@ jobs:
 
           if '<license type="expression">MIT' not in nuspec:
               failures.append('MIT licence expression')
-          # A native payload would show up as runtimes/ inside the package.
           if any(n.startswith('runtimes/') for n in names):
               failures.append('runtimes/ present - native payload in package')
 
@@ -183,6 +208,6 @@ jobs:
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: DocToolkit-nupkg
+          name: nupkg-${{ matrix.name }}
           path: artifacts/*.nupkg
           if-no-files-found: error

@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Ank.DocToolkit.Extensions.DependencyInjection</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Khoa Ho</Authors>
+    <Description>
+      Dependency-injection registration for Ank.DocToolkit. services.AddDocToolkit() registers
+      six injectable interfaces (IHtmlToDocxConverter, IDocxToPdfConverter, IHtmlToPdfConverter,
+      IDocxEditor, IWorkbookEditor, IPresentationEditor) over the same pure-managed HTML/DOCX/
+      PDF/XLSX/PPTX conversion and editing logic, for ASP.NET Core and worker-service consumers.
+    </Description>
+    <PackageTags>docx;pdf;xlsx;pptx;dependency-injection;aspnetcore;openxml</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ank-KhoaHo/DocToolkit</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts</PackageOutputPath>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ank.DocToolkit" Version="[0.1.0, )" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="[8.0.0, )" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="[8.0.0, )" />
+  </ItemGroup>
+
+  <!--
+    Service implementations are internal sealed (never public - consumers depend on the
+    interfaces only), but the test project instantiates them directly to exercise the
+    delegation logic without going through the DI container. Grant that one assembly access.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DocToolkit.Extensions.DependencyInjection.Tests" />
+  </ItemGroup>
+
+</Project>

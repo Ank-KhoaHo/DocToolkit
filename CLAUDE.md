@@ -121,7 +121,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 182 tests → 364 results.
+  report *2N* results. 205 tests (182 core + 23 extensions) → 410 results.
 - **Never replace `src/DocToolkit/DocToolkit.csproj` wholesale** — it carries the package metadata
   (`PackageId`, version, licence expression, readme, symbol package). Use `dotnet add package`,
   which edits in place.
@@ -135,12 +135,40 @@ missing from those lists is the only way to escape the whole suite.
 - **Commit messages must not contain a `Co-Authored-By` trailer.**
 - The build runs with `-warnaserror` and currently has **0 warnings**. Keep it there.
 
+## The DI extensions package
+
+`src/DocToolkit.Extensions.DependencyInjection/` ships as its own NuGet package,
+`Ank.DocToolkit.Extensions.DependencyInjection`, versioned and released independently of the core
+package (tag prefix `ext-v*`, via `.github/workflows/release-extensions.yml` — see that file's
+header comment for the matching nuget.org Trusted Publishing policy it needs).
+
+It references `Ank.DocToolkit` as a real `PackageReference`, never a `ProjectReference` — the
+whole point is to prove the extensions package works the way an external consumer's restore
+would, against the *published* core package, not against whatever is currently on `main`. Before
+changing an interface here, confirm the byte[] method it wraps actually exists in the core
+version this project's `Ank.DocToolkit` reference floor requires.
+
+Six interfaces mirror the six static classes 1:1 (`byte[]` in, `byte[]`/`string`/`int` out — no
+`Stream` overloads here; that was a deliberate scope decision, not an oversight, since the DI
+layer was designed before the static API's `Stream` overloads existed). Service implementations
+are `internal sealed` — never `public` — and are pure delegation, one line per method, to the
+matching static method. If a service method does anything more than call through, that logic
+belongs in the core static method instead.
+
+`DocToolkitOptions.AllowRemoteImageDownload` replaces the static API's per-call
+`allowRemoteImageDownload` bool: configured once at `AddDocToolkit(configure)`, not re-decided per
+call. `ServiceCollectionExtensionsTests` proves the wiring with a small self-contained loopback
+listener (not a copy of the core project's `AirGapGuardTests` — that already proves the
+*conversion* behaviour exhaustively; this only has to prove the option value reaches the static
+method's parameter).
+
 ## Commands
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 182 tests x 2 TFMs = 364 results
+dotnet test  DocToolkit.sln -c Release            # 205 tests x 2 TFMs = 410 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
+dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 
 # Linux, the way CI checks it
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
@@ -170,10 +198,12 @@ stored API key for CI.
 ## Layout
 
 ```
-src/DocToolkit/   the library
-tests/            182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
-spike/            original proof-of-concept, kept as reference — do not modify
-docs/             the implementation plan this was built from
+src/DocToolkit/                                         the library
+tests/DocToolkit.Tests/                                 182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
+src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
+tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests, including ServiceCollectionExtensionsTests
+spike/                                                  original proof-of-concept, kept as reference — do not modify
+docs/                                                   the implementation plan this was built from
 ```
 
 The research behind the library selection lives in a separate, private knowledge base; the public
