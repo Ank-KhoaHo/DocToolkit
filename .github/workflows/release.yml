@@ -1,13 +1,22 @@
 name: Release
 
-# Publishing to nuget.org is IRREVERSIBLE - a version can be unlisted but never
-# deleted or replaced. So this workflow re-proves everything before it pushes:
-# the full test suite AND the licence/native-binary guards that are the reason
-# this package exists. A release that breaks the premise is worse than no release.
+# Publishes BOTH packages - Ank.DocToolkit and Ank.DocToolkit.Extensions.DependencyInjection -
+# from a single tag, at the same version, in the same run. That is deliberate: the two packages
+# are meant to stay in lockstep, and nuget.org Trusted Publishing policies are keyed to an exact
+# workflow FILENAME, so a single workflow file also means a single policy to configure, ever.
+# (An earlier version of this pipeline split the two into release.yml/release-extensions.yml with
+# independent v*/ext-v* tags - that required a second policy per workflow file and let the two
+# packages' versions drift apart with no way to enforce they matched. Don't reintroduce that split.)
+#
+# Publishing to nuget.org is IRREVERSIBLE - a version can be unlisted but never deleted or
+# replaced. So this workflow re-proves everything before it pushes: the full test suite AND the
+# licence/native-binary guards that are the reason this package exists. A release that breaks the
+# premise is worse than no release. --skip-duplicate makes a re-run (or a version already pushed
+# for one package but not the other) safe: it never fails just because a version already exists.
 #
 # Trigger by pushing a tag:   git tag v1.0.0 && git push origin v1.0.0
-# The tag is the single source of truth for the version; the <Version> in the
-# csproj is only a local dev default.
+# The tag is the single source of truth for the version - the <Version> in each csproj is only a
+# local dev default, and does not need to (and won't) match.
 #
 # AUTHENTICATION: Trusted Publishing (OIDC) - no API key is stored anywhere.
 # GitHub mints a short-lived, signed token describing this repo+workflow;
@@ -27,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish (e.g. 1.0.0). Dry-run unless 'publish' is ticked."
+        description: "Version to publish for BOTH packages (e.g. 1.0.0). Dry-run unless 'publish' is ticked."
         required: true
       publish:
         description: "Actually push to nuget.org"
@@ -43,6 +52,7 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   PROJECT: src/DocToolkit/DocToolkit.csproj
+  EXTENSIONS_PROJECT: src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj
   SOLUTION: DocToolkit.sln
 
 jobs:
@@ -80,7 +90,7 @@ jobs:
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
           case "$VERSION" in *-*) echo "prerelease=true"  >> "$GITHUB_OUTPUT";;
                              *)   echo "prerelease=false" >> "$GITHUB_OUTPUT";; esac
-          echo "Releasing version $VERSION (publish=$PUBLISH)"
+          echo "Releasing version $VERSION for both packages (publish=$PUBLISH)"
 
       - name: Fail early if the nuget.org username is missing
         if: steps.v.outputs.publish == 'true'
@@ -113,28 +123,39 @@ jobs:
 
       - name: Guard - no banned packages
         run: |
-          dotnet list ${{ env.PROJECT }} package --include-transitive > graph.txt
           banned='EPPlus|NPOI|Spire\.|Syncfusion|QuestPDF|IronPDF|ShapeCrawler|SkiaSharp|Magick\.NET|System\.Drawing\.Common'
-          if grep -Eiq "$banned" graph.txt; then
-            grep -Ei "$banned" graph.txt
-            echo "::error::Refusing to publish - a package that is not free for commercial use, or carries native payload, is in the graph."
-            exit 1
-          fi
-          echo "no banned packages"
+          for project in "${{ env.PROJECT }}" "${{ env.EXTENSIONS_PROJECT }}"; do
+            echo "::group::$project"
+            dotnet list "$project" package --include-transitive > graph.txt
+            if grep -Eiq "$banned" graph.txt; then
+              grep -Ei "$banned" graph.txt
+              echo "::error::Refusing to publish - a package that is not free for commercial use, or carries native payload, is in the graph of $project."
+              exit 1
+            fi
+            echo "no banned packages"
+            echo "::endgroup::"
+          done
 
       - name: Guard - SixLabors.Fonts still on the permissive 1.x line
         run: |
-          resolved=$(dotnet list ${{ env.PROJECT }} package --include-transitive \
-            | grep -i 'SixLabors.Fonts' | awk '{print $NF}' | sort -u | head -1)
-          echo "SixLabors.Fonts resolved: ${resolved:-<not found>}"
-          case "$resolved" in
-            1.*) echo "ok - Apache-2.0" ;;
-            *)   echo "::error::Refusing to publish - SixLabors.Fonts is ${resolved:-missing}; 2.x is revenue-gated."; exit 1 ;;
-          esac
+          for project in "${{ env.PROJECT }}" "${{ env.EXTENSIONS_PROJECT }}"; do
+            echo "::group::$project"
+            resolved=$(dotnet list "$project" package --include-transitive \
+              | grep -i 'SixLabors.Fonts' | awk '{print $NF}' | sort -u | head -1)
+            echo "SixLabors.Fonts resolved: ${resolved:-<not found>}"
+            case "$resolved" in
+              1.*) echo "ok - Apache-2.0" ;;
+              *)   echo "::error::Refusing to publish - SixLabors.Fonts is ${resolved:-missing} in $project; 2.x is revenue-gated."; exit 1 ;;
+            esac
+            echo "::endgroup::"
+          done
 
       - name: Pack
         run: |
           dotnet pack ${{ env.PROJECT }} -c Release --no-build \
+            -p:Version=${{ steps.v.outputs.version }} \
+            -p:PackageVersion=${{ steps.v.outputs.version }}
+          dotnet pack ${{ env.EXTENSIONS_PROJECT }} -c Release --no-build \
             -p:Version=${{ steps.v.outputs.version }} \
             -p:PackageVersion=${{ steps.v.outputs.version }}
           ls -la artifacts/
@@ -144,42 +165,55 @@ jobs:
           python3 - "${{ steps.v.outputs.version }}" <<'PY'
           import glob, sys, zipfile
           version = sys.argv[1]
-          hits = sorted(glob.glob('artifacts/*.nupkg'))
-          if len(hits) != 1:
-              sys.exit(f'expected exactly one .nupkg, found {hits}')
-          pkg = hits[0]
-          if version not in pkg:
-              sys.exit(f'{pkg} does not carry version {version}')
-          z, failures = zipfile.ZipFile(pkg), []
-          names = z.namelist()
-          nuspec = [n for n in names if n.endswith('.nuspec')][0]
-          spec = z.read(nuspec).decode('utf-8')
 
-          for required in ['lib/net8.0/', 'lib/net10.0/', 'README.md', 'THIRD-PARTY-NOTICES.txt']:
-              ok = any(n.startswith(required) or n == required for n in names)
-              print(('OK   ' if ok else 'MISS ') + required)
-              if not ok: failures.append(required)
+          packages = {
+              'Ank.DocToolkit': [
+                  'DocumentFormat.OpenXml', 'HtmlToOpenXml.dll', 'OfficeIMO.Word.Pdf', 'ClosedXML',
+              ],
+              'Ank.DocToolkit.Extensions.DependencyInjection': [
+                  'Ank.DocToolkit', 'Microsoft.Extensions.DependencyInjection.Abstractions',
+                  'Microsoft.Extensions.Options',
+              ],
+          }
 
-          for dep in ['DocumentFormat.OpenXml', 'HtmlToOpenXml.dll', 'OfficeIMO.Word.Pdf', 'ClosedXML']:
-              ok = dep in spec
-              print(('OK   dep ' if ok else 'MISS dep ') + dep)
-              if not ok: failures.append('dep ' + dep)
+          failures = []
+          for pkg_id, deps in packages.items():
+              hits = sorted(glob.glob(f'artifacts/{pkg_id}.{version}.nupkg'))
+              if len(hits) != 1:
+                  failures.append(f'{pkg_id}: expected exactly one nupkg for version {version}, found {hits}')
+                  continue
+              pkg = hits[0]
+              z = zipfile.ZipFile(pkg)
+              names = z.namelist()
+              nuspec = z.read([n for n in names if n.endswith('.nuspec')][0]).decode('utf-8')
 
-          if '<license type="expression">MIT' not in spec:
-              failures.append('MIT licence expression')
-          if any(n.startswith('runtimes/') for n in names):
-              failures.append('runtimes/ - native payload in package')
-          if f'<version>{version}</version>' not in spec:
-              failures.append(f'nuspec version is not {version}')
+              for required in ['lib/net8.0/', 'lib/net10.0/', 'README.md', 'THIRD-PARTY-NOTICES.txt']:
+                  ok = any(n.startswith(required) or n == required for n in names)
+                  print(f'{pkg_id}: ' + ('OK   ' if ok else 'MISS ') + required)
+                  if not ok: failures.append(f'{pkg_id}: missing {required}')
+
+              for dep in deps:
+                  ok = dep in nuspec
+                  print(f'{pkg_id}: ' + ('OK   dep ' if ok else 'MISS dep ') + dep)
+                  if not ok: failures.append(f'{pkg_id}: missing dep {dep}')
+
+              if '<license type="expression">MIT' not in nuspec:
+                  failures.append(f'{pkg_id}: missing MIT licence expression')
+              if any(n.startswith('runtimes/') for n in names):
+                  failures.append(f'{pkg_id}: runtimes/ - native payload in package')
+              if f'<version>{version}</version>' not in nuspec:
+                  failures.append(f'{pkg_id}: nuspec version is not {version}')
 
           if failures:
-              sys.exit('package verification failed: ' + ', '.join(failures))
-          print(f'\n{pkg} verified')
+              sys.exit('package verification failed: ' + '; '.join(failures))
+          print(f'\nboth packages verified at version {version}')
           PY
 
       # ---- the irreversible bit ----
       # The temporary key is valid for ONE hour, so it is requested here - after
-      # every check has passed - rather than at the top of the job.
+      # every check has passed - rather than at the top of the job. One OIDC
+      # exchange covers both packages: the key is scoped to the account, not to
+      # a single package ID.
       #
       # This runs on dry runs TOO, deliberately: it is the only way to prove the
       # Trusted Publishing policy actually works without publishing. A dry run
@@ -206,7 +240,7 @@ jobs:
             --source https://api.nuget.org/v3/index.json \
             --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
             --skip-duplicate
-          echo "published ${{ steps.v.outputs.version }}"
+          echo "published ${{ steps.v.outputs.version }} for both packages"
 
       - name: Create GitHub Release
         if: steps.v.outputs.publish == 'true' && github.event_name == 'push'
@@ -219,7 +253,7 @@ jobs:
             ${{ steps.v.outputs.prerelease == 'true' && '--prerelease' || '' }} \
             artifacts/*.nupkg artifacts/*.snupkg
 
-      - name: Upload package as a build artifact
+      - name: Upload packages as build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nupkg-${{ steps.v.outputs.version }}
@@ -232,11 +266,11 @@ jobs:
             echo "### Release ${{ steps.v.outputs.version }}"
             echo ""
             if [ "${{ steps.v.outputs.publish }}" = "true" ]; then
-              echo "Published to nuget.org. Availability in search can lag by a few minutes."
+              echo "Published Ank.DocToolkit and Ank.DocToolkit.Extensions.DependencyInjection to nuget.org at the same version. Availability in search can lag by a few minutes."
             else
-              echo "**Dry run** - packed and verified, Trusted Publishing proven, nothing pushed."
+              echo "**Dry run** - packed and verified both packages, Trusted Publishing proven, nothing pushed."
             fi
             echo ""
             echo "- prerelease: ${{ steps.v.outputs.prerelease }}"
-            echo "- guards: native binaries, banned packages, SixLabors.Fonts pin - all passed"
+            echo "- guards: native binaries, banned packages, SixLabors.Fonts pin - all passed for both projects"
           } >> "$GITHUB_STEP_SUMMARY"

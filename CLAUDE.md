@@ -138,9 +138,14 @@ missing from those lists is the only way to escape the whole suite.
 ## The DI extensions package
 
 `src/DocToolkit.Extensions.DependencyInjection/` ships as its own NuGet package,
-`Ank.DocToolkit.Extensions.DependencyInjection`, versioned and released independently of the core
-package (tag prefix `ext-v*`, via `.github/workflows/release-extensions.yml` — see that file's
-header comment for the matching nuget.org Trusted Publishing policy it needs).
+`Ank.DocToolkit.Extensions.DependencyInjection`, but is **versioned and released together with the
+core package** — one `v*` tag packs and publishes both at the same version, in the same
+`.github/workflows/release.yml` run (see that file's header comment). This is deliberate: the two
+packages are meant to stay in lockstep, and nuget.org Trusted Publishing policies are keyed to an
+exact workflow filename, so one workflow file also means only one policy to ever configure.
+An earlier design split this into `release.yml`/`release-extensions.yml` with independent
+`v*`/`ext-v*` tags; that let the two packages' versions drift apart with no way to enforce they
+matched, and required a second Trusted Publishing policy. Don't reintroduce that split.
 
 It references `Ank.DocToolkit` as a real `PackageReference`, never a `ProjectReference` — the
 whole point is to prove the extensions package works the way an external consumer's restore
@@ -177,14 +182,17 @@ docker run --rm doctoolkit-linux-test
 
 ## Releasing
 
-Tag-driven: `git tag v1.2.3 && git push origin v1.2.3` runs `.github/workflows/release.yml`.
-The **tag is the authoritative version**; the csproj `<Version>` is only a local dev default, so
-do not expect them to match.
+Tag-driven: `git tag v1.2.3 && git push origin v1.2.3` runs `.github/workflows/release.yml`,
+which packs and publishes **both** `Ank.DocToolkit` and `Ank.DocToolkit.Extensions.DependencyInjection`
+at that same version, in the same run. The **tag is the authoritative version**; the csproj
+`<Version>` in each project is only a local dev default, so do not expect them to match. There is
+no separate tag prefix for the extensions package — see "The DI extensions package" above for why.
 
 Publishing to nuget.org is **irreversible** — a version can be unlisted, never deleted or
-replaced. The workflow therefore runs the full suite *and* all three premise guards before it
-pushes, and fails rather than shipping a package that broke them. **Do not add a `continue-on-error`
-or bypass to those steps.**
+replaced. The workflow therefore runs the full suite *and* all three premise guards (checked
+against both projects) before it pushes, and fails rather than shipping a package that broke
+them. `--skip-duplicate` on the push step means a version already published for one package but
+not the other is never an error. **Do not add a `continue-on-error` or bypass to those steps.**
 
 Authentication is **Trusted Publishing (OIDC)** — no long-lived API key exists. The job needs
 `permissions: id-token: write`; without it the token request fails *silently* and `NuGet/login`

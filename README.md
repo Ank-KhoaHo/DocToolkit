@@ -104,7 +104,7 @@ public class InvoiceService(IHtmlToPdfConverter toPdf)
 `IDocxToPdfConverter`, `IHtmlToPdfConverter`, `IDocxEditor`, `IWorkbookEditor`,
 `IPresentationEditor` — one per static class above. See the
 [extension package's own README](src/DocToolkit.Extensions.DependencyInjection/README.md) for
-details, and versioning below for why it releases on its own tag prefix.
+details, and Releasing below — both packages ship at the same version, from the same tag.
 
 ## Offline by default
 
@@ -170,8 +170,10 @@ docker run --rm doctoolkit-linux-test
 
 ## Releasing
 
-Publishing is driven by tags. The tag is the single source of truth for the version — the
-`<Version>` in the csproj is only a local dev default.
+Publishing is driven by tags, and **one tag releases both packages at the same version.**
+`Ank.DocToolkit` and `Ank.DocToolkit.Extensions.DependencyInjection` are meant to stay in
+lockstep — the tag is the single source of truth for the version; the `<Version>` in each csproj
+is only a local dev default.
 
 ```bash
 git tag v1.0.0
@@ -183,12 +185,15 @@ everything before it pushes**, because a publish to nuget.org is irreversible �
 unlisted but never deleted or replaced:
 
 1. full build with `-warnaserror`, then the whole test suite on both target frameworks
-2. the three guards: no native binaries, no banned packages, `SixLabors.Fonts` still on 1.x
-3. pack at the tag's version, then verify the `.nupkg` (both TFMs, metadata, deps, MIT, no
-   `runtimes/` payload, version matches the tag)
-4. push to nuget.org, and create a GitHub Release with generated notes and the package attached
+2. the three guards: no native binaries, no banned packages, `SixLabors.Fonts` still on 1.x —
+   checked against both projects
+3. pack both projects at the tag's version, then verify each `.nupkg` (both TFMs, metadata,
+   deps, MIT, no `runtimes/` payload, version matches the tag)
+4. one OIDC exchange, then push both packages to nuget.org (`--skip-duplicate`, so a version
+   already published for one of them is never an error) and create a GitHub Release with
+   generated notes and both packages attached
 
-A release that would break the package's own premise fails instead of shipping.
+A release that would break either package's own premise fails instead of shipping.
 
 **Authentication is keyless.** Publishing uses [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing):
 GitHub mints a short-lived, signed OIDC token describing this repo and workflow, nuget.org
@@ -205,19 +210,8 @@ long-lived key is stored anywhere** — nothing to leak, expire, or rotate.
 **Prereleases** work as expected — `v1.2.3-beta.1` is detected and marked pre-release on GitHub.
 
 **Dry run:** trigger the workflow manually from the Actions tab with *Run workflow*, give it a
-version, and leave *publish* unticked. It packs and verifies without pushing anything.
-
-**The extensions package releases independently**, on its own tag prefix, since nuget.org Trusted
-Publishing policies are keyed to an exact workflow filename:
-
-```bash
-git tag ext-v1.0.0
-git push origin ext-v1.0.0
-```
-
-That runs [`.github/workflows/release-extensions.yml`](.github/workflows/release-extensions.yml) —
-the same guards and verification, against a separate Trusted Publishing policy with
-Workflow File `release-extensions.yml`.
+version, and leave *publish* unticked. It packs and verifies both packages without pushing
+anything.
 
 ## Repository layout
 
