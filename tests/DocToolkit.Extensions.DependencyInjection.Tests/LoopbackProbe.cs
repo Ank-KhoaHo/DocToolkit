@@ -32,8 +32,8 @@ internal sealed class LoopbackProbe : IDisposable
 
     public async Task<bool> WaitForConnectionAsync(TimeSpan timeout)
     {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
         {
             if (Connections > 0) return true;
             await Task.Delay(25);
@@ -90,5 +90,6 @@ internal sealed class LoopbackProbe : IDisposable
     {
         _stopping.Cancel();
         _listener.Stop();
+        _stopping.Dispose();
     }
 }

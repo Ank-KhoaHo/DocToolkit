@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DocToolkit.Extensions.DependencyInjection;
 
@@ -22,12 +23,12 @@ public static class ServiceCollectionExtensions
         services.AddOptions<DocToolkitOptions>();
         if (configure is not null) services.Configure(configure);
 
-        services.AddSingleton<IHtmlToDocxConverter, HtmlToDocxConverterService>();
-        services.AddSingleton<IDocxToPdfConverter, DocxToPdfConverterService>();
-        services.AddSingleton<IHtmlToPdfConverter, HtmlToPdfConverterService>();
-        services.AddSingleton<IDocxEditor, DocxEditorService>();
-        services.AddSingleton<IWorkbookEditor, WorkbookEditorService>();
-        services.AddSingleton<IPresentationEditor, PresentationEditorService>();
+        services.TryAddSingleton<IHtmlToDocxConverter, HtmlToDocxConverterService>();
+        services.TryAddSingleton<IDocxToPdfConverter, DocxToPdfConverterService>();
+        services.TryAddSingleton<IHtmlToPdfConverter, HtmlToPdfConverterService>();
+        services.TryAddSingleton<IDocxEditor, DocxEditorService>();
+        services.TryAddSingleton<IWorkbookEditor, WorkbookEditorService>();
+        services.TryAddSingleton<IPresentationEditor, PresentationEditorService>();
 
         return services;
     }
