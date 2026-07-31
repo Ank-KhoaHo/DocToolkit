@@ -130,8 +130,9 @@ is pinned at **6.0.0** by OfficeIMO; the package is **`RBush.Signed`**, not `RBu
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 182 tests x 2 target frameworks
+dotnet test  DocToolkit.sln -c Release      # 205 tests x 2 target frameworks = 410 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
+dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 ```
 
 Verify the Linux story locally with Docker:
@@ -183,10 +184,12 @@ version, and leave *publish* unticked. It packs and verifies without pushing any
 ## Repository layout
 
 ```
-src/DocToolkit/      the library
-tests/               182 tests, including Stream-overload proofs and the air-gap/dependency guards
-spike/               the original proof-of-concept, kept as reference
-docs/                the implementation plan this was built from
+src/DocToolkit/                                         the library
+tests/DocToolkit.Tests/                                 182 tests, including Stream-overload proofs and the air-gap/dependency guards
+src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
+tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests for the DI extensions package
+spike/                                                  the original proof-of-concept, kept as reference
+docs/                                                   the implementation plan this was built from
 ```
 
 The research behind the library selection lives in a separate repository,

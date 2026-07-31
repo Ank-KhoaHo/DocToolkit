@@ -2,7 +2,7 @@ namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>
 /// Converts HTML straight to PDF by pivoting through DOCX. Registered by
-/// <c>AddDocToolkit</c> (added in Task 7 of this plan); remote image download is controlled
+/// <c>AddDocToolkit</c> (see AddDocToolkit); remote image download is controlled
 /// once, at registration, via <see cref="DocToolkitOptions.AllowRemoteImageDownload"/>.
 /// </summary>
 public interface IHtmlToPdfConverter

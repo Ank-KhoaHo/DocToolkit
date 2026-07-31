@@ -119,13 +119,17 @@ jobs:
       # $1M revenue). Pinned to [1.0.0]; this asserts the pin actually held.
       - name: Assert SixLabors.Fonts stayed on 1.x
         run: |
-          resolved=$(dotnet list ${{ env.PROJECT }} package --include-transitive \
-            | grep -i 'SixLabors.Fonts' | awk '{print $NF}' | sort -u | head -1)
-          echo "SixLabors.Fonts resolved: ${resolved:-<not found>}"
-          case "$resolved" in
-            1.*) echo "ok - permissive Apache-2.0 line" ;;
-            *)   echo "::error::SixLabors.Fonts is ${resolved:-missing}; 2.x is revenue-gated."; exit 1 ;;
-          esac
+          for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
+            echo "::group::$project"
+            resolved=$(dotnet list "$project" package --include-transitive \
+              | grep -i 'SixLabors.Fonts' | awk '{print $NF}' | sort -u | head -1)
+            echo "SixLabors.Fonts resolved: ${resolved:-<not found>}"
+            case "$resolved" in
+              1.*) echo "ok - permissive Apache-2.0 line" ;;
+              *)   echo "::error::SixLabors.Fonts is ${resolved:-missing} in $project; 2.x is revenue-gated."; exit 1 ;;
+            esac
+            echo "::endgroup::"
+          done
 
   # Proves the artifacts consumers actually install are correct - not just that
   # the solution compiles. Catches missing TFMs and metadata regressions.

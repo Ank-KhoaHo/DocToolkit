@@ -2,7 +2,7 @@ namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>
 /// Renders a Word (.docx) package to PDF. Registered by
-/// <c>AddDocToolkit</c> (added in Task 7 of this plan).
+/// <c>AddDocToolkit</c> (see AddDocToolkit).
 /// </summary>
 public interface IDocxToPdfConverter
 {

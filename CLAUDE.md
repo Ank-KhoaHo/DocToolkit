@@ -121,7 +121,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 182 tests → 364 results.
+  report *2N* results. 205 tests (182 core + 23 extensions) → 410 results.
 - **Never replace `src/DocToolkit/DocToolkit.csproj` wholesale** — it carries the package metadata
   (`PackageId`, version, licence expression, readme, symbol package). Use `dotnet add package`,
   which edits in place.
@@ -166,8 +166,9 @@ method's parameter).
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 182 tests x 2 TFMs = 364 results
+dotnet test  DocToolkit.sln -c Release            # 205 tests x 2 TFMs = 410 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
+dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 
 # Linux, the way CI checks it
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
@@ -197,10 +198,12 @@ stored API key for CI.
 ## Layout
 
 ```
-src/DocToolkit/   the library
-tests/            182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
-spike/            original proof-of-concept, kept as reference — do not modify
-docs/             the implementation plan this was built from
+src/DocToolkit/                                         the library
+tests/DocToolkit.Tests/                                 182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
+src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
+tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests, including ServiceCollectionExtensionsTests
+spike/                                                  original proof-of-concept, kept as reference — do not modify
+docs/                                                   the implementation plan this was built from
 ```
 
 The research behind the library selection lives in a separate, private knowledge base; the public

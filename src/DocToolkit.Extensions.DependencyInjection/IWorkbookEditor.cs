@@ -1,6 +1,6 @@
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Creates, reads and edits Excel (.xlsx) workbooks. Registered by <c>AddDocToolkit</c> (added in Task 7 of this plan).</summary>
+/// <summary>Creates, reads and edits Excel (.xlsx) workbooks. Registered by <c>AddDocToolkit</c> (see AddDocToolkit).</summary>
 public interface IWorkbookEditor
 {
     /// <summary>Creates a workbook with one sheet populated from <paramref name="rows"/>.</summary>

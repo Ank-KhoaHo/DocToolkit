@@ -1,6 +1,6 @@
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Opens and edits an existing .docx package. Registered by <c>AddDocToolkit</c> (added in Task 7 of this plan).</summary>
+/// <summary>Opens and edits an existing .docx package. Registered by <c>AddDocToolkit</c> (see AddDocToolkit).</summary>
 public interface IDocxEditor
 {
     /// <summary>Replaces every key with its value across the document body, headers, footers, footnotes and endnotes.</summary>
@@ -15,7 +15,7 @@ public interface IDocxEditor
     /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
     string ExtractText(byte[] docx);
 
-    /// <summary>Returns the plain text of the document. When <paramref name="includeHeadersAndFooters"/> is true, headers and footers follow the body text.</summary>
+    /// <summary>Returns the plain text of the document. When <paramref name="includeHeadersAndFooters"/> is true, headers and footers follow the body text; footnotes and endnotes are never included.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
