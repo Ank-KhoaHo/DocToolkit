@@ -12,6 +12,12 @@ repo-wide tooling (CI, release pipeline).
 
 ## [Unreleased]
 
+### Added
+- Runnable sample projects (`samples/ConsoleSample`, `samples/MinimalApiSample`), referencing
+  the published packages and built by the existing CI alongside the libraries.
+- A DocFX-generated API-reference site (`docfx/`), published to GitHub Pages on every
+  successful release via `.github/workflows/docs.yml`.
+
 ## [0.2.1] - 2026-07-31
 
 ### Added

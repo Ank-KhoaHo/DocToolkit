@@ -9,8 +9,6 @@
 
 Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
 
-📖 [API documentation](https://ank-khoaho.github.io/DocToolkit/)
-
 **Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
 Works after `dotnet restore` alone, runs on Linux, and makes **no network calls at runtime**.
 
@@ -76,6 +74,18 @@ byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, stri
 
 Every method is `byte[]` in / `byte[]` out and stateless, so the static classes are safe to call
 concurrently. Failures are wrapped in `DocumentConversionException`.
+
+## Samples
+
+Runnable, standalone projects under `samples/`, each referencing the published packages (not
+this repo's source) — the same restore an external consumer would get:
+
+```bash
+dotnet run --project samples/ConsoleSample
+dotnet run --project samples/MinimalApiSample
+```
+
+See [`samples/README.md`](samples/README.md) for what each one does.
 
 ## Dependency injection
 
@@ -226,6 +236,9 @@ src/DocToolkit/                                         the library
 tests/DocToolkit.Tests/                                 182 tests, including Stream-overload proofs and the air-gap/dependency guards
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
 tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests for the DI extensions package
+samples/ConsoleSample/                                  core package, all five capabilities
+samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
+docfx/                                                  DocFX site source, published to GitHub Pages on release
 spike/                                                  the original proof-of-concept, kept as reference
 docs/                                                   the implementation plan this was built from
 ```

@@ -188,6 +188,11 @@ during the build — verified while adding this pipeline. Re-enabling either wit
 the browser download doesn't come back will make `docs.yml` slow and pull in exactly the kind of
 heavyweight native dependency this repo's premise guards otherwise keep out.
 
+`ConsoleSample` reaches into `tests/DocToolkit.Tests/assets/sample.pptx` for its PPTX demo —
+there's no "create a PPTX from scratch" method in the public API, so this is a deliberate,
+brief-sanctioned trade-off. If that fixture ever moves, the sample fails with an opaque MSBuild
+copy error, not a message pointing at the real cause.
+
 ## Commands
 
 ```bash
@@ -239,8 +244,8 @@ src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (s
 tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests, including ServiceCollectionExtensionsTests
 samples/ConsoleSample/                                  core package, all five capabilities
 samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
-docfx/                                                   DocFX site source, published to GitHub Pages on release
-spike/                                                   original proof-of-concept, kept as reference — do not modify
+docfx/                                                  DocFX site source, published to GitHub Pages on release
+spike/                                                  original proof-of-concept, kept as reference — do not modify
 docs/                                                   design docs and implementation plans this was built from
 ```
 

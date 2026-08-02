@@ -10,11 +10,16 @@ name: Docs
 # Known gotcha: workflow_run fires based on this file's state on the default branch at
 # the time Release completes. The first release after this file merges to main is the
 # first one that can trigger it - it cannot retroactively fire for an earlier release.
+#
+# workflow_dispatch is a manual escape hatch: seeding the first deployment, re-running
+# after fixing the GitHub Pages setting, or picking up a docs-only fix without waiting
+# for the next release.
 
 on:
   workflow_run:
     workflows: ["Release"]
     types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -27,7 +32,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -35,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -43,14 +48,14 @@ jobs:
             8.0.x
             10.0.x
 
-      - name: Restore
-        run: dotnet restore DocToolkit.sln
-
+      # DocFX restores each project itself while generating metadata - no separate
+      # solution-wide restore needed, and this way a nuget hiccup resolving a sample
+      # project's package can't fail an otherwise-unrelated docs deploy.
       - name: Install DocFX
-        run: dotnet tool update -g docfx
+        run: dotnet tool update -g docfx --version 2.78.5
 
       - name: Build docs site
-        run: docfx docfx/docfx.json
+        run: docfx docfx/docfx.json --warningsAsErrors
 
       - uses: actions/configure-pages@v5
 
