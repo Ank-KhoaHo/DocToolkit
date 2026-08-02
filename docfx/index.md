@@ -22,6 +22,6 @@ Targets `net8.0` and `net10.0`. MIT licensed.
 - **[Ank.DocToolkit.Extensions.DependencyInjection](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)**
   — `services.AddDocToolkit()`, for ASP.NET Core / worker-service consumers.
 
-See the [API reference](api/) for both packages, or the
+See the [API reference](xref:DocToolkit) for both packages, or the
 [GitHub repository](https://github.com/Ank-KhoaHo/DocToolkit) for source, runnable samples
 (`samples/`), and the full README.
