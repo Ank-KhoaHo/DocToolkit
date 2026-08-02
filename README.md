@@ -9,6 +9,8 @@
 
 Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
 
+📖 [API documentation](https://ank-khoaho.github.io/DocToolkit/)
+
 **Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
 Works after `dotnet restore` alone, runs on Linux, and makes **no network calls at runtime**.
 

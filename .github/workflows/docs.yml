@@ -1,0 +1,63 @@
+name: Docs
+
+# Publishes the DocFX API-reference site to GitHub Pages. Triggered by the Release
+# workflow completing SUCCESSFULLY - not independently on the same tag push - so a
+# version that fails release.yml's guards (missing CHANGELOG entry, banned dependency,
+# broken tests) never gets a docs site describing it as shipped.
+#
+# Requires GitHub Pages enabled once, manually: Settings > Pages > Source > GitHub Actions.
+#
+# Known gotcha: workflow_run fires based on this file's state on the default branch at
+# the time Release completes. The first release after this file merges to main is the
+# first one that can trigger it - it cannot retroactively fire for an earlier release.
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore
+        run: dotnet restore DocToolkit.sln
+
+      - name: Install DocFX
+        run: dotnet tool update -g docfx
+
+      - name: Build docs site
+        run: docfx docfx/docfx.json
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docfx/_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

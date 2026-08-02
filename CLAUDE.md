@@ -167,6 +167,27 @@ listener (not a copy of the core project's `AirGapGuardTests` — that already p
 *conversion* behaviour exhaustively; this only has to prove the option value reaches the static
 method's parameter).
 
+## Samples and docs site
+
+`samples/ConsoleSample` and `samples/MinimalApiSample` are runnable, added to `DocToolkit.sln`,
+and reference the published packages via `PackageReference` (never `ProjectReference`) — same
+reasoning as the extensions package itself: they prove the real published artifact works, not
+whatever is currently on `main`. They're built by the existing CI `dotnet build` step with no
+special handling; a breaking API change fails the next sample build.
+
+`docfx/` holds a DocFX-generated API-reference site — separate from `docs/`, which holds this
+project's planning/spec history, not site source. `.github/workflows/docs.yml` builds and deploys
+it to GitHub Pages, triggered by `workflow_run` on `release.yml` completing **successfully** — not
+independently on the same tag push, so a release that fails its guards never gets a docs site
+describing it as shipped. Don't "simplify" this into a direct tag-push trigger; that would break
+the guarantee.
+
+**`docfx.json`'s `globalMetadata` must keep `_enableSearch: false` and `pdf: false`.** Without
+them, DocFX's default template downloads a ~109 MB headless-Chromium binary via Playwright/Node.js
+during the build — verified while adding this pipeline. Re-enabling either without re-verifying
+the browser download doesn't come back will make `docs.yml` slow and pull in exactly the kind of
+heavyweight native dependency this repo's premise guards otherwise keep out.
+
 ## Commands
 
 ```bash
