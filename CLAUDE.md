@@ -237,8 +237,11 @@ src/DocToolkit/                                         the library
 tests/DocToolkit.Tests/                                 182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
 tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests, including ServiceCollectionExtensionsTests
-spike/                                                  original proof-of-concept, kept as reference — do not modify
-docs/                                                   the implementation plan this was built from
+samples/ConsoleSample/                                  core package, all five capabilities
+samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
+docfx/                                                   DocFX site source, published to GitHub Pages on release
+spike/                                                   original proof-of-concept, kept as reference — do not modify
+docs/                                                   design docs and implementation plans this was built from
 ```
 
 The research behind the library selection lives in a separate, private knowledge base; the public
