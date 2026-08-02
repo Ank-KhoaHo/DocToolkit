@@ -33,7 +33,7 @@ curl -X POST http://127.0.0.1:5299/html-to-docx \
   -o output.docx
 ```
 
-Other endpoints (`/html-to-pdf`, `/docx-to-pdf`, `/docx/extract-text`, `/xlsx/read-cell`,
-`/pptx/slide-count`) take a `{"bytes":"<base64>"}` body (`/xlsx/read-cell` also takes `sheet`
-and `cell` fields) — see `samples/MinimalApiSample/Program.cs` for the exact request shape of
-each endpoint.
+`/html-to-pdf` takes the same `{"html":"..."}` body as `/html-to-docx` above. The remaining
+endpoints (`/docx-to-pdf`, `/docx/extract-text`, `/xlsx/read-cell`, `/pptx/slide-count`) take a
+`{"bytes":"<base64>"}` body instead (`/xlsx/read-cell` also takes `sheet` and `cell` fields) —
+see `samples/MinimalApiSample/Program.cs` for the exact request shape of each endpoint.
