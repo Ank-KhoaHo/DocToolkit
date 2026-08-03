@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.1...v0.3.2) (2026-08-03)
+
+
+### Changed
+
+* tighten the root README and drop the AutoLnD reference ([8a42e41](https://github.com/Ank-KhoaHo/DocToolkit/commit/8a42e413588c3fd0545ca059cc0276e248c7ca95))
+
 ## [0.3.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.0...v0.3.1) (2026-08-03)
 
 
