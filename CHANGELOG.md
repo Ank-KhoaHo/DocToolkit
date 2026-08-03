@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.3...v0.3.4) (2026-08-03)
+
+
+### Changed
+
+* bump SixLabors.Fonts to 1.0.1 ([61e462a](https://github.com/Ank-KhoaHo/DocToolkit/commit/61e462a4859c51799a336a3a9421a73fe9aa859f))
+* bump SixLabors.Fonts to 1.0.1 ([c38eeea](https://github.com/Ank-KhoaHo/DocToolkit/commit/c38eeead26a7b0b87af68257bb200de058d5b43a))
+
 ## [0.3.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.2...v0.3.3) (2026-08-03)
 
 
