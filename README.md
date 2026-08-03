@@ -257,6 +257,7 @@ tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests for the DI exte
 samples/ConsoleSample/                                  core package, all five capabilities
 samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
 docfx/                                                  DocFX site source, published to GitHub Pages on release
+scripts/                                                release tooling used to promote develop to main
 ```
 
 The research behind the library selection lives in a separate repository,

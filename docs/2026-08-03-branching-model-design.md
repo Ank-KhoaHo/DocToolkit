@@ -46,7 +46,12 @@ Checked against the actual tree, not assumed:
 
 - `DocToolkit.sln` contains **no reference to `spike/`** — `HtmlPipelineSpike.csproj` is a
   standalone project outside the solution. `dotnet build DocToolkit.sln` on a stripped `main` is
-  unaffected.
+  unaffected. This check was only at the `.sln` level and did not open the individual `.csproj`
+  files: `tests/DocToolkit.Tests/DocToolkit.Tests.csproj` had two literal `<Content Include=...>`
+  fixture references reaching into `spike/out/result.pdf` and `spike/out/big.pdf`, which a
+  stripped `main` would not have — a hard `MSB3030` copy error, not a silent skip. That has since
+  been fixed: the fixtures now live in `tests/DocToolkit.Tests/assets/`, alongside the project
+  that actually consumes them, so they survive the strip.
 - `docfx/docfx.json` sources metadata from `../src` only, and content from `docfx/**/*.{md,yml}`
   only. It never reads `docs/` or `spike/`, so `ci.yml`'s `docs-build` job and `docs.yml`'s
   deploy both work on a stripped `main`.
@@ -151,11 +156,14 @@ a fallback for manual tags. A manual tag is still possible, but its changelog en
 
 ### `README.md` must stay byte-identical on both branches
 
-`README.md` is packed into both `.nupkg`s and its presence is asserted by CI. If it diverged
-between branches it would conflict on every promote. So it is fixed **once, on `develop`**: the
-Layout tree drops its `spike/` and `docs/` rows, and that information moves into `CLAUDE.md`,
-which is develop-only anyway. The `Dockerfile.linux-test` line stays, which is why that file is
-not excluded from `main`.
+Divergence between branches would raise a merge conflict on every promote, forever, and `main`'s
+copy is the landing page a consumer arriving from nuget.org sees — it is what GitHub renders on
+the default branch, not something packed into the `.nupkg`s (each project packs its own, shorter
+`README.md` from `src/DocToolkit/` and `src/DocToolkit.Extensions.DependencyInjection/`; CI only
+asserts that *a* `README.md` exists inside each package, not that it matches the root file). So
+the root file is fixed **once, on `develop`**: the Layout tree drops its `spike/` and `docs/`
+rows, and that information moves into `CLAUDE.md`, which is develop-only anyway. The
+`Dockerfile.linux-test` line stays, which is why that file is not excluded from `main`.
 
 ## CI changes
 
@@ -163,6 +171,8 @@ not excluded from `main`.
 |---|---|
 | `ci.yml` | `push: [main, develop, "feat/**", "fix/**"]`; `pull_request: [main, develop]` |
 | `ci.yml` | **New job `branch-policy`**: a PR into `main` must originate from `release/promote-*` or `release-please--branches--main`. Fails with a message pointing at `develop` otherwise. |
+| `ci.yml` | **New job `promote-script`**: runs `bash scripts/test-promote.sh` on every push, re-proving the merge/purge/conflict logic the same way the premise guards re-prove the dependency graph. |
+| `ci.yml` | **`commit-format` gains a merge-commit exemption**: GitHub's own generated `Merge pull request #N from ...` subjects are skipped, because a promote PR's range is full of them (every feature PR that already landed on `develop`) and without the exemption the first promote PR fails. A hand-written `Merge branch ...` subject is deliberately **not** exempt and still fails the guard. |
 | `release-please.yml` | unchanged — still `push: branches: [main]` |
 | `release.yml` | unchanged — still `push: tags: ["v*"]` plus `release: published` |
 | `docs.yml` | unchanged — still `workflow_run` on Release |
@@ -202,8 +212,7 @@ are caught by `branch-policy` with an actionable message rather than silently me
    document the two-branch model, the forbidden back-merge, and main-ownership of `CHANGELOG.md`.
 4. Run the promote script once. Its PR produces `main`'s initial strip commit, and CI on that PR
    is the first proof that a stripped `main` builds, tests, packs and builds docs.
-5. Retarget the in-flight `di-extensions-parity` worktree onto `develop`.
-6. Configure branch protection: `main` requires a PR and green CI; `develop` requires green CI.
+5. Configure branch protection: `main` requires a PR and green CI; `develop` requires green CI.
 
 Step 4 is the verification step for the whole design — it is where a wrong exclusion surfaces, and
 it happens before any tag is pushed, so a mistake there costs a re-run rather than an irreversible

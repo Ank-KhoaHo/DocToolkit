@@ -248,8 +248,9 @@ git checkout main -- CHANGELOG.md .release-please-manifest.json
 git commit -m "chore: sync changelog and manifest from the last release"
 ```
 
-`README.md` must stay byte-identical on both branches — it is packed into both `.nupkg`s and
-asserted by CI, and divergence would conflict on every promote. Edit it on `develop` only.
+`README.md` must stay byte-identical on both branches: divergence would raise a merge conflict on
+every promote, forever, and `main`'s copy is the landing page a consumer arriving from nuget.org
+sees. Edit it on `develop` only.
 
 There is no hotfix branch. An urgent fix goes `fix/*` → `develop` → promote; a second path into
 `main` would add a way around CI without adding meaningful speed.

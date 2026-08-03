@@ -118,9 +118,14 @@ git -C "$TMP/work" merge -q --no-ff -m "chore: land promote" "$BR"
 git -C "$TMP/work" push -q origin main
 git -C "$TMP/work" switch -q develop
 echo edited-after-strip > "$TMP/work/docs/design.md"
+# CLAUDE.md is a top-level *file*, not a directory, and is the most frequently
+# edited develop-only path - its modify/delete conflict fires on essentially
+# every promote after the first, while docs/ only fires when a design doc
+# changes. Cover both shapes of the conflict, not just the directory one.
+echo edited-after-strip >> "$TMP/work/CLAUDE.md"
 echo v3 > "$TMP/work/src/app.txt"
 git -C "$TMP/work" add -A
-git -C "$TMP/work" commit -qm "docs: edit a design doc main has already deleted"
+git -C "$TMP/work" commit -qm "docs: edit files main has already deleted"
 git -C "$TMP/work" push -q origin develop
 rc=$(run_promote)
 check "second promote exits 0 despite the modify/delete conflict" "$rc"
@@ -132,6 +137,7 @@ else
 fi
 tree_of "$BR2"
 assert_absent "docs/design.md"
+assert_absent "CLAUDE.md"
 assert_has    "src/app.txt"
 
 echo "test 3: a real conflict in shipping code stops the promote"
