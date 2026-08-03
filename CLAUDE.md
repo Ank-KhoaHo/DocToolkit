@@ -153,6 +153,18 @@ missing from those lists is the only way to escape the whole suite.
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
   report *2N* results. 288 tests (246 core + 42 extensions) → 576 results.
+- **`-warnaserror` is worthless on an already-built tree — pass `--no-incremental`.** MSBuild skips
+  projects whose inputs are unchanged, and a skipped project re-emits *no diagnostics*, so the build
+  cheerfully reports `0 Warning(s)`. Any earlier `dotnet test` or `dotnet build` compiles without
+  `-warnaserror` and leaves exactly that state behind. Measured 2026-08-03: a plain build showed 8
+  `CS1573` warnings, the `-warnaserror` build straight afterwards showed **0 Warning(s), 0 Error(s)**,
+  and `--no-incremental` failed correctly. This has let real warnings reach CI twice. Verify with:
+
+  ```bash
+  dotnet build DocToolkit.sln -c Release -warnaserror --no-incremental
+  ```
+
+  CI is not affected — a fresh runner has nothing to skip.
 - **Never replace `src/DocToolkit/DocToolkit.csproj` wholesale** — it carries the package metadata
   (`PackageId`, version, licence expression, readme, symbol package). Use `dotnet add package`,
   which edits in place.

@@ -25,6 +25,8 @@ internal static class DrawingFactory
     /// Must be unique across the whole document. A duplicate makes Word declare the file corrupt
     /// and offer to repair it.
     /// </param>
+    /// <param name="widthEmu">Rendered width in EMUs. 1 point = 12,700; 1 pixel at 96 DPI = 9,525.</param>
+    /// <param name="heightEmu">Rendered height in EMUs, in the same units as <paramref name="widthEmu"/>.</param>
     public static Drawing InlineImage(
         string relationshipId, string name, uint id, long widthEmu, long heightEmu) =>
         new(new DW.Inline(
