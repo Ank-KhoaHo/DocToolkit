@@ -1,3 +1,4 @@
+using System.IO;
 using DocToolkit.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -88,6 +89,42 @@ public class ServiceCollectionExtensionsTests
         try
         {
             await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">");
+        }
+        catch (DocToolkit.DocumentConversionException)
+        {
+            // The connection is what's under test here, not a fully successful conversion.
+        }
+
+        Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task AddDocToolkit_WithAllowRemoteImageDownloadFalse_StreamOverloadNeverConnectsOutbound()
+    {
+        using var probe = new LoopbackProbe();
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
+
+        using var destination = new MemoryStream();
+        await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">", destination);
+        await Task.Delay(SettleWindow);
+
+        Assert.Equal(0, probe.Connections);
+    }
+
+    [Fact]
+    public async Task AddDocToolkit_WithAllowRemoteImageDownloadTrue_StreamOverloadDoesConnectOutbound()
+    {
+        using var probe = new LoopbackProbe();
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o => o.AllowRemoteImageDownload = true)
+            .BuildServiceProvider();
+        var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
+
+        try
+        {
+            using var destination = new MemoryStream();
+            await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">", destination);
         }
         catch (DocToolkit.DocumentConversionException)
         {
