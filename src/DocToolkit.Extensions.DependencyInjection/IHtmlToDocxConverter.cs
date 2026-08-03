@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>

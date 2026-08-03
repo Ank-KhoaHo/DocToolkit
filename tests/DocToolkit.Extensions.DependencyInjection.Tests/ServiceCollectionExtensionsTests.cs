@@ -1,4 +1,3 @@
-using System.IO;
 using DocToolkit.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>Default <see cref="IDocxToPdfConverter"/>, delegating to <see cref="DocToolkit.DocxToPdfConverter"/>.</summary>

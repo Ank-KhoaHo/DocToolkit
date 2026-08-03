@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using DocToolkit;
 using DocToolkit.Extensions.DependencyInjection;
 using Xunit;
