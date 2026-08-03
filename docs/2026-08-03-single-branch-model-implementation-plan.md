@@ -59,9 +59,17 @@ git switch -c release/promote-single-branch origin/main
 
 - [ ] **Step 2: Merge `develop`, preserving its commit subjects**
 
+**Give the merge an explicit Conventional Commit message. Do not use `--no-edit`.**
+
 ```bash
-git merge origin/develop --no-edit
+git merge origin/develop -m "chore: merge develop for the single-branch collapse"
 ```
+
+Git's default merge message is `Merge remote-tracking branch 'origin/develop' into <branch>`, which
+has no type prefix and **fails `ci.yml`'s `commit-format` job**. That job exempts GitHub's own
+`Merge pull request #N from ...` commits but deliberately does not exempt hand-made merges — see
+its comment. Verified the hard way on 2026-08-03: the first attempt used `--no-edit` and the PR went
+red on exactly this, after every other check had passed.
 
 Expected: the merge completes. If it reports conflicts, stop and report them — the design verified
 that `CHANGELOG.md` and `.release-please-manifest.json` are already identical between the branches,
