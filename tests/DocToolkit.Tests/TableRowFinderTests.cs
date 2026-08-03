@@ -14,7 +14,7 @@ public class TableRowFinderTests
     {
         using var ms = new MemoryStream(docx);
         using var doc = WordprocessingDocument.Open(ms, false);
-        return TableRowFinder.Find(doc.MainDocumentPart!.Document.Body!, marker);
+        return TableRowFinder.Find(doc.MainDocumentPart!.Document!.Body!, marker);
     }
 
     [Fact]

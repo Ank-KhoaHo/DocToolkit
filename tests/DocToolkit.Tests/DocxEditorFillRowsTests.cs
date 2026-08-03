@@ -69,7 +69,7 @@ public class DocxEditorFillRowsTests
 
         using var ms = new MemoryStream(filled);
         using var doc = WordprocessingDocument.Open(ms, false);
-        var rows = doc.MainDocumentPart!.Document.Body!
+        var rows = doc.MainDocumentPart!.Document!.Body!
             .ChildElements.OfType<Table>().Single()
             .ChildElements.OfType<TableRow>().ToList();
 
@@ -94,7 +94,7 @@ public class DocxEditorFillRowsTests
 
         using var ms = new MemoryStream(filled);
         using var doc = WordprocessingDocument.Open(ms, false);
-        var runs = doc.MainDocumentPart!.Document.Body!
+        var runs = doc.MainDocumentPart!.Document!.Body!
             .Descendants<Run>().Where(r => r.InnerText.Length > 0).ToList();
 
         Assert.Equal(2, runs.Count);
@@ -130,7 +130,7 @@ public class DocxEditorFillRowsTests
                 DocxFixtures.R("{{item.Desc}} "),
                 new Hyperlink(DocxFixtures.R("terms")) { Id = rel.Id }));
 
-            main.Document.Body!.Append(DocxFixtures.Tbl(row));
+            main.Document!.Body!.Append(DocxFixtures.Tbl(row));
             main.Document.Save();
         }
 
@@ -142,7 +142,7 @@ public class DocxEditorFillRowsTests
 
         using var ms = new MemoryStream(filled);
         using var opened = WordprocessingDocument.Open(ms, false);
-        var links = opened.MainDocumentPart!.Document.Body!.Descendants<Hyperlink>().ToList();
+        var links = opened.MainDocumentPart!.Document!.Body!.Descendants<Hyperlink>().ToList();
 
         Assert.Equal(2, links.Count);                                     // one per clone
         Assert.All(links, l => Assert.Equal("terms", l.InnerText));       // text intact
@@ -204,7 +204,7 @@ public class DocxEditorFillRowsTests
 
         using var ms = new MemoryStream(filled);
         using var doc = WordprocessingDocument.Open(ms, false);
-        Assert.Empty(doc.MainDocumentPart!.Document.Body!.ChildElements.OfType<Table>());
+        Assert.Empty(doc.MainDocumentPart!.Document!.Body!.ChildElements.OfType<Table>());
         Assert.Contains("before", DocxEditor.ExtractText(filled));
         AssertValid(filled);
     }
@@ -264,6 +264,47 @@ public class DocxEditorFillRowsTests
             () => DocxEditor.FillRows(docx, "item", new[] { Rec(("Desc", "Widget")) }));
 
         Assert.Contains("{{item.", ex.Message);
+    }
+
+    [Fact]
+    public async Task FillRowsAsync_MatchesTheByteArrayOverload()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.Tbl(
+            DocxFixtures.Row(DocxFixtures.R("Description")),
+            DocxFixtures.Row(DocxFixtures.R("{{item.Desc}} x{{item.Qty}}"))));
+
+        var records = new[]
+        {
+            Rec(("Desc", "Widget"), ("Qty", "2")),
+            Rec(("Desc", "Gadget"), ("Qty", "5")),
+        };
+
+        var expected = DocxEditor.FillRows(docx, "item", records);
+
+        using var destination = new MemoryStream();
+        await DocxEditor.FillRowsAsync(new MemoryStream(docx), "item", records, destination);
+        var actual = destination.ToArray();
+
+        // Parity on readable content, not bytes. Two OpenXML saves happen to be byte-deterministic
+        // (measured 2026-08-03), but text is what the method promises and does not depend on that
+        // staying true.
+        Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));
+        AssertValid(actual);
+    }
+
+    [Fact]
+    public async Task FillRowsAsync_RejectsBadArguments()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.Tbl(
+            DocxFixtures.Row(DocxFixtures.R("{{item.Desc}}"))));
+        var none = Array.Empty<IReadOnlyDictionary<string, string>>();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            DocxEditor.FillRowsAsync(new MemoryStream(docx), null!, none, new MemoryStream()));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            DocxEditor.FillRowsAsync(new MemoryStream(docx), "item", null!, new MemoryStream()));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            DocxEditor.FillRowsAsync(new MemoryStream(docx), " ", none, new MemoryStream()));
     }
 
     [Fact]

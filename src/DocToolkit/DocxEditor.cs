@@ -277,6 +277,52 @@ public static class DocxEditor
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, expands the template row once per record, and
+    /// writes the result to <paramref name="destination"/>. See
+    /// <see cref="FillRows"/> for what counts as a template row and how formatting survives — this
+    /// overload applies the identical logic via streams instead of a byte array.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable, so
+    /// both may be sockets, files or HTTP message bodies.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="collection">The placeholder prefix marking the template row, without braces.</param>
+    /// <param name="rows">One dictionary per record, keyed by bare field name.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/> is
+    /// not writable, or <paramref name="collection"/> is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be opened or edited, or no template row was found.
+    /// </exception>
+    public static async Task FillRowsAsync(
+        Stream source, string collection, IEnumerable<IReadOnlyDictionary<string, string>> rows,
+        Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(collection);
+        ArgumentNullException.ThrowIfNull(rows);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (string.IsNullOrWhiteSpace(collection))
+            throw new ArgumentException("Collection name was blank.", nameof(collection));
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to fill table rows in the DOCX package.", ct)
+            .ConfigureAwait(false);
+
+        FillRowsCore(buffer, collection, rows);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to fill table rows in the DOCX package.", ct)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
     private static void FillRowsCore(
         MemoryStream ms, string collection, IEnumerable<IReadOnlyDictionary<string, string>> rows)

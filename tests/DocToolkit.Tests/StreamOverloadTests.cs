@@ -33,6 +33,18 @@ public class StreamOverloadTests
         "Footer text",
         DocxFixtures.P(DocxFixtures.R("Dear {{customer}}, your invoice is ready.")));
 
+    /// <summary>A .docx whose table holds a repeating-row template, for FillRowsAsync.</summary>
+    private static readonly byte[] TableDocx = DocxFixtures.Build(DocxFixtures.Tbl(
+        DocxFixtures.Row(DocxFixtures.R("Description")),
+        DocxFixtures.Row(DocxFixtures.R("{{item.Desc}}"))));
+
+    private static readonly IReadOnlyList<IReadOnlyDictionary<string, string>> FillRowsRecords =
+        new[]
+        {
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Desc"] = "Widget" },
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Desc"] = "Gadget" },
+        };
+
     private static readonly byte[] Xlsx = WorkbookEditor.Create("Sales", new[]
     {
         new object?[] { "Region", "Total" },
@@ -67,6 +79,7 @@ public class StreamOverloadTests
         "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)",
         "DocxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.FillRowsAsync",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -77,6 +90,7 @@ public class StreamOverloadTests
     {
         "DocxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.FillRowsAsync",
         "DocxEditor.ExtractTextAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
         "WorkbookEditor.ReadCellAsync",
@@ -97,6 +111,7 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync",
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.FillRowsAsync",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -518,6 +533,8 @@ public class StreamOverloadTests
                 DocxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "DocxEditor.ReplaceTextAsync" =>
                 DocxEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
+            "DocxEditor.FillRowsAsync" =>
+                DocxEditor.FillRowsAsync(source!, "item", FillRowsRecords, destination!, ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
             "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)" =>
@@ -540,6 +557,9 @@ public class StreamOverloadTests
     /// <summary>The bytes an overload's <c>source</c> parameter expects, by format.</summary>
     private static byte[] SourceBytesFor(string api) => api switch
     {
+        // FillRowsAsync throws unless the document holds a matching template row, so it cannot
+        // share the plain Docx fixture the other DocxEditor overloads use.
+        "DocxEditor.FillRowsAsync" => TableDocx,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PresentationEditor", StringComparison.Ordinal) => Pptx,
         _ => Docx,
