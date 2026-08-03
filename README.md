@@ -195,8 +195,10 @@ is only a local dev default.
 [Conventional Commits](https://www.conventionalcommits.org/) format — `feat:`/`fix:`/etc.) and
 maintains a single "Release PR" with the computed version bump and a generated `CHANGELOG.md`
 entry. **Merging that PR is the release decision** — review it like any other PR, hand-edit the
-changelog prose if you want, then merge; release-please pushes the `vX.Y.Z` tag as part of that
-merge, which is all `release.yml` (below) actually needs to fire.
+changelog prose if you want, then merge; release-please pushes the `vX.Y.Z` tag (and
+creates an initial GitHub Release with its own generated notes) as part of that merge.
+`release.yml` (below) still does all the actual work — tests, guards, the nuget.org publish —
+and attaches the built packages to that same release rather than creating a second one.
 
 A manual tag still works too — `release.yml` only cares that a `v*` tag arrived, not how:
 
@@ -216,8 +218,9 @@ unlisted but never deleted or replaced:
 4. pack both projects at the tag's version, then verify each `.nupkg` (both TFMs, metadata,
    deps, MIT, no `runtimes/` payload, version matches the tag)
 5. one OIDC exchange, then push both packages to nuget.org (`--skip-duplicate`, so a version
-   already published for one of them is never an error) and create a GitHub Release with
-   generated notes and both packages attached
+   already published for one of them is never an error), then attach both packages to the
+   GitHub Release (creating one with generated notes if release-please didn't already create one
+   via the Release PR merge)
 
 A release that would break either package's own premise fails instead of shipping.
 

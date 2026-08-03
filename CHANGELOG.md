@@ -10,7 +10,7 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
-## [Unreleased]
+## Unreleased
 
 ### Added
 - Runnable sample projects (`samples/ConsoleSample`, `samples/MinimalApiSample`), referencing
