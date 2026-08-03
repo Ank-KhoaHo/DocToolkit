@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.10](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.9...v0.3.10) (2026-08-03)
+
+
+### Changed
+
+* bump googleapis/release-please-action from 4 to 5 ([8bbe072](https://github.com/Ank-KhoaHo/DocToolkit/commit/8bbe0723a75504d9e23f6dedeaf132aa8cf66c35))
+
 ## [0.3.9](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.8...v0.3.9) (2026-08-03)
 
 
