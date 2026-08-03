@@ -268,6 +268,20 @@ Dependabot raise those floors as new versions publish, which re-arms the canary.
   production bumps deliberately keeps the *shipped-graph* changes out of that category.
 - **Test-project dependency resolution stays unpinned.** Stated above; revisit via Renovate if it
   ever matters.
+- **Dependabot does not activate until the config reaches `main`.** Found during implementation,
+  2026-08-03. GitHub reads `.github/dependabot.yml` from the repository's **default branch** only,
+  and this repo's default branch is `main` — deliberately, since that is the tree a consumer
+  arriving from nuget.org lands on. Merging to `develop` therefore changes nothing; the first
+  Dependabot run happens after `scripts/promote-to-main.sh` carries the file to `main`. This does
+  not argue for moving the file or changing the branching model: `target-branch: develop` is
+  precisely the mechanism for this situation, letting Dependabot read config from `main` while
+  opening every PR against `develop`, where `branch-policy` allows it.
+- **Setting `target-branch` suppresses Dependabot *security* updates.** GitHub raises security
+  updates for vulnerable manifests on the default branch only, "except where `target-branch` is
+  used". Version updates — everything this design is actually about — are unaffected, but this is
+  not a free setting, and it means Dependabot alerts remain the security signal rather than
+  automatic security PRs. Accepted: the alternative is retargeting PRs at `main`, which
+  `branch-policy` rejects by design.
 
 ## Rejected alternatives
 

@@ -632,7 +632,14 @@ case `dependabot-core#13950` does not cover, and the whole src-only boundary dep
 Check the Actions tab: the `premise-guard` job should now show the
 `Assert the resolved graph matches the committed lockfiles` step passing.
 
-- [ ] **Step 2: Trigger Dependabot rather than waiting a week**
+- [ ] **Step 2: Promote to `main` — Dependabot cannot run until you do**
+
+GitHub reads `.github/dependabot.yml` from the **default branch** only, and this repo's default
+branch is `main`. Until `scripts/promote-to-main.sh` carries the file there, nothing happens, and
+the absence of PRs means nothing. Run the promote and merge its PR with a **merge commit, never a
+squash**, before treating any of the checks below as signal.
+
+- [ ] **Step 3: Trigger Dependabot rather than waiting a week**
 
 In the repository: **Insights → Dependency graph → Dependabot → Check for updates**.
 
