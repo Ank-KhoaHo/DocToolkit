@@ -10,6 +10,29 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.4.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.12...v0.4.0) (2026-08-03)
+
+
+### Added
+
+* **core:** add DocxEditor.FillRows for repeating table rows ([432e4f3](https://github.com/Ank-KhoaHo/DocToolkit/commit/432e4f30cd795bc865d9b07b70e5b6a6ddb0f6ff))
+* **core:** add DocxEditor.FillRowsAsync ([6ff7061](https://github.com/Ank-KhoaHo/DocToolkit/commit/6ff70610ffb15ea6949cca7112e43e50d306cd8b))
+* **core:** find template table rows without descending into nested tables ([7a4f39d](https://github.com/Ank-KhoaHo/DocToolkit/commit/7a4f39db5bffe7f3be3652cae027da7c21f8bbaa))
+* **core:** repeating table rows for DOCX templates ([0a25d50](https://github.com/Ank-KhoaHo/DocToolkit/commit/0a25d50db75190dc18f31a28263952362a6eaf29))
+
+
+### Changed
+
+* add the repeating-table-rows implementation plan ([5d2f1cb](https://github.com/Ank-KhoaHo/DocToolkit/commit/5d2f1cb91890d35899768b1b85e616abc16cae1d))
+* add the repeating-table-rows implementation plan ([8b87f34](https://github.com/Ank-KhoaHo/DocToolkit/commit/8b87f342687456ab31c565d6ac74e680fc59b280))
+* add the repeating-table-rows implementation plan ([b82aadd](https://github.com/Ank-KhoaHo/DocToolkit/commit/b82aadd1841eee68d0fb74ece81ae052bb9ef1e3))
+* **core:** document repeating table rows, and guard them offline ([e33b0c7](https://github.com/Ank-KhoaHo/DocToolkit/commit/e33b0c7a1da001470b319a62d795ec0a7f786e44))
+* exempt merge commits from the Conventional Commits guard ([5a313d1](https://github.com/Ank-KhoaHo/DocToolkit/commit/5a313d14ea4876e8f11dc4e117bfd9314121a2fd))
+* exempt merge commits from the Conventional Commits guard ([4abaf2a](https://github.com/Ank-KhoaHo/DocToolkit/commit/4abaf2a66d5619d2a209d7eea0c3b5e3defcc5a1))
+* record the flaky cancellation test as B10 ([8ffa6f0](https://github.com/Ank-KhoaHo/DocToolkit/commit/8ffa6f00e6a203788c5789b11ec94a9347e96478))
+* stop auto-merging the Release PR ([7b0f0ac](https://github.com/Ank-KhoaHo/DocToolkit/commit/7b0f0acab67ea26005375f017956223636308f26))
+* stop auto-merging the Release PR ([02f2ace](https://github.com/Ank-KhoaHo/DocToolkit/commit/02f2acedb4a9458fa7abcf3f8cf5926a4c0df803))
+
 ## [0.3.12](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.11...v0.3.12) (2026-08-03)
 
 
