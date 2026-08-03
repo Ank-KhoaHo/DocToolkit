@@ -57,18 +57,28 @@ git fetch --quiet "$REMOTE" main develop
 git worktree add -q -b "$BRANCH" "$WT" "$REMOTE/main"
 cd "$WT"
 
-# A modify/delete conflict on an excluded path makes `git merge` exit non-zero.
-# That is expected and is resolved by the purge below, so under `set -e` it must
-# not abort the script. Genuine conflicts are caught by the --diff-filter=U
-# check afterwards.
-git merge --no-ff --no-commit "$REMOTE/develop" || true
+# A modify/delete conflict on an excluded path makes `git merge` exit 1 - a
+# real conflict, not a crash. That is expected and is resolved by the purge
+# below, so under `set -e` it must not abort the script. A genuine conflict in
+# a non-excluded path is also exit 1 here; it is caught by the --diff-filter=U
+# check further down, not by this exit code. Anything ABOVE exit 1 (128 for
+# unrelated histories, an unreadable object, an already-in-progress merge, ...)
+# is not a conflict at all - it means nothing merged - so it must not be
+# swallowed, or the "nothing to promote" branch below would report a hard
+# failure as a clean no-op.
+merge_rc=0
+git merge --no-ff --no-commit "$REMOTE/develop" || merge_rc=$?
+if [ "$merge_rc" -gt 1 ]; then
+  echo "error: git merge failed (exit $merge_rc) - not a conflict" >&2
+  exit "$merge_rc"
+fi
 
 for p in "${EXCLUDED[@]}"; do
-  git rm -r -f -q --cached --ignore-unmatch -- "$p" >/dev/null 2>&1 || true
+  git rm -r -f -q --cached --ignore-unmatch -- "$p"
   rm -rf -- "$p"
 done
 
-if git diff --name-only --diff-filter=U | grep -q .; then
+if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
   echo "error: conflict outside the excluded set - resolve it on develop first:" >&2
   git diff --name-only --diff-filter=U >&2
   exit 1
