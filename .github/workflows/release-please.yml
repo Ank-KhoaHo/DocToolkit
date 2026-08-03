@@ -48,7 +48,8 @@ jobs:
           fi
           echo "RELEASE_PLEASE_TOKEN is configured"
 
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
+        id: release
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
@@ -60,23 +61,41 @@ jobs:
       # long-lived token with push rights.
       #
       # Finds the PR by its branch rather than by parsing this action's outputs,
-      # so an output-schema change upstream cannot silently stop releases. No
-      # open Release PR is a normal state, not an error: it just means every
-      # commit is already released.
+      # so an output-schema change upstream cannot silently stop releases.
+      #
+      # But "found nothing" is ambiguous on its own: it means either that every
+      # commit is already released, or that the branch-naming convention this
+      # lookup hard-codes has changed underneath us. Those need opposite
+      # responses, and guessing wrong is the one failure that stops releases
+      # while every step still reports success.
+      #
+      # So the action's own `pr` output is used as a CORROBORATOR, not a source:
+      # if release-please says it opened or updated a Release PR and the branch
+      # lookup then finds none, that is a real error and this fails loudly.
+      # Verified the hard way - a Release PR sat unmerged and unnoticed once
+      # already, stalled by a branch-protection setting, with nothing red
+      # anywhere to show for it.
       #
       # NOTE: if branch protection on main ever requires APPROVING REVIEWS, this
-      # can never succeed - an unattended bot cannot approve - and releases stop
-      # with no error anywhere. Require status checks, not reviews.
+      # can never succeed - an unattended bot cannot approve - and releases stop.
+      # Require status checks, not reviews.
       - name: Auto-merge the Release PR
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_PLEASE_PR: ${{ steps.release.outputs.pr }}
         run: |
           number=$(gh pr list --base main --head release-please--branches--main \
             --state open --json number --jq '.[0].number // empty')
+
           if [ -z "$number" ]; then
-            echo "no open Release PR - every commit is already released"
+            if [ -n "$RELEASE_PLEASE_PR" ] && [ "$RELEASE_PLEASE_PR" != "null" ]; then
+              echo "::error::release-please reported a Release PR, but no open PR was found on branch 'release-please--branches--main'. The branch-naming convention this step relies on has probably changed. Releases are STOPPED until this lookup is corrected - do not treat this as 'nothing to release'."
+              exit 1
+            fi
+            echo "no open Release PR, and release-please reported none - every commit is already released"
             exit 0
           fi
+
           echo "enabling auto-merge on Release PR #$number"
           gh pr merge "$number" --merge --auto
