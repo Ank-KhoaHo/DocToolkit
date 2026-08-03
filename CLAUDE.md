@@ -307,9 +307,12 @@ and matters to the bump calculation, not just the PR title). By convention, not 
 prefixes; the regex itself accepts any lowercase/digit/hyphen scope, so a different scope won't
 fail CI, it just won't match that convention. Get the *type* wrong and release-please either
 miscategorizes a change or silently drops it from the changelog — the CI guard exists so that's
-caught at PR time, not discovered in a Release PR that's already wrong. **A `Merge branch 'main'
-into <feature>` commit fails this guard** (no type prefix) — rebase instead of merging `main` into
-a long-lived feature branch.
+caught at PR time, not discovered in a Release PR that's already wrong. **A `Merge branch 'develop'
+into <feature>` commit fails this guard** (no type prefix) — rebase onto `develop` instead of
+merging it into a long-lived feature branch. **Never rebase a feature branch onto `main`:** `main`
+carries deletions of `CLAUDE.md`, `docs/` and `spike/`, so replaying your commits on top of it
+drags those deletions into your branch, and from there into `develop` — the same loss
+"Never merge `main` into `develop`" above warns about, reached by a detour.
 
 `release-please.yml` needs its own PAT (not the default `GITHUB_TOKEN`) stored as the
 `RELEASE_PLEASE_TOKEN` repository secret — GitHub Actions doesn't let a workflow's default token
