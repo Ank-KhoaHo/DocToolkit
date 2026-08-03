@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.7](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.6...v0.3.7) (2026-08-03)
+
+
+### Fixed
+
+* stop asserting byte equality on two ClosedXML saves ([5edce27](https://github.com/Ank-KhoaHo/DocToolkit/commit/5edce2746189fce8a34edf2ae6e4527fcb9b4cc3))
+* stop asserting byte equality on two ClosedXML saves ([2697f13](https://github.com/Ank-KhoaHo/DocToolkit/commit/2697f139d25538f0b930aa78348feb71c47fa2f0))
+
 ## [0.3.6](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.5...v0.3.6) (2026-08-03)
 
 
