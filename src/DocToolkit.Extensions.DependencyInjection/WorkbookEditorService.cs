@@ -11,4 +11,17 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
 
     public byte[] SetCell(byte[] xlsx, string sheetName, string cellRef, object? value)
         => DocToolkit.WorkbookEditor.SetCell(xlsx, sheetName, cellRef, value);
+
+    public Task CreateAsync(
+        string sheetName, IEnumerable<IEnumerable<object?>> rows, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.CreateAsync(sheetName, rows, destination, ct);
+
+    public Task<string> ReadCellAsync(Stream source, string sheetName, string cellRef, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.ReadCellAsync(source, sheetName, cellRef, ct);
+
+    public Task SetCellAsync(
+        Stream source, string sheetName, string cellRef, object? value, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.SetCellAsync(source, sheetName, cellRef, value, destination, ct);
 }
