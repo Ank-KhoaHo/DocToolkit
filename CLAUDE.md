@@ -175,6 +175,15 @@ reasoning as the extensions package itself: they prove the real published artifa
 whatever is currently on `main`. They're built by the existing CI `dotnet build` step with no
 special handling; a breaking API change fails the next sample build.
 
+**Those references are `Version="*"`, deliberately.** `*` resolves to the newest published stable
+release, which is the only form that keeps the claim above true. A version *floor* does the
+opposite: NuGet resolves a minimum-version range to the **lowest** satisfying version, so
+`[0.2.1, )` kept both samples building against 0.2.1 while three releases shipped past them
+unexercised — the canary was disarmed for weeks without any signal. Bumping the floor fixed it for
+exactly one release, then went stale on the next, and since every merge publishes, chasing it with
+Dependabot became a loop that published a version per week containing nothing but a sample's
+version number. Don't put a pinned or floored version back here; the non-determinism is the point.
+
 `docfx/` holds a DocFX-generated API-reference site — separate from `docs/`, which holds this
 project's planning/spec history, not site source. `.github/workflows/docs.yml` builds and deploys
 it to GitHub Pages, triggered by `workflow_run` on `release.yml` completing **successfully** — not
