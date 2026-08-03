@@ -10,48 +10,76 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
-## Unreleased
+## [0.3.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.2.2...v0.3.0) (2026-08-03)
 
 ### Added
+
+- **Extensions:** `Stream`-based async members on all six injectable interfaces, so a document can
+  be read from and written to a request body, a response body or a file without being buffered
+  into a caller-visible `byte[]`. The core package has had these since 0.2.0; only the `byte[]`
+  surface was reachable through DI until now.
+  ([21890a2](https://github.com/Ank-KhoaHo/DocToolkit/commit/21890a2b9041863ada07a9ac44deba9e98b06c4c))
+
+  | Interface | Added |
+  |---|---|
+  | `IDocxEditor` | `ReplaceTextAsync`, `ExtractTextAsync` (two overloads) |
+  | `IPresentationEditor` | `SlideCountAsync`, `ExtractTextAsync`, `ReplaceTextAsync` |
+  | `IWorkbookEditor` | `CreateAsync`, `ReadCellAsync`, `SetCellAsync` |
+  | `IHtmlToDocxConverter` | `ConvertAsync(string, Stream, CancellationToken)` |
+  | `IHtmlToPdfConverter` | `ConvertAsync(string, Stream, CancellationToken)` |
+  | `IDocxToPdfConverter` | `ConvertAsync(Stream, Stream, CancellationToken)` |
+
+  Each new member delegates to the identically-shaped core static method. The two HTML converters
+  thread the registration-time `DocToolkitOptions.AllowRemoteImageDownload`, exactly as their
+  `byte[]` counterparts do — remote image download stays a composition-time decision, never a
+  per-call argument.
+
+  The file-path helpers (`ConvertToFileAsync`, `ConvertFile`) and the per-call
+  `allowRemoteImageDownload` argument remain deliberately absent from these interfaces.
+
+### Fixed
+
+- **Extensions:** the package referenced `Ank.DocToolkit` at floor `[0.1.0, )`. NuGet resolves a
+  minimum-version range to the *lowest* satisfying version, so the package built against a core
+  release predating the `Stream` API it wraps. Floor is now `[0.2.0, )`.
+  ([51646e2](https://github.com/Ank-KhoaHo/DocToolkit/commit/51646e2c17fecffcb7ae6e410d25a70d11180c58))
+
+### Changed
+
+- **Extensions:** `IHtmlToPdfConverter.ConvertAsync` and `IDocxToPdfConverter.ConvertAsync` now
+  document that their output is written as it is rendered rather than assembled first — so a
+  failure part-way through leaves partial output on the destination, and against an HTTP response
+  body the status and headers are already committed.
+  ([43ff9ac](https://github.com/Ank-KhoaHo/DocToolkit/commit/43ff9acab2722b09d45f3d8f15eaeda97b329c97))
+- **Extensions:** the package README no longer claims the interfaces mirror the static API
+  "one-for-one" — it now names what is deliberately excluded and why.
+  ([a570e2d](https://github.com/Ank-KhoaHo/DocToolkit/commit/a570e2de98c69d3f887d5895b2e85060e67156dc),
+  [5ed5596](https://github.com/Ank-KhoaHo/DocToolkit/commit/5ed55969fcf03bd092864edb33f5b74eb68f7d1a))
+- The API-reference site is now linked from the README.
+  ([812e433](https://github.com/Ank-KhoaHo/DocToolkit/commit/812e4339dd06776ed5eb773e80ec792bdcbbd32a))
+
+### Upgrading
+
+Adding members to a shipped interface is a **source-breaking change for anyone who implements one
+of these six interfaces themselves** — a hand-written test double or adapter will no longer compile
+until the new members are added to it. Consumers who only *inject* the interfaces, and those using
+a mocking framework (Moq, NSubstitute, FakeItEasy) that generates implementations at runtime, are
+unaffected. This is accepted deliberately while the package is pre-1.0.
+
+One source-level nuance: on `IHtmlToDocxConverter` and `IHtmlToPdfConverter`, a call written as
+`ConvertAsync(html, default)` is now ambiguous between the `CancellationToken` and `Stream`
+overloads. Name the argument (`ConvertAsync(html, ct: default)`) to disambiguate. `null` is
+unaffected.
+
+## [0.2.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.2.1...v0.2.2) (2026-08-03)
+
+
+### Added
+
 - Runnable sample projects (`samples/ConsoleSample`, `samples/MinimalApiSample`), referencing
   the published packages and built by the existing CI alongside the libraries.
 - A DocFX-generated API-reference site (`docfx/`), published to GitHub Pages on every
   successful release via `.github/workflows/docs.yml`.
-
-## [0.3.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.2.2...v0.3.0) (2026-08-03)
-
-
-### Added
-
-* **di-extensions:** add Stream overload to IDocxToPdfConverter ([1bd712c](https://github.com/Ank-KhoaHo/DocToolkit/commit/1bd712c62e1cf4817a4fb6273bfed58f64b36c1e))
-* **di-extensions:** add Stream overload to IHtmlToDocxConverter ([f136c97](https://github.com/Ank-KhoaHo/DocToolkit/commit/f136c97f62ab888c0af92b61c63cbc4f1e6d08cf))
-* **di-extensions:** add Stream overload to IHtmlToPdfConverter ([4f131b2](https://github.com/Ank-KhoaHo/DocToolkit/commit/4f131b2dadb37e609529dc82f96c8d57fec92fb6))
-* **di-extensions:** add Stream/async overloads to IDocxEditor ([4be6e1d](https://github.com/Ank-KhoaHo/DocToolkit/commit/4be6e1d65203543c2a0d6e9738fff9ec2a325e47))
-* **di-extensions:** add Stream/async overloads to IPresentationEditor ([c95f958](https://github.com/Ank-KhoaHo/DocToolkit/commit/c95f95866be0cd99593bd4506ffeab1c8bee1ca6))
-* **di-extensions:** add Stream/async overloads to IWorkbookEditor ([0592b74](https://github.com/Ank-KhoaHo/DocToolkit/commit/0592b74cbf0872648eee8f54b11972f63f198cae))
-* **extensions:** add Stream-based async members to all six DI interfaces ([21890a2](https://github.com/Ank-KhoaHo/DocToolkit/commit/21890a2b9041863ada07a9ac44deba9e98b06c4c))
-
-
-### Fixed
-
-* **di-extensions:** bump Ank.DocToolkit version floor to 0.2.0 ([51646e2](https://github.com/Ank-KhoaHo/DocToolkit/commit/51646e2c17fecffcb7ae6e410d25a70d11180c58))
-
-
-### Changed
-
-* add implementation plan for DI extensions Stream/async parity ([bb93272](https://github.com/Ank-KhoaHo/DocToolkit/commit/bb9327265ad72ccac8fdeffaf2292a28c74be442))
-* add the API documentation link now that the site is verified live ([812e433](https://github.com/Ank-KhoaHo/DocToolkit/commit/812e4339dd06776ed5eb773e80ec792bdcbbd32a))
-* correct version-floor assumption found during Task 1 ([5dd9a26](https://github.com/Ank-KhoaHo/DocToolkit/commit/5dd9a2636526415c3de741878dfe0b5443127f65))
-* design Stream/async parity for DI extensions ([a80cd21](https://github.com/Ank-KhoaHo/DocToolkit/commit/a80cd210b1e48ddbcbe7cf8798d09f9e78a5a1d3))
-* **di-extensions:** document the Stream overloads ([6a8710c](https://github.com/Ank-KhoaHo/DocToolkit/commit/6a8710cfab22ef418a8fc89e18b724c886cba8a0))
-* **di-extensions:** state what the interfaces do not mirror ([a570e2d](https://github.com/Ank-KhoaHo/DocToolkit/commit/a570e2de98c69d3f887d5895b2e85060e67156dc))
-* **extensions:** correct stale counts and tighten README claims ([5ed5596](https://github.com/Ank-KhoaHo/DocToolkit/commit/5ed55969fcf03bd092864edb33f5b74eb68f7d1a))
-* **extensions:** warn that streamed output is partial on failure ([43ff9ac](https://github.com/Ank-KhoaHo/DocToolkit/commit/43ff9acab2722b09d45f3d8f15eaeda97b329c97))
-* fix stale version-floor claim in the plan's Tech Stack line ([1e7f0f2](https://github.com/Ank-KhoaHo/DocToolkit/commit/1e7f0f214b7b65a7d468d9370f663d7072657a54))
-* narrow the determinism claim for ClosedXML edits ([5765939](https://github.com/Ank-KhoaHo/DocToolkit/commit/57659394332a9c48edfdf7c7c8252d7a5d5fbf68))
-* require a Stream-path option guard in Task 5 ([e5912a1](https://github.com/Ank-KhoaHo/DocToolkit/commit/e5912a19f8049b5bfd1bb67e0d9a2b776857cb04))
-
-## [0.2.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.2.1...v0.2.2) (2026-08-03)
 
 
 ### Fixed
