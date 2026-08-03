@@ -52,20 +52,21 @@ public class WorkbookEditorServiceTests
         // package it builds with fresh metadata, so two Create calls on identical input never
         // produce identical bytes - not even two calls to the same static method.
         Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, xlsx.Take(4).ToArray());
-        Assert.Equal(WorkbookEditor.ReadCell(xlsx, "Sales", "A1"), "Region");
+        Assert.Equal("Region", WorkbookEditor.ReadCell(xlsx, "Sales", "A1"));
 
         var cell = await sut.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2");
         Assert.Equal(await WorkbookEditor.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2"), cell);
         Assert.Equal("1200", cell);
 
+        // Editing an existing package is deterministic - only building one from scratch stamps
+        // fresh metadata - so this half can hold the wrapper to byte-exact parity.
         using var updated = new MemoryStream();
         await sut.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, updated);
 
-        var expectedAfterSet = WorkbookEditor.ReadCell(
-            WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500), "Sales", "B2");
-        Assert.Equal(
-            expectedAfterSet,
-            await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
-        Assert.Equal("1500", expectedAfterSet);
+        using var expectedUpdated = new MemoryStream();
+        await WorkbookEditor.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, expectedUpdated);
+
+        Assert.Equal(expectedUpdated.ToArray(), updated.ToArray());
+        Assert.Equal("1500", await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
     }
 }

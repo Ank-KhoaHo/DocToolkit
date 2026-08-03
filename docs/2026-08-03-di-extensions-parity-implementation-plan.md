@@ -18,7 +18,7 @@
 - **Fully qualify `DocToolkit` namespace types inside service implementation files** (e.g. `DocToolkit.DocxEditor.ExtractTextAsync(...)`), exactly as every existing method in those files already does — these files live in `namespace DocToolkit.Extensions.DependencyInjection`, which also declares the `I*` interface of the same short name, so an unqualified reference is needlessly easy to misread. Test files may use plain `using DocToolkit;`, matching the existing test files that already do.
 - **Every new public interface member needs an XML doc comment.** `GenerateDocumentationFile` is `true` and CI builds with `-warnaserror`; a missing doc comment is CS1591, which fails the build.
 - **No file-path convenience methods** (`ConvertToFileAsync`, `ConvertFile`) and **no per-call `allowRemoteImageDownload` override** — out of scope per the design's non-goals. The two HTML-converter `Stream` overloads thread `_options.AllowRemoteImageDownload`, exactly like the existing `byte[]` overloads already do.
-- **Never assert byte equality between two separately *generated* packages.** Building a `.docx` or `.xlsx` from scratch stamps it with fresh metadata, so two calls on identical input produce different bytes — this is true even of two calls to the same core static method, so it is never evidence of a wrapper defect. Verified empirically: `WorkbookEditor.Create` and `HtmlToDocxConverter.ConvertAsync` are both non-deterministic; `HtmlToPdfConverter`/`DocxToPdfConverter` output and any *edit* of an existing package (`ReplaceText`, `SetCell`) are deterministic. For a generated package, assert parity on readable content instead (`ExtractText`, `ReadCell`) plus the format's magic number.
+- **Never assert byte equality between two separately *generated* packages — but do assert it for *edits*.** Building a `.docx`/`.xlsx` from scratch stamps it with fresh metadata, so two calls on identical input produce different bytes; that is true even of two calls to the same core static method, so it is never evidence of a wrapper defect. Editing an existing package preserves it and *is* byte-reproducible. Verified empirically for each: **non-deterministic** — `WorkbookEditor.Create`, `HtmlToDocxConverter.ConvertAsync`; **deterministic** — `WorkbookEditor.SetCell`/`SetCellAsync`, `DocxEditor.ReplaceTextAsync`, `PresentationEditor.ReplaceTextAsync`, `HtmlToPdfConverter`, `DocxToPdfConverter`. For a generated package assert parity on readable content (`ExtractText`, `ReadCell`) plus the format's magic number; for an edit, assert byte equality against the corresponding static method.
 - **Commit messages must not contain a `Co-Authored-By` trailer.**
 - **Build must stay at 0 warnings** under `dotnet build DocToolkit.sln -c Release -warnaserror` (the same command CI runs).
 - **Target frameworks stay `net8.0;net10.0`** for both the library and its test project — no `.csproj` changes needed in this plan.
@@ -384,21 +384,22 @@ Then add to the `WorkbookEditorServiceTests` class (after the existing `Create_R
         // package it builds with fresh metadata, so two Create calls on identical input never
         // produce identical bytes - not even two calls to the same static method.
         Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, xlsx.Take(4).ToArray());
-        Assert.Equal(WorkbookEditor.ReadCell(xlsx, "Sales", "A1"), "Region");
+        Assert.Equal("Region", WorkbookEditor.ReadCell(xlsx, "Sales", "A1"));
 
         var cell = await sut.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2");
         Assert.Equal(await WorkbookEditor.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2"), cell);
         Assert.Equal("1200", cell);
 
+        // Editing an existing package is deterministic - only building one from scratch stamps
+        // fresh metadata - so this half can hold the wrapper to byte-exact parity.
         using var updated = new MemoryStream();
         await sut.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, updated);
 
-        var expectedAfterSet = WorkbookEditor.ReadCell(
-            WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500), "Sales", "B2");
-        Assert.Equal(
-            expectedAfterSet,
-            await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
-        Assert.Equal("1500", expectedAfterSet);
+        using var expectedUpdated = new MemoryStream();
+        await WorkbookEditor.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, expectedUpdated);
+
+        Assert.Equal(expectedUpdated.ToArray(), updated.ToArray());
+        Assert.Equal("1500", await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
     }
 ```
 
