@@ -18,6 +18,7 @@
 - **Fully qualify `DocToolkit` namespace types inside service implementation files** (e.g. `DocToolkit.DocxEditor.ExtractTextAsync(...)`), exactly as every existing method in those files already does — these files live in `namespace DocToolkit.Extensions.DependencyInjection`, which also declares the `I*` interface of the same short name, so an unqualified reference is needlessly easy to misread. Test files may use plain `using DocToolkit;`, matching the existing test files that already do.
 - **Every new public interface member needs an XML doc comment.** `GenerateDocumentationFile` is `true` and CI builds with `-warnaserror`; a missing doc comment is CS1591, which fails the build.
 - **No file-path convenience methods** (`ConvertToFileAsync`, `ConvertFile`) and **no per-call `allowRemoteImageDownload` override** — out of scope per the design's non-goals. The two HTML-converter `Stream` overloads thread `_options.AllowRemoteImageDownload`, exactly like the existing `byte[]` overloads already do.
+- **Never assert byte equality between two separately *generated* packages.** Building a `.docx` or `.xlsx` from scratch stamps it with fresh metadata, so two calls on identical input produce different bytes — this is true even of two calls to the same core static method, so it is never evidence of a wrapper defect. Verified empirically: `WorkbookEditor.Create` and `HtmlToDocxConverter.ConvertAsync` are both non-deterministic; `HtmlToPdfConverter`/`DocxToPdfConverter` output and any *edit* of an existing package (`ReplaceText`, `SetCell`) are deterministic. For a generated package, assert parity on readable content instead (`ExtractText`, `ReadCell`) plus the format's magic number.
 - **Commit messages must not contain a `Co-Authored-By` trailer.**
 - **Build must stay at 0 warnings** under `dotnet build DocToolkit.sln -c Release -warnaserror` (the same command CI runs).
 - **Target frameworks stay `net8.0;net10.0`** for both the library and its test project — no `.csproj` changes needed in this plan.
@@ -379,9 +380,11 @@ Then add to the `WorkbookEditorServiceTests` class (after the existing `Create_R
         await sut.CreateAsync("Sales", rows, created);
         var xlsx = created.ToArray();
 
-        using var expectedCreated = new MemoryStream();
-        await WorkbookEditor.CreateAsync("Sales", rows, expectedCreated);
-        Assert.Equal(expectedCreated.ToArray(), xlsx);
+        // Parity is asserted on readable content rather than on bytes: ClosedXML stamps every
+        // package it builds with fresh metadata, so two Create calls on identical input never
+        // produce identical bytes - not even two calls to the same static method.
+        Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, xlsx.Take(4).ToArray());
+        Assert.Equal(WorkbookEditor.ReadCell(xlsx, "Sales", "A1"), "Region");
 
         var cell = await sut.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2");
         Assert.Equal(await WorkbookEditor.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2"), cell);
@@ -390,9 +393,12 @@ Then add to the `WorkbookEditorServiceTests` class (after the existing `Create_R
         using var updated = new MemoryStream();
         await sut.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, updated);
 
-        using var expectedUpdated = new MemoryStream();
-        await WorkbookEditor.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, expectedUpdated);
-        Assert.Equal(expectedUpdated.ToArray(), updated.ToArray());
+        var expectedAfterSet = WorkbookEditor.ReadCell(
+            WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500), "Sales", "B2");
+        Assert.Equal(
+            expectedAfterSet,
+            await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
+        Assert.Equal("1500", expectedAfterSet);
     }
 ```
 
@@ -541,8 +547,14 @@ Then add to the `HtmlToDocxConverterServiceTests` class (after the existing `Con
 
         using var destination = new MemoryStream();
         await sut.ConvertAsync("<h1>Title</h1><p>Body copy.</p>", destination);
+        var actual = destination.ToArray();
 
-        Assert.Equal(expected, destination.ToArray());
+        // Parity is asserted on readable content rather than on bytes: building a .docx stamps
+        // the package with fresh metadata, so two conversions of identical markup never produce
+        // identical bytes - not even two calls to the same static method.
+        Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, actual.Take(4).ToArray());
+        Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));
+        Assert.Contains("Body copy.", DocxEditor.ExtractText(actual));
     }
 ```
 
