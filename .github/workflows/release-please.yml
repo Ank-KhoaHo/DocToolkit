@@ -1,11 +1,12 @@
 name: release-please
 
 # Maintains a persistent "Release PR" on main: as commits land in Conventional Commits
-# format, this computes the next version and writes the CHANGELOG.md entry. Merging that
-# PR is the human release decision this project has always required - the automation only
-# replaces the manual "pick a version, write the changelog, tag it" bookkeeping upstream of
-# it, not the decision itself. See release-please-config.json for the version/changelog
-# rules, and CLAUDE.md's "Releasing" section for the full flow.
+# format, this computes the next version and writes the CHANGELOG.md entry.
+#
+# Merging that PR is automatic (see the Auto-merge step below): every merge to main
+# produces a release. The publish itself still re-proves every guard in release.yml
+# before pushing to nuget.org, which is irreversible. See release-please-config.json
+# for the version/changelog rules, and CLAUDE.md's "Releasing" section for the full flow.
 #
 # Requires a Personal Access Token, not the default GITHUB_TOKEN: GitHub Actions does not
 # let a workflow's default token trigger OTHER workflows when it pushes a commit or tag
@@ -50,3 +51,32 @@ jobs:
       - uses: googleapis/release-please-action@v4
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      # Requirement: every merge to main produces a release, with no human gate.
+      # Requirement: main cannot be pushed directly.
+      #
+      # Auto-merging the Release PR satisfies both - the bot merges a PULL
+      # REQUEST, so branch protection holds with no bypass actor and no
+      # long-lived token with push rights.
+      #
+      # Finds the PR by its branch rather than by parsing this action's outputs,
+      # so an output-schema change upstream cannot silently stop releases. No
+      # open Release PR is a normal state, not an error: it just means every
+      # commit is already released.
+      #
+      # NOTE: if branch protection on main ever requires APPROVING REVIEWS, this
+      # can never succeed - an unattended bot cannot approve - and releases stop
+      # with no error anywhere. Require status checks, not reviews.
+      - name: Auto-merge the Release PR
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          number=$(gh pr list --base main --head release-please--branches--main \
+            --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            echo "no open Release PR - every commit is already released"
+            exit 0
+          fi
+          echo "enabling auto-merge on Release PR #$number"
+          gh pr merge "$number" --merge --auto
