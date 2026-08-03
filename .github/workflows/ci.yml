@@ -95,6 +95,27 @@ jobs:
             8.0.x
             10.0.x
 
+      # The other premise guards check WHAT the resolved graph contains. This one
+      # checks it is the graph we agreed to. --locked-mode fails rather than
+      # silently re-resolving, so an upstream bump cannot enter a release without
+      # a lockfile change that someone reviewed.
+      #
+      # Runs before Build because Build's implicit restore would otherwise
+      # re-resolve first. Restores the two packable projects individually rather
+      # than the solution: tests/ and samples/ deliberately carry no lockfile
+      # (see docs/2026-08-03-dependency-automation-design.md), and a
+      # solution-wide --locked-mode would be ambiguous about them.
+      - name: Assert the resolved graph matches the committed lockfiles
+        run: |
+          for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
+            echo "::group::$project"
+            if ! dotnet restore "$project" --locked-mode; then
+              echo "::error::$project restored differently from its committed packages.lock.json. If the dependency change is intended, run 'dotnet restore $project --force-evaluate' and commit the updated lockfile."
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
+
       - name: Build
         run: dotnet build ${{ env.SOLUTION }} -c Release
 

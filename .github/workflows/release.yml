@@ -120,6 +120,26 @@ jobs:
           fi
           echo "nuget.org user configured"
 
+      # ---- never publish a graph nobody reviewed ----
+      # The guards below check WHAT the resolved graph contains. This one checks
+      # it is the graph we agreed to: --locked-mode fails rather than silently
+      # re-resolving. Placed before Build because Build's implicit restore would
+      # otherwise re-resolve first, so the publish would be built from a graph
+      # that was never compared against the committed lockfiles.
+      #
+      # tests/ and samples/ deliberately carry no lockfile, so the two packable
+      # projects are restored individually rather than the solution.
+      - name: Guard - the resolved graph matches the committed lockfiles
+        run: |
+          for project in "${{ env.PROJECT }}" "${{ env.EXTENSIONS_PROJECT }}"; do
+            echo "::group::$project"
+            if ! dotnet restore "$project" --locked-mode; then
+              echo "::error::Refusing to publish - $project restored differently from its committed packages.lock.json. Run 'dotnet restore $project --force-evaluate' and commit the updated lockfile."
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
+
       # ---- never publish something that is not green ----
       - name: Build
         run: dotnet build ${{ env.SOLUTION }} -c Release -warnaserror

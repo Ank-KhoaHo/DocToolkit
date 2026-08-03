@@ -1,0 +1,91 @@
+version: 2
+
+# Automated dependency updates. This repo's whole premise is that the RESOLVED
+# dependency graph satisfies four constraints at once - permissive licences,
+# NuGet only, Linux-safe, no runtime network I/O - and that a single upstream
+# bump can break any of them silently. ci.yml's premise guards already
+# adjudicate a change once someone makes it; this file is what proposes them.
+#
+# See docs/2026-08-03-dependency-automation-design.md for why lockfiles exist on
+# src/ only, and why each ignore rule below is where it is.
+
+updates:
+  # ── The core library ────────────────────────────────────────────────────────
+  # Its own block: SixLabors.Fonts is a direct reference only here, so the ignore
+  # rule has to attach to the project it actually applies to.
+  - package-ecosystem: nuget
+    directory: "/src/DocToolkit"
+    schedule:
+      interval: weekly
+    target-branch: develop
+    commit-message:
+      prefix: build
+    open-pull-requests-limit: 10
+    ignore:
+      # 2.x moves to the Six Labors Split License - Apache-2.0 only under $1M
+      # annual revenue. The [1.0.0] pin is the licensing wall. Blocking the major
+      # here stops a doomed PR reopening every week; ci.yml's premise guard stays
+      # the backstop if anything ever slips past.
+      - dependency-name: "SixLabors.Fonts"
+        update-types: ["version-update:semver-major"]
+
+  # ── The extensions package ──────────────────────────────────────────────────
+  # Every reference here is a FLOOR, and raising a floor narrows who can consume
+  # the package. That is a compatibility decision, never routine maintenance, so
+  # none of them are automated.
+  - package-ecosystem: nuget
+    directory: "/src/DocToolkit.Extensions.DependencyInjection"
+    schedule:
+      interval: weekly
+    target-branch: develop
+    commit-message:
+      prefix: build
+    ignore:
+      - dependency-name: "Ank.DocToolkit"
+      - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
+      - dependency-name: "Microsoft.Extensions.Options"
+
+  # ── Test projects ───────────────────────────────────────────────────────────
+  # No lockfiles here (see the design doc), so dependabot-core#13950 cannot fire.
+  # Grouped into one PR and prefixed chore: these do not ship, so they stay out
+  # of the public changelog.
+  - package-ecosystem: nuget
+    directories:
+      - "/tests/DocToolkit.Tests"
+      - "/tests/DocToolkit.Extensions.DependencyInjection.Tests"
+    schedule:
+      interval: weekly
+    target-branch: develop
+    commit-message:
+      prefix: chore
+    groups:
+      test-dependencies:
+        patterns: ["*"]
+
+  # ── Samples: the external-consumer canary ───────────────────────────────────
+  # Unlike the extensions package above, these floors SHOULD be bumped - that is
+  # what keeps the canary armed. A sample pinned to an old floor proves an old
+  # release works, forever, and a breaking API change sails past it.
+  - package-ecosystem: nuget
+    directories:
+      - "/samples/ConsoleSample"
+      - "/samples/MinimalApiSample"
+    schedule:
+      interval: weekly
+    target-branch: develop
+    commit-message:
+      prefix: build
+
+  # ── GitHub Actions ──────────────────────────────────────────────────────────
+  # Actions are currently pinned by tag. Keeping them current is the thing that
+  # makes SHA-pinning practical later rather than a maintenance burden.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    target-branch: develop
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
