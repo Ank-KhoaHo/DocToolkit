@@ -25,7 +25,11 @@
   </ItemGroup>
 
   <!--
-    Fixture PDFs live under spike/out (read-only evidence, not owned by this project).
+    Fixture PDFs live in this project's own assets/ (not spike/out) because spike/ is
+    develop-only reference material that scripts/promote-to-main.sh strips from main - a fixture
+    left under spike/out would not exist there, and release.yml builds and tests this project
+    against main before publishing. Living with the project that consumes them means they survive
+    the strip along with tests/ itself.
     Copied into the test output dir rather than referenced via ".." walking from the test
     assembly location: that walk-up path depth changes with configuration/TFM (bin/Debug/net8.0
     vs bin/Release/net10.0 etc.), so it would be fragile across build configurations. Copying
@@ -34,8 +38,8 @@
     invoked from.
   -->
   <ItemGroup>
-    <Content Include="..\..\spike\out\result.pdf" Link="Fixtures\result.pdf" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\..\spike\out\big.pdf" Link="Fixtures\big.pdf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets\result.pdf" Link="Fixtures\result.pdf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets\big.pdf" Link="Fixtures\big.pdf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

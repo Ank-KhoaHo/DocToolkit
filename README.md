@@ -11,6 +11,9 @@ Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .
 
 📖 [API documentation](https://ank-khoaho.github.io/DocToolkit/)
 
+> **Contributing?** `main` is release-only. Development happens on **`develop`** — run
+> `git switch develop` after cloning, and target pull requests at `develop`, not `main`.
+
 **Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
 Works after `dotnet restore` alone, runs on Linux, and makes **no network calls at runtime**.
 
@@ -254,8 +257,7 @@ tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests for the DI exte
 samples/ConsoleSample/                                  core package, all five capabilities
 samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
 docfx/                                                  DocFX site source, published to GitHub Pages on release
-spike/                                                  the original proof-of-concept, kept as reference
-docs/                                                   the implementation plan this was built from
+scripts/                                                release tooling used to promote develop to main
 ```
 
 The research behind the library selection lives in a separate repository,
