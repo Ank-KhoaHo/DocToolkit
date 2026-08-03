@@ -307,10 +307,20 @@ and matters to the bump calculation, not just the PR title). By convention, not 
 prefixes; the regex itself accepts any lowercase/digit/hyphen scope, so a different scope won't
 fail CI, it just won't match that convention. Get the *type* wrong and release-please either
 miscategorizes a change or silently drops it from the changelog — the CI guard exists so that's
-caught at PR time, not discovered in a Release PR that's already wrong. **A `Merge branch 'main'
-into <feature>` commit fails this guard** (no type prefix) — rebase onto `main` instead of merging
-it into a long-lived feature branch. Rebasing onto `main` is safe now that `main` carries no
-deletions; under the old two-branch model it was not.
+caught at PR time, not discovered in a Release PR that's already wrong.
+
+**Merge commits are exempt**, detected by parent count rather than by subject text. Git writes their
+subjects itself and no type prefix is possible, so failing them would punish you for a message you
+did not write. An earlier version exempted only GitHub's `Merge pull request #N from …` and so
+fired on three everyday operations that all merge `main` into a branch and word it differently —
+`git merge main`, `git pull` (which is fetch + merge whenever the branch has diverged), and
+`gh pr update-branch`. All three broke real PRs before the guard was changed. Detecting merges
+structurally cannot drift the way a list of subject patterns does.
+
+**Rebasing onto `main` is still preferred** for readable history — `git pull --rebase`,
+`gh pr update-branch --rebase` — it just isn't enforced by a job that exists for release
+correctness. Rebasing onto `main` is safe now that `main` carries no deletions; under the old
+two-branch model it was not.
 
 `release-please.yml` needs its own PAT (not the default `GITHUB_TOKEN`) stored as the
 `RELEASE_PLEASE_TOKEN` repository secret — GitHub Actions doesn't let a workflow's default token
