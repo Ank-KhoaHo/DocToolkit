@@ -1,16 +1,53 @@
 # DocToolkit enhancement backlog
 
-**Status:** open · **Compiled:** 2026-08-03 · **Against:** `develop` at v0.3.2
+**Status:** open · **Compiled:** 2026-08-03 against `develop` at v0.3.2 ·
+**Last refreshed:** 2026-08-03 against `main` at v0.3.9
 
 A survey of everything worth improving in DocToolkit, across features, testing, CI/CD,
 documentation and repo structure. This is a *backlog*, not a design — each item is a candidate
 that still needs its own design doc and implementation plan before it gets built.
 
-Items carry stable IDs (`A1`, `C7`, …). Refer to them by ID in later sessions; don't renumber.
+Items carry stable IDs (`A1`, `C7`, …). Refer to them by ID in later sessions; **don't renumber**,
+and don't delete completed ones — mark them, so the record of what was tried survives.
 
 Every claim below was checked against the working tree, not assumed. Where a gap is already
 acknowledged in the project's own docs, the reference is given — those are the strongest
 candidates, because the project has already conceded the point.
+
+---
+
+## Closed on 2026-08-03
+
+Seven items, in two tracks — dependency automation and the single-branch collapse. Both have design
+docs and implementation plans alongside this file.
+
+| ID | Outcome |
+|---|---|
+| **C1** | **Done.** `.github/dependabot.yml` covers src, tests and GitHub Actions. Majors are excluded from groups so they arrive individually — the first grouped run bundled eight, including the action that drives publishing. |
+| **C2** | **Done, with a caveat that became C18.** `packages.lock.json` on both packable projects, verified by a `--locked-mode` guard in `ci.yml` and `release.yml`. |
+| **B6** | **Done.** xunit 2.9.3, `Microsoft.NET.Test.Sdk` 18.8.1, coverlet 10.0.1, `xunit.runner.visualstudio` 3.1.5. Coverage output re-verified, since `ci.yml` depends on cobertura files a plain `dotnet test` never produces. |
+| **B9** | **Done, better than proposed.** The fix was not to bump the floor but to remove it: the samples now use `Version="*"`, so they track the newest release with nothing proposing a bump. Bumping the floor worked for exactly one release and then created a weekly release loop. |
+| **C11** | **Moot, not fixed.** Publishing an empty release is now the *specified* behaviour — every merge to `main` publishes, by explicit decision. There is nothing left to guard against. |
+| **C16** | **Moot.** The Codecov badge pointed at `branch/main` while development happened on `develop`. There is only `main` now. |
+| **D1** | **Reduced, still open.** `CLAUDE.md` and `docs/` now live on `main`, so the process is no longer invisible to contributors. A `CONTRIBUTING.md` is still worth writing, but it is now a summary rather than the only copy. |
+
+### Also fixed along the way
+
+- **A flaky test that had been unsound since it was written.** `WorkbookEditorServiceTests` asserted
+  byte-equality between two ClosedXML saves. ClosedXML re-stamps ZIP timestamps on save, so it
+  passed only when both calls landed in the same two-second tick. It failed CI on a docs-only PR.
+  A probe across all four formats found **only** ClosedXML non-deterministic — PPTX, DOCX and
+  DOCX→PDF are byte-stable — so the byte-equality assertions in the other five service tests were
+  confirmed sound and left alone.
+- **`main`'s required status checks named a job that the single-branch collapse deletes.** Left
+  unfixed it would have blocked every future PR permanently. Replaced with the seven jobs that
+  survive, which also closed a pre-existing gap: the Windows build, the docs site and the extensions
+  package verification had never gated `main`.
+- **`strict` (require branches up to date) removed from `main`.** Under auto-release `main` moves
+  twice per change, so every open PR went stale within minutes. It cost ten rebases across three
+  PRs in one session, broke two PRs when the update was done by merge (`Merge branch 'main'` fails
+  `commit-format`), and **silently stalled a Release PR** — release-please green, auto-merge
+  enabled, nothing published.
 
 ---
 
@@ -73,6 +110,8 @@ candidates, because the project has already conceded the point.
 | C15 | **No `global.json`.** SDK version floats per contributor, on a repo that multi-targets net8 and net10. |
 | C16 | **Codecov badge points at `branch/main`,** but development happens on `develop`, so the badge lags until a promote. |
 | C17 | **No auto-merge for green patch-level dependency PRs.** Follows C1. |
+| C18 | **Dependabot cannot write a correct lockfile for a multi-targeted project.** Found 2026-08-03, twice: it rewrote `src/DocToolkit/packages.lock.json` from 256 lines to 6, deleting both the `net8.0` and `net10.0` sections, with `NU1004: The project target frameworks are different than the lock file's target frameworks`. This is *not* [dependabot-core#13950](https://github.com/dependabot/dependabot-core/issues/13950), which is about `ProjectReference` consumers — it is a separate defect affecting any multi-target project. **Every future bump of the five shipped dependencies will arrive corrupt.** The locked-mode guard catches it every time, so this is noise rather than risk, and manual bumps take about ten minutes. The documented fallback is Renovate for the two `src/` projects, which regenerates lockfiles by running `dotnet restore` rather than modelling the graph — weighed and declined once on supply-chain grounds (a third-party app with write access to a repo publishing via OIDC). Revisit when the noise outweighs that. |
+| C19 | **Dependabot `ignore` rules are scoped to the block that declares them, and grouped updates cross directories.** Found 2026-08-03: a grouped run from the `/tests/**` block proposed `SixLabors.Fonts [1.0.0] → [3.0.0]` — past the revenue-gated 2.x line the pin exists to prevent — plus three shipped floors ignored elsewhere. The test projects reach `src/` through `ProjectReference`, and Dependabot follows those and edits csproj files belonging to other blocks. Mitigated by repeating all four guards in the tests block, but the underlying trap remains: **any new update block must repeat every rule that protects `src/`**. A test asserting that would be better than a comment. |
 
 ---
 
@@ -117,19 +156,25 @@ Recorded so a later pass does not re-investigate them:
 
 ---
 
-## Suggested order
+## Suggested order — revised 2026-08-03, after the first two tracks shipped
 
-Ranked by leverage against the project's own stated premise, not by size.
+1. **A4 — repeating table rows in DOCX templates.** Two complete infrastructure tracks have now
+   shipped and the library has gained nothing a *user* would notice. This is the most-requested
+   real-world Word-template need and the first item here a consumer would see. Self-contained
+   enough for a single spec.
+2. **B1 — public-API approval tests.** Unchanged in priority. One accidental source-breaking change
+   has already shipped, and pre-1.0 is the cheap moment to install the guard.
+3. **A1–A3, A5 — the rest of the create-and-template gap**, each as its own spec.
+4. **C3 — SHA-pin the actions.** Newly practical: all seven action majors are current as of today,
+   so pinning no longer freezes them at stale versions.
+5. **C12 — generate and diff `THIRD-PARTY-NOTICES.txt`.** Sharper than when written: the
+   SixLabors 1.0.1 bump required hand-editing it in three separate places, which is precisely the
+   drift this item predicts.
 
-1. **C1 + C2 — Dependabot plus lockfiles and central package management.** Directly serves the
-   premise that the resolved graph *is* the product. Everything needed to adjudicate the resulting
-   PRs already exists in the premise guards. Self-contained: no public API change, no version bump.
-2. **D1 — `CONTRIBUTING.md`, authored to live on `main`.** The process knowledge is currently
-   invisible to exactly the audience that needs it.
-3. **B1 — public-API approval tests.** One accidental source-breaking change has already shipped;
-   pre-1.0 is the cheap moment to install the guard.
-4. **A1–A5 — the create-and-template feature gap.** What turns a converter into a toolkit. Largest
-   track by a wide margin and the only one that changes the public API surface — needs decomposing
-   into several specs before any of it is built.
-5. **C11 + C12 — the empty-release guard and generated third-party notices.** Both close hazards
-   the project has already written down as hazards.
+### The original ranking, kept for the record
+
+C1+C2 first, then D1, B1, A1–A5, and C11+C12. C1 and C2 shipped; C11 turned out to be moot rather
+than worth building; D1 shrank once `CLAUDE.md` reached `main`. The infrastructure-first ordering
+was right — the guards it installed caught a licensing breach, two corrupted lockfiles and a
+long-standing flaky test within hours of going live — but it is spent now, and the next return is
+in the library itself.
