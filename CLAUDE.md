@@ -228,8 +228,15 @@ is a *real* `git merge`, not a generated snapshot, so every Conventional Commit 
 **Merge that PR with a merge commit, never a squash**; squashing collapses those subjects and
 release-please would compute the wrong bump, or none.
 
-`scripts/` is deliberately *not* excluded from `main`: it is release tooling, and stripping it
-would let the promote script delete itself out from under the running bash process.
+`scripts/` is deliberately *not* excluded from `main`, and both files there are live, not vestigial:
+`ci.yml`'s `promote-script` job runs `bash scripts/test-promote.sh` on **every** push, `main`
+included, so stripping `scripts/` would fail CI on `main` immediately.
+
+(An earlier draft justified this differently — that excluding `scripts/` would let the promote
+script delete itself out from under the running bash process. That was true of a design where the
+script `git switch`ed the *current* checkout onto a `main`-based branch. The shipped script does
+its work in a throwaway `git worktree` instead, so the file it is reading is never touched, and
+that hazard no longer exists. The CI reason above is the one that still binds.)
 
 ### Never merge `main` into `develop`
 

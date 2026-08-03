@@ -96,8 +96,12 @@ any path is *still* unmerged, then commit as `chore: promote develop to main`.
 The work happens in a throwaway worktree rather than by switching the current
 checkout, because the script lives in `scripts/` and switching the current
 worktree to a `main`-based branch could delete the file bash is still reading.
-For the same reason `scripts/` is deliberately **not** in the excluded set - it
-is release tooling and belongs on `main`.
+
+`scripts/` is deliberately **not** in the excluded set, but note the worktree
+above already removes that self-deletion hazard — so it is *not* the reason.
+The binding reason is CI: `ci.yml`'s `promote-script` job runs
+`bash scripts/test-promote.sh` on every push, `main` included, so stripping
+`scripts/` would fail CI on `main` from the first push onward.
 
 The script captures `git merge`'s exit code instead of letting `set -e` act on it directly, and
 only tolerates exactly 1: a modify/delete conflict (or any other merge conflict) makes `git merge`
