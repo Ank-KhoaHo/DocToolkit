@@ -42,7 +42,7 @@
       exist. The exact-version bracket keeps that from happening quietly; see
       THIRD-PARTY-NOTICES.txt and the DependencyGuardTests guard.
     -->
-    <PackageReference Include="SixLabors.Fonts" Version="[1.0.0]" />
+    <PackageReference Include="SixLabors.Fonts" Version="[3.0.0]" />
   </ItemGroup>
 
   <ItemGroup>

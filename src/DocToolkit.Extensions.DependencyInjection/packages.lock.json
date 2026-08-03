@@ -1,167 +1,12 @@
 {
   "version": 1,
   "dependencies": {
-    "net10.0": {
-      "Ank.DocToolkit": {
-        "type": "Direct",
-        "requested": "[0.2.0, )",
-        "resolved": "0.2.0",
-        "contentHash": "82UXjCJR4xYtaDsDGbPZ3/AFLb0f9L0aPG5kbJNrX2YUbceHXRJuI3NDdQHXqikZ4EnLiS1P/kmnAkXaIOfmcw==",
-        "dependencies": {
-          "ClosedXML": "0.105.1",
-          "DocumentFormat.OpenXml": "3.5.1",
-          "HtmlToOpenXml.dll": "3.5.0",
-          "OfficeIMO.Word.Pdf": "3.0.3",
-          "SixLabors.Fonts": "[1.0.0]"
-        }
-      },
-      "Microsoft.Extensions.DependencyInjection.Abstractions": {
-        "type": "Direct",
-        "requested": "[8.0.0, )",
-        "resolved": "8.0.0",
-        "contentHash": "cjWrLkJXK0rs4zofsK4bSdg+jhDLTaxrkXu4gS6Y7MAlCvRyNNgwY/lJi5RDlQOnSZweHqoyvgvbdvQsRIW+hg=="
-      },
-      "Microsoft.Extensions.Options": {
-        "type": "Direct",
-        "requested": "[8.0.0, )",
-        "resolved": "8.0.0",
-        "contentHash": "JOVOfqpnqlVLUzINQ2fox8evY2SKLYJ3BV8QDe/Jyp21u1T7r45x/R/5QdteURMR5r01GxeJSBBUOCOyaNXA3g==",
-        "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.0",
-          "Microsoft.Extensions.Primitives": "8.0.0"
-        }
-      },
-      "AngleSharp": {
-        "type": "Transitive",
-        "resolved": "1.5.0",
-        "contentHash": "REAdFOAlTxr6yqmxWFFLLMB/+uvIS3N6tXXUAWjoexA0LsQB/CfZYadg+z+DkcpAwJk8gF1VF4YLsq4U1Gficg=="
-      },
-      "BouncyCastle.Cryptography": {
-        "type": "Transitive",
-        "resolved": "2.6.2",
-        "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
-      },
-      "ClosedXML": {
-        "type": "Transitive",
-        "resolved": "0.105.1",
-        "contentHash": "X1ruIP9h2FBEK7jmO0peq3s6/Zqt5ve5a9f9kn6WUjdsUWvGbQlqxuGLz822xuFLlmnSeAfWFTGeX/tZlmAt+g==",
-        "dependencies": {
-          "ClosedXML.Parser": "2.0.0",
-          "DocumentFormat.OpenXml": "[3.1.1, 4.0.0)",
-          "ExcelNumberFormat": "1.1.0",
-          "RBush.Signed": "4.0.0",
-          "SixLabors.Fonts": "[1.0.0, 3.0.0)"
-        }
-      },
-      "ClosedXML.Parser": {
-        "type": "Transitive",
-        "resolved": "2.0.0",
-        "contentHash": "ngTqjYreDYNytG1W5d3ewHsw0ukmmrgV7EKnS4/40rXoYZGt07jrBvo+N+GxT49rcageUMUiprV0jYT4nwVBHQ=="
-      },
-      "DocumentFormat.OpenXml": {
-        "type": "Transitive",
-        "resolved": "3.5.1",
-        "contentHash": "zxdOf5VVCe/uNklbRhj8dVBzQGj3DoqkUuqOp9cAZVuN8mNYDjof1lvSQA2OQNr8Ptc9d7pbA7Azq/ReaI3FpA==",
-        "dependencies": {
-          "DocumentFormat.OpenXml.Framework": "3.5.1"
-        }
-      },
-      "DocumentFormat.OpenXml.Framework": {
-        "type": "Transitive",
-        "resolved": "3.5.1",
-        "contentHash": "U5txtc3ORno73xQx9Lf2gWzfaSZnZwKHfLkTAslhlew9lxe5XbUiCt0dY1fHeAf8yRqszUAe5i/+xLC9R/Xfsw==",
-        "dependencies": {
-          "System.IO.Packaging": "10.0.2"
-        }
-      },
-      "ExcelNumberFormat": {
-        "type": "Transitive",
-        "resolved": "1.1.0",
-        "contentHash": "R3BVHPs9O+RkExbZYTGT0+9HLbi8ZrNij1Yziyw6znd3J7P3uoIR07uwTLGOogtz1p6+0sna66eBoXu7tBiVQA=="
-      },
-      "HtmlToOpenXml.dll": {
-        "type": "Transitive",
-        "resolved": "3.5.0",
-        "contentHash": "ULQqQidtvWfGhds11YWG0uAkRYGXFzn3mNA6ZVnByJUV/1pqkR4fVAF3f7V1cSbpdSWCwoPtFbAef//rUNCmKA==",
-        "dependencies": {
-          "AngleSharp": "1.5.0",
-          "DocumentFormat.OpenXml": "3.5.1",
-          "Microsoft.Extensions.Logging.Abstractions": "6.0.0"
-        }
-      },
-      "Microsoft.Extensions.Logging.Abstractions": {
-        "type": "Transitive",
-        "resolved": "6.0.0",
-        "contentHash": "/HggWBbTwy8TgebGSX5DBZ24ndhzi93sHUBDvP1IxbZD7FDokYzdAr6+vbWGjw2XAfR2EJ1sfKUotpjHnFWPxA=="
-      },
-      "Microsoft.Extensions.Primitives": {
-        "type": "Transitive",
-        "resolved": "8.0.0",
-        "contentHash": "bXJEZrW9ny8vjMF1JV253WeLhpEVzFo1lyaZu1vQ4ZxWUlVvknZ/+ftFgVheLubb4eZPSwwxBeqS1JkCOjxd8g=="
-      },
-      "OfficeIMO.Drawing": {
-        "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "xpFbtcKgYZ27uWjQD8GAxWERdvOnpEG7VfOY5qk7TTk4AeyIIsqdqIt/PPlE+Ht4STpdSUvaH37PuyyuNpHgIg=="
-      },
-      "OfficeIMO.Pdf": {
-        "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "Yl9tLV4p6n+1ShhlmQEO88klUysdNnnKnX1tXaoKoU7dPJKE18wXWs0W8Ao7r2MCDNnZSx7kLrEQ7TGWcq9aqg==",
-        "dependencies": {
-          "OfficeIMO.Drawing": "3.0.3",
-          "OfficeIMO.Security": "3.0.3"
-        }
-      },
-      "OfficeIMO.Security": {
-        "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "Pn5aJKB9dgPVOT/j4l6mUZpffw+nYlI+MI8MPGkkKkyw4EA+io82NOBlFyinaxg92S0fqzz1Xs2V9XTql//JMw==",
-        "dependencies": {
-          "BouncyCastle.Cryptography": "[2.6.2, 3.0.0)"
-        }
-      },
-      "OfficeIMO.Word": {
-        "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "6QS/JXZMbmolNaEbw5lWs4xNSFTHKRhuJVAd6lwBtcOcK192HB2Use52ro5mMILayz6U0JZqR5mSKrtMalW+XA==",
-        "dependencies": {
-          "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
-          "OfficeIMO.Drawing": "3.0.3"
-        }
-      },
-      "OfficeIMO.Word.Pdf": {
-        "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "52uuveTE/NizSMsmTQwSNmFI9LMiq4/4PTKzbuAqvw8BeV1p1m/zMkUFSa6B8q2UhidL0S5JbXgV06FYtwGq+A==",
-        "dependencies": {
-          "OfficeIMO.Drawing": "3.0.3",
-          "OfficeIMO.Pdf": "3.0.3",
-          "OfficeIMO.Word": "3.0.3"
-        }
-      },
-      "RBush.Signed": {
-        "type": "Transitive",
-        "resolved": "4.0.0",
-        "contentHash": "aP5KQxL5RnFNGW1f0euYVBfCatkLw5iEzMRJcXKq8LWWP4Cp3+qoSq1tDDL2vvJ2rM0ychmVMa2VaEKLS6uX4w=="
-      },
-      "SixLabors.Fonts": {
-        "type": "Transitive",
-        "resolved": "1.0.0",
-        "contentHash": "LFQsCZlV0xlUyXAOMUo5kkSl+8zAQXXbbdwWchtk0B4o7zotZhQsQOcJUELGHdfPfm/xDAsz6hONAuV25bJaAg=="
-      },
-      "System.IO.Packaging": {
-        "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "JTpM4z0wpoIHHDvlCU27HsXo+zVnpWib94HXQpzzr+jc/P9NYf4w353AK4MXyGq/grm1mbLi7eXsOsDU8sGmNg=="
-      }
-    },
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.2.0, )",
-        "resolved": "0.2.0",
-        "contentHash": "82UXjCJR4xYtaDsDGbPZ3/AFLb0f9L0aPG5kbJNrX2YUbceHXRJuI3NDdQHXqikZ4EnLiS1P/kmnAkXaIOfmcw==",
+        "requested": "[0.3.2, )",
+        "resolved": "0.3.2",
+        "contentHash": "4Cqiy4Zih2Kons6ZDYHi1MWKyCEbHVJiy6GOfJvP0dLjNiCZ0OtSYYlesVV+9vbb3X7CrJrpenrCiG6pw1gRSQ==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
@@ -172,18 +17,18 @@
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "Direct",
-        "requested": "[8.0.0, )",
-        "resolved": "8.0.0",
-        "contentHash": "cjWrLkJXK0rs4zofsK4bSdg+jhDLTaxrkXu4gS6Y7MAlCvRyNNgwY/lJi5RDlQOnSZweHqoyvgvbdvQsRIW+hg=="
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "z/2xXlFw2aLGjHyEm6E0tQ+In6VfzQzTrtArbQ2c0TQE16ZbyDCMGPvaUT9I0s8rgy9sRWlU2P9waW37qV04qA=="
       },
       "Microsoft.Extensions.Options": {
         "type": "Direct",
-        "requested": "[8.0.0, )",
-        "resolved": "8.0.0",
-        "contentHash": "JOVOfqpnqlVLUzINQ2fox8evY2SKLYJ3BV8QDe/Jyp21u1T7r45x/R/5QdteURMR5r01GxeJSBBUOCOyaNXA3g==",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "srnhnk7nE8krBiIXp71LvBmKBtraBONWSRzdjJgRv1Ko9Mp8IVNqv4vIS9hGeVteBig8aQkva9ZG+sC+o5sVcA==",
         "dependencies": {
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.0",
-          "Microsoft.Extensions.Primitives": "8.0.0"
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.10",
+          "Microsoft.Extensions.Primitives": "10.0.10"
         }
       },
       "AngleSharp": {
@@ -251,8 +96,8 @@
       },
       "Microsoft.Extensions.Primitives": {
         "type": "Transitive",
-        "resolved": "8.0.0",
-        "contentHash": "bXJEZrW9ny8vjMF1JV253WeLhpEVzFo1lyaZu1vQ4ZxWUlVvknZ/+ftFgVheLubb4eZPSwwxBeqS1JkCOjxd8g=="
+        "resolved": "10.0.10",
+        "contentHash": "5wu/GrYVd8mG2DVUw3vFJzF+O336TyTGg/Kmcgw9bfwYhCoFiV5lR5QeEmKecJyrW4W54nMfD3p3589E8a7czQ=="
       },
       "OfficeIMO.Drawing": {
         "type": "Transitive",
