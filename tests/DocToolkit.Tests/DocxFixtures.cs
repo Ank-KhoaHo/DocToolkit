@@ -53,8 +53,27 @@ internal static class DocxFixtures
     /// contain a nested table as well as paragraphs, which is how the nesting tests are built.</summary>
     public static TableRow RowOf(params OpenXmlElement[] cellChildren) => new(new TableCell(cellChildren));
 
-    /// <summary>A table made of <paramref name="rows"/>.</summary>
-    public static Table Tbl(params TableRow[] rows) => new(rows);
+    /// <summary>
+    /// A table made of <paramref name="rows"/>.
+    ///
+    /// The <c>w:tblGrid</c> is not decoration: without it the schema validator rejects the first
+    /// <c>w:tr</c> as an unexpected child, because <c>tblPr</c> and <c>tblGrid</c> must precede any
+    /// row. An earlier version of this helper omitted it and produced tables that passed every test
+    /// while being schema-invalid.
+    /// </summary>
+    public static Table Tbl(params TableRow[] rows)
+    {
+        var columns = rows.Length == 0
+            ? 1
+            : rows.Max(r => r.ChildElements.OfType<TableCell>().Count());
+
+        var grid = new TableGrid();
+        for (var i = 0; i < Math.Max(columns, 1); i++) grid.AppendChild(new GridColumn());
+
+        var table = new Table(new TableProperties(), grid);
+        foreach (var row in rows) table.AppendChild(row);
+        return table;
+    }
 
     /// <summary>Builds a .docx whose body is exactly <paramref name="bodyChildren"/>.</summary>
     public static byte[] Build(params OpenXmlElement[] bodyChildren)

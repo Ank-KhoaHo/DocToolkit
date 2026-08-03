@@ -244,7 +244,7 @@ public static class DocxEditor
     /// A placeholder with no matching key resolves to empty rather than staying visible.
     /// Placeholders for other prefixes are untouched, so a second call fills a second table. An
     /// empty <paramref name="rows"/> removes the template row, and removes the whole table when that
-    /// row was its only one — a <c>w:tbl</c> with no <c>w:tr</c> is not a document Word will open.
+    /// row was its only one — an empty frame left on the page reads worse than rendering nothing.
     ///
     /// Compose with <see cref="ReplaceText(byte[], IReadOnlyDictionary{string, string})"/> for
     /// document-level scalars, expanding rows first.
@@ -330,9 +330,11 @@ public static class DocxEditor
 
         template.Remove();
 
-        // A w:tbl with no w:tr is rejected by Word: the package saves without error and then fails
-        // to open. Dropping the table is the lesser evil, and matches "an empty list renders
-        // nothing" far better than leaving an empty frame behind.
+        // Removing the now-empty table is a PRESENTATION choice, not a correctness fix. The design
+        // assumed a w:tbl with no w:tr would be rejected; measured with OpenXmlValidator, a table
+        // carrying tblPr and tblGrid but no rows validates clean. It is kept because an empty
+        // one-cell frame left behind on a document whose list happened to be empty is worse than
+        // rendering nothing, which is what "no records" means.
         if (parent is Table table && !table.ChildElements.OfType<TableRow>().Any())
             table.Remove();
     }
