@@ -216,20 +216,24 @@ no separate tag prefix for the extensions package — see "The DI extensions pac
 
 **The tag is normally created by release-please, not by hand.**
 `.github/workflows/release-please.yml` watches every push to `main`, computes the version bump
-from Conventional Commits (`feat:` → minor, `fix:` → patch, `!`/`BREAKING CHANGE:` → major — see
-`release-please-config.json`), and maintains a single persistent Release PR with the computed
-`CHANGELOG.md` entry already written. **Merging that PR is the human release decision** this
-project has always required — the automation only replaces the manual "pick a version, write the
-changelog, tag it" bookkeeping upstream of that decision, not the decision itself. Both packages
-are tracked as one component (`"."` in `release-please-config.json`) so they can never version
-independently.
+from Conventional Commits (`feat:` → minor, `fix:` → patch, `!`/`BREAKING CHANGE:` → major — this
+mapping is release-please's built-in Conventional Commits strategy, not something configured in
+this repo; `release-please-config.json` only maps commit types to changelog sections), and
+maintains a single persistent Release PR with the computed `CHANGELOG.md` entry already written.
+**Merging that PR is the human release decision** this project has always required — the
+automation only replaces the manual "pick a version, write the changelog, tag it" bookkeeping
+upstream of that decision, not the decision itself. Both packages are tracked as one component
+(`"."` in `release-please-config.json`) so they can never version independently.
 
-Commit messages must follow Conventional Commits (`type(scope)?: description`, `scope` one of
-`core`, `extensions`, or omitted) going forward — `ci.yml`'s `commit-format` job enforces this on
-every PR, checking every commit in the PR's range (this repo true-merges, so every commit lands on
-`main` and matters to the bump calculation, not just the PR title). Get this wrong and
-release-please either miscategorizes a change or silently drops it from the changelog — the CI
-guard exists so that's caught at PR time, not discovered in a Release PR that's already wrong.
+Commit messages must follow Conventional Commits (`type(scope)?: description`) going forward —
+`ci.yml`'s `commit-format` job enforces the `type(scope)?: description` shape on every PR,
+checking every commit in the PR's range (this repo true-merges, so every commit lands on `main`
+and matters to the bump calculation, not just the PR title). By convention, not CI-enforced,
+`scope` is `core`, `extensions`, or omitted — matching `CHANGELOG.md`'s own `Core:`/`Extensions:`
+prefixes; the regex itself accepts any lowercase/digit/hyphen scope, so a different scope won't
+fail CI, it just won't match that convention. Get the *type* wrong and release-please either
+miscategorizes a change or silently drops it from the changelog — the CI guard exists so that's
+caught at PR time, not discovered in a Release PR that's already wrong.
 
 `release-please.yml` needs its own PAT (not the default `GITHUB_TOKEN`) stored as the
 `RELEASE_PLEASE_TOKEN` repository secret — GitHub Actions doesn't let a workflow's default token
