@@ -225,6 +225,158 @@ public static class DocxEditor
         }
     }
 
+    /// <summary>
+    /// Expands a table row once per record, so a template can render a variable-length list such as
+    /// invoice line items.
+    ///
+    /// A row is a <b>template row</b> when one of its cells contains a placeholder prefixed with
+    /// <paramref name="collection"/> — <c>{{item.Desc}}</c> when <paramref name="collection"/> is
+    /// <c>item</c>. Each record deep-clones that row, so every clone keeps the template's run
+    /// formatting, cell shading and borders, and substitution runs through the same splicer
+    /// <see cref="ReplaceText(byte[], IReadOnlyDictionary{string, string})"/> uses — a placeholder
+    /// split across runs is still replaced, and a hyperlink in a cell is left intact.
+    ///
+    /// <b>Keys are bare field names</b> (<c>Desc</c>), not full placeholders — unlike
+    /// <see cref="ReplaceText(byte[], IReadOnlyDictionary{string, string})"/>, whose keys are the
+    /// placeholder text including braces. <paramref name="collection"/> is already an argument, so
+    /// repeating it in every key of every record would duplicate it many times over.
+    ///
+    /// A placeholder with no matching key resolves to empty rather than staying visible.
+    /// Placeholders for other prefixes are untouched, so a second call fills a second table. An
+    /// empty <paramref name="rows"/> removes the template row, and removes the whole table when that
+    /// row was its only one — a <c>w:tbl</c> with no <c>w:tr</c> is not a document Word will open.
+    ///
+    /// Compose with <see cref="ReplaceText(byte[], IReadOnlyDictionary{string, string})"/> for
+    /// document-level scalars, expanding rows first.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="collection"/> is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be opened or edited, or no template row was found for
+    /// <paramref name="collection"/> — a mismatch between the call and the template is a bug in one
+    /// of them, not a no-op.
+    /// </exception>
+    public static byte[] FillRows(
+        byte[] docx, string collection, IEnumerable<IReadOnlyDictionary<string, string>> rows)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(collection);
+        ArgumentNullException.ThrowIfNull(rows);
+        if (docx.Length == 0)
+            throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (string.IsNullOrWhiteSpace(collection))
+            throw new ArgumentException("Collection name was blank.", nameof(collection));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        FillRowsCore(ms, collection, rows);
+        return ms.ToArray();
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void FillRowsCore(
+        MemoryStream ms, string collection, IEnumerable<IReadOnlyDictionary<string, string>> rows)
+    {
+        var records = rows as IReadOnlyList<IReadOnlyDictionary<string, string>> ?? rows.ToList();
+        var marker = "{{" + collection + ".";
+
+        try
+        {
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body.");
+
+                var templates = TableRowFinder.Find(body, marker);
+                if (templates.Count == 0)
+                {
+                    throw new DocumentConversionException(
+                        $"No table row containing '{marker}' was found, so there was nothing to fill.");
+                }
+
+                foreach (var template in templates)
+                    ExpandRow(template, collection, records);
+
+                main.Document!.Save();
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to fill table rows in the DOCX package.", ex);
+        }
+    }
+
+    private static void ExpandRow(
+        TableRow template, string collection,
+        IReadOnlyList<IReadOnlyDictionary<string, string>> records)
+    {
+        var parent = template.Parent
+                     ?? throw new DocumentConversionException("A template row had no parent table.");
+
+        foreach (var record in records)
+        {
+            var clone = (TableRow)template.CloneNode(deep: true);
+            Substitute(clone, collection, record);
+            parent.InsertBefore(clone, template);
+        }
+
+        template.Remove();
+
+        // A w:tbl with no w:tr is rejected by Word: the package saves without error and then fails
+        // to open. Dropping the table is the lesser evil, and matches "an empty list renders
+        // nothing" far better than leaving an empty frame behind.
+        if (parent is Table table && !table.ChildElements.OfType<TableRow>().Any())
+            table.Remove();
+    }
+
+    private static void Substitute(
+        TableRow clone, string collection, IReadOnlyDictionary<string, string> record)
+    {
+        var replacements = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in record)
+            replacements["{{" + collection + "." + pair.Key + "}}"] = pair.Value ?? string.Empty;
+
+        // Deliberately the same walk ReplaceText uses, so text boxes inside a cell behave
+        // identically in both methods rather than by accident.
+        ReplaceIn(clone, replacements);
+
+        ClearUnmatched(clone, collection);
+    }
+
+    /// <summary>
+    /// Blanks any placeholder for this collection the record had no key for. A half-filled document
+    /// showing <c>{{item.Missing}}</c> to an end user is worse than an empty cell, and the keys to
+    /// clear are only knowable after reading the document.
+    /// </summary>
+    private static void ClearUnmatched(TableRow clone, string collection)
+    {
+        var marker = "{{" + collection + ".";
+        var leftovers = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var paragraph in clone.Descendants<Paragraph>())
+        {
+            var merged = paragraph.InnerText;
+            var at = merged.IndexOf(marker, StringComparison.Ordinal);
+            while (at >= 0)
+            {
+                var close = merged.IndexOf("}}", at, StringComparison.Ordinal);
+                if (close < 0) break;
+                leftovers[merged[at..(close + 2)]] = string.Empty;
+                at = merged.IndexOf(marker, close, StringComparison.Ordinal);
+            }
+        }
+
+        if (leftovers.Count > 0) ReplaceIn(clone, leftovers);
+    }
+
     private static void ReplaceIn(OpenXmlElement root, IReadOnlyDictionary<string, string> replacements)
     {
         foreach (var paragraph in root.Descendants<Paragraph>())
