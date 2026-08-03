@@ -93,6 +93,23 @@ hyperlinks.
 paragraphs inside `w:txbxContent` (text boxes). Reaching into them once caused text-box content to
 be deleted and relocated into the outer paragraph — schema-valid, no exception, silent data loss.
 
+**`TableRowFinder` must not use `Descendants<TableRow>()`** — the same trap, one level out. That
+also yields the rows of tables nested inside cells, which would do two wrong things at once: mark a
+container row as a template row because text further down happens to hold the marker, and sweep an
+inner row into the outer row's expansion so it gets cloned once per record. Discovery walks each
+table's *direct child* rows, and detection looks only at a row's own cells' *direct child*
+paragraphs. Rows come back innermost-first so a nested template row is expanded before anything
+clones the row it sits in. `TableRowFinderTests` pins this down directly rather than through
+`FillRows`, because the end-to-end symptom is a plausible-looking document rather than an error —
+which is also why the core project grants `InternalsVisibleTo` to the test project.
+
+**A `w:tbl` with no `w:tr` is *valid*.** The repeating-row design assumed otherwise and said so in a
+comment; measured with `OpenXmlValidator`, a table carrying `tblPr` and `tblGrid` but no rows
+validates clean. `FillRows` still removes a table it empties, but as a presentation choice, not a
+correctness fix. Relatedly, `DocxFixtures.Tbl` must emit a `w:tblGrid`: without it the validator
+rejects the first `w:tr` as an unexpected child, and an earlier version of that helper built
+schema-invalid tables that every test happily passed against.
+
 **HTML → PDF pivots through DOCX by design.** No permissively-licensed, NuGet-only, Linux-safe
 library renders HTML to PDF directly: the only free renderers *are* browsers, and a browser is a
 native binary. `HtmlToPdfConverter` composes the other two converters — keep it a composition, do
@@ -121,7 +138,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 224 tests (182 core + 42 extensions) → 448 results.
+  report *2N* results. 252 tests (210 core + 42 extensions) → 504 results.
 - **Never replace `src/DocToolkit/DocToolkit.csproj` wholesale** — it carries the package metadata
   (`PackageId`, version, licence expression, readme, symbol package). Use `dotnet add package`,
   which edits in place.
@@ -206,7 +223,7 @@ copy error, not a message pointing at the real cause.
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 224 tests x 2 TFMs = 448 results
+dotnet test  DocToolkit.sln -c Release            # 252 tests x 2 TFMs = 504 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 

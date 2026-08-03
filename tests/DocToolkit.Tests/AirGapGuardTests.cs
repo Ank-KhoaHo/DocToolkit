@@ -340,6 +340,43 @@ public class AirGapGuardTests
     }
 
     [Fact]
+    public async Task DocxEditorFillRows_ContactsNothing()
+    {
+        using var probe = new LoopbackProbe(_output);
+
+        // The template row, the substituted values and the surrounding document all name the
+        // listener, so a fetch triggered by any of the three would show up.
+        var docx = DocxFixtures.Build(
+            DocxFixtures.P(DocxFixtures.R($"See {probe.BaseUrl}/index.html")),
+            DocxFixtures.Tbl(
+                DocxFixtures.Row(DocxFixtures.R("Description")),
+                DocxFixtures.Row(DocxFixtures.R($"{{{{item.Desc}}}} — {probe.BaseUrl}/row.png"))));
+
+        var filled = DocxEditor.FillRows(docx, "item", new[]
+        {
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Desc"] = $"{probe.BaseUrl}/value.png",
+            },
+        });
+
+        Assert.NotEmpty(DocxEditor.ExtractText(filled));
+
+        using var destination = new MemoryStream();
+        await DocxEditor.FillRowsAsync(new MemoryStream(docx), "item", new[]
+        {
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Desc"] = $"{probe.BaseUrl}/async.png",
+            },
+        }, destination);
+
+        Assert.NotEmpty(destination.ToArray());
+
+        await probe.AssertSilentAsync("DocxEditor.FillRows / FillRowsAsync");
+    }
+
+    [Fact]
     public async Task WorkbookEditor_ContactsNothing()
     {
         using var probe = new LoopbackProbe(_output);

@@ -51,4 +51,15 @@
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!--
+    TableRowFinder is internal - consumers use DocxEditor, never it directly - but its one
+    dangerous behaviour, refusing to reach into nested tables, fails SILENTLY when it regresses:
+    the document is still schema-valid, just wrong. Proving that end-to-end shows a bad document
+    without showing which rows were chosen, so the test project gets direct access.
+    Same trade the extensions package already makes for its internal service implementations.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="DocToolkit.Tests" />
+  </ItemGroup>
+
 </Project>
