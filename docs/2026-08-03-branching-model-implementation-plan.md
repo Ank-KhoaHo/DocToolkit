@@ -46,8 +46,13 @@ configuration change.
 
 ### Task 1: Push pending work and create `develop`
 
-`main` is currently 4 commits ahead of `origin/main`. Everything downstream branches from `main`,
-so local and remote must agree first.
+Everything downstream branches from `main`, so local and remote must agree first.
+
+> **Amended during execution.** `origin/main` moved by 24 commits while this plan was being
+> written — the DI extensions parity work merged as PR #6 and release-please shipped **0.3.0**.
+> Local `main` had diverged with only this design doc and plan on top of the older tip. Both are
+> additive new files, so `git rebase origin/main` replayed them cleanly (`1b50fef`, `4dce9fc`).
+> Step 1 below now reads "rebase, then push" rather than "push".
 
 **Files:** none — git refs only.
 
@@ -59,13 +64,22 @@ so local and remote must agree first.
 
 ```bash
 git status --short
+git fetch origin --prune --tags
 git log --oneline origin/main..main
+git log --oneline main..origin/main
 ```
 
-Expected: `status --short` prints nothing. `log` prints exactly 4 commits, ending with
-`docs: design a two-branch model separating releases from development`.
+Expected: `status --short` prints nothing. If it prints anything, stop and resolve it first.
 
-If `status --short` prints anything, stop and resolve it before continuing.
+If the last command prints commits, `origin/main` has moved and local `main` has diverged —
+rebase before pushing (the working tree must be clean first, as just checked):
+
+```bash
+git rebase origin/main
+```
+
+Expected: `Successfully rebased and updated refs/heads/main.` If it reports conflicts, stop and
+escalate — this plan's commits are additive new files under `docs/` and should never conflict.
 
 - [ ] **Step 2: Push `main`**
 
@@ -798,7 +812,7 @@ Replace the fenced Layout block's `spike/` and `docs/` rows and add `scripts/`, 
 src/DocToolkit/                                         the library
 tests/DocToolkit.Tests/                                 182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
-tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests, including ServiceCollectionExtensionsTests
+tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests, including ServiceCollectionExtensionsTests
 samples/ConsoleSample/                                  core package, all five capabilities
 samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
 docfx/                                                  DocFX site source, published to GitHub Pages on release
@@ -898,7 +912,10 @@ dotnet build .worktrees/promote-check/DocToolkit.sln -c Release -warnaserror
 dotnet test  .worktrees/promote-check/DocToolkit.sln -c Release --no-build
 ```
 
-Expected: build succeeds with 0 warnings; 410 test results pass (205 tests × 2 TFMs).
+Expected: build succeeds with 0 warnings, and every test passes — 448 results at the time of
+writing (224 tests × 2 TFMs: 182 core + 42 extensions). Treat the pass/fail result as the gate,
+not the exact number; the count moves whenever tests are added.
+
 This is the direct check that stripping `spike/` did not break the solution.
 
 Clean up:
@@ -1023,15 +1040,23 @@ Repository settings are not tracked in git.
 
 ---
 
-### Task 8: Retarget the in-flight `di-extensions-parity` work
+### Task 8: ~~Retarget the in-flight `di-extensions-parity` work~~ — OBSOLETE, do not execute
 
-There is an active worktree at `.worktrees/di-extensions-parity` on branch `di-extensions-parity`,
-created before `develop` existed and therefore based on `main`. Its implementation plan
-(`docs/2026-08-03-di-extensions-parity-implementation-plan.md`) assumes a single-branch repo.
+**Skip this task.** It was written when `di-extensions-parity` was an in-flight branch with an
+active worktree. While this plan was being written, that work was finished, merged to `main` as
+**PR #6**, and released in **0.3.0**; the branch and its worktree were then deleted. Verified at
+execution time:
 
-**Files:**
-- Modify: git refs only, plus a one-line note in
-  `docs/2026-08-03-di-extensions-parity-implementation-plan.md`.
+```bash
+git worktree list                 # only the main checkout remains
+git rev-parse di-extensions-parity  # fatal: Not a valid object name
+```
+
+There is no in-flight branch left to retarget, so nothing here applies. The `feat/**` naming point
+it made still holds for *future* branches and is already recorded in `CLAUDE.md` by Task 5.
+
+<details>
+<summary>Original task text, kept for the record</summary>
 
 - [ ] **Step 1: See how far the branch has diverged**
 
@@ -1103,11 +1128,13 @@ git worktree list
 Expected: the branch exists under its new name, its commits sit on top of `develop`, and the
 worktree still resolves.
 
+</details>
+
 ---
 
 ## Verification of the whole plan
 
-After Task 8, these must all hold:
+After Task 7 (Task 8 is obsolete — see above), these must all hold:
 
 ```bash
 # main carries no development record
