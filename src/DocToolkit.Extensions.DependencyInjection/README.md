@@ -47,6 +47,9 @@ record InvoiceRequest(string Html);
 app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter toPdf, HttpResponse response) =>
 {
     response.ContentType = "application/pdf";
+    // The PDF is written to response.Body as it is rendered, not assembled first, so the
+    // status code and headers are committed on the first write. A failure part-way through
+    // cannot be turned into a clean 500 — the response is already underway.
     await toPdf.ConvertAsync(request.Html, response.Body);
 });
 ```
