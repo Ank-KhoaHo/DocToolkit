@@ -5,10 +5,12 @@
 
 ## 1. Context and goal
 
-`Ank.DocToolkit.Extensions.DependencyInjection` 0.1.0 wraps the six static classes in
-`Ank.DocToolkit` behind six injectable interfaces (`IHtmlToDocxConverter`, `IDocxToPdfConverter`,
+`Ank.DocToolkit.Extensions.DependencyInjection` wraps the six static classes in `Ank.DocToolkit`
+behind six injectable interfaces (`IHtmlToDocxConverter`, `IDocxToPdfConverter`,
 `IHtmlToPdfConverter`, `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor`), per
-[2026-07-30-di-extensions-design.md](2026-07-30-di-extensions-design.md).
+[2026-07-30-di-extensions-design.md](2026-07-30-di-extensions-design.md). It currently references
+`Ank.DocToolkit` at `Version="[0.1.0, )"` — a floor, not the package's current release (both
+packages have since moved past 0.1.0; see `CHANGELOG.md`).
 
 Since that design was approved, the core `Ank.DocToolkit` static classes have grown a `Stream`-in
 / `Stream`-out async overload for nearly every operation — `ExtractTextAsync`, `ReplaceTextAsync`,
@@ -32,7 +34,10 @@ Core/worker-service consumers — is undercut by the one API shape those consume
   existing `byte[]` overload already uses.
 - Not a rewrite: every new interface method is a one-line delegate to an already-existing core
   static method, identical in spirit to every method the DI package already has.
-- Not a core (`Ank.DocToolkit`) change. Every method being wrapped already exists there.
+- Not a core (`Ank.DocToolkit`) change. Every method being wrapped already exists there — as of
+  the published `0.2.0` release, which added the `Stream` overloads (see CHANGELOG). The DI
+  project's own `PackageReference` floor does need to move to `[0.2.0, )` for that surface to be
+  visible to compile against; see §6.
 
 ## 3. Interface changes
 
@@ -143,13 +148,24 @@ streaming contract itself would be duplicate coverage of what `DocToolkit.Tests`
 short example showing a `Stream`-destination call (e.g. writing a converted PDF straight to an
 ASP.NET Core response body) alongside the existing `byte[]`-returning example.
 
-## 6. What does not change
+## 6. What does not change — and the one thing that does
 
-- The core `Ank.DocToolkit` package: no source changes, no version bump required.
+- The core `Ank.DocToolkit` package: no source changes, no version bump required — the `Stream`
+  overloads this design wraps already shipped in the published `0.2.0` release.
 - The registration shape in `ServiceCollectionExtensions.AddDocToolkit` — same six `TryAddSingleton`
   calls, same `DocToolkitOptions`.
 - The file-path convenience methods and the per-call `allowRemoteImageDownload` override stay out
   of scope, per §2.
+
+**One dependency change is required:** `DocToolkit.Extensions.DependencyInjection.csproj`'s
+`PackageReference Include="Ank.DocToolkit"` must move its version floor from `[0.1.0, )` to
+`[0.2.0, )`. NuGet resolves a minimum-version range to the *lowest* satisfying version, not the
+latest, so the existing `[0.1.0, )` floor pins the DI package to a core release that predates the
+`Stream` overloads — restore silently succeeds against 0.1.0 and the new code fails to compile
+with "does not contain a definition for ...Async". The floor must name the version that actually
+introduced the API being wrapped. (Discovered during Task 1 of the implementation plan; a
+`ProjectReference` is not an acceptable substitute — it would ship a package with no declared
+`Ank.DocToolkit` dependency, breaking every consumer who installs the extensions package alone.)
 
 ## 7. Rollout
 
