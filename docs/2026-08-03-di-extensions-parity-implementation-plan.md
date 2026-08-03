@@ -6,7 +6,7 @@
 
 **Architecture:** No new types, no new projects. Each of the six existing interfaces (`IDocxEditor`, `IPresentationEditor`, `IWorkbookEditor`, `IHtmlToDocxConverter`, `IHtmlToPdfConverter`, `IDocxToPdfConverter`) gains the `Stream`-based async members its core static counterpart already has; each matching `*Service` class gains a one-line delegating implementation, identical in spirit to every method already there.
 
-**Tech Stack:** .NET 8 / .NET 10 · xUnit · the already-referenced `Ank.DocToolkit` package (no version floor change — every method being wrapped already exists there)
+**Tech Stack:** .NET 8 / .NET 10 · xUnit · the `Ank.DocToolkit` package at version floor `[0.2.0, )` — the published release that added the `Stream` overloads being wrapped (see Global Constraints)
 
 **Source design:** [`docs/2026-08-03-di-extensions-parity-design.md`](2026-08-03-di-extensions-parity-design.md) — read it for the *why*; this plan is the *how*.
 
