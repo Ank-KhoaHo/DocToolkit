@@ -425,6 +425,305 @@ public static class DocxEditor
         if (leftovers.Count > 0) ReplaceIn(clone, leftovers);
     }
 
+    /// <summary>
+    /// Replaces every occurrence of <paramref name="placeholder"/> with <paramref name="image"/>,
+    /// inline, across the body, headers, footers, footnotes and endnotes.
+    ///
+    /// Only the matched text goes: text sharing a run with the placeholder keeps its place and its
+    /// formatting, so <c>Signed: {{sig}} (authorised)</c> becomes <c>Signed: </c>, the image, then
+    /// <c> (authorised)</c>.
+    ///
+    /// <paramref name="placeholder"/> is the literal text including braces, like
+    /// <see cref="ReplaceText(byte[], IReadOnlyDictionary{string, string})"/> — and unlike
+    /// <see cref="FillRows"/>, whose keys are bare field names only because the collection name is
+    /// already an argument there.
+    ///
+    /// Size is in points. Omit both and the image's intrinsic size is used, read from its own header
+    /// at 96 DPI. Give one and the other scales to preserve the aspect ratio. Give both and the
+    /// image is stretched to fit — distortion is the caller's choice, not an error.
+    ///
+    /// PNG and JPEG only, detected from the image's magic bytes rather than any filename.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> or <paramref name="image"/> is empty, or <paramref name="placeholder"/>
+    /// is blank.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The image is neither PNG nor JPEG, the package could not be edited, or
+    /// <paramref name="placeholder"/> does not appear anywhere — a call matching nothing is a bug in
+    /// the call or the template, not a no-op.
+    /// </exception>
+    public static byte[] ReplaceImage(
+        byte[] docx, string placeholder, byte[] image,
+        double? widthPoints = null, double? heightPoints = null)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(image);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (image.Length == 0) throw new ArgumentException("Image content was empty.", nameof(image));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        ReplaceImageCore(ms, placeholder, image, widthPoints, heightPoints);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, replaces every occurrence of
+    /// <paramref name="placeholder"/> with <paramref name="image"/>, and writes the result to
+    /// <paramref name="destination"/>. See <see cref="ReplaceImage"/> for what is matched and how it
+    /// is sized — this overload applies the identical logic via streams instead of a byte array.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable, so
+    /// both may be sockets, files or HTTP message bodies.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="image">PNG or JPEG bytes, identified by their magic bytes.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="widthPoints">Width in points, or null to derive it.</param>
+    /// <param name="heightPoints">Height in points, or null to derive it.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/> is
+    /// not writable, <paramref name="image"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The image is neither PNG nor JPEG, the package could not be edited, or the placeholder was
+    /// not found.
+    /// </exception>
+    public static async Task ReplaceImageAsync(
+        Stream source, string placeholder, byte[] image, Stream destination,
+        double? widthPoints = null, double? heightPoints = null, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(image);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (image.Length == 0) throw new ArgumentException("Image content was empty.", nameof(image));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to insert an image into the DOCX package.", ct)
+            .ConfigureAwait(false);
+
+        ReplaceImageCore(buffer, placeholder, image, widthPoints, heightPoints);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to insert an image into the DOCX package.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void ReplaceImageCore(
+        MemoryStream ms, string placeholder, byte[] image, double? widthPoints, double? heightPoints)
+    {
+        var info = ImageInspector.Inspect(image);
+        var (widthEmu, heightEmu) = ImageInspector.Resolve(info, widthPoints, heightPoints);
+        var name = placeholder.Trim().Trim('{', '}').Trim();
+
+        try
+        {
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body.");
+
+                // Unique across the WHOLE document: a duplicate wp:docPr id makes Word declare the
+                // file corrupt and offer to repair it, so start above whatever is already there.
+                var nextId = NextDrawingId(main);
+                var replaced = 0;
+
+                replaced += InsertImagesIn(main, body, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
+                main.Document!.Save();
+
+                foreach (var part in main.HeaderParts)
+                {
+                    if (part.Header is null) continue;
+                    replaced += InsertImagesIn(part, part.Header, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
+                    part.Header.Save();
+                }
+
+                foreach (var part in main.FooterParts)
+                {
+                    if (part.Footer is null) continue;
+                    replaced += InsertImagesIn(part, part.Footer, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
+                    part.Footer.Save();
+                }
+
+                if (main.FootnotesPart?.Footnotes is { } footnotes)
+                {
+                    replaced += InsertImagesIn(main.FootnotesPart, footnotes, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
+                    footnotes.Save();
+                }
+
+                if (main.EndnotesPart?.Endnotes is { } endnotes)
+                {
+                    replaced += InsertImagesIn(main.EndnotesPart, endnotes, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
+                    endnotes.Save();
+                }
+
+                if (replaced == 0)
+                {
+                    throw new DocumentConversionException(
+                        $"The placeholder '{placeholder}' was not found, so there was nothing to replace.");
+                }
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to insert an image into the DOCX package.", ex);
+        }
+    }
+
+    /// <summary>One above the highest wp:docPr id anywhere in the package.</summary>
+    private static uint NextDrawingId(MainDocumentPart main)
+    {
+        var highest = 0U;
+
+        foreach (var root in AllRoots(main))
+        {
+            foreach (var properties in root.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>())
+                if (properties.Id?.Value is { } value && value > highest) highest = value;
+        }
+
+        return highest + 1;
+
+        static IEnumerable<OpenXmlElement> AllRoots(MainDocumentPart part)
+        {
+            if (part.Document is not null) yield return part.Document;
+            foreach (var header in part.HeaderParts)
+                if (header.Header is not null) yield return header.Header;
+            foreach (var footer in part.FooterParts)
+                if (footer.Footer is not null) yield return footer.Footer;
+            if (part.FootnotesPart?.Footnotes is { } footnotes) yield return footnotes;
+            if (part.EndnotesPart?.Endnotes is { } endnotes) yield return endnotes;
+        }
+    }
+
+    private static int InsertImagesIn(
+        OpenXmlPartContainer owner, OpenXmlElement root, string placeholder, byte[] image,
+        ImageInfo info, long widthEmu, long heightEmu, string name, ref uint nextId)
+    {
+        var inserted = 0;
+
+        foreach (var paragraph in root.Descendants<Paragraph>().ToList())
+        {
+            // Same scoping as ReplaceInParagraph: only the text this paragraph directly owns, so a
+            // text box nested in one of its runs is visited on its own rather than folded in here.
+            var texts = paragraph.Descendants<Text>()
+                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                                 .ToList();
+            if (texts.Count == 0) continue;
+
+            var merged = string.Concat(texts.Select(t => t.Text));
+
+            var offsets = new List<int>();
+            for (var at = merged.IndexOf(placeholder, StringComparison.Ordinal);
+                 at >= 0;
+                 at = merged.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal))
+            {
+                offsets.Add(at);
+            }
+
+            // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
+            for (var i = offsets.Count - 1; i >= 0; i--)
+            {
+                var relationshipId = AddImagePart(owner, image, info);
+                var drawing = DrawingFactory.InlineImage(relationshipId, name, nextId++, widthEmu, heightEmu);
+                SpliceDrawingIn(texts, offsets[i], placeholder.Length, drawing);
+                inserted++;
+            }
+        }
+
+        return inserted;
+    }
+
+    /// <summary>
+    /// Adds the image bytes to <paramref name="owner"/> and returns its relationship id.
+    ///
+    /// The part must belong to the container that owns the paragraph. A header's image added to the
+    /// main document part yields a relationship id that resolves in the wrong scope: Word opens the
+    /// file and simply shows nothing where the image should be.
+    /// </summary>
+    private static string AddImagePart(OpenXmlPartContainer owner, byte[] image, ImageInfo info)
+    {
+        var part = owner.AddNewPart<ImagePart>(info.ContentType);
+        using (var stream = part.GetStream(FileMode.Create))
+        {
+            stream.Write(image, 0, image.Length);
+        }
+
+        return owner.GetIdOfPart(part);
+    }
+
+    /// <summary>
+    /// Removes <paramref name="length"/> characters at <paramref name="start"/> from the
+    /// concatenation of <paramref name="texts"/> and puts <paramref name="drawing"/> there instead.
+    ///
+    /// This cannot use <see cref="RunTextSplicer"/>: that maps match offsets back onto runs and
+    /// writes <i>text</i>, whereas this has to remove a span and insert an <i>element</i> at that
+    /// position. Same principle — never touch a run the match does not overlap — different mechanism.
+    /// </summary>
+    private static void SpliceDrawingIn(List<Text> texts, int start, int length, Drawing drawing)
+    {
+        var end = start + length;
+        var position = 0;
+        Run? anchor = null;
+        var suffix = string.Empty;
+
+        foreach (var node in texts)
+        {
+            var nodeStart = position;
+            var nodeEnd = position + node.Text.Length;
+            position = nodeEnd;
+
+            if (nodeEnd <= start || nodeStart >= end) continue;   // untouched by this match
+
+            var keepBefore = start > nodeStart ? node.Text[..(start - nodeStart)] : string.Empty;
+            var keepAfter = end < nodeEnd ? node.Text[(end - nodeStart)..] : string.Empty;
+
+            if (anchor is null)
+            {
+                node.Text = keepBefore;
+                anchor = node.Ancestors<Run>().FirstOrDefault();
+                suffix = keepAfter;
+            }
+            else
+            {
+                node.Text = keepAfter;
+            }
+        }
+
+        if (anchor is null) return;
+
+        var imageRun = new Run(drawing);
+        anchor.InsertAfterSelf(imageRun);
+
+        // A match wholly inside one run leaves a tail that needs a run of its own after the image.
+        if (suffix.Length > 0)
+        {
+            imageRun.InsertAfterSelf(new Run(
+                new Text(suffix) { Space = SpaceProcessingModeValues.Preserve }));
+        }
+    }
+
     private static void ReplaceIn(OpenXmlElement root, IReadOnlyDictionary<string, string> replacements)
     {
         foreach (var paragraph in root.Descendants<Paragraph>())

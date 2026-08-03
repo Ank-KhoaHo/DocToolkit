@@ -38,6 +38,10 @@ public class StreamOverloadTests
         DocxFixtures.Row(DocxFixtures.R("Description")),
         DocxFixtures.Row(DocxFixtures.R("{{item.Desc}}"))));
 
+    /// <summary>A .docx holding an image placeholder, for ReplaceImageAsync.</summary>
+    private static readonly byte[] ImageDocx = DocxFixtures.Build(
+        DocxFixtures.P(DocxFixtures.R("Logo: {{logo}} end")));
+
     private static readonly IReadOnlyList<IReadOnlyDictionary<string, string>> FillRowsRecords =
         new[]
         {
@@ -80,6 +84,7 @@ public class StreamOverloadTests
         "DocxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
+        "DocxEditor.ReplaceImageAsync",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -91,6 +96,7 @@ public class StreamOverloadTests
         "DocxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
+        "DocxEditor.ReplaceImageAsync",
         "DocxEditor.ExtractTextAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
         "WorkbookEditor.ReadCellAsync",
@@ -112,6 +118,7 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
+        "DocxEditor.ReplaceImageAsync",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -535,6 +542,8 @@ public class StreamOverloadTests
                 DocxEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
             "DocxEditor.FillRowsAsync" =>
                 DocxEditor.FillRowsAsync(source!, "item", FillRowsRecords, destination!, ct),
+            "DocxEditor.ReplaceImageAsync" =>
+                DocxEditor.ReplaceImageAsync(source!, "{{logo}}", ImageFixtures.Png(), destination!, ct: ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
             "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)" =>
@@ -560,6 +569,7 @@ public class StreamOverloadTests
         // FillRowsAsync throws unless the document holds a matching template row, so it cannot
         // share the plain Docx fixture the other DocxEditor overloads use.
         "DocxEditor.FillRowsAsync" => TableDocx,
+        "DocxEditor.ReplaceImageAsync" => ImageDocx,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PresentationEditor", StringComparison.Ordinal) => Pptx,
         _ => Docx,
