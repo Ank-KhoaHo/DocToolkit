@@ -295,9 +295,17 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     steps:
+      # github.head_ref is attacker-controlled - anyone can open a PR from a branch
+      # they named, and git ref-format rules allow $, (), backticks, ;, &, |, and
+      # quotes in branch names. Interpolating it directly into the script would let
+      # a crafted branch name inject shell here, in the one job whose entire purpose
+      # is to be an unbypassable guard on main. Routing it through env: keeps it a
+      # plain string value, never expanded as YAML/shell source.
       - name: Assert this PR may target main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          head="${{ github.head_ref }}"
+          head="$HEAD_REF"
           case "$head" in
             release/promote-*|release-please--branches--main)
               echo "ok - '$head' may target main" ;;
