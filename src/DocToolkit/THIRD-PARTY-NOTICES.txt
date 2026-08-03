@@ -22,7 +22,7 @@ Direct dependencies
    Copyright (c) ClosedXML contributors
    https://github.com/ClosedXML/ClosedXML
 
-5. SixLabors.Fonts - Apache License 2.0 - PINNED TO [1.0.0]
+5. SixLabors.Fonts - Apache License 2.0 - PINNED TO [1.0.1]
    Copyright (c) Six Labors
    https://github.com/SixLabors/Fonts
 
@@ -53,12 +53,12 @@ closure onto their own feed - see "Restoring without internet access" below.
 - OfficeIMO.Security 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word 3.0.3 - MIT License - https://github.com/EvotecIT/OfficeIMO
 - RBush.Signed 4.0.0 - MIT License - https://github.com/viceroypenguin/RBush
-- SixLabors.Fonts 1.0.0 - Apache License 2.0 - see the pinning note under direct dependencies
+- SixLabors.Fonts 1.0.1 - Apache License 2.0 - see the pinning note under direct dependencies
 - System.IO.Packaging - MIT License - https://github.com/dotnet/runtime
   Resolves to 8.0.1 on net8.0 and 10.0.2 on net10.0. Both are needed if you build for both.
 
 The direct dependencies resolve as: ClosedXML 0.105.1, DocumentFormat.OpenXml 3.5.1,
-HtmlToOpenXml.dll 3.5.0, OfficeIMO.Word.Pdf 3.0.3, SixLabors.Fonts 1.0.0.
+HtmlToOpenXml.dll 3.5.0, OfficeIMO.Word.Pdf 3.0.3, SixLabors.Fonts 1.0.1.
 
 Restoring without internet access
 ---------------------------------
