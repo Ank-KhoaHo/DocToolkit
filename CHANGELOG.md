@@ -10,6 +10,32 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.5.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.4.0...v0.5.0) (2026-08-03)
+
+
+### Added
+
+* **core:** add DocxEditor.ReplaceImage ([a8ead4f](https://github.com/Ank-KhoaHo/DocToolkit/commit/a8ead4fb5295d1a6f1be5562d078c792d6566575))
+* **core:** add DocxEditor.ReplaceImageAsync, and document images ([869fe14](https://github.com/Ank-KhoaHo/DocToolkit/commit/869fe14cfa0a1aac2ff8dbf3673af76be12735c2))
+* **core:** image placeholders for DOCX templates ([f1d7618](https://github.com/Ank-KhoaHo/DocToolkit/commit/f1d7618a21920ff246c212c35904e5dfaa515c96))
+* **core:** read image format and size from the header, and resolve to EMUs ([dc1443b](https://github.com/Ank-KhoaHo/DocToolkit/commit/dc1443b92fd266cdb5b3eacf4f7cd4df2d8ebcc4))
+
+
+### Fixed
+
+* **core:** document every DrawingFactory parameter, and record why CI caught it ([4dfc227](https://github.com/Ank-KhoaHo/DocToolkit/commit/4dfc227ba3c49fc0a538062a61384976a5fd06ae))
+* **core:** drop the flaky timing assertion from the cancellation test ([d59815e](https://github.com/Ank-KhoaHo/DocToolkit/commit/d59815e07f44c490e75d5b083ccd9eb205c2f0f3))
+* **core:** drop the flaky timing assertion from the cancellation test ([a3394df](https://github.com/Ank-KhoaHo/DocToolkit/commit/a3394df8d0d5dd39bab57249dafa40250462a3bd))
+
+
+### Changed
+
+* add the image-placeholders implementation plan ([19308d2](https://github.com/Ank-KhoaHo/DocToolkit/commit/19308d2b0f68ca469389f14fd98dab11e0dce935))
+* design image placeholders for DOCX templates ([f4ac790](https://github.com/Ank-KhoaHo/DocToolkit/commit/f4ac7900b66ce74182aea10c4a29f757bf3197de))
+* design image placeholders for DOCX templates ([54b2a3e](https://github.com/Ank-KhoaHo/DocToolkit/commit/54b2a3efe7bca74a0c9f510f27796ecbcc313261))
+* **samples:** demonstrate repeating table rows in ConsoleSample ([de80d4b](https://github.com/Ank-KhoaHo/DocToolkit/commit/de80d4bd232ebf9e9e40aecdb47f5c8a46d84261))
+* **samples:** demonstrate repeating table rows in ConsoleSample ([1f857f8](https://github.com/Ank-KhoaHo/DocToolkit/commit/1f857f887a668e4c379f1366146083909a2b02f2))
+
 ## [0.4.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.12...v0.4.0) (2026-08-03)
 
 
