@@ -587,8 +587,26 @@ In **Settings → Branches → Add rule** for `main`:
 - Require status checks to pass — **ON**, selecting `build & test (ubuntu-latest)`,
   `build & test (windows-latest)`, `no native binaries / no banned packages`, `commit message
   format`, `build docs site`, `pack & verify .nupkg (core)`, `pack & verify .nupkg (extensions)`
+- **Do not allow bypassing the above settings** — decide deliberately, see below
 
 Approvals **must** stay off, or the Release PR can never auto-merge and releases stop with no error.
+
+**On bypass, which is not a detail.** Repository admins bypass branch protection by default.
+Observed on 2026-08-03: a push to `develop` succeeded with
+`remote: Bypassed rule violations for refs/heads/develop: 2 of 2 required status checks are
+expected.` — the rule was configured and simply did not apply to an admin.
+
+So requirement 3 ("`main` cannot be pushed directly") is **false for you** unless *Do not allow
+bypassing the above settings* is ticked. Two defensible positions:
+
+- **Tick it.** Requirement 3 becomes literally true for everyone including you. Cost: you lose the
+  emergency direct-push escape hatch, and you must confirm release-please's identity is exempt or
+  can still merge its PR — a rule applied to everyone can lock out the bot too, which is the silent
+  failure mode again.
+- **Leave it unticked.** Protection applies to contributors; you retain an admin override you have
+  to choose to use. Requirement 3 holds by convention for you and by enforcement for everyone else.
+
+The plan does not decide this. Pick one, and record which in the design doc's success criteria.
 
 - [ ] **Step 4: Enable auto-merge**
 
@@ -602,14 +620,29 @@ git commit --allow-empty -m "chore: verify main rejects direct pushes"
 git push origin main
 ```
 
-Expected: **rejected** by branch protection. Then undo the local commit:
+Expected depends on the bypass decision in Step 3:
+
+- **Bypass disallowed:** the push is **rejected**. Requirement 3 verified.
+- **Bypass allowed (default):** the push **succeeds**, and the remote prints
+  `Bypassed rule violations for refs/heads/main`. That message is the verification — it proves the
+  rule exists and that only your admin override let the push through. A push that succeeds with
+  **no** such message means protection is not configured at all.
+
+Then undo:
 
 ```bash
 git reset --hard origin/main
 ```
 
-If the push *succeeds*, protection is not configured — fix it before continuing, and revert the
-commit on the remote.
+If the push succeeded, also remove the empty commit from the remote — and note that doing so is
+itself a direct push, so it is only possible while bypass is allowed:
+
+```bash
+git push --force-with-lease origin main
+```
+
+If instead you want to avoid touching `main` at all, run this whole step against a scratch branch
+with the same protection rule rather than `main` itself.
 
 - [ ] **Step 6: Verify the first automatic release end to end**
 
