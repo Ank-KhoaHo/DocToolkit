@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.12](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.11...v0.3.12) (2026-08-03)
+
+
+### Changed
+
+* design repeating table rows for DOCX templates ([eb447d3](https://github.com/Ank-KhoaHo/DocToolkit/commit/eb447d360e8f51dd1fb13701f07c0e37cbe3f1b0))
+* design repeating table rows for DOCX templates ([8193879](https://github.com/Ank-KhoaHo/DocToolkit/commit/8193879aed0386f028b267afadb498f5e392f174))
+
 ## [0.3.11](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.10...v0.3.11) (2026-08-03)
 
 
