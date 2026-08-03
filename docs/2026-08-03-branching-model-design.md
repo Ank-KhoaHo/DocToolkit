@@ -81,35 +81,18 @@ conflict resolution on every single promote, forever.
 `scripts/promote-to-main.sh` makes it deterministic by purging the excluded paths
 unconditionally, whatever state the merge left them in:
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-EXCLUDED=(CLAUDE.md docs spike)
+See `scripts/promote-to-main.sh` for the implementation, and
+`scripts/test-promote.sh` for the test that proves it. The essential moves are:
+fetch, create a throwaway git worktree on a new `release/promote-*` branch based
+on `origin/main`, `git merge --no-ff --no-commit origin/develop` tolerating a
+non-zero exit, purge every excluded path from index and worktree, abort if any
+path is *still* unmerged, then commit as `chore: promote develop to main`.
 
-git fetch origin
-git switch -c "release/promote-$(date +%Y%m%d-%H%M%S)" origin/main
-git merge --no-ff --no-commit origin/develop || true   # conflicts tolerated for now
-
-# main's side always wins for excluded paths: here, they do not exist.
-for p in "${EXCLUDED[@]}"; do
-  git rm -rf --cached --ignore-unmatch -q -- "$p" || true
-  rm -rf -- "$p"
-done
-
-# Anything still conflicted is a REAL conflict in shipping code. Stop; a human decides.
-if git diff --name-only --diff-filter=U | grep -q .; then
-  echo "Real conflict outside the excluded set:" >&2
-  git diff --name-only --diff-filter=U >&2
-  exit 1
-fi
-
-git commit -m "chore: promote develop to main"
-git push -u origin HEAD
-gh pr create --base main --title "chore: promote develop to main" \
-  --body "Promotes develop to main. Excluded from main: ${EXCLUDED[*]}.
-Merge with a MERGE COMMIT, never squash - squashing destroys the Conventional
-Commit subjects release-please needs to compute the version bump."
-```
+The work happens in a throwaway worktree rather than by switching the current
+checkout, because the script lives in `scripts/` and switching the current
+worktree to a `main`-based branch could delete the file bash is still reading.
+For the same reason `scripts/` is deliberately **not** in the excluded set - it
+is release tooling and belongs on `main`.
 
 The `|| true` after `git merge` is deliberate and is the only reason the script works: a
 modify/delete conflict makes `git merge` exit non-zero, and under `set -e` that would abort
