@@ -359,6 +359,16 @@ Config lives on nuget.org (policy: owner `Ank-KhoaHo`, repo `DocToolkit`, workfl
 plus a `NUGET_USER` variable holding the nuget.org profile name, not an email. Never reintroduce a
 stored API key for CI.
 
+**Prereleases** need no special handling: `release.yml`'s `Resolve version` step accepts
+`vX.Y.Z-suffix` (e.g. `v1.2.3-beta.1`) and marks the GitHub Release as a prerelease automatically.
+
+**Dry run before a real publish.** Trigger `release.yml` manually from the Actions tab
+(*Run workflow*), give it a version, and leave *publish* unticked. It builds, tests, runs every
+guard, packs and verifies both packages, and performs the OIDC exchange — but pushes nothing.
+The OIDC step runs on a dry run *deliberately*: it is the only way to prove the Trusted Publishing
+policy actually works without publishing, since a dry run that skipped it would pass while the
+policy was misconfigured and the failure would surface on the one run that cannot be undone.
+
 ## Layout
 
 ```
