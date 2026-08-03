@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using DocToolkit;
 using DocToolkit.Extensions.DependencyInjection;
@@ -25,5 +26,19 @@ public class DocxToPdfConverterServiceTests
         var sut = new DocxToPdfConverterService();
 
         Assert.Throws<ArgumentException>(() => sut.Convert(Array.Empty<byte>()));
+    }
+
+    [Fact]
+    public async Task ConvertAsync_Stream_MatchesTheByteArrayOverload()
+    {
+        var sut = new DocxToPdfConverterService();
+        var docx = await HtmlToDocxConverter.ConvertAsync("<h1>Invoice</h1><p>Total: 18,100.00</p>");
+
+        var expected = sut.Convert(docx);
+
+        using var destination = new MemoryStream();
+        await sut.ConvertAsync(new MemoryStream(docx), destination);
+
+        Assert.Equal(expected, destination.ToArray());
     }
 }
