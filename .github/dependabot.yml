@@ -66,6 +66,21 @@ updates:
       test-dependencies:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # These repeat the src/ blocks' rules ON PURPOSE. An ignore rule is scoped
+      # to the block that declares it, but the test projects reach src/ through
+      # ProjectReference - and Dependabot follows those references and edits the
+      # src csproj files, which belong to other blocks and are therefore outside
+      # those blocks' ignore rules.
+      #
+      # That is not hypothetical: a grouped run from this block proposed
+      # SixLabors.Fonts [1.0.0] -> [3.0.0], straight past the revenue-gated 2.x
+      # line the pin exists to prevent, plus three shipped floors ignored
+      # elsewhere. CI caught it. This stops it being proposed at all.
+      - dependency-name: "SixLabors.Fonts"
+      - dependency-name: "Ank.DocToolkit"
+      - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
+      - dependency-name: "Microsoft.Extensions.Options"
 
   # ── Samples: the external-consumer canary ───────────────────────────────────
   # Unlike the extensions package above, these floors SHOULD be bumped - that is
