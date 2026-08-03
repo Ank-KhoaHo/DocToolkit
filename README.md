@@ -176,7 +176,7 @@ is pinned at **6.0.0** by OfficeIMO; the package is **`RBush.Signed`**, not `RBu
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 205 tests x 2 target frameworks = 410 results
+dotnet test  DocToolkit.sln -c Release      # 224 tests x 2 target frameworks = 448 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 ```
