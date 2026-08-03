@@ -206,6 +206,54 @@ docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
 docker run --rm doctoolkit-linux-test
 ```
 
+## Branches
+
+Two branches, two jobs.
+
+- **`develop` is the trunk.** All work merges here. It carries everything, including
+  `CLAUDE.md`, `docs/` and `spike/`.
+- **`main` is release-only.** It carries the shipping library and nothing about the process that
+  produced it: `CLAUDE.md`, `docs/` and `spike/` are stripped. It is what release-please watches
+  and what `release.yml` tags, packs and publishes. It is also the GitHub default branch, so it
+  is the tree a consumer arriving from nuget.org lands on — that is the entire point.
+
+Feature branches (`feat/**`, `fix/**`) branch from `develop` and PR back into `develop`.
+`ci.yml`'s `branch-policy` job rejects any PR into `main` that is not a `release/promote-*`
+branch or release-please's own Release PR, so a mis-targeted PR fails rather than merging quietly.
+
+**Promote with `scripts/promote-to-main.sh`.** It merges `develop` into a new
+`release/promote-*` branch based on `main`, purges the excluded paths, and opens a PR. Promotion
+is a *real* `git merge`, not a generated snapshot, so every Conventional Commit subject from
+`develop` stays reachable from `main` — that is what keeps release-please working unchanged.
+**Merge that PR with a merge commit, never a squash**; squashing collapses those subjects and
+release-please would compute the wrong bump, or none.
+
+`scripts/` is deliberately *not* excluded from `main`: it is release tooling, and stripping it
+would let the promote script delete itself out from under the running bash process.
+
+### Never merge `main` into `develop`
+
+`main` carries *deletions* of `CLAUDE.md`, `docs/` and `spike/`. A `git merge main` on `develop`
+would propagate them and wipe the development record. This is the single most dangerous operation
+in this repo.
+
+`CHANGELOG.md` and `.release-please-manifest.json` are **main-owned** — release-please writes
+them there. Never edit them on `develop`: as long as `develop` leaves them alone, git resolves
+them cleanly on every promote (main's side wins), and the moment `develop` edits either one,
+every promote conflicts. Sync them back by content copy, which carries no deletions:
+
+```bash
+git switch develop
+git checkout main -- CHANGELOG.md .release-please-manifest.json
+git commit -m "chore: sync changelog and manifest from the last release"
+```
+
+`README.md` must stay byte-identical on both branches — it is packed into both `.nupkg`s and
+asserted by CI, and divergence would conflict on every promote. Edit it on `develop` only.
+
+There is no hotfix branch. An urgent fix goes `fix/*` → `develop` → promote; a second path into
+`main` would add a way around CI without adding meaningful speed.
+
 ## Releasing
 
 Tag-driven: `git tag v1.2.3 && git push origin v1.2.3` runs `.github/workflows/release.yml`,
@@ -272,8 +320,9 @@ will silently stop triggering. `release-please.yml` fails fast with a clear mess
 is missing, matching `release.yml`'s own `NUGET_USER` guard.
 
 A manual `git tag v1.2.3 && git push origin v1.2.3` still works as a fallback — `release.yml` only
-cares that a `v*` tag arrived, not how — but if you tag manually, **move the current `## Unreleased`
-content in `CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD` heading yourself first**;
+cares that a `v*` tag arrived, not how — but tag `main`, never `develop`, and write the
+`## [X.Y.Z] - YYYY-MM-DD` heading into `CHANGELOG.md` **on `main`** first (`CHANGELOG.md` is
+main-owned; see "Branches");
 release-please only writes that entry when it's the one creating the tag, and never touches
 `## Unreleased` at all (that heading is deliberately bracket-free — `## [Unreleased]` would
 collide with release-please's own version-heading detection; don't put the brackets back). The
@@ -305,12 +354,13 @@ stored API key for CI.
 src/DocToolkit/                                         the library
 tests/DocToolkit.Tests/                                 182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
-tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests, including ServiceCollectionExtensionsTests
+tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests, including ServiceCollectionExtensionsTests
 samples/ConsoleSample/                                  core package, all five capabilities
 samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
 docfx/                                                  DocFX site source, published to GitHub Pages on release
-spike/                                                  original proof-of-concept, kept as reference — do not modify
-docs/                                                   design docs and implementation plans this was built from
+scripts/                                                promote-to-main.sh and its test — on main too, see Branches
+spike/                                                  original proof-of-concept, kept as reference — do not modify (develop only)
+docs/                                                   design docs and implementation plans this was built from (develop only)
 ```
 
 The research behind the library selection lives in a separate, private knowledge base; the public
