@@ -10,6 +10,39 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.1...v0.3.2) (2026-08-03)
+
+
+### Changed
+
+* tighten the root README and drop the AutoLnD reference ([8a42e41](https://github.com/Ank-KhoaHo/DocToolkit/commit/8a42e413588c3fd0545ca059cc0276e248c7ca95))
+
+## [0.3.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.0...v0.3.1) (2026-08-03)
+
+
+### Fixed
+
+* move PDF fixtures off spike/out so main can build ([a6b8604](https://github.com/Ank-KhoaHo/DocToolkit/commit/a6b860409c2de343c7373477ab5ce877341ab657))
+
+
+### Changed
+
+* add the develop-to-main promote script and its test ([c389c1c](https://github.com/Ank-KhoaHo/DocToolkit/commit/c389c1cfcfa6ed893c44e9edbfe5477767204213))
+* add the implementation plan for the two-branch model ([4dce9fc](https://github.com/Ank-KhoaHo/DocToolkit/commit/4dce9fc1d8d07d72d7fdc8fbd4c6f3e522d327dd))
+* address second-pass review findings on promote-to-main ([a140c3d](https://github.com/Ank-KhoaHo/DocToolkit/commit/a140c3de066773edbec2557a1296b823ab2cd96d))
+* amend the branching plan for state that moved under it ([c777c23](https://github.com/Ank-KhoaHo/DocToolkit/commit/c777c23ad79a159c410cc2ec4c0c58ec50663cb0))
+* amend the plan from the whole-branch review ([ed36ca0](https://github.com/Ank-KhoaHo/DocToolkit/commit/ed36ca0067f71446df913e889a9c83d4c2f45455))
+* correct branching-model doc inaccuracies from whole-branch review ([41d4e12](https://github.com/Ank-KhoaHo/DocToolkit/commit/41d4e128fbf552a1b88f618d5389e494b3df3606))
+* correct the stale test counts ([6bb6466](https://github.com/Ank-KhoaHo/DocToolkit/commit/6bb64668d1d830e505a33adbd90c62ca015396c0))
+* correct why scripts/ stays on main ([e6ae369](https://github.com/Ank-KhoaHo/DocToolkit/commit/e6ae369d186b40230a9e5c9e4e1050bc025149f0))
+* describe the two-branch model and its one dangerous operation ([9398f55](https://github.com/Ank-KhoaHo/DocToolkit/commit/9398f5568e2abc94018c359f7a6c24166ee985b0))
+* design a two-branch model separating releases from development ([1b50fef](https://github.com/Ank-KhoaHo/DocToolkit/commit/1b50fefc72e34b52553e0b894fef1a0cea558ea6))
+* guard against shell injection via github.head_ref in branch-policy ([d1da75a](https://github.com/Ank-KhoaHo/DocToolkit/commit/d1da75aabc70d8c9abf2d2f4c7ada9c9366bbdbf))
+* harden promote-to-main merge, purge and test guarantees ([77bdae8](https://github.com/Ank-KhoaHo/DocToolkit/commit/77bdae85dcd5ba54a393499692935f6b4da1b27c))
+* point contributors at develop and drop the dev-phase rows ([1df5126](https://github.com/Ank-KhoaHo/DocToolkit/commit/1df5126a530d64db37992dee280d13bee152e406))
+* run on develop, and keep main release-only ([968501d](https://github.com/Ank-KhoaHo/DocToolkit/commit/968501d771f32a28468fb5c8dfb10e08e0491189))
+* Update branch merge/rebase guidance for develop-based workflow ([dd2d089](https://github.com/Ank-KhoaHo/DocToolkit/commit/dd2d08939bb85ab543ea2d600e760b70aadf774d))
+
 ## [0.3.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.2.2...v0.3.0) (2026-08-03)
 
 ### Added
