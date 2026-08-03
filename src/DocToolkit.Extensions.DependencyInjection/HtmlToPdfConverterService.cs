@@ -14,4 +14,7 @@ internal sealed class HtmlToPdfConverterService : IHtmlToPdfConverter
 
     public Task<byte[]> ConvertAsync(string html, CancellationToken ct = default)
         => DocToolkit.HtmlToPdfConverter.ConvertAsync(html, _options.AllowRemoteImageDownload, ct);
+
+    public Task ConvertAsync(string html, Stream destination, CancellationToken ct = default)
+        => DocToolkit.HtmlToPdfConverter.ConvertAsync(html, _options.AllowRemoteImageDownload, destination, ct);
 }

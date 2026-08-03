@@ -1,4 +1,5 @@
 using System.Linq;
+using DocToolkit;
 using DocToolkit.Extensions.DependencyInjection;
 using Xunit;
 
@@ -31,5 +32,52 @@ public class WorkbookEditorServiceTests
         var sut = new WorkbookEditorService();
 
         Assert.Throws<ArgumentException>(() => sut.Create(" ", new object?[][] { }));
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReadCellAsync_SetCellAsync_MatchTheStaticMethods()
+    {
+        var sut = new WorkbookEditorService();
+        var rows = new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "North", 1200 },
+        };
+
+        using var created = new MemoryStream();
+        await sut.CreateAsync("Sales", rows, created);
+        var xlsx = created.ToArray();
+
+        // Parity is asserted on readable content rather than on bytes: ClosedXML stamps every
+        // package it builds with fresh metadata, so two Create calls on identical input never
+        // produce identical bytes - not even two calls to the same static method.
+        Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, xlsx.Take(4).ToArray());
+        Assert.Equal("Region", WorkbookEditor.ReadCell(xlsx, "Sales", "A1"));
+
+        var cell = await sut.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2");
+        Assert.Equal(await WorkbookEditor.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2"), cell);
+        Assert.Equal("1200", cell);
+
+        // Editing an existing package is deterministic - only building one from scratch stamps
+        // fresh metadata - so this half can hold the wrapper to byte-exact parity.
+        using var updated = new MemoryStream();
+        await sut.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, updated);
+
+        using var expectedUpdated = new MemoryStream();
+        await WorkbookEditor.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, expectedUpdated);
+
+        Assert.Equal(expectedUpdated.ToArray(), updated.ToArray());
+        Assert.Equal("1500", await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
+    }
+
+    [Fact]
+    public async Task ReadCellAsync_HonorsCancellation()
+    {
+        var sut = new WorkbookEditorService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ReadCellAsync(new MemoryStream(), "Sales", "A1", cts.Token));
     }
 }

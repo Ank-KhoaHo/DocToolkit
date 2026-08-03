@@ -21,3 +21,6 @@ Thumbs.db
 # ─── DocFX generated output ───────────────────────────────────────────
 docfx/_site/
 docfx/api/
+
+# ─── Local git worktrees ───────────────────────────────────────────────
+.worktrees/

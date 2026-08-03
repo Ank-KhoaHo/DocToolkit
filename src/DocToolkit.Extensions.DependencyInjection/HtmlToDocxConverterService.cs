@@ -14,4 +14,7 @@ internal sealed class HtmlToDocxConverterService : IHtmlToDocxConverter
 
     public Task<byte[]> ConvertAsync(string html, CancellationToken ct = default)
         => DocToolkit.HtmlToDocxConverter.ConvertAsync(html, _options.AllowRemoteImageDownload, ct);
+
+    public Task ConvertAsync(string html, Stream destination, CancellationToken ct = default)
+        => DocToolkit.HtmlToDocxConverter.ConvertAsync(html, _options.AllowRemoteImageDownload, destination, ct);
 }

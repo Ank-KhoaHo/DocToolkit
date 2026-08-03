@@ -39,12 +39,37 @@ public class InvoiceService
 }
 ```
 
+```csharp
+// Every interface also has Stream-based async members, so a large document never has to be
+// duplicated into a caller-visible byte[] — write straight to an HTTP response body instead:
+record InvoiceRequest(string Html);
+
+app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter toPdf, HttpResponse response) =>
+{
+    response.ContentType = "application/pdf";
+    // The PDF is written to response.Body as it is rendered, not assembled first, so the
+    // status code and headers are committed on the first write. A failure part-way through
+    // cannot be turned into a clean 500 — the response is already underway.
+    await toPdf.ConvertAsync(request.Html, response.Body);
+});
+```
+
 All six interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
 `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor` — mirror
-[`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API one-for-one, are
-registered as singletons (each wraps stateless logic), and are safe to inject and call
-concurrently. See the core package's README for what each one does and the offline/licensing
-guarantees behind them.
+[`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
+`byte[]` and its `Stream`-based async overloads. They are registered as singletons (each wraps
+stateless logic) and are safe to inject and call concurrently. See the core package's README for
+what each one does and the offline/licensing guarantees behind them.
+
+Two things on the static API deliberately do **not** appear on these interfaces:
+
+- **The file-path helpers** (`ConvertToFileAsync`, `ConvertFile`). Inject the converter, take the
+  `byte[]` or write to a `Stream`, and put the bytes wherever they belong — that keeps the
+  injected surface free of filesystem coupling.
+- **The per-call `allowRemoteImageDownload` argument.** Remote image download is configured once,
+  at registration, via `DocToolkitOptions` — so whether an application is allowed to reach the
+  network is a property of how it is composed, not a decision at each call site. It is `false`
+  unless you opt in.
 
 ## Why a separate package
 

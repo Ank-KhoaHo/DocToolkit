@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using DocToolkit;
 using DocToolkit.Extensions.DependencyInjection;
 using DocumentFormat.OpenXml;
@@ -54,6 +53,58 @@ public class DocxEditorServiceTests
         var sut = new DocxEditorService();
 
         Assert.Throws<ArgumentNullException>(() => sut.ReplaceText(Array.Empty<byte>(), null!));
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_MatchesTheStaticMethod()
+    {
+        var docx = await HtmlToDocxConverter.ConvertAsync("<p>Body copy.</p>");
+        var sut = new DocxEditorService();
+
+        var expected = await DocxEditor.ExtractTextAsync(new MemoryStream(docx));
+        var actual = await sut.ExtractTextAsync(new MemoryStream(docx));
+
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_WithHeadersAndFooters_MatchesTheStaticMethod()
+    {
+        var docx = DocxWithHeaderAndFooter("Body text.", "Page header", "Page footer");
+        var sut = new DocxEditorService();
+
+        var expected = await DocxEditor.ExtractTextAsync(new MemoryStream(docx), includeHeadersAndFooters: true);
+        var actual = await sut.ExtractTextAsync(new MemoryStream(docx), includeHeadersAndFooters: true);
+
+        Assert.Equal(expected, actual);
+        Assert.Contains("Page header", actual);
+    }
+
+    [Fact]
+    public async Task ReplaceTextAsync_MatchesTheStaticMethod()
+    {
+        var docx = await HtmlToDocxConverter.ConvertAsync("<p>Dear {{name}}.</p>");
+        var sut = new DocxEditorService();
+        var replacements = new Dictionary<string, string> { ["{{name}}"] = "Contoso Ltd" };
+
+        using var expected = new MemoryStream();
+        await DocxEditor.ReplaceTextAsync(new MemoryStream(docx), replacements, expected);
+
+        using var actual = new MemoryStream();
+        await sut.ReplaceTextAsync(new MemoryStream(docx), replacements, actual);
+
+        Assert.Equal(expected.ToArray(), actual.ToArray());
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_HonorsCancellation()
+    {
+        var sut = new DocxEditorService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ExtractTextAsync(new MemoryStream(), cts.Token));
     }
 
     private static byte[] DocxWithHeaderAndFooter(string bodyText, string headerText, string footerText)
