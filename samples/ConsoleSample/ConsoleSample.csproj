@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ank.DocToolkit" Version="[0.3.2, )" />
+    <PackageReference Include="Ank.DocToolkit" Version="0.3.4" />
   </ItemGroup>
 
   <ItemGroup>
