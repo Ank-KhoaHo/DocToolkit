@@ -33,4 +33,35 @@ public class PresentationEditorServiceTests
         Assert.Contains(text, t => t.Contains("Hello World"));
         Assert.DoesNotContain(text, t => t.Contains("{{who}}"));
     }
+
+    [Fact]
+    public async Task SlideCountAsync_ExtractTextAsync_MatchTheStaticMethods()
+    {
+        var pptx = SamplePptx();
+        var sut = new PresentationEditorService();
+
+        Assert.Equal(
+            await PresentationEditor.SlideCountAsync(new MemoryStream(pptx)),
+            await sut.SlideCountAsync(new MemoryStream(pptx)));
+
+        Assert.Equal(
+            await PresentationEditor.ExtractTextAsync(new MemoryStream(pptx)),
+            await sut.ExtractTextAsync(new MemoryStream(pptx)));
+    }
+
+    [Fact]
+    public async Task ReplaceTextAsync_MatchesTheStaticMethod()
+    {
+        var pptx = SamplePptx();
+        var sut = new PresentationEditorService();
+        var replacements = new Dictionary<string, string> { ["{{who}}"] = "World" };
+
+        using var expected = new MemoryStream();
+        await PresentationEditor.ReplaceTextAsync(new MemoryStream(pptx), replacements, expected);
+
+        using var actual = new MemoryStream();
+        await sut.ReplaceTextAsync(new MemoryStream(pptx), replacements, actual);
+
+        Assert.Equal(expected.ToArray(), actual.ToArray());
+    }
 }

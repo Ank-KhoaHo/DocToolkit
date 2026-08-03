@@ -9,4 +9,15 @@ internal sealed class PresentationEditorService : IPresentationEditor
 
     public byte[] ReplaceText(byte[] pptx, IReadOnlyDictionary<string, string> replacements)
         => DocToolkit.PresentationEditor.ReplaceText(pptx, replacements);
+
+    public Task<int> SlideCountAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.SlideCountAsync(source, ct);
+
+    public Task<IReadOnlyList<string>> ExtractTextAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ExtractTextAsync(source, ct);
+
+    public Task ReplaceTextAsync(
+        Stream source, IReadOnlyDictionary<string, string> replacements, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ReplaceTextAsync(source, replacements, destination, ct);
 }
