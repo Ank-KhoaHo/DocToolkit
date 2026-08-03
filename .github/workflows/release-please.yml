@@ -48,7 +48,7 @@ jobs:
           fi
           echo "RELEASE_PLEASE_TOKEN is configured"
 
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
