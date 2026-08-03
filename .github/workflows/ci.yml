@@ -8,9 +8,9 @@ name: CI
 
 on:
   push:
-    branches: [main, "feat/**", "fix/**"]
+    branches: [main, develop, "feat/**", "fix/**"]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
@@ -165,6 +165,13 @@ jobs:
           while IFS= read -r line; do
             sha="${line%% *}"
             subject="${line#* }"
+            # GitHub's own PR-merge commits are generated, never hand-written, and
+            # a promote PR's range is full of them (every feature PR that landed on
+            # develop). A hand-made "Merge branch 'develop' into feat/x" is NOT
+            # exempt - that one still fails, which is the guard we want to keep.
+            if [[ "$subject" =~ ^Merge\ pull\ request\ \#[0-9]+\ from\  ]]; then
+              continue
+            fi
             if ! [[ "$subject" =~ $regex ]]; then
               echo "::error::Commit $sha does not match Conventional Commits format (type(scope)?: description): \"$subject\""
               bad=1
@@ -279,3 +286,34 @@ jobs:
           name: nupkg-${{ matrix.name }}
           path: artifacts/*.nupkg
           if-no-files-found: error
+
+  # main is release-only. Without this the rule is convention that a single
+  # mis-targeted PR quietly breaks. Gated on pull_request like commit-format, so
+  # it never runs on a plain push or a workflow_dispatch.
+  branch-policy:
+    name: main is release-only
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    steps:
+      - name: Assert this PR may target main
+        run: |
+          head="${{ github.head_ref }}"
+          case "$head" in
+            release/promote-*|release-please--branches--main)
+              echo "ok - '$head' may target main" ;;
+            *)
+              echo "::error::main is release-only - retarget this PR at 'develop'. Only a promote branch (scripts/promote-to-main.sh, which creates release/promote-*) and release-please's own Release PR may target main; '$head' may not."
+              exit 1 ;;
+          esac
+
+  # The promote script is the only thing standing between develop and a main that
+  # still carries the development record. Re-prove its merge/purge/conflict logic
+  # on every push, the same way the premise guards re-prove the dependency graph.
+  promote-script:
+    name: promote script logic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test the merge-and-strip logic
+        run: bash scripts/test-promote.sh
