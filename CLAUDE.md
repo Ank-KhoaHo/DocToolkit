@@ -264,26 +264,33 @@ See `docs/2026-08-03-single-branch-model-design.md`.
 
 ## Releasing
 
-**Every merge to `main` publishes. There is no human gate.**
+**Merging the Release PR is the release decision, and you make it by hand.** Nothing else publishes.
 
 `.github/workflows/release-please.yml` watches every push to `main`, computes the version bump
 from Conventional Commits (`feat:` → minor, `fix:` → patch, `!`/`BREAKING CHANGE:` → major — this
 mapping is release-please's built-in Conventional Commits strategy, not something configured in
 this repo; `release-please-config.json` only maps commit types to changelog sections), and
 maintains a single persistent Release PR with the computed `CHANGELOG.md` entry already written.
-That same workflow's **`Auto-merge the Release PR`** step then merges it as soon as checks pass,
-which creates the tag and GitHub Release, which triggers `release.yml` to pack and publish **both**
-`Ank.DocToolkit` and `Ank.DocToolkit.Extensions.DependencyInjection` at that version, in one run.
+Its `Report the Release PR` step then says one is waiting, in the log and the job summary — it does
+**not** merge it. When you merge that PR, the tag and GitHub Release are created, which triggers
+`release.yml` to pack and publish **both** `Ank.DocToolkit` and
+`Ank.DocToolkit.Extensions.DependencyInjection` at that version, in one run.
 
-The bot merges a *pull request* rather than pushing, which is what lets `main` stay PR-only with no
-bypass actor. **If branch protection on `main` is ever changed to require approving reviews,
-releases stop silently** — an unattended bot cannot approve its own PR and nothing reports an
-error. Require status checks, not reviews.
+**Expect the Release PR to be open most of the time.** That is normal, not a stuck pipeline: it
+accumulates commits until you decide there is enough to release.
 
-Because every merge releases, a `docs:`- or `chore:`-only merge also publishes a version, sometimes
-with a changelog entry that has a bare version heading and no visible body. **That is the specified
-behaviour, chosen deliberately — not a defect to guard against.** Publishing is irreversible, so
-`release.yml` still runs the full suite and every premise guard before it pushes.
+### Why it is not automatic
+
+It briefly was. `Auto-merge the Release PR` made every merge to `main` publish, and it worked
+exactly as designed — eleven versions in one day, most carrying no library change, because a docs
+fix and a CI tweak each consumed a version number. A nuget.org version can be unlisted but never
+deleted or reused, so that is not recoverable, merely survivable. Batching several merges into one
+release is what the version number is *for*. Don't reintroduce the auto-merge step.
+
+A consequence worth keeping in mind: **any commit with a recognized Conventional Commit type opens
+or updates the Release PR**, including `chore:` and `test:`, which are hidden from the changelog. So
+a Release PR can propose a version whose changelog entry is a bare heading with no visible body.
+**Read the diff before merging** — an empty-looking entry means let more accumulate, not ship it.
 
 A manual `git tag v1.2.3 && git push origin v1.2.3` still works as a fallback — `release.yml` only
 cares that a `v*` tag arrived, not how. The **tag is the authoritative version**; the csproj
@@ -302,9 +309,8 @@ Release exists to anchor from instead, and can be deleted from the config once t
 **Any commit matching a recognized Conventional Commit type opens or updates the Release PR** —
 not just `feat:`/`fix:`, and this is not gated by `changelog-sections` visibility (that only
 controls what shows up *in* the changelog, not whether a release is proposed at all). Even a
-`chore:`-only or `test:`-only merge (both `hidden: true`) proposes a release, and under auto-merge
-that release ships. Expect the Release PR to exist only briefly — it is created and merged within
-a few minutes of the merge that caused it, rather than accumulating.
+`chore:`-only or `test:`-only merge (both `hidden: true`) proposes a release. Nothing ships until
+you merge it, which is exactly why the merge is manual: see "Why it is not automatic" above.
 
 Merging the Release PR creates **both** the tag and a GitHub Release (release-please's own
 generated notes, derived from the same `CHANGELOG.md` entry) — `release.yml`'s own

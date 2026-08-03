@@ -3,10 +3,14 @@ name: release-please
 # Maintains a persistent "Release PR" on main: as commits land in Conventional Commits
 # format, this computes the next version and writes the CHANGELOG.md entry.
 #
-# Merging that PR is automatic (see the Auto-merge step below): every merge to main
-# produces a release. The publish itself still re-proves every guard in release.yml
-# before pushing to nuget.org, which is irreversible. See release-please-config.json
-# for the version/changelog rules, and CLAUDE.md's "Releasing" section for the full flow.
+# Merging that PR is a HUMAN decision, and the only thing that publishes. This workflow
+# never merges it - it only reports that one is waiting. Several merges to main therefore
+# accumulate into a single release, which is the point: an auto-merging version of this
+# shipped eleven versions in one day, most of them carrying no library change.
+#
+# The publish itself re-proves every guard in release.yml before pushing to nuget.org,
+# which is irreversible. See release-please-config.json for the version/changelog rules,
+# and CLAUDE.md's "Releasing" section for the full flow.
 #
 # Requires a Personal Access Token, not the default GITHUB_TOKEN: GitHub Actions does not
 # let a workflow's default token trigger OTHER workflows when it pushes a commit or tag
@@ -53,33 +57,27 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
-      # Requirement: every merge to main produces a release, with no human gate.
-      # Requirement: main cannot be pushed directly.
+      # Reports the Release PR. Deliberately does NOT merge it.
       #
-      # Auto-merging the Release PR satisfies both - the bot merges a PULL
-      # REQUEST, so branch protection holds with no bypass actor and no
-      # long-lived token with push rights.
+      # This workflow briefly auto-merged the Release PR, making every merge to
+      # main publish. It worked exactly as designed and the result was eleven
+      # versions in a day, most carrying no library change at all - a docs fix
+      # and a CI tweak each burned a version number that can never be reused,
+      # because a nuget.org version can be unlisted but never deleted. Merging
+      # the Release PR by hand batches several merges into one release, which is
+      # what the version number is for.
       #
-      # Finds the PR by its branch rather than by parsing this action's outputs,
-      # so an output-schema change upstream cannot silently stop releases.
-      #
-      # But "found nothing" is ambiguous on its own: it means either that every
-      # commit is already released, or that the branch-naming convention this
-      # lookup hard-codes has changed underneath us. Those need opposite
-      # responses, and guessing wrong is the one failure that stops releases
-      # while every step still reports success.
+      # The lookup stays because it is the only thing that can tell "nothing to
+      # release" apart from "the branch-naming convention changed underneath
+      # us". Those need opposite responses, and guessing wrong is the failure
+      # that stops releases while every step still reports success - which has
+      # happened here once already, a Release PR sitting unmerged and unnoticed
+      # with nothing red anywhere.
       #
       # So the action's own `pr` output is used as a CORROBORATOR, not a source:
       # if release-please says it opened or updated a Release PR and the branch
       # lookup then finds none, that is a real error and this fails loudly.
-      # Verified the hard way - a Release PR sat unmerged and unnoticed once
-      # already, stalled by a branch-protection setting, with nothing red
-      # anywhere to show for it.
-      #
-      # NOTE: if branch protection on main ever requires APPROVING REVIEWS, this
-      # can never succeed - an unattended bot cannot approve - and releases stop.
-      # Require status checks, not reviews.
-      - name: Auto-merge the Release PR
+      - name: Report the Release PR
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -90,12 +88,21 @@ jobs:
 
           if [ -z "$number" ]; then
             if [ -n "$RELEASE_PLEASE_PR" ] && [ "$RELEASE_PLEASE_PR" != "null" ]; then
-              echo "::error::release-please reported a Release PR, but no open PR was found on branch 'release-please--branches--main'. The branch-naming convention this step relies on has probably changed. Releases are STOPPED until this lookup is corrected - do not treat this as 'nothing to release'."
+              echo "::error::release-please reported a Release PR, but no open PR was found on branch 'release-please--branches--main'. The branch-naming convention this lookup hard-codes has probably changed. Releases are STOPPED until it is corrected - do not treat this as 'nothing to release'."
               exit 1
             fi
             echo "no open Release PR, and release-please reported none - every commit is already released"
             exit 0
           fi
 
-          echo "enabling auto-merge on Release PR #$number"
-          gh pr merge "$number" --merge --auto
+          title=$(gh pr view "$number" --json title --jq .title)
+          echo "Release PR #$number is open and waiting to be merged: $title"
+          {
+            echo "### Release PR #$number is waiting"
+            echo ""
+            echo "\`$title\`"
+            echo ""
+            echo "Merging it tags the version and publishes both packages to nuget.org, which is"
+            echo "irreversible. Check the changelog entry in its diff first - a bump whose entry is"
+            echo "empty is a signal to let more changes accumulate rather than release now."
+          } >> "$GITHUB_STEP_SUMMARY"

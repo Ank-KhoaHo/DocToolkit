@@ -136,9 +136,10 @@ dotnet run --project samples/ConsoleSample
 dotnet run --project samples/MinimalApiSample
 ```
 
-Every merge to `main` ships both packages at one version, via
-[release-please](https://github.com/googleapis/release-please) and
-[`release.yml`](.github/workflows/release.yml), authenticated with
+Both packages ship at one version, from a single tag.
+[release-please](https://github.com/googleapis/release-please) keeps a Release PR up to date as
+commits land on `main`; merging it is a deliberate, manual decision, and
+[`release.yml`](.github/workflows/release.yml) then publishes, authenticated with
 [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) — no
 stored API key. Maintainer procedure lives in [`CLAUDE.md`](CLAUDE.md).
 
