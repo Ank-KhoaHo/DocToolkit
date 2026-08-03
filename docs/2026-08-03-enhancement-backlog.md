@@ -27,7 +27,8 @@ docs and implementation plans alongside this file.
 | **C2** | **Done, with a caveat that became C18.** `packages.lock.json` on both packable projects, verified by a `--locked-mode` guard in `ci.yml` and `release.yml`. |
 | **B6** | **Done.** xunit 2.9.3, `Microsoft.NET.Test.Sdk` 18.8.1, coverlet 10.0.1, `xunit.runner.visualstudio` 3.1.5. Coverage output re-verified, since `ci.yml` depends on cobertura files a plain `dotnet test` never produces. |
 | **B9** | **Done, better than proposed.** The fix was not to bump the floor but to remove it: the samples now use `Version="*"`, so they track the newest release with nothing proposing a bump. Bumping the floor worked for exactly one release and then created a weekly release loop. |
-| **C11** | **Moot, not fixed.** Publishing an empty release is now the *specified* behaviour — every merge to `main` publishes, by explicit decision. There is nothing left to guard against. |
+| **C11** | **Was moot, now live again.** It was moot while every merge published, because an empty release was the specified behaviour. C20 restored the manual merge, so an empty-changelog release is once more something you can and should avoid — and the Release PR's diff is where you'd catch it. A guard is worth considering again. |
+| **C20** | **Done.** `release-please.yml` no longer auto-merges its Release PR; the step reports that one is waiting, in the log and the job summary, and still fails loudly if release-please claims a Release PR the branch lookup cannot find. Merging is manual, so several merges batch into one release. |
 | **C16** | **Moot.** The Codecov badge pointed at `branch/main` while development happened on `develop`. There is only `main` now. |
 | **D1** | **Reduced, still open.** `CLAUDE.md` and `docs/` now live on `main`, so the process is no longer invisible to contributors. A `CONTRIBUTING.md` is still worth writing, but it is now a summary rather than the only copy. |
 
