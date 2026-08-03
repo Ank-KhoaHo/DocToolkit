@@ -693,10 +693,55 @@ In `src/DocToolkit.Extensions.DependencyInjection/HtmlToPdfConverterService.cs`,
 Run: `dotnet test DocToolkit.sln --filter "FullyQualifiedName~HtmlToPdfConverterServiceTests"`
 Expected: PASS (all `HtmlToPdfConverterServiceTests`, both `net8.0` and `net10.0`).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Guard the option threading on the new Stream path**
+
+The test above cannot detect a broken `_options.AllowRemoteImageDownload` threading — its markup has no `<img>`, so the option's value changes nothing either way. The tests that do prove the option changes runtime behaviour live in `ServiceCollectionExtensionsTests.cs` and currently only drive the `byte[]` overload. Mirror the existing `AddDocToolkit_WithAllowRemoteImageDownloadFalse_HtmlToPdfNeverConnectsOutbound` / `...True_HtmlToPdfDoesConnectOutbound` pair for the `Stream` overload, following the same structure, the same `LoopbackProbe` helper and the same `SettleWindow` constant, placed immediately after the pair it mirrors:
+
+```csharp
+    [Fact]
+    public async Task AddDocToolkit_WithAllowRemoteImageDownloadFalse_HtmlToPdfStreamOverloadNeverConnectsOutbound()
+    {
+        using var probe = new LoopbackProbe();
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var sut = provider.GetRequiredService<IHtmlToPdfConverter>();
+
+        using var destination = new MemoryStream();
+        await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">", destination);
+        await Task.Delay(SettleWindow);
+
+        Assert.Equal(0, probe.Connections);
+    }
+
+    [Fact]
+    public async Task AddDocToolkit_WithAllowRemoteImageDownloadTrue_HtmlToPdfStreamOverloadDoesConnectOutbound()
+    {
+        using var probe = new LoopbackProbe();
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o => o.AllowRemoteImageDownload = true)
+            .BuildServiceProvider();
+        var sut = provider.GetRequiredService<IHtmlToPdfConverter>();
+
+        try
+        {
+            using var destination = new MemoryStream();
+            await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">", destination);
+        }
+        catch (DocToolkit.DocumentConversionException)
+        {
+            // The connection is what's under test here, not a fully successful conversion.
+        }
+
+        Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(5)));
+    }
+```
+
+Run: `dotnet test DocToolkit.sln --filter "FullyQualifiedName~ServiceCollectionExtensionsTests"`
+Expected: PASS, both frameworks.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/DocToolkit.Extensions.DependencyInjection/IHtmlToPdfConverter.cs src/DocToolkit.Extensions.DependencyInjection/HtmlToPdfConverterService.cs tests/DocToolkit.Extensions.DependencyInjection.Tests/HtmlToPdfConverterServiceTests.cs
+git add src/DocToolkit.Extensions.DependencyInjection/IHtmlToPdfConverter.cs src/DocToolkit.Extensions.DependencyInjection/HtmlToPdfConverterService.cs tests/DocToolkit.Extensions.DependencyInjection.Tests/HtmlToPdfConverterServiceTests.cs tests/DocToolkit.Extensions.DependencyInjection.Tests/ServiceCollectionExtensionsTests.cs
 git commit -m "feat(di-extensions): add Stream overload to IHtmlToPdfConverter"
 ```
 
