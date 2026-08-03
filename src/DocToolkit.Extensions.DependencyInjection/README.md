@@ -39,12 +39,22 @@ public class InvoiceService
 }
 ```
 
+```csharp
+// Every interface also has a Stream overload, so a large document never has to be buffered
+// into a byte[] — write straight to an HTTP response body instead:
+app.MapPost("/invoices/pdf", async (string html, IHtmlToPdfConverter toPdf, HttpResponse response) =>
+{
+    response.ContentType = "application/pdf";
+    await toPdf.ConvertAsync(html, response.Body);
+});
+```
+
 All six interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
 `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor` — mirror
-[`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API one-for-one, are
-registered as singletons (each wraps stateless logic), and are safe to inject and call
-concurrently. See the core package's README for what each one does and the offline/licensing
-guarantees behind them.
+[`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API one-for-one,
+including its `Stream`-based async overloads, are registered as singletons (each wraps stateless
+logic), and are safe to inject and call concurrently. See the core package's README for what each
+one does and the offline/licensing guarantees behind them.
 
 ## Why a separate package
 
