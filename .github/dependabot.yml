@@ -61,8 +61,11 @@ updates:
     commit-message:
       prefix: chore
     groups:
+      # Minor and patch only. A major (xunit 2.x -> 3.x, for example) is a
+      # migration, not a bump, and arrives as its own PR to be reviewed alone.
       test-dependencies:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   # ── Samples: the external-consumer canary ───────────────────────────────────
   # Unlike the extensions package above, these floors SHOULD be bumped - that is
@@ -87,5 +90,14 @@ updates:
     commit-message:
       prefix: ci
     groups:
+      # Minor and patch only, so majors arrive one PR at a time.
+      #
+      # The first grouped run bundled EIGHT majors into a single PR, including
+      # googleapis/release-please-action v4 -> v5 - the action that now drives
+      # unattended publishing. PR CI cannot catch a regression there: it only
+      # runs ci.yml, while release-please.yml, release.yml and docs.yml are
+      # exercised solely after a merge. A green check on such a PR means less
+      # than it looks like, so majors must be reviewable individually.
       actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
