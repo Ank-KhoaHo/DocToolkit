@@ -82,18 +82,14 @@ updates:
       - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
       - dependency-name: "Microsoft.Extensions.Options"
 
-  # ── Samples: the external-consumer canary ───────────────────────────────────
-  # Unlike the extensions package above, these floors SHOULD be bumped - that is
-  # what keeps the canary armed. A sample pinned to an old floor proves an old
-  # release works, forever, and a breaking API change sails past it.
-  - package-ecosystem: nuget
-    directories:
-      - "/samples/ConsoleSample"
-      - "/samples/MinimalApiSample"
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: build
+  # ── Samples are deliberately absent ─────────────────────────────────────────
+  # They reference the published packages as Version="*", so they always restore
+  # the newest release without anything proposing a bump.
+  #
+  # An earlier revision had Dependabot chase a version floor here. That worked
+  # once and then became a loop: bumping the floor is a merge, every merge is a
+  # release, and every release made the floor stale again - a weekly PR that
+  # published a version containing nothing but a sample's version number.
 
   # ── GitHub Actions ──────────────────────────────────────────────────────────
   # Actions are currently pinned by tag. Keeping them current is the thing that

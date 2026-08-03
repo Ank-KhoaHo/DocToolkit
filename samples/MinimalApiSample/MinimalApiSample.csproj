@@ -7,8 +7,9 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- Version="*" tracks the newest published release - see ConsoleSample.csproj. -->
   <ItemGroup>
-    <PackageReference Include="Ank.DocToolkit.Extensions.DependencyInjection" Version="[0.3.2, )" />
+    <PackageReference Include="Ank.DocToolkit.Extensions.DependencyInjection" Version="*" />
   </ItemGroup>
 
 </Project>
