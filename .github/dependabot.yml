@@ -8,6 +8,11 @@ version: 2
 #
 # See docs/2026-08-03-dependency-automation-design.md for why lockfiles exist on
 # src/ only, and why each ignore rule below is where it is.
+#
+# PRs land on main, the default branch. There is deliberately no target-branch:
+# setting it would suppress Dependabot security updates, which GitHub raises on
+# the default branch only. An earlier revision needed target-branch: develop
+# while the two-branch model existed, and paid exactly that cost.
 
 updates:
   # ── The core library ────────────────────────────────────────────────────────
@@ -17,7 +22,6 @@ updates:
     directory: "/src/DocToolkit"
     schedule:
       interval: weekly
-    target-branch: develop
     commit-message:
       prefix: build
     open-pull-requests-limit: 10
@@ -37,7 +41,6 @@ updates:
     directory: "/src/DocToolkit.Extensions.DependencyInjection"
     schedule:
       interval: weekly
-    target-branch: develop
     commit-message:
       prefix: build
     ignore:
@@ -55,7 +58,6 @@ updates:
       - "/tests/DocToolkit.Extensions.DependencyInjection.Tests"
     schedule:
       interval: weekly
-    target-branch: develop
     commit-message:
       prefix: chore
     groups:
@@ -72,7 +74,6 @@ updates:
       - "/samples/MinimalApiSample"
     schedule:
       interval: weekly
-    target-branch: develop
     commit-message:
       prefix: build
 
@@ -83,7 +84,6 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    target-branch: develop
     commit-message:
       prefix: ci
     groups:
