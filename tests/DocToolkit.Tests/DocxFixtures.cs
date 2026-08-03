@@ -46,6 +46,16 @@ internal static class DocxFixtures
                 Style = "position:absolute;width:200pt;height:50pt",
             }));
 
+    /// <summary>A one-cell table row whose cell holds a single paragraph of <paramref name="children"/>.</summary>
+    public static TableRow Row(params OpenXmlElement[] children) => new(new TableCell(P(children)));
+
+    /// <summary>A one-cell table row holding <paramref name="cellChildren"/> directly — a cell may
+    /// contain a nested table as well as paragraphs, which is how the nesting tests are built.</summary>
+    public static TableRow RowOf(params OpenXmlElement[] cellChildren) => new(new TableCell(cellChildren));
+
+    /// <summary>A table made of <paramref name="rows"/>.</summary>
+    public static Table Tbl(params TableRow[] rows) => new(rows);
+
     /// <summary>Builds a .docx whose body is exactly <paramref name="bodyChildren"/>.</summary>
     public static byte[] Build(params OpenXmlElement[] bodyChildren)
         => Build(null, null, bodyChildren);
