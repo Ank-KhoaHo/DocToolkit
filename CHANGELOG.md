@@ -10,6 +10,31 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.2...v0.3.3) (2026-08-03)
+
+
+### Changed
+
+* account for admin bypass of branch protection ([6481f62](https://github.com/Ank-KhoaHo/DocToolkit/commit/6481f6225a320d24f7e024a94e5db205b5bd1536))
+* add the dependency-automation implementation plan ([d7d1588](https://github.com/Ank-KhoaHo/DocToolkit/commit/d7d158840dd28b03dbce3e3c99867bdda0307c49))
+* add the enhancement backlog and dependency-automation design ([d408789](https://github.com/Ank-KhoaHo/DocToolkit/commit/d408789a407f129e2e59bbee45533f19c39f4fa7))
+* add the single-branch collapse implementation plan ([11718a0](https://github.com/Ank-KhoaHo/DocToolkit/commit/11718a0dcafa5cc7cfe5f803d3a1b48dea8533e8))
+* assert the resolved graph matches the committed lockfiles ([3715ba9](https://github.com/Ank-KhoaHo/DocToolkit/commit/3715ba9b11a05b4c7ed6dd938e8b33b3ae8ad58e))
+* auto-merge the Release PR so every merge releases ([cd5edf8](https://github.com/Ank-KhoaHo/DocToolkit/commit/cd5edf897442d5ad81f9352c9c579612b9d32513))
+* automate dependency updates and lock the shipped dependency graph ([3ff0a9f](https://github.com/Ank-KhoaHo/DocToolkit/commit/3ff0a9f2165fd5faeda8d925c2261b973e7de866))
+* bump the sample package floors so the canary re-arms ([aedffc9](https://github.com/Ank-KhoaHo/DocToolkit/commit/aedffc9aa1b9c34a567fac1c18c394b7f8f5a747))
+* collapse to a single main branch with automatic releases ([f26d492](https://github.com/Ank-KhoaHo/DocToolkit/commit/f26d49215374ace4ab16651aabc05ec30af55173))
+* describe the single-branch model ([8b71c4b](https://github.com/Ank-KhoaHo/DocToolkit/commit/8b71c4bea07860502c548cd82db67e3c74fdbc52))
+* design the collapse to a single main branch ([e50bc37](https://github.com/Ank-KhoaHo/DocToolkit/commit/e50bc3752a0d7a726525934061e4aa0361339b46))
+* lock the resolved dependency graph of both packages ([26fe5c4](https://github.com/Ank-KhoaHo/DocToolkit/commit/26fe5c4efd5f95a2d5a60dff313b0fb953873e9e))
+* point Dependabot at main ([cd1e54e](https://github.com/Ank-KhoaHo/DocToolkit/commit/cd1e54ee47ee94ea1937952c30a4f373c5606395))
+* propose dependency updates automatically ([b342bc1](https://github.com/Ank-KhoaHo/DocToolkit/commit/b342bc1a2fcdd0079e748d820760c8dd45dcc165))
+* record that Dependabot only activates once config reaches main ([c2a59d2](https://github.com/Ank-KhoaHo/DocToolkit/commit/c2a59d29ca772b25cfbcf782ac08688680357eb0))
+* record the IDE-restore race that fakes a passing lockfile guard ([53a7760](https://github.com/Ank-KhoaHo/DocToolkit/commit/53a77604318fc5ada16bf0f6d71939474d5ad66d))
+* remove the promote machinery ([e160d20](https://github.com/Ank-KhoaHo/DocToolkit/commit/e160d2085e9c96844dc32d5d8aed8e7403eb329a))
+* require a conventional message on the migration merge ([9facd75](https://github.com/Ank-KhoaHo/DocToolkit/commit/9facd7500ba5a26cef23383a2f0a60d5e2ef8483))
+* restore CLAUDE.md, docs and spike onto main ([e49e189](https://github.com/Ank-KhoaHo/DocToolkit/commit/e49e189889c5e840832ae4dc2b871a9a6996c34f))
+
 ## [0.3.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.1...v0.3.2) (2026-08-03)
 
 
