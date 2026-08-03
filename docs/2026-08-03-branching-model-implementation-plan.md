@@ -39,8 +39,18 @@ configuration change.
   Conventional Commit subjects release-please needs.
 - **Commit messages follow Conventional Commits** (`type(scope)?: description`) and must **never**
   contain a `Co-Authored-By` trailer.
-- Do not touch `release.yml`, `release-please.yml`, `docs.yml`, `release-please-config.json`, or
-  any `.csproj`.
+- Do not touch `release.yml`, `release-please.yml`, `docs.yml`, or `release-please-config.json`.
+- Do not touch the **package** projects `src/DocToolkit/DocToolkit.csproj` or
+  `src/DocToolkit.Extensions.DependencyInjection/*.csproj`.
+
+  > **Amended after the whole-branch review.** This constraint originally covered *any* `.csproj`,
+  > which turned out to be based on an incomplete check. `tests/DocToolkit.Tests/DocToolkit.Tests.csproj`
+  > reached into `..\..\spike\out\result.pdf` and `big.pdf`, so stripping `spike/` from `main` made
+  > the solution fail to build with `MSB3030` — which would also have made `main` un-releasable,
+  > since `release.yml` builds and tests from the tag on `main`. The design doc's verification had
+  > checked `DocToolkit.sln` for `spike/` references (correctly finding none) but never checked the
+  > `.csproj` files. The fixtures now live in `tests/DocToolkit.Tests/assets/`, so editing that one
+  > test project was required.
 
 ---
 
@@ -982,7 +992,40 @@ Expected: `main`. If it prints anything else:
 gh api -X PATCH repos/Ank-KhoaHo/DocToolkit -f default_branch=main
 ```
 
+- [ ] **Step 1b: Disable squash and rebase merging repo-wide**
+
+Added after the whole-branch review, and it is the highest-value line in this rollout. "Merge with
+a merge commit, never squash" is currently prose in three places — the promote PR body, `CLAUDE.md`,
+and the design doc — and enforced nowhere. GitHub's merge button remembers whichever method was
+used last.
+
+If a promote PR is ever squashed, `main` gains one `chore:` commit and every Conventional Commit
+subject from `develop` becomes unreachable from it: release-please computes the wrong bump with an
+empty changelog, and `develop`'s tip stops being an ancestor of `main`, so the *next* promote
+re-merges content `main` already has and conflicts across the whole tree — on a public release
+branch, with no clean undo short of history surgery.
+
+```bash
+gh api -X PATCH repos/Ank-KhoaHo/DocToolkit \
+  -F allow_squash_merge=false \
+  -F allow_rebase_merge=false \
+  -F allow_merge_commit=true
+```
+
+Verify:
+
+```bash
+gh repo view Ank-KhoaHo/DocToolkit --json squashMergeAllowed,rebaseMergeAllowed,mergeCommitAllowed
+```
+
+Expected: `squashMergeAllowed` and `rebaseMergeAllowed` both `false`, `mergeCommitAllowed` `true`.
+This turns the one irreversible mistake from "remember the PR body" into "the button does not exist".
+
 - [ ] **Step 2: Protect `main`**
+
+`commit message format` is in the required contexts deliberately: `main` is the one branch whose
+commit subjects actually feed release-please's version calculation, so a red `commit-format` there
+must block the merge rather than merely report.
 
 ```bash
 gh api -X PUT repos/Ank-KhoaHo/DocToolkit/branches/main/protection \
@@ -990,7 +1033,7 @@ gh api -X PUT repos/Ank-KhoaHo/DocToolkit/branches/main/protection \
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["build & test (ubuntu-latest)", "no native binaries / no banned packages", "main is release-only"]
+    "contexts": ["build & test (ubuntu-latest)", "no native binaries / no banned packages", "main is release-only", "commit message format", "pack & verify .nupkg (core)"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": null,
