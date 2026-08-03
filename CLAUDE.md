@@ -121,7 +121,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 205 tests (182 core + 23 extensions) → 410 results.
+  report *2N* results. 224 tests (182 core + 42 extensions) → 448 results.
 - **Never replace `src/DocToolkit/DocToolkit.csproj` wholesale** — it carries the package metadata
   (`PackageId`, version, licence expression, readme, symbol package). Use `dotnet add package`,
   which edits in place.
@@ -197,7 +197,7 @@ copy error, not a message pointing at the real cause.
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 205 tests x 2 TFMs = 410 results
+dotnet test  DocToolkit.sln -c Release            # 224 tests x 2 TFMs = 448 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 
