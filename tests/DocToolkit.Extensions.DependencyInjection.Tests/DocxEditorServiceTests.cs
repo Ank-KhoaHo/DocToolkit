@@ -97,6 +97,17 @@ public class DocxEditorServiceTests
         Assert.Equal(expected.ToArray(), actual.ToArray());
     }
 
+    [Fact]
+    public async Task ExtractTextAsync_HonorsCancellation()
+    {
+        var sut = new DocxEditorService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ExtractTextAsync(new MemoryStream(), cts.Token));
+    }
+
     private static byte[] DocxWithHeaderAndFooter(string bodyText, string headerText, string footerText)
     {
         using var ms = new MemoryStream();

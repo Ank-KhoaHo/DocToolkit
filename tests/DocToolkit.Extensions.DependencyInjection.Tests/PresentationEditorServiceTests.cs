@@ -64,4 +64,15 @@ public class PresentationEditorServiceTests
 
         Assert.Equal(expected.ToArray(), actual.ToArray());
     }
+
+    [Fact]
+    public async Task SlideCountAsync_HonorsCancellation()
+    {
+        var sut = new PresentationEditorService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.SlideCountAsync(new MemoryStream(), cts.Token));
+    }
 }

@@ -41,4 +41,15 @@ public class DocxToPdfConverterServiceTests
 
         Assert.Equal(expected, destination.ToArray());
     }
+
+    [Fact]
+    public async Task ConvertAsync_HonorsCancellation()
+    {
+        var sut = new DocxToPdfConverterService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ConvertAsync(new MemoryStream(), new MemoryStream(), cts.Token));
+    }
 }

@@ -46,4 +46,15 @@ public class HtmlToDocxConverterServiceTests
         Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));
         Assert.Contains("Body copy.", DocxEditor.ExtractText(actual));
     }
+
+    [Fact]
+    public async Task ConvertAsync_ToStream_HonorsCancellation()
+    {
+        var sut = new HtmlToDocxConverterService(Options.Create(new DocToolkitOptions()));
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ConvertAsync("<p>Body.</p>", new MemoryStream(), cts.Token));
+    }
 }

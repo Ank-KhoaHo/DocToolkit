@@ -69,4 +69,15 @@ public class WorkbookEditorServiceTests
         Assert.Equal(expectedUpdated.ToArray(), updated.ToArray());
         Assert.Equal("1500", await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
     }
+
+    [Fact]
+    public async Task ReadCellAsync_HonorsCancellation()
+    {
+        var sut = new WorkbookEditorService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ReadCellAsync(new MemoryStream(), "Sales", "A1", cts.Token));
+    }
 }
