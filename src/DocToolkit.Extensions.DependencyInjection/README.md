@@ -42,19 +42,31 @@ public class InvoiceService
 ```csharp
 // Every interface also has a Stream overload, so a large document never has to be buffered
 // into a byte[] — write straight to an HTTP response body instead:
-app.MapPost("/invoices/pdf", async (string html, IHtmlToPdfConverter toPdf, HttpResponse response) =>
+record InvoiceRequest(string Html);
+
+app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter toPdf, HttpResponse response) =>
 {
     response.ContentType = "application/pdf";
-    await toPdf.ConvertAsync(html, response.Body);
+    await toPdf.ConvertAsync(request.Html, response.Body);
 });
 ```
 
 All six interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
 `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor` — mirror
-[`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API one-for-one,
-including its `Stream`-based async overloads, are registered as singletons (each wraps stateless
-logic), and are safe to inject and call concurrently. See the core package's README for what each
-one does and the offline/licensing guarantees behind them.
+[`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
+`byte[]` and its `Stream`-based async overloads. They are registered as singletons (each wraps
+stateless logic) and are safe to inject and call concurrently. See the core package's README for
+what each one does and the offline/licensing guarantees behind them.
+
+Two things on the static API deliberately do **not** appear on these interfaces:
+
+- **The file-path helpers** (`ConvertToFileAsync`, `ConvertFile`). Inject the converter, take the
+  `byte[]` or write to a `Stream`, and put the bytes wherever they belong — that keeps the
+  injected surface free of filesystem coupling.
+- **The per-call `allowRemoteImageDownload` argument.** Remote image download is configured once,
+  at registration, via `DocToolkitOptions` — so whether an application is allowed to reach the
+  network is a property of how it is composed, not a decision at each call site. It is `false`
+  unless you opt in.
 
 ## Why a separate package
 
