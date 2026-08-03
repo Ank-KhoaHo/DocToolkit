@@ -223,14 +223,23 @@ maintains a single persistent Release PR with the computed `CHANGELOG.md` entry 
 **Merging that PR is the human release decision** this project has always required — the
 automation only replaces the manual "pick a version, write the changelog, tag it" bookkeeping
 upstream of that decision, not the decision itself. Both packages are tracked as one component
-(`"."` in `release-please-config.json`) so they can never version independently. **Pre-1.0, a
-breaking change (`!`/`BREAKING CHANGE:`) jumps straight to `1.0.0`**, not the next minor —
+(`"."` in `release-please-config.json`) so they can never version independently.
+`release-please-config.json`'s `last-release-sha` seeds where the very first automated Release PR
+starts counting commits from (main's tip right before this automation was added) — it exists only
+to keep that first PR from sweeping in unrelated older history, goes inert once a real GitHub
+Release exists to anchor from instead, and can be deleted from the config once that's happened.
+**Pre-1.0, a breaking change (`!`/`BREAKING CHANGE:`) jumps straight to `1.0.0`**, not the next minor —
 `bump-minor-pre-major` is deliberately left at its default (`false`).
 
-**Any qualifying commit can open or update the Release PR, not just `feat:`/`fix:`.**
-`docs:`/`ci:`/`build:`/`refactor:` are visible in `changelog-sections` too, so a docs-only or
-CI-only merge still proposes a release. Expect the Release PR to be open most of the time — that's
-normal, not a bug; it just accumulates until you choose to merge it.
+**Any commit matching a recognized Conventional Commit type opens or updates the Release PR** —
+not just `feat:`/`fix:`, and this is not gated by `changelog-sections` visibility (that only
+controls what shows up *in* the changelog, not whether a release is proposed at all). Even a
+`chore:`-only or `test:`-only merge (both `hidden: true`) proposes a release — it just produces a
+changelog entry with a bare version heading and no visible body. **Check the Release PR's actual
+diff before merging** — a version bump with an empty-looking changelog entry is a real signal to
+hold off, not necessarily a release worth shipping; nothing stops it from otherwise merging and
+publishing an empty version. Expect the Release PR to be open most of the time — that's normal,
+not a bug; it just accumulates until you choose to merge it.
 
 Merging the Release PR creates **both** the tag and a GitHub Release (release-please's own
 generated notes, derived from the same `CHANGELOG.md` entry) — `release.yml`'s own

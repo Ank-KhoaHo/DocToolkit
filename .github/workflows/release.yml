@@ -33,6 +33,16 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Belt-and-braces: release-please (release-please.yml) creates its tag as a side effect
+  # of creating a GitHub Release via the API, not a plain `git push --tags`. Whether that
+  # reliably fires `push.tags` is genuinely undocumented by GitHub and reported inconsistently
+  # in the wild - verified while investigating, not assumed. `release: published` is GitHub's
+  # own documented, explicit mechanism for "a release was published" and sets GITHUB_REF_NAME
+  # to the tag name the same way a tag push does, so no other step below needs to change.
+  # Both triggers firing for the same tag is safe, not a bug: every step below (including the
+  # GitHub Release step and the nuget push) is idempotent to a re-run.
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -255,7 +265,7 @@ jobs:
       # that existing release instead of failing on a duplicate. The --generate-notes path
       # below is the fallback for a manually-pushed tag, where no release exists yet.
       - name: Create or update GitHub Release
-        if: steps.v.outputs.publish == 'true' && github.event_name == 'push'
+        if: steps.v.outputs.publish == 'true' && (github.event_name == 'push' || github.event_name == 'release')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
