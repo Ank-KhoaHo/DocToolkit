@@ -58,16 +58,38 @@ public class WorkbookEditorServiceTests
         Assert.Equal(await WorkbookEditor.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2"), cell);
         Assert.Equal("1200", cell);
 
-        // Editing an existing package is deterministic - only building one from scratch stamps
-        // fresh metadata - so this half can hold the wrapper to byte-exact parity.
+        // This half asserts on readable content too, for the same reason as above.
+        //
+        // An earlier version claimed that editing an existing package IS deterministic, unlike
+        // building one from scratch, and held the wrapper to byte-exact parity here. That is
+        // false: ClosedXML rewrites the whole package on save, re-stamping ZIP entry timestamps,
+        // which have two-second granularity. Two SetCellAsync calls that straddle a tick differ
+        // by one byte, so the assertion passed only when both landed in the same tick - a flake
+        // that went unnoticed for months and then failed CI on an unrelated docs-only change.
+        //
+        // Measured before changing this: the difference appears at byte 5222, the exact offset
+        // CI reported. The same probe found PPTX and DOCX edits and DOCX->PDF conversion all
+        // byte-deterministic, which is why the byte-equality assertions in the other service
+        // tests are sound and were left alone. Only ClosedXML rebuilds the package this way.
         using var updated = new MemoryStream();
         await sut.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, updated);
 
         using var expectedUpdated = new MemoryStream();
         await WorkbookEditor.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, expectedUpdated);
 
-        Assert.Equal(expectedUpdated.ToArray(), updated.ToArray());
-        Assert.Equal("1500", await sut.ReadCellAsync(new MemoryStream(updated.ToArray()), "Sales", "B2"));
+        var fromWrapper = updated.ToArray();
+        var fromStatic = expectedUpdated.ToArray();
+
+        Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, fromWrapper.Take(4).ToArray());
+        Assert.Equal(fromStatic.Length, fromWrapper.Length);
+        foreach (var cellRef in new[] { "A1", "B1", "A2", "B2" })
+        {
+            Assert.Equal(
+                WorkbookEditor.ReadCell(fromStatic, "Sales", cellRef),
+                WorkbookEditor.ReadCell(fromWrapper, "Sales", cellRef));
+        }
+
+        Assert.Equal("1500", await sut.ReadCellAsync(new MemoryStream(fromWrapper), "Sales", "B2"));
     }
 
     [Fact]
