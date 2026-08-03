@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.9](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.8...v0.3.9) (2026-08-03)
+
+
+### Changed
+
+* record the single-branch verification outcome ([696c3bc](https://github.com/Ank-KhoaHo/DocToolkit/commit/696c3bc0c2e4e28ac459cb94f6881c5d897bf688))
+* record the single-branch verification outcome ([1fed371](https://github.com/Ank-KhoaHo/DocToolkit/commit/1fed3718cdef5214a61ea8cddfe403f56d6763a2))
+
 ## [0.3.8](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.7...v0.3.8) (2026-08-03)
 
 
