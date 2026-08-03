@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ank.DocToolkit.Extensions.DependencyInjection" Version="[0.3.2, )" />
+    <PackageReference Include="Ank.DocToolkit.Extensions.DependencyInjection" Version="0.3.4" />
   </ItemGroup>
 
 </Project>
