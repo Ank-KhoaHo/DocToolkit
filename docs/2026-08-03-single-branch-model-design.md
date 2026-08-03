@@ -174,3 +174,40 @@ makes the *first* auto-release a small deliberate test instead.
 - `CLAUDE.md`, `docs/` and `spike/` are present on `main`.
 - `.github/dependabot.yml` contains no `target-branch`, and Dependabot security updates are active.
 - `dotnet build -warnaserror` is clean and all 448 test results pass on `main` after migration.
+
+## Verified 2026-08-03
+
+All criteria met, with one deliberate exception recorded below.
+
+Merging PR #15 produced a release with no further human action: release-please opened
+`chore(main): release 0.3.3`, auto-merge took it, `v0.3.3` was tagged, and `release.yml` published
+both packages and their symbol packages to nuget.org. The lockfile guard added the same day ran
+inside that release and passed, so the resolved graph was checked against its committed lockfile
+immediately before an irreversible publish.
+
+Dependabot began work immediately, opening `ci: bump the actions group with 8 updates` (grouped as
+configured) and `build: Bump SixLabors.Fonts from 1.0.0 to 1.0.1`. The second is the `ignore` rule
+behaving exactly as designed — 1.0.1 was checked and is still Apache-2.0, so a safe patch was
+admitted while the revenue-gated 2.x line stays blocked.
+
+**Exception: `main` does not reject a direct push from a repository admin.** `enforce_admins` is
+deliberately left `false`, so branch protection binds contributors while the owner retains an
+emergency override. Requirement 3 therefore holds by enforcement for everyone else and by
+convention for the owner. This was decided explicitly, not inherited — see the implementation
+plan's Task 7 for the alternative and its cost.
+
+### Three things the implementation corrected
+
+1. **`main`'s required status checks named `main is release-only`** — the `branch-policy` job the
+   migration deletes. Had the PR merged unchanged, every future PR into `main` would have waited
+   forever on a check nothing could report. The list was replaced with the seven jobs that survive,
+   which also closed a pre-existing gap: the Windows build, the docs site and the extensions
+   package verification had never gated `main` at all.
+2. **`git merge --no-edit` produces a subject with no Conventional Commit type,** which
+   `commit-format` correctly rejects — it exempts GitHub's own PR-merge commits but deliberately
+   not hand-made merges. The migration branch was rebuilt with an explicit `chore:` merge message,
+   and the rebuilt tree verified byte-identical to the tested one before force-pushing.
+3. **The `Auto-merge the Release PR` step failed loudly** on the first run, with
+   `GraphQL: Auto merge is not allowed for this repository`, because *Allow auto-merge* was still
+   off. This was the failure mode of most concern in the design, and it behaved correctly: visible,
+   not silent.
