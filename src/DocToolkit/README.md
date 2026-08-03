@@ -115,6 +115,27 @@ A placeholder with no matching key becomes empty rather than staying visible. Pl
 prefixes are untouched, so a second call fills a second table. An empty list removes the template
 row, and removes the table if that row was its only one.
 
+## Images
+
+A text placeholder becomes an inline image — a logo, a signature, a QR code:
+
+```csharp
+byte[] withLogo = DocxEditor.ReplaceImage(docx, "{{logo}}", File.ReadAllBytes("logo.png"));
+
+// or at a chosen width; the height scales to keep the aspect ratio
+byte[] signed = DocxEditor.ReplaceImage(withLogo, "{{signature}}", sigBytes, widthPoints: 90);
+```
+
+**PNG and JPEG**, identified by their own magic bytes rather than a filename. Omit the size and the
+image's intrinsic dimensions are read from its header at 96 DPI; give one dimension and the other
+scales; give both and it is stretched to fit.
+
+Works in the body, headers, footers, footnotes and endnotes — a logo usually belongs in a header,
+and the image is attached to that header's own part so Word resolves it correctly.
+
+Only the placeholder text is removed: `Signed: {{signature}} (authorised)` becomes `Signed: `, the
+image, then ` (authorised)`, with the surrounding runs keeping their formatting.
+
 ## Placeholder replacement
 
 `DocxEditor.ReplaceText` and `PresentationEditor.ReplaceText` substitute against the

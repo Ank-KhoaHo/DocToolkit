@@ -377,6 +377,27 @@ public class AirGapGuardTests
     }
 
     [Fact]
+    public async Task DocxEditorReplaceImage_ContactsNothing()
+    {
+        using var probe = new LoopbackProbe(_output);
+
+        // The surrounding text names the listener, so anything that tried to resolve document
+        // content while inserting the image would show up as a connection.
+        var docx = DocxFixtures.Build(
+            DocxFixtures.P(DocxFixtures.R($"Logo {{{{logo}}}} from {probe.BaseUrl}/logo.png")));
+
+        var filled = DocxEditor.ReplaceImage(docx, "{{logo}}", ImageFixtures.Png());
+        Assert.NotEmpty(filled);
+
+        using var destination = new MemoryStream();
+        await DocxEditor.ReplaceImageAsync(
+            new MemoryStream(docx), "{{logo}}", ImageFixtures.Jpeg(), destination);
+        Assert.NotEmpty(destination.ToArray());
+
+        await probe.AssertSilentAsync("DocxEditor.ReplaceImage / ReplaceImageAsync");
+    }
+
+    [Fact]
     public async Task WorkbookEditor_ContactsNothing()
     {
         using var probe = new LoopbackProbe(_output);

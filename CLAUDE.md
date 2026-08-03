@@ -110,6 +110,20 @@ correctness fix. Relatedly, `DocxFixtures.Tbl` must emit a `w:tblGrid`: without 
 rejects the first `w:tr` as an unexpected child, and an earlier version of that helper built
 schema-invalid tables that every test happily passed against.
 
+**An image part must belong to the part that owns the paragraph.** `ReplaceImage` adds the
+`ImagePart` to the `HeaderPart` for a header image, not to `MainDocumentPart`. Get it wrong and the
+relationship id resolves in the wrong scope: Word opens the file and simply shows nothing where the
+image should be. **`wp:docPr/@id` must also be unique across the whole document** — a duplicate makes
+Word declare the file corrupt and offer to repair it, so `NextDrawingId` scans every part for the
+highest existing id rather than starting at 1. Both failures are invisible to any test that only
+reads text back, which is why each has a test asserting the *part ownership* and the *ids* directly.
+
+**No image-decoding dependency, deliberately.** `ImageInspector` reads PNG and JPEG dimensions from
+their headers because every .docx image needs an explicit size and the obvious library —
+SixLabors.ImageSharp — moved its later majors onto the same revenue-gated licence `SixLabors.Fonts`
+is pinned at `[1.0.x]` to avoid. Format is decided by magic bytes, never a filename: a part declaring
+`image/png` while holding JPEG bytes renders as a blank frame, silently.
+
 **HTML → PDF pivots through DOCX by design.** No permissively-licensed, NuGet-only, Linux-safe
 library renders HTML to PDF directly: the only free renderers *are* browsers, and a browser is a
 native binary. `HtmlToPdfConverter` composes the other two converters — keep it a composition, do
@@ -138,7 +152,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 252 tests (210 core + 42 extensions) → 504 results.
+  report *2N* results. 288 tests (246 core + 42 extensions) → 576 results.
 - **Never replace `src/DocToolkit/DocToolkit.csproj` wholesale** — it carries the package metadata
   (`PackageId`, version, licence expression, readme, symbol package). Use `dotnet add package`,
   which edits in place.
@@ -223,7 +237,7 @@ copy error, not a message pointing at the real cause.
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 252 tests x 2 TFMs = 504 results
+dotnet test  DocToolkit.sln -c Release            # 288 tests x 2 TFMs = 576 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 

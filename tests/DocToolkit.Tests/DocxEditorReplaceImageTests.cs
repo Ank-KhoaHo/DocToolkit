@@ -226,6 +226,29 @@ public class DocxEditorReplaceImageTests
     }
 
     [Fact]
+    public async Task ReplaceImageAsync_MatchesTheByteArrayOverload()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("Logo: {{logo}} end")));
+        var png = ImageFixtures.Png();
+
+        var expected = DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 24);
+
+        using var destination = new MemoryStream();
+        await DocxEditor.ReplaceImageAsync(
+            new MemoryStream(docx), "{{logo}}", png, destination, widthPoints: 24);
+        var actual = destination.ToArray();
+
+        Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));
+
+        using var ms = new MemoryStream(actual);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var extent = doc.MainDocumentPart!.Document!.Body!.Descendants<DW.Extent>().Single();
+        Assert.Equal(24L * 12700, extent.Cx!.Value);
+
+        AssertValid(actual);
+    }
+
+    [Fact]
     public void ReplaceImage_RejectsBadArguments()
     {
         var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{logo}}")));

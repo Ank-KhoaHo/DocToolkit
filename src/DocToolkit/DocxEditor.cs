@@ -475,6 +475,57 @@ public static class DocxEditor
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, replaces every occurrence of
+    /// <paramref name="placeholder"/> with <paramref name="image"/>, and writes the result to
+    /// <paramref name="destination"/>. See <see cref="ReplaceImage"/> for what is matched and how it
+    /// is sized — this overload applies the identical logic via streams instead of a byte array.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable, so
+    /// both may be sockets, files or HTTP message bodies.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="image">PNG or JPEG bytes, identified by their magic bytes.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="widthPoints">Width in points, or null to derive it.</param>
+    /// <param name="heightPoints">Height in points, or null to derive it.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/> is
+    /// not writable, <paramref name="image"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The image is neither PNG nor JPEG, the package could not be edited, or the placeholder was
+    /// not found.
+    /// </exception>
+    public static async Task ReplaceImageAsync(
+        Stream source, string placeholder, byte[] image, Stream destination,
+        double? widthPoints = null, double? heightPoints = null, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(image);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (image.Length == 0) throw new ArgumentException("Image content was empty.", nameof(image));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to insert an image into the DOCX package.", ct)
+            .ConfigureAwait(false);
+
+        ReplaceImageCore(buffer, placeholder, image, widthPoints, heightPoints);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to insert an image into the DOCX package.", ct)
+            .ConfigureAwait(false);
+    }
+
     /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
     private static void ReplaceImageCore(
         MemoryStream ms, string placeholder, byte[] image, double? widthPoints, double? heightPoints)

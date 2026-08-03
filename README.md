@@ -32,7 +32,7 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 | **Free for commercial use** | 19 dependencies: 18 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
 | **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
 | **Runs on Linux** | Verified in CI on `ubuntu-24.04`, not inferred. |
-| **Works offline** | No runtime network I/O. Proven by 36 air-gap tests. |
+| **Works offline** | No runtime network I/O. Proven by 37 air-gap tests. |
 
 All four are properties of the *resolved dependency graph*, so a single upstream bump can break
 them silently — which is why CI re-checks every one on every push. That has happened once already
@@ -53,6 +53,9 @@ byte[] filled = DocxEditor.ReplaceText(docx, new() { ["{{customer}}"] = "Contoso
 // Repeat a table row per record — a row holding {{item.Desc}} becomes one row per line item,
 // each keeping the template row's formatting
 byte[] invoice = DocxEditor.FillRows(filled, "item", lineItems);
+
+// Drop an image into a placeholder — sized from its own header, PNG or JPEG
+invoice = DocxEditor.ReplaceImage(invoice, "{{logo}}", logoBytes);
 
 byte[] xlsx = WorkbookEditor.Create("Sales", new[] { new object?[] { "Region", "Total" } });
 IReadOnlyList<string> slideText = PresentationEditor.ExtractText(pptx);
@@ -84,7 +87,7 @@ Both packages ship at the same version from the same tag. See the
 
 ## Offline by default
 
-No default code path performs network I/O — enforced, not merely intended. 36 guard tests assert
+No default code path performs network I/O — enforced, not merely intended. 37 guard tests assert
 **zero** socket connections across the whole public API, against markup naming a loopback listener
 sixteen ways (`<img src>`, `srcset`, `<link rel=stylesheet>`, `@import`, `background-image`,
 `<iframe>`, `<object>`, `<script>`). The guard is proved by mutation: enabling downloads turns nine
@@ -126,7 +129,7 @@ is pinned at **6.0.0** by OfficeIMO; the package is **`RBush.Signed`**, not `RBu
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 252 tests x 2 target frameworks = 504 results
+dotnet test  DocToolkit.sln -c Release      # 288 tests x 2 target frameworks = 576 results
 
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .   # verify Linux locally
 docker run --rm doctoolkit-linux-test
@@ -148,7 +151,7 @@ stored API key. Maintainer procedure lives in [`CLAUDE.md`](CLAUDE.md).
 ```
 src/DocToolkit/                                         the library
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
-tests/                                                  252 tests, including Stream-overload proofs and the air-gap/dependency guards
+tests/                                                  288 tests, including Stream-overload proofs and the air-gap/dependency guards
 samples/                                                console + minimal-API samples, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
 docs/                                                   design docs and implementation plans this was built from
