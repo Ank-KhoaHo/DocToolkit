@@ -157,9 +157,35 @@ be run in locked mode. Disable the RestoreLockedMode MSBuild property or pass an
 --force-evaluate option to run restore to update the lock file.
 ```
 
-If it *succeeds*, the lockfile is not being consulted — re-check that
-`RestorePackagesWithLockFile` landed in the PropertyGroup that also holds `TargetFrameworks`, and
-that `packages.lock.json` sits beside the csproj.
+**If it succeeds, do not conclude the guard is broken — check for an IDE first.** Verified on
+2026-08-03: with the repo open in VS Code, the C# extension watches the project files and runs its
+own restore, *without* locked mode, within about two seconds of any csproj change. That rewrites
+`packages.lock.json` to match the mutation, so the check that follows finds them in agreement and
+passes legitimately. It looks exactly like a broken guard and is not one.
+
+To tell the two apart, mutate the csproj and read the lockfile **without running restore yourself**:
+
+```bash
+git diff --stat src/DocToolkit/packages.lock.json
+```
+
+If the lockfile is already modified, an IDE restored behind you. Close the editor (or use a
+checkout the editor does not have open) and repeat. CI has no file watcher, so this cannot happen
+there.
+
+Once the race is excluded, a genuine failure looks like:
+
+```
+error NU1004: The package reference ClosedXML version has changed from [0.105.1, ) to [0.105.0, ).
+The packages lock file is inconsistent with the project dependencies so restore can't be run in
+locked mode.
+```
+
+with exit code 1, and `packages.lock.json` **unmodified** — locked mode fails before writing.
+
+If it still passes with no IDE running, re-check that `RestorePackagesWithLockFile` landed in the
+PropertyGroup that also holds `TargetFrameworks`, and that `packages.lock.json` sits beside the
+csproj.
 
 - [ ] **Step 9: Revert the deliberate break**
 
