@@ -5,14 +5,23 @@ repo's source) — the same restore an external consumer would get.
 
 ## ConsoleSample
 
-Exercises all five core `Ank.DocToolkit` capabilities in one run: HTML→DOCX, HTML→PDF,
-DOCX→PDF, DOCX template fill + text extraction, XLSX create/read/edit, and PPTX read.
+Exercises every core `Ank.DocToolkit` capability in one run: HTML→DOCX, HTML→PDF, DOCX→PDF,
+DOCX template fill + text extraction, **repeating table rows**, XLSX create/read/edit, and PPTX read.
 
 ```bash
 dotnet run --project samples/ConsoleSample
 ```
 
 Prints a short report for each step (byte counts, extracted text, a before/after cell value).
+
+Step 5 is the fullest example: it builds an invoice template from HTML, expands one table row into
+three line items with `FillRows`, then fills the document-level scalars with `ReplaceText` — in that
+order, because expanding clones the template row and any scalar substituted first would be
+duplicated into every line.
+
+Because these projects reference the **published** packages rather than this source, they only ever
+demonstrate API that has actually shipped. A capability merged but not yet released cannot appear
+here until it is.
 
 ## MinimalApiSample
 

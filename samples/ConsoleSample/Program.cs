@@ -28,8 +28,42 @@ byte[] filled = DocxEditor.ReplaceText(template, new Dictionary<string, string>
 string text = DocxEditor.ExtractText(filled);
 Console.WriteLine($"   Extracted text: \"{text.Trim()}\"");
 
-// 5. Spreadsheets: create, read a cell, update it, read again
-Console.WriteLine("\n5. XLSX create/read/edit");
+// 5. A whole invoice: a table row repeated per line item, then the document-level scalars.
+//    The template itself is built from HTML, so this shows the full chain in one place.
+Console.WriteLine("\n5. DOCX repeating table rows");
+byte[] invoiceTemplate = await HtmlToDocxConverter.ConvertAsync(
+    """
+    <h1>Invoice for {{customer}}</h1>
+    <table border="1">
+      <tr><th>Description</th><th>Qty</th><th>Total</th></tr>
+      <tr><td>{{item.Desc}}</td><td>{{item.Qty}}</td><td>{{item.Total}}</td></tr>
+    </table>
+    """);
+
+// Rows first, then scalars: expanding clones the template row, so any scalar substituted
+// beforehand would be duplicated into every line.
+byte[] withRows = DocxEditor.FillRows(invoiceTemplate, "item", new[]
+{
+    new Dictionary<string, string> { ["Desc"] = "Widget", ["Qty"] = "2", ["Total"] = "19.98" },
+    new Dictionary<string, string> { ["Desc"] = "Gadget", ["Qty"] = "5", ["Total"] = "45.00" },
+    new Dictionary<string, string> { ["Desc"] = "Doohickey", ["Qty"] = "1", ["Total"] = "7.50" },
+});
+
+byte[] invoice = DocxEditor.ReplaceText(withRows, new Dictionary<string, string>
+{
+    ["{{customer}}"] = "Contoso Ltd",
+});
+
+string invoiceText = DocxEditor.ExtractText(invoice);
+string[] expected = { "Widget", "Gadget", "Doohickey" };
+int lineCount = expected.Count(invoiceText.Contains);
+
+Console.WriteLine($"   One template row became {lineCount} line items, each keeping its formatting.");
+Console.WriteLine($"   Customer filled: {invoiceText.Contains("Contoso Ltd")}; "
+                  + $"placeholders left: {invoiceText.Contains("{{item.")}");
+
+// 6. Spreadsheets: create, read a cell, update it, read again
+Console.WriteLine("\n6. XLSX create/read/edit");
 byte[] xlsx = WorkbookEditor.Create("Sales", new object?[][]
 {
     new object?[] { "Region", "Total" },
@@ -40,8 +74,8 @@ byte[] updated = WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500);
 string cellAfter = WorkbookEditor.ReadCell(updated, "Sales", "B2");
 Console.WriteLine($"   B2 before: {cellBefore}, after SetCell: {cellAfter}");
 
-// 6. Presentations: read the shared test fixture PPTX
-Console.WriteLine("\n6. PPTX read/edit");
+// 7. Presentations: read the shared test fixture PPTX
+Console.WriteLine("\n7. PPTX read/edit");
 string pptxPath = Path.Combine(AppContext.BaseDirectory, "assets", "sample.pptx");
 byte[] pptx = await File.ReadAllBytesAsync(pptxPath);
 int slideCount = PresentationEditor.SlideCount(pptx);
