@@ -1,0 +1,52 @@
+name: release-please
+
+# Maintains a persistent "Release PR" on main: as commits land in Conventional Commits
+# format, this computes the next version and writes the CHANGELOG.md entry. Merging that
+# PR is the human release decision this project has always required - the automation only
+# replaces the manual "pick a version, write the changelog, tag it" bookkeeping upstream of
+# it, not the decision itself. See release-please-config.json for the version/changelog
+# rules, and CLAUDE.md's "Releasing" section for the full flow.
+#
+# Requires a Personal Access Token, not the default GITHUB_TOKEN: GitHub Actions does not
+# let a workflow's default token trigger OTHER workflows when it pushes a commit or tag
+# (loop prevention). Using the default token here would mean the tag this action pushes on
+# Release-PR merge never reaches release.yml's `push: tags: ["v*"]` trigger - no error,
+# the tag would just sit there unpublished.
+#
+# Setup, once: create a fine-grained PAT scoped to only this repo, with
+# "Contents: read and write" and "Pull requests: read and write" permissions, and add it as
+# a repository secret named RELEASE_PLEASE_TOKEN. Fine-grained PATs expire - rotate it
+# before it does, or releases silently stop triggering.
+#
+# Does NOT set skip-github-release in release-please-config.json - release-please's own docs
+# are explicit that skipping the GitHub Release also skips creating the tag, unless you build
+# separate tagging infrastructure. release.yml's own "Create or update GitHub Release" step
+# handles the resulting release-already-exists case instead of colliding with it.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail early if RELEASE_PLEASE_TOKEN is missing
+        run: |
+          if [ -z "${{ secrets.RELEASE_PLEASE_TOKEN }}" ]; then
+            echo "::error::RELEASE_PLEASE_TOKEN is not set. Add a fine-grained PAT (Contents: read and write, Pull requests: read and write, scoped to this repo) as a repository secret - see this file's header comment."
+            exit 1
+          fi
+          echo "RELEASE_PLEASE_TOKEN is configured"
+
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}

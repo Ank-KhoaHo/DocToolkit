@@ -214,10 +214,74 @@ at that same version, in the same run. The **tag is the authoritative version**;
 `<Version>` in each project is only a local dev default, so do not expect them to match. There is
 no separate tag prefix for the extensions package — see "The DI extensions package" above for why.
 
-**Before tagging, move `[Unreleased]` in `CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD`
-heading for the version you're about to release.** The release workflow greps for that heading
-and refuses to publish if it's missing — the same fail-fast treatment as the other premise guards,
-because a changelog gap is easy to forget under release pressure and easy to fix beforehand.
+**The tag is normally created by release-please, not by hand.**
+`.github/workflows/release-please.yml` watches every push to `main`, computes the version bump
+from Conventional Commits (`feat:` → minor, `fix:` → patch, `!`/`BREAKING CHANGE:` → major — this
+mapping is release-please's built-in Conventional Commits strategy, not something configured in
+this repo; `release-please-config.json` only maps commit types to changelog sections), and
+maintains a single persistent Release PR with the computed `CHANGELOG.md` entry already written.
+**Merging that PR is the human release decision** this project has always required — the
+automation only replaces the manual "pick a version, write the changelog, tag it" bookkeeping
+upstream of that decision, not the decision itself. Both packages are tracked as one component
+(`"."` in `release-please-config.json`) so they can never version independently.
+`release-please-config.json`'s `last-release-sha` seeds where the very first automated Release PR
+starts counting commits from (main's tip right before this automation was added) — it exists only
+to keep that first PR from sweeping in unrelated older history, goes inert once a real GitHub
+Release exists to anchor from instead, and can be deleted from the config once that's happened.
+**Pre-1.0, a breaking change (`!`/`BREAKING CHANGE:`) jumps straight to `1.0.0`**, not the next minor —
+`bump-minor-pre-major` is deliberately left at its default (`false`).
+
+**Any commit matching a recognized Conventional Commit type opens or updates the Release PR** —
+not just `feat:`/`fix:`, and this is not gated by `changelog-sections` visibility (that only
+controls what shows up *in* the changelog, not whether a release is proposed at all). Even a
+`chore:`-only or `test:`-only merge (both `hidden: true`) proposes a release — it just produces a
+changelog entry with a bare version heading and no visible body. **Check the Release PR's actual
+diff before merging** — a version bump with an empty-looking changelog entry is a real signal to
+hold off, not necessarily a release worth shipping; nothing stops it from otherwise merging and
+publishing an empty version. Expect the Release PR to be open most of the time — that's normal,
+not a bug; it just accumulates until you choose to merge it.
+
+Merging the Release PR creates **both** the tag and a GitHub Release (release-please's own
+generated notes, derived from the same `CHANGELOG.md` entry) — `release.yml`'s own
+`Create or update GitHub Release` step detects that a release already exists and attaches the
+`.nupkg`/`.snupkg` assets to it instead of creating a second one, rather than failing. **An
+earlier version of this pipeline set `skip-github-release: true` to avoid that collision — don't
+reintroduce it.** release-please's own documentation is explicit that skipping the GitHub Release
+also skips creating the tag unless you build separate tagging infrastructure, which would have
+meant a merged Release PR never actually triggers `release.yml` at all, silently. Verified against
+release-please's own documentation directly, not assumed.
+
+Commit messages must follow Conventional Commits (`type(scope)?: description`) going forward —
+`ci.yml`'s `commit-format` job enforces the `type(scope)?: description` shape on every PR,
+checking every commit in the PR's range (this repo true-merges, so every commit lands on `main`
+and matters to the bump calculation, not just the PR title). By convention, not CI-enforced,
+`scope` is `core`, `extensions`, or omitted — matching `CHANGELOG.md`'s own `Core:`/`Extensions:`
+prefixes; the regex itself accepts any lowercase/digit/hyphen scope, so a different scope won't
+fail CI, it just won't match that convention. Get the *type* wrong and release-please either
+miscategorizes a change or silently drops it from the changelog — the CI guard exists so that's
+caught at PR time, not discovered in a Release PR that's already wrong. **A `Merge branch 'main'
+into <feature>` commit fails this guard** (no type prefix) — rebase instead of merging `main` into
+a long-lived feature branch.
+
+`release-please.yml` needs its own PAT (not the default `GITHUB_TOKEN`) stored as the
+`RELEASE_PLEASE_TOKEN` repository secret — GitHub Actions doesn't let a workflow's default token
+trigger other workflows when it pushes, so a release-please-authored tag push would otherwise never
+reach `release.yml`. Fine-grained PAT, scoped to this repo only, `Contents: read and write` +
+`Pull requests: read and write`. Fine-grained PATs expire — rotate it before it does, or releases
+will silently stop triggering. `release-please.yml` fails fast with a clear message if the secret
+is missing, matching `release.yml`'s own `NUGET_USER` guard.
+
+A manual `git tag v1.2.3 && git push origin v1.2.3` still works as a fallback — `release.yml` only
+cares that a `v*` tag arrived, not how — but if you tag manually, **move the current `## Unreleased`
+content in `CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD` heading yourself first**;
+release-please only writes that entry when it's the one creating the tag, and never touches
+`## Unreleased` at all (that heading is deliberately bracket-free — `## [Unreleased]` would
+collide with release-please's own version-heading detection; don't put the brackets back). The
+release workflow greps for the `## [X.Y.Z]` heading and refuses to publish if it's missing — the
+same fail-fast treatment as the other premise guards. Once release-please starts handling most
+releases, don't expect `## Unreleased` to keep accumulating content the way it did by hand —
+anything added there manually won't automatically fold into the next automated Release PR, since
+release-please computes its own entry from commit history, not from that section.
 
 Publishing to nuget.org is **irreversible** — a version can be unlisted, never deleted or
 replaced. The workflow therefore runs the full suite *and* all four premise guards (checked
