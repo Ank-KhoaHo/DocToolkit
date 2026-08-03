@@ -10,6 +10,15 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.8](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.7...v0.3.8) (2026-08-03)
+
+
+### Changed
+
+* bump five GitHub Actions across major versions ([963ec57](https://github.com/Ank-KhoaHo/DocToolkit/commit/963ec57b79584ae3c1e2413b4354cf20c81494fc))
+* bump five GitHub Actions across major versions ([8f42d36](https://github.com/Ank-KhoaHo/DocToolkit/commit/8f42d36dcfc0284acb092423590f49fc7800d7d3))
+* fold the two remaining docs.yml action majors in ([ae2873e](https://github.com/Ank-KhoaHo/DocToolkit/commit/ae2873ebc213e2ed6abe4588039c13cb8390f9f1))
+
 ## [0.3.7](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.6...v0.3.7) (2026-08-03)
 
 
