@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.11](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.10...v0.3.11) (2026-08-03)
+
+
+### Changed
+
+* refresh the backlog against what shipped today ([570ba61](https://github.com/Ank-KhoaHo/DocToolkit/commit/570ba61ec6422729f782fabf33445c6bfb261797))
+
 ## [0.3.10](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.9...v0.3.10) (2026-08-03)
 
 
