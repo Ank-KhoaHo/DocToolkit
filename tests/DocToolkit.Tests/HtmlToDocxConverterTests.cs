@@ -63,8 +63,9 @@ public class HtmlToDocxConverterTests
     [Fact]
     public async Task ConvertAsync_CancelsPartwayThroughALongParse()
     {
-        // Sized so the parse takes the best part of a second: the token must land inside
-        // HtmlToOpenXml's work, not merely at the guard on the way in.
+        // Sized so the parse takes the best part of a second (measured ~0.8-1.8 s), so a token
+        // cancelled after 150 ms is guaranteed to land inside HtmlToOpenXml's work rather than at
+        // the guard on the way in.
         var sb = new StringBuilder();
         for (var i = 0; i < 60_000; i++)
             sb.Append("<p>Paragraph ").Append(i).Append(" of the stress fixture.</p>");
@@ -72,14 +73,18 @@ public class HtmlToDocxConverterTests
         using var cts = new CancellationTokenSource();
         cts.CancelAfter(TimeSpan.FromMilliseconds(150));
 
-        var stopwatch = Stopwatch.StartNew();
+        // The exception alone proves what this test exists to prove. ConvertAsync checks the token
+        // once on entry - which cannot fire here, since the token is still live when the call
+        // starts - and then hands it to ParseBody. There is no check after the parse. So if the
+        // token were NOT reaching the parser, this call would run to completion and return a
+        // document: no exception at all, and this assertion fails.
+        //
+        // An earlier version also asserted the whole thing finished inside 600 ms. That added
+        // nothing the above does not already establish, and made the test depend on how loaded the
+        // CI runner happened to be - it failed three times in one day on pull requests that changed
+        // only Markdown and a sample. See backlog B10.
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => HtmlToDocxConverter.ConvertAsync(sb.ToString(), cts.Token));
-
-        // Generous ceiling: an unthreaded token runs the whole parse (measured ~0.8-1.8 s here)
-        // and returns a document instead of throwing at all.
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromMilliseconds(600),
-            $"Cancellation took {stopwatch.ElapsedMilliseconds} ms - the token is not reaching the parser.");
     }
 
     [Fact]
