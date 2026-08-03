@@ -190,6 +190,16 @@ Publishing is driven by tags, and **one tag releases both packages at the same v
 lockstep — the tag is the single source of truth for the version; the `<Version>` in each csproj
 is only a local dev default.
 
+**The tag is normally created automatically, not by hand.**
+[release-please](https://github.com/googleapis/release-please) watches commits on `main` (in
+[Conventional Commits](https://www.conventionalcommits.org/) format — `feat:`/`fix:`/etc.) and
+maintains a single "Release PR" with the computed version bump and a generated `CHANGELOG.md`
+entry. **Merging that PR is the release decision** — review it like any other PR, hand-edit the
+changelog prose if you want, then merge; release-please pushes the `vX.Y.Z` tag as part of that
+merge, which is all `release.yml` (below) actually needs to fire.
+
+A manual tag still works too — `release.yml` only cares that a `v*` tag arrived, not how:
+
 ```bash
 git tag v1.0.0
 git push origin v1.0.0

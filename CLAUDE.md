@@ -214,10 +214,35 @@ at that same version, in the same run. The **tag is the authoritative version**;
 `<Version>` in each project is only a local dev default, so do not expect them to match. There is
 no separate tag prefix for the extensions package — see "The DI extensions package" above for why.
 
-**Before tagging, move `[Unreleased]` in `CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD`
-heading for the version you're about to release.** The release workflow greps for that heading
-and refuses to publish if it's missing — the same fail-fast treatment as the other premise guards,
-because a changelog gap is easy to forget under release pressure and easy to fix beforehand.
+**The tag is normally created by release-please, not by hand.**
+`.github/workflows/release-please.yml` watches every push to `main`, computes the version bump
+from Conventional Commits (`feat:` → minor, `fix:` → patch, `!`/`BREAKING CHANGE:` → major — see
+`release-please-config.json`), and maintains a single persistent Release PR with the computed
+`CHANGELOG.md` entry already written. **Merging that PR is the human release decision** this
+project has always required — the automation only replaces the manual "pick a version, write the
+changelog, tag it" bookkeeping upstream of that decision, not the decision itself. Both packages
+are tracked as one component (`"."` in `release-please-config.json`) so they can never version
+independently.
+
+Commit messages must follow Conventional Commits (`type(scope)?: description`, `scope` one of
+`core`, `extensions`, or omitted) going forward — `ci.yml`'s `commit-format` job enforces this on
+every PR, checking every commit in the PR's range (this repo true-merges, so every commit lands on
+`main` and matters to the bump calculation, not just the PR title). Get this wrong and
+release-please either miscategorizes a change or silently drops it from the changelog — the CI
+guard exists so that's caught at PR time, not discovered in a Release PR that's already wrong.
+
+`release-please.yml` needs its own PAT (not the default `GITHUB_TOKEN`) stored as the
+`RELEASE_PLEASE_TOKEN` repository secret — GitHub Actions doesn't let a workflow's default token
+trigger other workflows when it pushes, so a release-please-authored tag push would otherwise never
+reach `release.yml`. Fine-grained PAT, scoped to this repo only, `Contents: read and write` +
+`Pull requests: read and write`. Fine-grained PATs expire — rotate it before it does, or releases
+will silently stop triggering.
+
+A manual `git tag v1.2.3 && git push origin v1.2.3` still works as a fallback — `release.yml` only
+cares that a `v*` tag arrived, not how — but if you tag manually, **move `[Unreleased]` in
+`CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD` heading yourself first**; release-please only
+writes that entry when it's the one creating the tag. The release workflow greps for that heading
+and refuses to publish if it's missing — the same fail-fast treatment as the other premise guards.
 
 Publishing to nuget.org is **irreversible** — a version can be unlisted, never deleted or
 replaced. The workflow therefore runs the full suite *and* all four premise guards (checked
