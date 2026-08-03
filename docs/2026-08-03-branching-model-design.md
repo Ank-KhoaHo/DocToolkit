@@ -84,9 +84,9 @@ unconditionally, whatever state the merge left them in:
 See `scripts/promote-to-main.sh` for the implementation, and
 `scripts/test-promote.sh` for the test that proves it. The essential moves are:
 fetch, create a throwaway git worktree on a new `release/promote-*` branch based
-on `origin/main`, `git merge --no-ff --no-commit origin/develop` tolerating a
-non-zero exit, purge every excluded path from index and worktree, abort if any
-path is *still* unmerged, then commit as `chore: promote develop to main`.
+on `origin/main`, `git merge --no-ff --no-commit origin/develop` tolerating an
+exit of exactly 1, purge every excluded path from index and worktree, abort if
+any path is *still* unmerged, then commit as `chore: promote develop to main`.
 
 The work happens in a throwaway worktree rather than by switching the current
 checkout, because the script lives in `scripts/` and switching the current
@@ -94,11 +94,15 @@ worktree to a `main`-based branch could delete the file bash is still reading.
 For the same reason `scripts/` is deliberately **not** in the excluded set - it
 is release tooling and belongs on `main`.
 
-The `|| true` after `git merge` is deliberate and is the only reason the script works: a
-modify/delete conflict makes `git merge` exit non-zero, and under `set -e` that would abort
-before the purge that resolves it. The `--diff-filter=U` check afterwards is what keeps that from
-swallowing a genuine conflict in `src/` — excluded paths are resolved by the purge, so anything
-still unmerged is real and stops the script.
+The script captures `git merge`'s exit code instead of letting `set -e` act on it directly, and
+only tolerates exactly 1: a modify/delete conflict (or any other merge conflict) makes `git merge`
+exit 1, and that is expected — the purge below is what resolves it, so the script must not abort
+first. Anything **above** 1 (128 for unrelated histories, an unreadable object, a merge already in
+progress, ...) is not a conflict at all — nothing merged — so the script hard-fails immediately
+with that same exit code instead of falling through to the purge and reporting "nothing to
+promote" as if it were a clean no-op. The `--diff-filter=U` check afterwards is what keeps a
+tolerated exit-1 from swallowing a genuine conflict in `src/` — excluded paths are resolved by the
+purge, so anything still unmerged after it is real and stops the script.
 
 The commit subject `chore: promote develop to main` satisfies `ci.yml`'s `commit-format` guard.
 A bare `Merge branch ...` subject would fail it, which `CLAUDE.md` already warns about.

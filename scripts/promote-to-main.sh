@@ -27,6 +27,14 @@ REMOTE="${PROMOTE_REMOTE:-origin}"
 DO_PUSH="${PROMOTE_PUSH:-1}"
 DO_PR="${PROMOTE_OPEN_PR:-1}"
 
+# Fail fast rather than let `gh pr create --head "$BRANCH"` run against a branch
+# that was never pushed, which produces a confusing error from gh instead of a
+# clear one from this script - and only after the merge work already happened.
+if [ "$DO_PUSH" != "1" ] && [ "$DO_PR" = "1" ]; then
+  echo "error: PROMOTE_OPEN_PR=1 requires PROMOTE_PUSH=1 - gh needs a pushed branch to open a PR against" >&2
+  exit 1
+fi
+
 ORIG_DIR="$PWD"
 WT="$(mktemp -d)"
 DELETE_BRANCH=0
@@ -70,6 +78,7 @@ merge_rc=0
 git merge --no-ff --no-commit "$REMOTE/develop" || merge_rc=$?
 if [ "$merge_rc" -gt 1 ]; then
   echo "error: git merge failed (exit $merge_rc) - not a conflict" >&2
+  DELETE_BRANCH=1   # the branch never got a commit; don't orphan it
   exit "$merge_rc"
 fi
 
@@ -81,6 +90,7 @@ done
 if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
   echo "error: conflict outside the excluded set - resolve it on develop first:" >&2
   git diff --name-only --diff-filter=U >&2
+  DELETE_BRANCH=1   # the branch never got a commit; don't orphan it
   exit 1
 fi
 

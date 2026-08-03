@@ -58,11 +58,12 @@ setup_repo() {
   # Windows checkouts default to autocrlf=true, which floods the run with
   # "LF will be replaced by CRLF" warnings and buries a real failure.
   git config core.autocrlf false
-  mkdir -p src docs spike
+  mkdir -p src docs spike scripts
   echo v1 > src/app.txt
   echo agent-instructions > CLAUDE.md
   echo design > docs/design.md
   echo poc > spike/poc.txt
+  echo keep > scripts/keep.sh
   git add -A
   git commit -qm "chore: seed"
   git branch -M main
@@ -95,6 +96,7 @@ BR="$(branch_from_output)"
 if [ -n "$BR" ]; then check "a release/promote-* branch was created" 0; else check "a release/promote-* branch was created" 1; fi
 tree_of "$BR"
 assert_has    "src/app.txt"
+assert_has    "scripts/keep.sh"
 assert_absent "CLAUDE.md"
 assert_absent "docs/design.md"
 assert_absent "docs/new-design.md"
