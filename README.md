@@ -250,7 +250,7 @@ anything.
 src/DocToolkit/                                         the library
 tests/DocToolkit.Tests/                                 182 tests, including Stream-overload proofs and the air-gap/dependency guards
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
-tests/DocToolkit.Extensions.DependencyInjection.Tests/  23 tests for the DI extensions package
+tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests for the DI extensions package
 samples/ConsoleSample/                                  core package, all five capabilities
 samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
 docfx/                                                  DocFX site source, published to GitHub Pages on release

@@ -40,8 +40,8 @@ public class InvoiceService
 ```
 
 ```csharp
-// Every interface also has a Stream overload, so a large document never has to be buffered
-// into a byte[] — write straight to an HTTP response body instead:
+// Every interface also has Stream-based async members, so a large document never has to be
+// duplicated into a caller-visible byte[] — write straight to an HTTP response body instead:
 record InvoiceRequest(string Html);
 
 app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter toPdf, HttpResponse response) =>

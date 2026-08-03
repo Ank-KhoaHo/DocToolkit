@@ -120,9 +120,9 @@ original design.
 **Compatibility note:** adding members to a shipped public interface is source/binary-breaking for
 any external type that implements `IDocxEditor` etc. directly (mocking frameworks such as
 Moq/NSubstitute are unaffected, since they generate implementations dynamically). These interfaces
-are documented as wrapping `internal sealed` services and the package is pre-1.0 (`0.1.0`), so this
-is treated as an acceptable, deliberate additive change rather than a reason to introduce versioned
-interfaces or default-interface-method shims.
+are documented as wrapping `internal sealed` services and the package is pre-1.0 (`0.2.2`, heading
+to `0.3.0`), so this is treated as an acceptable, deliberate additive change rather than a reason to
+introduce versioned interfaces or default-interface-method shims.
 
 ## 4. Testing
 
