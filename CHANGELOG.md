@@ -10,6 +10,15 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.3.5](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.4...v0.3.5) (2026-08-03)
+
+
+### Changed
+
+* keep major dependency bumps out of grouped PRs ([fea3e49](https://github.com/Ank-KhoaHo/DocToolkit/commit/fea3e49453c00d45983b932ff0ec6ea2861c649c))
+* keep major dependency bumps out of grouped PRs ([468307b](https://github.com/Ank-KhoaHo/DocToolkit/commit/468307bf5f6f899d58424c595d50938ad8c6355b))
+* repeat the src guards in the tests update block ([d0bf6c7](https://github.com/Ank-KhoaHo/DocToolkit/commit/d0bf6c7021fb1bb7487dc68e0d2d594c7c2fb93a))
+
 ## [0.3.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.3.3...v0.3.4) (2026-08-03)
 
 
