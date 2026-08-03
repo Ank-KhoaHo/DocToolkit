@@ -143,6 +143,29 @@ jobs:
             echo "::endgroup::"
           done
 
+  # Proves the docs site actually builds before it can reach docs.yml, which only
+  # runs after an irreversible nuget publish - a bad docfx.json edit or doc-comment
+  # regression should fail here, not surface after release.
+  docs-build:
+    name: build docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Install DocFX
+        run: dotnet tool update -g docfx --version 2.78.5
+
+      # --warningsAsErrors catches a regression like the InvalidFileLink warning
+      # this pipeline hit once already (see docfx/index.md's xref: links).
+      - name: Build docs site
+        run: docfx docfx/docfx.json --warningsAsErrors
+
   # Proves the artifacts consumers actually install are correct - not just that
   # the solution compiles. Catches missing TFMs and metadata regressions.
   package:

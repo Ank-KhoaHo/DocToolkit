@@ -17,3 +17,7 @@ Thumbs.db
 .vs/
 .vscode/
 .idea/
+
+# ─── DocFX generated output ───────────────────────────────────────────
+docfx/_site/
+docfx/api/

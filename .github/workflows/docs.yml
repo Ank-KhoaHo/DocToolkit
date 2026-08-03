@@ -1,0 +1,68 @@
+name: Docs
+
+# Publishes the DocFX API-reference site to GitHub Pages. Triggered by the Release
+# workflow completing SUCCESSFULLY - not independently on the same tag push - so a
+# version that fails release.yml's guards (missing CHANGELOG entry, banned dependency,
+# broken tests) never gets a docs site describing it as shipped.
+#
+# Requires GitHub Pages enabled once, manually: Settings > Pages > Source > GitHub Actions.
+#
+# Known gotcha: workflow_run fires based on this file's state on the default branch at
+# the time Release completes. The first release after this file merges to main is the
+# first one that can trigger it - it cannot retroactively fire for an earlier release.
+#
+# workflow_dispatch is a manual escape hatch: seeding the first deployment, re-running
+# after fixing the GitHub Pages setting, or picking up a docs-only fix without waiting
+# for the next release.
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # DocFX restores each project itself while generating metadata - no separate
+      # solution-wide restore needed, and this way a nuget hiccup resolving a sample
+      # project's package can't fail an otherwise-unrelated docs deploy.
+      - name: Install DocFX
+        run: dotnet tool update -g docfx --version 2.78.5
+
+      - name: Build docs site
+        run: docfx docfx/docfx.json --warningsAsErrors
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docfx/_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
