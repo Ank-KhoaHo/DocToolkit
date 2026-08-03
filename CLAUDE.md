@@ -208,77 +208,63 @@ docker run --rm doctoolkit-linux-test
 
 ## Branches
 
-Two branches, two jobs.
+One branch: **`main`**. It is the GitHub default branch, it carries everything — the library, the
+tests, `CLAUDE.md`, `docs/` and `spike/` — and it is what release-please watches and `release.yml`
+tags, packs and publishes.
 
-- **`develop` is the trunk.** All work merges here. It carries everything, including
-  `CLAUDE.md`, `docs/` and `spike/`.
-- **`main` is release-only.** It carries the shipping library and nothing about the process that
-  produced it: `CLAUDE.md`, `docs/` and `spike/` are stripped. It is what release-please watches
-  and what `release.yml` tags, packs and publishes. It is also the GitHub default branch, so it
-  is the tree a consumer arriving from nuget.org lands on — that is the entire point.
+**`main` cannot be pushed directly.** Every change arrives by pull request from a `feat/**` or
+`fix/**` branch cut from `main`. `ci.yml` runs on those branches and on every PR. There is no
+hotfix path and no second way in.
 
-Feature branches (`feat/**`, `fix/**`) branch from `develop` and PR back into `develop`.
-`ci.yml`'s `branch-policy` job rejects any PR into `main` that is not a `release/promote-*`
-branch or release-please's own Release PR, so a mis-targeted PR fails rather than merging quietly.
+`CHANGELOG.md` and `.release-please-manifest.json` are written by release-please. Don't hand-edit
+them; a release will overwrite the change.
 
-**Promote with `scripts/promote-to-main.sh`.** It merges `develop` into a new
-`release/promote-*` branch based on `main`, purges the excluded paths, and opens a PR. Promotion
-is a *real* `git merge`, not a generated snapshot, so every Conventional Commit subject from
-`develop` stays reachable from `main` — that is what keeps release-please working unchanged.
-**Merge that PR with a merge commit, never a squash**; squashing collapses those subjects and
-release-please would compute the wrong bump, or none.
+### Why there is no `develop`
 
-`scripts/` is deliberately *not* excluded from `main`, and both files there are live, not vestigial:
-`ci.yml`'s `promote-script` job runs `bash scripts/test-promote.sh` on **every** push, `main`
-included, so stripping `scripts/` would fail CI on `main` immediately.
+An earlier design split this into a `develop` trunk and a release-only `main`, with
+`scripts/promote-to-main.sh` stripping `CLAUDE.md`, `docs/` and `spike/` on the way across. It
+bought a tidy landing page for consumers arriving from nuget.org, and cost four things:
 
-(An earlier draft justified this differently — that excluding `scripts/` would let the promote
-script delete itself out from under the running bash process. That was true of a design where the
-script `git switch`ed the *current* checkout onto a `main`-based branch. The shipped script does
-its work in a throwaway `git worktree` instead, so the file it is reading is never touched, and
-that hazard no longer exists. The CI reason above is the one that still binds.)
+- **It suppressed Dependabot security updates.** GitHub reads `.github/dependabot.yml` from the
+  default branch only, so PRs targeting `develop` needed `target-branch:` — and that setting
+  disables security updates, which are raised on the default branch only.
+- **It hid this file from contributors,** who only ever see `main`.
+- **It forced `README.md` to stay byte-identical across both branches** or every promote conflicted.
+- **It made "never merge `main` into `develop`" the most dangerous operation in the repo,** because
+  `main` carried deletions that a merge would propagate.
 
-### Never merge `main` into `develop`
-
-`main` carries *deletions* of `CLAUDE.md`, `docs/` and `spike/`. A `git merge main` on `develop`
-would propagate them and wipe the development record. This is the single most dangerous operation
-in this repo.
-
-`CHANGELOG.md` and `.release-please-manifest.json` are **main-owned** — release-please writes
-them there. Never edit them on `develop`: as long as `develop` leaves them alone, git resolves
-them cleanly on every promote (main's side wins), and the moment `develop` edits either one,
-every promote conflicts. Sync them back by content copy, which carries no deletions:
-
-```bash
-git switch develop
-git checkout main -- CHANGELOG.md .release-please-manifest.json
-git commit -m "chore: sync changelog and manifest from the last release"
-```
-
-`README.md` must stay byte-identical on both branches: divergence would raise a merge conflict on
-every promote, forever, and `main`'s copy is the landing page a consumer arriving from nuget.org
-sees. Edit it on `develop` only.
-
-There is no hotfix branch. An urgent fix goes `fix/*` → `develop` → promote; a second path into
-`main` would add a way around CI without adding meaningful speed.
+All four were properties of the split, not of anything the split protected. Don't reintroduce it.
+See `docs/2026-08-03-single-branch-model-design.md`.
 
 ## Releasing
 
-Tag-driven: `git tag v1.2.3 && git push origin v1.2.3` runs `.github/workflows/release.yml`,
-which packs and publishes **both** `Ank.DocToolkit` and `Ank.DocToolkit.Extensions.DependencyInjection`
-at that same version, in the same run. The **tag is the authoritative version**; the csproj
-`<Version>` in each project is only a local dev default, so do not expect them to match. There is
-no separate tag prefix for the extensions package — see "The DI extensions package" above for why.
+**Every merge to `main` publishes. There is no human gate.**
 
-**The tag is normally created by release-please, not by hand.**
 `.github/workflows/release-please.yml` watches every push to `main`, computes the version bump
 from Conventional Commits (`feat:` → minor, `fix:` → patch, `!`/`BREAKING CHANGE:` → major — this
 mapping is release-please's built-in Conventional Commits strategy, not something configured in
 this repo; `release-please-config.json` only maps commit types to changelog sections), and
 maintains a single persistent Release PR with the computed `CHANGELOG.md` entry already written.
-**Merging that PR is the human release decision** this project has always required — the
-automation only replaces the manual "pick a version, write the changelog, tag it" bookkeeping
-upstream of that decision, not the decision itself. Both packages are tracked as one component
+That same workflow's **`Auto-merge the Release PR`** step then merges it as soon as checks pass,
+which creates the tag and GitHub Release, which triggers `release.yml` to pack and publish **both**
+`Ank.DocToolkit` and `Ank.DocToolkit.Extensions.DependencyInjection` at that version, in one run.
+
+The bot merges a *pull request* rather than pushing, which is what lets `main` stay PR-only with no
+bypass actor. **If branch protection on `main` is ever changed to require approving reviews,
+releases stop silently** — an unattended bot cannot approve its own PR and nothing reports an
+error. Require status checks, not reviews.
+
+Because every merge releases, a `docs:`- or `chore:`-only merge also publishes a version, sometimes
+with a changelog entry that has a bare version heading and no visible body. **That is the specified
+behaviour, chosen deliberately — not a defect to guard against.** Publishing is irreversible, so
+`release.yml` still runs the full suite and every premise guard before it pushes.
+
+A manual `git tag v1.2.3 && git push origin v1.2.3` still works as a fallback — `release.yml` only
+cares that a `v*` tag arrived, not how. The **tag is the authoritative version**; the csproj
+`<Version>` in each project is only a local dev default, so do not expect them to match. There is
+no separate tag prefix for the extensions package — see "The DI extensions package" above for why.
+
+Both packages are tracked as one component
 (`"."` in `release-please-config.json`) so they can never version independently.
 `release-please-config.json`'s `last-release-sha` seeds where the very first automated Release PR
 starts counting commits from (main's tip right before this automation was added) — it exists only
@@ -290,12 +276,9 @@ Release exists to anchor from instead, and can be deleted from the config once t
 **Any commit matching a recognized Conventional Commit type opens or updates the Release PR** —
 not just `feat:`/`fix:`, and this is not gated by `changelog-sections` visibility (that only
 controls what shows up *in* the changelog, not whether a release is proposed at all). Even a
-`chore:`-only or `test:`-only merge (both `hidden: true`) proposes a release — it just produces a
-changelog entry with a bare version heading and no visible body. **Check the Release PR's actual
-diff before merging** — a version bump with an empty-looking changelog entry is a real signal to
-hold off, not necessarily a release worth shipping; nothing stops it from otherwise merging and
-publishing an empty version. Expect the Release PR to be open most of the time — that's normal,
-not a bug; it just accumulates until you choose to merge it.
+`chore:`-only or `test:`-only merge (both `hidden: true`) proposes a release, and under auto-merge
+that release ships. Expect the Release PR to exist only briefly — it is created and merged within
+a few minutes of the merge that caused it, rather than accumulating.
 
 Merging the Release PR creates **both** the tag and a GitHub Release (release-please's own
 generated notes, derived from the same `CHANGELOG.md` entry) — `release.yml`'s own
@@ -315,12 +298,10 @@ and matters to the bump calculation, not just the PR title). By convention, not 
 prefixes; the regex itself accepts any lowercase/digit/hyphen scope, so a different scope won't
 fail CI, it just won't match that convention. Get the *type* wrong and release-please either
 miscategorizes a change or silently drops it from the changelog — the CI guard exists so that's
-caught at PR time, not discovered in a Release PR that's already wrong. **A `Merge branch 'develop'
-into <feature>` commit fails this guard** (no type prefix) — rebase onto `develop` instead of
-merging it into a long-lived feature branch. **Never rebase a feature branch onto `main`:** `main`
-carries deletions of `CLAUDE.md`, `docs/` and `spike/`, so replaying your commits on top of it
-drags those deletions into your branch, and from there into `develop` — the same loss
-"Never merge `main` into `develop`" above warns about, reached by a detour.
+caught at PR time, not discovered in a Release PR that's already wrong. **A `Merge branch 'main'
+into <feature>` commit fails this guard** (no type prefix) — rebase onto `main` instead of merging
+it into a long-lived feature branch. Rebasing onto `main` is safe now that `main` carries no
+deletions; under the old two-branch model it was not.
 
 `release-please.yml` needs its own PAT (not the default `GITHUB_TOKEN`) stored as the
 `RELEASE_PLEASE_TOKEN` repository secret — GitHub Actions doesn't let a workflow's default token
@@ -330,10 +311,8 @@ reach `release.yml`. Fine-grained PAT, scoped to this repo only, `Contents: read
 will silently stop triggering. `release-please.yml` fails fast with a clear message if the secret
 is missing, matching `release.yml`'s own `NUGET_USER` guard.
 
-A manual `git tag v1.2.3 && git push origin v1.2.3` still works as a fallback — `release.yml` only
-cares that a `v*` tag arrived, not how — but tag `main`, never `develop`, and write the
-`## [X.Y.Z] - YYYY-MM-DD` heading into `CHANGELOG.md` **on `main`** first (`CHANGELOG.md` is
-main-owned; see "Branches");
+For the manual tag fallback mentioned above, write the `## [X.Y.Z] - YYYY-MM-DD` heading into
+`CHANGELOG.md` first —
 release-please only writes that entry when it's the one creating the tag, and never touches
 `## Unreleased` at all (that heading is deliberately bracket-free — `## [Unreleased]` would
 collide with release-please's own version-heading detection; don't put the brackets back). The
@@ -379,9 +358,8 @@ tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests, including Serv
 samples/ConsoleSample/                                  core package, all five capabilities
 samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
 docfx/                                                  DocFX site source, published to GitHub Pages on release
-scripts/                                                promote-to-main.sh and its test — on main too, see Branches
-spike/                                                  original proof-of-concept, kept as reference — do not modify (develop only)
-docs/                                                   design docs and implementation plans this was built from (develop only)
+spike/                                                  original proof-of-concept, kept as reference — do not modify
+docs/                                                   design docs and implementation plans this was built from
 ```
 
 The research behind the library selection lives in a separate, private knowledge base; the public

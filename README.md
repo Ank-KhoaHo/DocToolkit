@@ -20,8 +20,8 @@ Targets `net8.0` and `net10.0`. MIT licensed.
 📖 [API documentation](https://ank-khoaho.github.io/DocToolkit/) · 📦
 [package README](src/DocToolkit/README.md) · 📝 [CHANGELOG](CHANGELOG.md)
 
-> **Contributing?** `main` is release-only. Development happens on **`develop`** — run
-> `git switch develop` after cloning, and target pull requests at `develop`, not `main`.
+> **Contributing?** Branch from `main`, and open a pull request back into it. `main` itself
+> cannot be pushed directly.
 
 ## Why this exists
 
@@ -132,11 +132,11 @@ dotnet run --project samples/ConsoleSample
 dotnet run --project samples/MinimalApiSample
 ```
 
-Releases are tag-driven and ship both packages at one version, via
+Every merge to `main` ships both packages at one version, via
 [release-please](https://github.com/googleapis/release-please) and
 [`release.yml`](.github/workflows/release.yml), authenticated with
 [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) — no
-stored API key. Maintainer procedure lives in `CLAUDE.md` on `develop`.
+stored API key. Maintainer procedure lives in [`CLAUDE.md`](CLAUDE.md).
 
 ## Repository layout
 
@@ -146,7 +146,8 @@ src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
 tests/                                                  224 tests, including Stream-overload proofs and the air-gap/dependency guards
 samples/                                                console + minimal-API samples, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
-scripts/                                                release tooling used to promote develop to main
+docs/                                                   design docs and implementation plans this was built from
+spike/                                                  original proof-of-concept, kept as reference
 ```
 
 ## Licence
