@@ -84,6 +84,37 @@ byte[] editedPptx = PresentationEditor.ReplaceText(pptx, new Dictionary<string, 
 });
 ```
 
+## Repeating table rows
+
+A table row whose cells contain `{{item.Field}}` placeholders repeats once per record — invoice
+line items, timesheet entries, order lines:
+
+| Description | Qty | Total |
+|---|---|---|
+| `{{item.Desc}}` | `{{item.Qty}}` | `{{item.Total}}` |
+
+```csharp
+byte[] filled = DocxEditor.FillRows(docx, "item", new[]
+{
+    new Dictionary<string, string> { ["Desc"] = "Widget", ["Qty"] = "2", ["Total"] = "19.98" },
+    new Dictionary<string, string> { ["Desc"] = "Gadget", ["Qty"] = "5", ["Total"] = "45.00" },
+});
+
+// then the document-level scalars
+filled = DocxEditor.ReplaceText(filled, new() { ["{{customer}}"] = "Contoso Ltd" });
+```
+
+Every clone keeps the template row's formatting, shading and borders, and a hyperlink inside a cell
+survives with its target intact.
+
+**Row keys are bare field names** (`Desc`), while `ReplaceText` keys are full placeholders
+(`{{customer}}`) — the collection name is already an argument here, so repeating it in every key of
+every record would duplicate it many times over.
+
+A placeholder with no matching key becomes empty rather than staying visible. Placeholders for other
+prefixes are untouched, so a second call fills a second table. An empty list removes the template
+row, and removes the table if that row was its only one.
+
 ## Placeholder replacement
 
 `DocxEditor.ReplaceText` and `PresentationEditor.ReplaceText` substitute against the
