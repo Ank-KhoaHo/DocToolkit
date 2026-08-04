@@ -248,4 +248,164 @@ public class WorkbookEditorTests
 
         Assert.Equal(WorkbookEditor.SheetNames(xlsx), await WorkbookEditor.SheetNamesAsync(source));
     }
+
+    // ---------------------------------------------------------------------------------------
+    // ReadSheet
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>A workbook whose data deliberately does not start at A1.</summary>
+    private static byte[] OffsetWorkbook()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Data");
+        sheet.Cell("C3").Value = "Region";
+        sheet.Cell("D3").Value = "Total";
+        sheet.Cell("C4").Value = "North";
+        sheet.Cell("D4").Value = 1200;
+
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void ReadSheet_ReturnsTheRowsItWasCreatedWith()
+    {
+        var rows = WorkbookEditor.ReadSheet(SampleWorkbook(), "Sales");
+
+        Assert.Equal(3, rows.Count);
+        Assert.Equal(new[] { "Region", "Total" }, rows[0]);
+        Assert.Equal(new[] { "North", "1200" }, rows[1]);
+        Assert.Equal(new[] { "South", "950" }, rows[2]);
+    }
+
+    /// <summary>
+    /// The result is anchored at A1, not at the first used cell, so rows[r][c] means what a caller
+    /// reading a spreadsheet would expect. Implementing this by iterating the used range instead
+    /// puts "Region" at rows[0][0] and looks entirely plausible.
+    /// </summary>
+    [Fact]
+    public void ReadSheet_AnchorsTheResultAtA1_WhenTheDataStartsElsewhere()
+    {
+        var rows = WorkbookEditor.ReadSheet(OffsetWorkbook(), "Data");
+
+        Assert.Equal(4, rows.Count);
+        Assert.Equal("Region", rows[2][2]);
+        Assert.Equal("Total", rows[2][3]);
+        Assert.Equal("North", rows[3][2]);
+        Assert.Equal("1200", rows[3][3]);
+
+        Assert.Equal(new[] { "", "", "", "" }, rows[0]);
+        Assert.Equal(new[] { "", "", "", "" }, rows[1]);
+    }
+
+    [Fact]
+    public void ReadSheet_PadsEveryRowToTheSameWidth()
+    {
+        var xlsx = WorkbookEditor.Create("S", new[]
+        {
+            new object?[] { "a", "b", "c" },
+            new object?[] { "d" },
+        });
+
+        var rows = WorkbookEditor.ReadSheet(xlsx, "S");
+
+        Assert.All(rows, row => Assert.Equal(3, row.Count));
+        Assert.Equal(new[] { "d", "", "" }, rows[1]);
+    }
+
+    /// <summary>
+    /// Blank rows inside the range are kept. Dropping them would shift every later index and
+    /// silently break the positional guarantee the whole design rests on.
+    /// </summary>
+    [Fact]
+    public void ReadSheet_KeepsBlankRowsInsideTheRange()
+    {
+        var xlsx = WorkbookEditor.Create("S", new[]
+        {
+            new object?[] { "a" },
+            new object?[] { null },
+            new object?[] { "c" },
+        });
+
+        var rows = WorkbookEditor.ReadSheet(xlsx, "S");
+
+        Assert.Equal(3, rows.Count);
+        Assert.Equal(new[] { "" }, rows[1]);
+        Assert.Equal(new[] { "c" }, rows[2]);
+    }
+
+    [Fact]
+    public void ReadSheet_ReturnsAnEmptyListForAnEmptySheet()
+    {
+        using var workbook = new XLWorkbook();
+        workbook.Worksheets.Add("Blank");
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+
+        Assert.Empty(WorkbookEditor.ReadSheet(ms.ToArray(), "Blank"));
+    }
+
+    /// <summary>
+    /// "Used" must mean "has a value", never "has formatting" — otherwise one bolded empty cell
+    /// pads every row out to it for no reason a caller could see.
+    /// </summary>
+    [Fact]
+    public void ReadSheet_IgnoresCellsThatAreOnlyFormatted()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("S");
+        sheet.Cell("A1").Value = "a";
+        sheet.Cell("Z1").Style.Font.Bold = true;      // formatting only, no value
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+
+        var rows = WorkbookEditor.ReadSheet(ms.ToArray(), "S");
+
+        Assert.Single(rows);
+        Assert.Equal(new[] { "a" }, rows[0]);
+    }
+
+    /// <summary>Nothing in this library evaluates formulas; a formula cell reads back its cached value.</summary>
+    [Fact]
+    public void ReadSheet_ReturnsTheCachedValueOfAFormulaCell()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("S");
+        sheet.Cell("A1").Value = 2;
+        sheet.Cell("B1").Value = 3;
+        sheet.Cell("C1").FormulaA1 = "A1+B1";
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+
+        Assert.Equal("5", WorkbookEditor.ReadSheet(ms.ToArray(), "S")[0][2]);
+    }
+
+    [Fact]
+    public void ReadSheet_ThrowsWhenTheSheetDoesNotExist()
+    {
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.ReadSheet(SampleWorkbook(), "Nope"));
+    }
+
+    [Fact]
+    public void ReadSheet_RejectsMissingArguments()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.ReadSheet(null!, "Sales"));
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.ReadSheet(SampleWorkbook(), null!));
+        Assert.Throws<ArgumentException>(() => WorkbookEditor.ReadSheet(Array.Empty<byte>(), "Sales"));
+        Assert.Throws<ArgumentException>(() => WorkbookEditor.ReadSheet(SampleWorkbook(), " "));
+    }
+
+    [Fact]
+    public async Task ReadSheetAsync_AgreesWithTheByteArrayOverload()
+    {
+        var xlsx = OffsetWorkbook();
+        using var source = new MemoryStream(xlsx);
+
+        var expected = WorkbookEditor.ReadSheet(xlsx, "Data");
+        var actual = await WorkbookEditor.ReadSheetAsync(source, "Data");
+
+        Assert.Equal(expected, actual);
+    }
 }

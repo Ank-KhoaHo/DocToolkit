@@ -162,6 +162,119 @@ public static class WorkbookEditor
     private static List<string> SheetNamesCore(XLWorkbook workbook)
         => workbook.Worksheets.OrderBy(sheet => sheet.Position).Select(sheet => sheet.Name).ToList();
 
+    /// <summary>
+    /// Reads a whole sheet as strings, anchored at A1: if the data starts at C3, its first value
+    /// is at <c>rows[2][2]</c>. Every row is padded to the last used column, so all rows have the
+    /// same length; blank cells — and entirely blank rows inside the range — come back as empty
+    /// strings rather than being dropped, which keeps <c>rows[r][c]</c> positionally meaningful.
+    ///
+    /// Values are produced exactly as <see cref="ReadCell"/> produces them, so the two can never
+    /// disagree about what a cell says. A formula cell yields its cached value: nothing in this
+    /// library evaluates formulas.
+    /// </summary>
+    /// <param name="xlsx">The workbook bytes.</param>
+    /// <param name="sheetName">The sheet to read.</param>
+    /// <returns>
+    /// The sheet's used range, anchored at A1 and padded rectangular; empty if the sheet holds no
+    /// values.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, or <paramref name="sheetName"/> is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, or the sheet does not exist.
+    /// </exception>
+    public static IReadOnlyList<IReadOnlyList<string>> ReadSheet(byte[] xlsx, string sheetName)
+    {
+        ValidateWorkbook(xlsx);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+
+        try
+        {
+            using var workbook = Open(xlsx);
+            return ReadSheetCore(workbook, sheetName);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read XLSX.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/> and returns a whole sheet as strings. See
+    /// <see cref="ReadSheet"/> for the anchoring, padding and formula rules — this overload applies
+    /// the identical logic. <paramref name="source"/> is <b>read</b> to its end and is neither
+    /// disposed, closed nor sought.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to read.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>
+    /// The sheet's used range, anchored at A1 and padded rectangular; empty if the sheet holds no
+    /// values.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="sheetName"/>
+    /// is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, or the sheet does not exist.
+    /// </exception>
+    public static async Task<IReadOnlyList<IReadOnlyList<string>>> ReadSheetAsync(
+        Stream source, string sheetName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX.", ct)
+            .ConfigureAwait(false);
+
+        try
+        {
+            using var workbook = new XLWorkbook(xlsx);
+            return ReadSheetCore(workbook, sheetName);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read XLSX.", ex);
+        }
+    }
+
+    private static List<IReadOnlyList<string>> ReadSheetCore(XLWorkbook workbook, string sheetName)
+    {
+        var sheet = Sheet(workbook, sheetName);
+
+        // The extent comes from LastCellUsed() rather than LastRowUsed()/LastColumnUsed(): those
+        // return range rows/columns whose RowNumber()/ColumnNumber() are documented as positions
+        // *within the range*, which is an off-by-origin waiting to happen. A cell's Address is
+        // absolute. LastCellUsed() also ignores formatting, so one bolded empty cell out at Z1
+        // cannot pad every row out to it. Null means the sheet holds no values at all.
+        var last = sheet.LastCellUsed();
+        if (last is null)
+            return new List<IReadOnlyList<string>>();
+
+        var lastRow = last.Address.RowNumber;
+        var lastColumn = last.Address.ColumnNumber;
+
+        // From row 1 and column 1, not from the first used cell: the result is anchored at A1 so
+        // rows[r][c] addresses the sheet the way the caller sees it in Excel.
+        var rows = new List<IReadOnlyList<string>>(lastRow);
+        for (var r = 1; r <= lastRow; r++)
+        {
+            var row = new string[lastColumn];
+            for (var c = 1; c <= lastColumn; c++)
+                row[c - 1] = sheet.Cell(r, c).GetString();
+            rows.Add(row);
+        }
+
+        return rows;
+    }
+
     /// <summary>Reads a cell as a string. <paramref name="cellRef"/> is an A1-style reference.</summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or a name is blank.</exception>
