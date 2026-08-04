@@ -12,14 +12,19 @@ whether any placeholder survived.
 
 ## The non-obvious part
 
-**Call `FillRows` before `ReplaceText`, not the other way round.**
+**Call `FillRows` before `ReplaceText` — the rule is narrower than "always", but it's the safe
+default.**
 
-`FillRows` clones the template row once per record. Any document-level scalar you substituted
-*first* gets cloned along with it, so `{{customer}}` ends up repeated inside every line item
-instead of appearing once in the heading. Rows first, then scalars.
+`FillRows` clones only the *template row* and substitutes into each clone alone (see `ExpandRow`
+in `DocxEditor.cs`). If a scalar placeholder lives **inside** that row, substituting it first means
+every clone inherits the already-filled text — so rows-first is the order that's safe in general.
+In this sample `{{customer}}` sits in the `<h1>` above the table, outside the row `FillRows` ever
+touches, so the two operations here happen to produce byte-identical output in either order — the
+rule just doesn't bite this particular template.
 
-That ordering rule is why both operations are shown in one sample: separated, the rule would live
-in a folder that does not contain the code it constrains.
+Both operations are still shown in one sample because they're both templating and the ordering
+rule is worth knowing before it bites you on a template that *does* put a scalar inside a
+repeating row.
 
 Worth knowing: a placeholder is often several `<w:t>` runs in the underlying XML, because Word
 splits text as you type. Both methods handle that — a naive per-run `string.Replace` would not.

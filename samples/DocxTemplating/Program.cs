@@ -28,9 +28,10 @@ byte[] invoiceTemplate = await HtmlToDocxConverter.ConvertAsync(
     </table>
     """);
 
-// ROWS FIRST, THEN SCALARS. Expanding clones the template row, so any scalar substituted
-// beforehand is duplicated into every line. This ordering is the whole reason these two
-// operations are demonstrated together - see README.md.
+// ROWS FIRST, THEN SCALARS - the safe order in general, since expanding clones the template row
+// and any scalar already inside it would be duplicated into every line. Here {{customer}} sits in
+// the <h1> outside the row FillRows clones, so this particular ordering doesn't actually change
+// the output - see README.md for why it's still the sample's default.
 byte[] withRows = DocxEditor.FillRows(invoiceTemplate, "item", new[]
 {
     new Dictionary<string, string> { ["Desc"] = "Widget",    ["Qty"] = "2", ["Total"] = "19.98" },
