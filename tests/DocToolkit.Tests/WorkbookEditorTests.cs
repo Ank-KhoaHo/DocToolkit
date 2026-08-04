@@ -414,11 +414,20 @@ public class WorkbookEditorTests
                 "<x:c r=\"C1\" s=\"0\"><x:f>A1+B1</x:f></x:c>",
                 "<x:c r=\"C1\" s=\"0\"><x:f>A1+B1</x:f><x:v>5</x:v></x:c>");
 
-            // Both replacements must actually have matched - a silent no-op would leave A1 and C1
-            // agreeing again and defeat the whole point of the fixture without failing loudly.
-            if (withCachedC1 == xml)
+            // Each replacement must be checked independently - checking only the combined result
+            // would stay silent if just the A1 replacement stopped matching (ClosedXML changing
+            // only the value-cell shape, e.g. t="n" or a different style index) while the C1
+            // replacement still landed. That leaves A1 at its original 2, so the cached 5 on C1
+            // would equal a fresh evaluation of A1+B1, and the test would pass having proven
+            // nothing about honouring the cache - silently reinstating the exact defect this
+            // fixture exists to catch.
+            if (withStaleA1 == xml)
                 throw new InvalidOperationException(
-                    "Tampering did not change sheet1.xml; ClosedXML's output no longer matches the expected shape.");
+                    "The A1 replacement did not match; ClosedXML's value-cell output shape changed. " +
+                    "Without it the cached and evaluated values agree and this fixture proves nothing.");
+            if (withCachedC1 == withStaleA1)
+                throw new InvalidOperationException(
+                    "The C1 replacement did not match; ClosedXML's formula-cell output shape changed.");
 
             entry.Delete();
             var replacement = zip.CreateEntry("xl/worksheets/sheet1.xml");
