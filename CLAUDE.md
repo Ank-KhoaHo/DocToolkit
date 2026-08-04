@@ -129,6 +129,16 @@ library renders HTML to PDF directly: the only free renderers *are* browsers, an
 native binary. `HtmlToPdfConverter` composes the other two converters — keep it a composition, do
 not reimplement conversion inside it.
 
+**The public API is pinned to an approved file.** `PublicApiApprovalTests` in both test projects
+generates the shipped surface and compares it to `tests/.../PublicApi/*.approved.txt`. An intended
+change means editing the approved file in the **source** tree — it is copied to the output dir, so
+editing the copy does nothing — and that diff then shows up in the pull request, which is the whole
+point: the API change gets reviewed rather than noticed later. This matters more here than in most
+repos because the package stays below 1.0.0 permanently, so semver never starts protecting
+consumers on its own. `PublicApiGenerator` is a **test-only** dependency (MIT; Mono.Cecil and
+System.CodeDom, both managed, no native payload) and deliberately not Verify/ApprovalTests, which
+drag in DiffEngine to launch external diff tools.
+
 **Every `Stream` overload follows one shape.** Parameters are `Stream source` wherever the
 `byte[]` overload took bytes, then `Stream destination`, then `CancellationToken ct = default`.
 `StreamPipeline.RequireReadable`/`RequireWritable` guard by name before anything runs;
@@ -152,7 +162,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 288 tests (246 core + 42 extensions) → 576 results.
+  report *2N* results. 290 tests (247 core + 43 extensions) → 580 results.
 - **`-warnaserror` is worthless on an already-built tree — pass `--no-incremental`.** MSBuild skips
   projects whose inputs are unchanged, and a skipped project re-emits *no diagnostics*, so the build
   cheerfully reports `0 Warning(s)`. Any earlier `dotnet test` or `dotnet build` compiles without
@@ -249,7 +259,7 @@ copy error, not a message pointing at the real cause.
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 288 tests x 2 TFMs = 576 results
+dotnet test  DocToolkit.sln -c Release            # 290 tests x 2 TFMs = 580 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 

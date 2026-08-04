@@ -13,6 +13,7 @@
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="PublicApiGenerator" Version="11.5.4" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
@@ -23,6 +24,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DocToolkit.Extensions.DependencyInjection\DocToolkit.Extensions.DependencyInjection.csproj" />
+  </ItemGroup>
+
+  <!--
+    Copied to the output directory rather than found by walking up from the test assembly: that
+    walk-up depth changes with configuration and TFM, so it breaks depending on how the tests were
+    invoked. An intended API change means editing the file HERE and rebuilding, not the copy.
+  -->
+  <ItemGroup>
+    <Content Include="PublicApi\*.approved.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
