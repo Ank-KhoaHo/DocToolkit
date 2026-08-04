@@ -58,7 +58,7 @@ docs and implementation plans alongside this file.
 |---|---|---|
 | A1 | **No "create a PPTX from scratch."** `PresentationEditor` has only `SlideCount`/`ExtractText`/`ReplaceText`. | Acknowledged in `CLAUDE.md` ("Samples and docs site"): `ConsoleSample` borrows `tests/DocToolkit.Tests/assets/sample.pptx` because the public API cannot produce one. |
 | A2 | **No "create a DOCX from scratch."** The only way to obtain a DOCX is `HtmlToDocxConverter`. | `src/DocToolkit/DocxEditor.cs` is edit-only. |
-| A3 | **XLSX surface is thin.** `Create` (single sheet), `ReadCell`, `SetCell` only. No multi-sheet, read-range / read-sheet, append-rows, list-sheet-names, formulas, or CSV import/export. | `src/DocToolkit/WorkbookEditor.cs` |
+| A3 | **XLSX surface is thin.** Reading is now covered — `SheetNames` and `ReadSheet` shipped 2026-08-04 (`docs/2026-08-04-xlsx-bulk-reading-design.md`). Still open, each its own decision: multi-sheet create, append-rows, formulas, CSV import/export. The last two may honestly be "no". | `src/DocToolkit/WorkbookEditor.cs` |
 | A4 | **No repeating-table-row templating.** `ReplaceText` substitutes scalars only; there is no way to expand a table row per record — the most common real-world Word-template need (invoice line items). | `src/DocToolkit/DocxEditor.cs:34` |
 | A5 | **No image insertion into a placeholder** (logo, signature, QR code). | Absent from the whole public API. |
 | A6 | **No XLSX→PDF or PPTX→PDF.** Only DOCX→PDF exists, despite the package being named DocToolkit. Genuinely hard under the four constraints — needs an honest written decision either way, not silence. | `src/DocToolkit/DocxToPdfConverter.cs` is the only PDF producer. |

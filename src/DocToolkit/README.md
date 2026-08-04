@@ -74,6 +74,11 @@ byte[] xlsx = WorkbookEditor.Create("Sales", new[]
 string cell = WorkbookEditor.ReadCell(xlsx, "Sales", "B2");
 byte[] updated = WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500);
 
+// Read a workbook you were handed, without knowing its shape in advance
+IReadOnlyList<string> sheets = WorkbookEditor.SheetNames(xlsx);              // tab order, hidden included
+IReadOnlyList<IReadOnlyList<string>> grid = WorkbookEditor.ReadSheet(xlsx, "Sales");
+string topLeft = grid[0][0];    // anchored at A1, padded rectangular, blanks are ""
+
 // Presentations
 byte[] pptx = File.ReadAllBytes("deck.pptx");
 int slides = PresentationEditor.SlideCount(pptx);

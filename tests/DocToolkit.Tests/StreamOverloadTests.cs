@@ -100,6 +100,8 @@ public class StreamOverloadTests
         "DocxEditor.ExtractTextAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
         "WorkbookEditor.ReadCellAsync",
+        "WorkbookEditor.SheetNamesAsync",
+        "WorkbookEditor.ReadSheetAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ExtractTextAsync",
@@ -552,6 +554,10 @@ public class StreamOverloadTests
                 WorkbookEditor.CreateAsync("Sales", Rows, destination!, ct),
             "WorkbookEditor.ReadCellAsync" =>
                 WorkbookEditor.ReadCellAsync(source!, "Sales", "A1", ct),
+            "WorkbookEditor.SheetNamesAsync" =>
+                WorkbookEditor.SheetNamesAsync(source!, ct),
+            "WorkbookEditor.ReadSheetAsync" =>
+                WorkbookEditor.ReadSheetAsync(source!, "Sales", ct),
             "WorkbookEditor.SetCellAsync" =>
                 WorkbookEditor.SetCellAsync(source!, "Sales", "B2", 1500, destination!, ct),
             "PresentationEditor.SlideCountAsync" =>
