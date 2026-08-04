@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.IO.Compression;
+using System.Text;
 using ClosedXML.Excel;
 using DocToolkit;
 using Xunit;
@@ -366,19 +368,78 @@ public class WorkbookEditorTests
         Assert.Equal(new[] { "a" }, rows[0]);
     }
 
-    /// <summary>Nothing in this library evaluates formulas; a formula cell reads back its cached value.</summary>
-    [Fact]
-    public void ReadSheet_ReturnsTheCachedValueOfAFormulaCell()
+    /// <summary>
+    /// Builds a workbook where C1's cached formula value and a fresh evaluation of the same
+    /// formula deliberately disagree, by editing the saved .xlsx package's XML directly: A1 is
+    /// changed from 2 to 10 <i>after</i> save, while C1 keeps the formula "A1+B1" and a cached
+    /// value of 5 - the answer for the original A1=2, B1=3, not the tampered A1=10. Reading it
+    /// back can only produce "5" by using the cache; evaluating "A1+B1" fresh would read "13".
+    ///
+    /// This has to be done by hand because ClosedXML's own writer does not always emit a cached
+    /// value for a formula cell in the first place - confirmed by dumping the saved XML for
+    /// <c>sheet.Cell("C1").FormulaA1 = "A1+B1"</c>: it writes
+    /// <c>&lt;x:c r="C1"&gt;&lt;x:f&gt;A1+B1&lt;/x:f&gt;&lt;/x:c&gt;</c>, no <c>&lt;x:v&gt;</c> at
+    /// all. There is no cached value to leave stale through the public ClosedXML API alone, so the
+    /// .xlsx (a zip) is opened directly and its <c>xl/worksheets/sheet1.xml</c> entry is rewritten.
+    /// </summary>
+    private static byte[] FormulaWorkbookWithStaleCachedValue()
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("S");
         sheet.Cell("A1").Value = 2;
         sheet.Cell("B1").Value = 3;
         sheet.Cell("C1").FormulaA1 = "A1+B1";
-        using var ms = new MemoryStream();
-        workbook.SaveAs(ms);
+        using var built = new MemoryStream();
+        workbook.SaveAs(built);
 
-        Assert.Equal("5", WorkbookEditor.ReadSheet(ms.ToArray(), "S")[0][2]);
+        using var package = new MemoryStream();
+        built.Position = 0;
+        built.CopyTo(package);
+        package.Position = 0;
+
+        using (var zip = new ZipArchive(package, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var entry = zip.GetEntry("xl/worksheets/sheet1.xml")
+                ?? throw new InvalidOperationException(
+                    "xl/worksheets/sheet1.xml was not found in the fixture; ClosedXML's package layout changed.");
+
+            string xml;
+            using (var reader = new StreamReader(entry.Open(), Encoding.UTF8))
+                xml = reader.ReadToEnd();
+
+            var withStaleA1 = xml.Replace(
+                "<x:c r=\"A1\" s=\"0\"><x:v>2</x:v></x:c>",
+                "<x:c r=\"A1\" s=\"0\"><x:v>10</x:v></x:c>");
+            var withCachedC1 = withStaleA1.Replace(
+                "<x:c r=\"C1\" s=\"0\"><x:f>A1+B1</x:f></x:c>",
+                "<x:c r=\"C1\" s=\"0\"><x:f>A1+B1</x:f><x:v>5</x:v></x:c>");
+
+            // Both replacements must actually have matched - a silent no-op would leave A1 and C1
+            // agreeing again and defeat the whole point of the fixture without failing loudly.
+            if (withCachedC1 == xml)
+                throw new InvalidOperationException(
+                    "Tampering did not change sheet1.xml; ClosedXML's output no longer matches the expected shape.");
+
+            entry.Delete();
+            var replacement = zip.CreateEntry("xl/worksheets/sheet1.xml");
+            using var writer = new StreamWriter(replacement.Open(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            writer.Write(withCachedC1);
+        }
+
+        return package.ToArray();
+    }
+
+    /// <summary>
+    /// Nothing in this library evaluates formulas; a formula cell reads back its cached value.
+    /// The fixture's cached value (5) and a fresh evaluation of its formula (13) are made to
+    /// disagree, so only cache-honouring behaviour can pass - see
+    /// <see cref="FormulaWorkbookWithStaleCachedValue"/> for why a fixture built solely through
+    /// ClosedXML's public API cannot tell the two apart.
+    /// </summary>
+    [Fact]
+    public void ReadSheet_ReturnsTheCachedValueOfAFormulaCell()
+    {
+        Assert.Equal("5", WorkbookEditor.ReadSheet(FormulaWorkbookWithStaleCachedValue(), "S")[0][2]);
     }
 
     /// <summary>
