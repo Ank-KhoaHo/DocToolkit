@@ -58,6 +58,10 @@ byte[] invoice = DocxEditor.FillRows(filled, "item", lineItems);
 invoice = DocxEditor.ReplaceImage(invoice, "{{logo}}", logoBytes);
 
 byte[] xlsx = WorkbookEditor.Create("Sales", new[] { new object?[] { "Region", "Total" } });
+
+// Read one back without knowing its shape in advance
+IReadOnlyList<string> sheets = WorkbookEditor.SheetNames(xlsx);
+IReadOnlyList<IReadOnlyList<string>> grid = WorkbookEditor.ReadSheet(xlsx, sheets[0]);
 IReadOnlyList<string> slideText = PresentationEditor.ExtractText(pptx);
 ```
 
