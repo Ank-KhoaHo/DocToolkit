@@ -16,6 +16,17 @@ candidates, because the project has already conceded the point.
 
 ---
 
+## Closed on 2026-08-04
+
+**D11 — no package icon.** Both packages showed nuget.org's default grey placeholder. Closed by a
+128x128 PNG at `assets/icon.png`, shared by both packages and verified present inside both
+`.nupkg` files rather than assumed from the `<PackageIcon>` property alone — that property without
+a matching `Pack="true"` item builds clean and ships no icon. Recorded and closed the same day, so
+it never spent time as an open item.
+
+**A3 (reading slice) — XLSX bulk reading.** `SheetNames` and `ReadSheet` shipped in v0.6.0. Bulk
+writing, formulas and CSV remain open under A3.
+
 ## Closed on 2026-08-03
 
 Seven items, in two tracks — dependency automation and the single-branch collapse. Both have design
@@ -132,7 +143,6 @@ docs and implementation plans alongside this file.
 | D7 | **No "known limitations" page.** A consumer cannot discover that XLSX→PDF does not exist, or that CSS layout fidelity is bounded, without reading source. |
 | D8 | **No roadmap.** |
 | D9 | **Three READMEs kept in sync by hand** (root, core package, extensions package), under a hard constraint that the root README stay byte-identical across `main` and `develop`. |
-| D11 | **No package icon.** Neither `Ank.DocToolkit` nor `Ank.DocToolkit.Extensions.DependencyInjection` sets `<PackageIcon>`, so both show nuget.org's default grey placeholder next to every package that did bother. Needs a 128x128 PNG committed to each project, `<PackageIcon>` plus a `<None Include=... Pack="true" PackagePath="\" />` item, and the icon packed into both `.nupkg`s at the same version. Watch the premise guards: the icon must be a plain committed PNG, not something generated at build time by an image library — the obvious ones are the revenue-gated or native-binary packages this repo bans. |
 | D10 | **Sample gaps.** No worker service, no MVC/Razor, no Docker, and **no large-file streaming sample** — even though the `Stream` overloads were the headline feature of 0.2.0. |
 
 ---
