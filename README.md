@@ -156,7 +156,7 @@ stored API key. Maintainer procedure lives in [`CLAUDE.md`](CLAUDE.md).
 src/DocToolkit/                                         the library
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
 tests/                                                  314 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
-samples/                                                six runnable samples, one per capability, on the published packages
+samples/                                                six runnable samples, each answering one question, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
 docs/                                                   design docs and implementation plans this was built from
 spike/                                                  original proof-of-concept, kept as reference

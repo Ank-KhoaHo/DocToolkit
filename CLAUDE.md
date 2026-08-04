@@ -451,7 +451,7 @@ src/DocToolkit/                                         the library
 tests/DocToolkit.Tests/                                 182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
 tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests, including ServiceCollectionExtensionsTests
-samples/                                                six runnable samples, one per capability
+samples/                                                six runnable samples, each answering one question
 docfx/                                                  DocFX site source, published to GitHub Pages on release
 spike/                                                  original proof-of-concept, kept as reference — do not modify
 docs/                                                   design docs and implementation plans this was built from
