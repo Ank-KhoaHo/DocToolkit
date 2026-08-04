@@ -221,9 +221,9 @@ public static class WorkbookEditor
 
     /// <summary>
     /// Reads a workbook from <paramref name="source"/> and returns a whole sheet as strings. See
-    /// <see cref="ReadSheet"/> for the anchoring, padding and formula rules — this overload applies
-    /// the identical logic. <paramref name="source"/> is <b>read</b> to its end and is neither
-    /// disposed, closed nor sought.
+    /// <see cref="ReadSheet"/> for the anchoring, padding, culture and formula rules — this
+    /// overload applies the identical logic. <paramref name="source"/> is <b>read</b> to its end
+    /// and is neither disposed, closed nor sought.
     /// </summary>
     /// <param name="source">The stream the workbook is read from.</param>
     /// <param name="sheetName">The sheet to read.</param>
@@ -317,7 +317,11 @@ public static class WorkbookEditor
         return rows;
     }
 
-    /// <summary>Reads a cell as a string. <paramref name="cellRef"/> is an A1-style reference.</summary>
+    /// <summary>
+    /// Reads a cell as a string. <paramref name="cellRef"/> is an A1-style reference. Text follows
+    /// the calling thread's <see cref="System.Globalization.CultureInfo.CurrentCulture"/> — see
+    /// <see cref="ReadSheet"/> for the full rule.
+    /// </summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or a name is blank.</exception>
     /// <exception cref="DocumentConversionException">
