@@ -422,6 +422,12 @@ public class AirGapGuardTests
             WorkbookEditor.ReadCell(withLinks, "Sales", "C1");   // the external-workbook formula
             var updated = WorkbookEditor.SetCell(withLinks, "Sales", "B1", 1500);
             Assert.Equal("1500", WorkbookEditor.ReadCell(updated, "Sales", "B1"));
+
+            // Bulk reads walk every cell, so they touch the external-workbook formula and the
+            // hyperlink relationship together — the two things in a workbook that ask to be told
+            // what is on another machine.
+            WorkbookEditor.SheetNames(withLinks);
+            WorkbookEditor.ReadSheet(withLinks, "Sales");
         }
         catch (DocumentConversionException)
         {
@@ -429,7 +435,8 @@ public class AirGapGuardTests
             // not, and the connection count below is what actually decides this test.
         }
 
-        await probe.AssertSilentAsync("WorkbookEditor.Create / ReadCell / SetCell");
+        await probe.AssertSilentAsync(
+            "WorkbookEditor.Create / ReadCell / SetCell / SheetNames / ReadSheet");
     }
 
     [Fact]
