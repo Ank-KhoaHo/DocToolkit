@@ -62,8 +62,32 @@ Console.WriteLine($"   One template row became {lineCount} line items, each keep
 Console.WriteLine($"   Customer filled: {invoiceText.Contains("Contoso Ltd")}; "
                   + $"placeholders left: {invoiceText.Contains("{{item.")}");
 
-// 6. Spreadsheets: create, read a cell, update it, read again
-Console.WriteLine("\n6. XLSX create/read/edit");
+// 6. Drop an image into a placeholder — a logo, a signature, a QR code.
+//    The bytes come out of the PPTX this sample already ships with, so there is no extra
+//    binary to carry around just to have a picture.
+Console.WriteLine("\n6. DOCX image placeholder");
+string assetPath = Path.Combine(AppContext.BaseDirectory, "assets", "sample.pptx");
+byte[] logoBytes = ReadThumbnail(assetPath);
+
+byte[] letterhead = await HtmlToDocxConverter.ConvertAsync(
+    "<p>{{logo}}</p><p>Dear {{customer}}, please find your invoice attached.</p>");
+
+// Size is in points. Give one dimension and the other scales to keep the aspect ratio; give
+// neither and the image's own header decides, read at 96 DPI.
+byte[] branded = DocxEditor.ReplaceImage(letterhead, "{{logo}}", logoBytes, widthPoints: 96);
+branded = DocxEditor.ReplaceText(branded, new Dictionary<string, string>
+{
+    ["{{customer}}"] = "Contoso Ltd",
+});
+
+bool placeholderGone = !DocxEditor.ExtractText(branded).Contains("{{logo}}");
+Console.WriteLine($"   Embedded a {logoBytes.Length:N0}-byte JPEG at 96pt wide; "
+                  + $"document grew {letterhead.Length:N0} -> {branded.Length:N0} bytes.");
+Console.WriteLine($"   Placeholder replaced: {placeholderGone}; "
+                  + $"customer filled: {DocxEditor.ExtractText(branded).Contains("Contoso Ltd")}");
+
+// 7. Spreadsheets: create, read a cell, update it, read again
+Console.WriteLine("\n7. XLSX create/read/edit");
 byte[] xlsx = WorkbookEditor.Create("Sales", new object?[][]
 {
     new object?[] { "Region", "Total" },
@@ -74,13 +98,29 @@ byte[] updated = WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500);
 string cellAfter = WorkbookEditor.ReadCell(updated, "Sales", "B2");
 Console.WriteLine($"   B2 before: {cellBefore}, after SetCell: {cellAfter}");
 
-// 7. Presentations: read the shared test fixture PPTX
-Console.WriteLine("\n7. PPTX read/edit");
-string pptxPath = Path.Combine(AppContext.BaseDirectory, "assets", "sample.pptx");
-byte[] pptx = await File.ReadAllBytesAsync(pptxPath);
+// 8. Presentations: read the shared test fixture PPTX
+Console.WriteLine("\n8. PPTX read/edit");
+byte[] pptx = await File.ReadAllBytesAsync(assetPath);
 int slideCount = PresentationEditor.SlideCount(pptx);
 IReadOnlyList<string> slideText = PresentationEditor.ExtractText(pptx);
 string firstSlide = slideText.Count > 0 ? slideText[0] : "(empty)";
 Console.WriteLine($"   {slideCount} slide(s); first slide text: \"{firstSlide}\"");
 
 Console.WriteLine("\nDone.");
+
+/// <summary>
+/// Pulls the thumbnail out of a .pptx — a real JPEG, already in this sample's assets. Saves
+/// committing a picture whose only job is to be a picture.
+/// </summary>
+static byte[] ReadThumbnail(string pptxPath)
+{
+    using var zip = System.IO.Compression.ZipFile.OpenRead(pptxPath);
+    var entry = zip.GetEntry("docProps/thumbnail.jpeg")
+                ?? throw new InvalidOperationException(
+                    $"{Path.GetFileName(pptxPath)} has no docProps/thumbnail.jpeg to use as a logo.");
+
+    using var stream = entry.Open();
+    using var buffer = new MemoryStream();
+    stream.CopyTo(buffer);
+    return buffer.ToArray();
+}

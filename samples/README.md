@@ -6,7 +6,8 @@ repo's source) — the same restore an external consumer would get.
 ## ConsoleSample
 
 Exercises every core `Ank.DocToolkit` capability in one run: HTML→DOCX, HTML→PDF, DOCX→PDF,
-DOCX template fill + text extraction, **repeating table rows**, XLSX create/read/edit, and PPTX read.
+DOCX template fill + text extraction, **repeating table rows**, **image placeholders**,
+XLSX create/read/edit, and PPTX read.
 
 ```bash
 dotnet run --project samples/ConsoleSample
@@ -19,9 +20,13 @@ three line items with `FillRows`, then fills the document-level scalars with `Re
 order, because expanding clones the template row and any scalar substituted first would be
 duplicated into every line.
 
+Step 6 embeds a logo. The image bytes are read out of `sample.pptx`, which this project already
+ships for the PPTX step — so there is no picture committed whose only job is to be a picture.
+
 Because these projects reference the **published** packages rather than this source, they only ever
 demonstrate API that has actually shipped. A capability merged but not yet released cannot appear
-here until it is.
+here until it is — which is also what makes running them a real check: they exercise the artifact a
+consumer would restore, not this working tree.
 
 ## MinimalApiSample
 
