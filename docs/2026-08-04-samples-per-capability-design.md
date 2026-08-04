@@ -39,10 +39,12 @@ Splitting strictly one-per-section would lose the thing each group teaches.
 internally*. Seeing the three side by side is what makes that visible; in three folders it is
 invisible.
 
-**`DocxTemplating` keeps fill and repeating rows together** because the invoice example only teaches
-anything as a pair: `FillRows` must run before `ReplaceText`, since expanding clones the template row
-and any scalar substituted first is duplicated into every line. Two folders would separate the
-ordering rule from the code it constrains.
+**`DocxTemplating` keeps fill and repeating rows together** because both are templating, and the
+ordering rule between them — `FillRows` clones the template row, so a scalar placeholder living
+*inside* that row would be duplicated into every clone if substituted first — is worth teaching
+alongside the code it constrains, even though this sample's own template puts `{{customer}}`
+outside the table, where the ordering makes no observable difference. Two folders would separate
+the rule from the code most likely to need it.
 
 ### Why `DocxImages` stops borrowing `sample.pptx`
 

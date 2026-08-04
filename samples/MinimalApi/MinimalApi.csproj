@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Deliberately references ONLY the extensions package. That proves Ank.DocToolkit arrives
+    transitively, the way a consumer's restore delivers it - an explicit core reference here
+    would still build if that transitive dependency broke. Version="*" is explained in
+    samples/README.md.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Ank.DocToolkit.Extensions.DependencyInjection" Version="*" />
+  </ItemGroup>
+
+</Project>

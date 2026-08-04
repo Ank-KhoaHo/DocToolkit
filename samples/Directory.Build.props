@@ -1,0 +1,24 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    Every sample references the PUBLISHED package with Version="*". The reasoning is in
+    samples/README.md; the short version is that "*" resolves to the newest published stable
+    release, and a version floor does the opposite - NuGet resolves a minimum-version range to
+    the LOWEST satisfying version, so a floor pins the sample to an old release while newer ones
+    ship past it unexercised.
+
+    Deliberately NOT declared here: the Ank.DocToolkit PackageReference itself. MinimalApi
+    references only Ank.DocToolkit.Extensions.DependencyInjection, which proves the core package
+    arrives transitively the way a consumer's restore delivers it. Adding an explicit core
+    reference to every sample from here would still build if that transitive dependency broke,
+    silently destroying the proof. Each project declares its own reference.
+  -->
+
+</Project>

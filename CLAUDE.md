@@ -227,11 +227,14 @@ method's parameter).
 
 ## Samples and docs site
 
-`samples/ConsoleSample` and `samples/MinimalApiSample` are runnable, added to `DocToolkit.sln`,
-and reference the published packages via `PackageReference` (never `ProjectReference`) — same
-reasoning as the extensions package itself: they prove the real published artifact works, not
-whatever is currently on `main`. They're built by the existing CI `dotnet build` step with no
-special handling; a breaking API change fails the next sample build.
+The six projects under `samples/` are runnable, added to `DocToolkit.sln`, and reference the
+published packages via `PackageReference` (never `ProjectReference`) — same reasoning as the
+extensions package itself: they prove the real published artifact works, not whatever is
+currently on `main`. They're built by the existing CI `dotnet build` step with no special
+handling; a breaking API change fails the next sample build. Shared build properties live in
+`samples/Directory.Build.props`, which deliberately declares no `PackageReference` — `MinimalApi`
+references only the extensions package, which is what proves the core package arrives
+transitively.
 
 **Those references are `Version="*"`, deliberately.** `*` resolves to the newest published stable
 release, which is the only form that keeps the claim above true. A version *floor* does the
@@ -255,10 +258,11 @@ during the build — verified while adding this pipeline. Re-enabling either wit
 the browser download doesn't come back will make `docs.yml` slow and pull in exactly the kind of
 heavyweight native dependency this repo's premise guards otherwise keep out.
 
-`ConsoleSample` reaches into `tests/DocToolkit.Tests/assets/sample.pptx` for its PPTX demo —
-there's no "create a PPTX from scratch" method in the public API, so this is a deliberate,
-brief-sanctioned trade-off. If that fixture ever moves, the sample fails with an opaque MSBuild
-copy error, not a message pointing at the real cause.
+`samples/Presentations` reaches into `tests/DocToolkit.Tests/assets/sample.pptx` — there's no
+"create a PPTX from scratch" method in the public API, so this is a deliberate trade-off. If that
+fixture ever moves, the sample fails with an opaque MSBuild copy error, not a message pointing at
+the real cause. It is the only sample that needs a fixture: `DocxImages` inlines a 137-byte PNG
+as base64 rather than borrowing one.
 
 ## Commands
 
@@ -447,8 +451,7 @@ src/DocToolkit/                                         the library
 tests/DocToolkit.Tests/                                 182 tests, including StreamOverloadTests, AirGapGuardTests, DependencyGuardTests
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package (services.AddDocToolkit())
 tests/DocToolkit.Extensions.DependencyInjection.Tests/  42 tests, including ServiceCollectionExtensionsTests
-samples/ConsoleSample/                                  core package, all five capabilities
-samples/MinimalApiSample/                               DI extensions package, one endpoint per interface
+samples/                                                six runnable samples, each answering one question
 docfx/                                                  DocFX site source, published to GitHub Pages on release
 spike/                                                  original proof-of-concept, kept as reference — do not modify
 docs/                                                   design docs and implementation plans this was built from
