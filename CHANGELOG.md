@@ -10,6 +10,39 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.6.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.5.0...v0.6.0) (2026-08-04)
+
+
+### Added
+
+* **core:** list a workbook's sheets with SheetNames ([b26244b](https://github.com/Ank-KhoaHo/DocToolkit/commit/b26244b0ad781503832037d526e2bb6834e923b0))
+* **core:** read a whole sheet with ReadSheet ([1d0dbdd](https://github.com/Ank-KhoaHo/DocToolkit/commit/1d0dbdd03f8d96f541d910139ddfe25aff77cdf3))
+* **core:** read XLSX sheets in bulk ([d2a72fc](https://github.com/Ank-KhoaHo/DocToolkit/commit/d2a72fcf2e7abbccc2fcc5840d2ee1fdeb38ff09))
+
+
+### Fixed
+
+* **core:** cap ReadSheet's used-range at 2,000,000 cells ([061d7e4](https://github.com/Ank-KhoaHo/DocToolkit/commit/061d7e4746df4e57361b0632b80bc4e10a3cf80e))
+
+
+### Changed
+
+* close A16 - verified in Word, the location is cosmetic ([52491d7](https://github.com/Ank-KhoaHo/DocToolkit/commit/52491d7bb94aeec97eca342a62f547e8e7c361b1))
+* **core:** close the culture-rule gap in ReadSheetAsync and ReadCell ([fd2930c](https://github.com/Ank-KhoaHo/DocToolkit/commit/fd2930cb8fe95d3a3f2ebab1724fef4e243edb31))
+* **core:** correct three inaccuracies found in final review ([984697d](https://github.com/Ank-KhoaHo/DocToolkit/commit/984697d103d65adfeb4351438e2c6c93e9ba580a))
+* **core:** document XLSX bulk reading ([d4176b3](https://github.com/Ank-KhoaHo/DocToolkit/commit/d4176b3cfc38ae5af9c4ccde1ac69534be0ad485))
+* **core:** update test counts for rebased XLSX reading tests ([d72fecb](https://github.com/Ank-KhoaHo/DocToolkit/commit/d72fecb574b32e3fecc6550f4160eec1011e99f7))
+* correct the used-range semantics in the XLSX reading design ([51e7d90](https://github.com/Ank-KhoaHo/DocToolkit/commit/51e7d90193a7f9ced611b0dfe3048a2f34393c05))
+* design for XLSX bulk reading (A3, reading slice) ([1441801](https://github.com/Ank-KhoaHo/DocToolkit/commit/1441801c02af55a9a820c97d2538e0bec6f01fbd))
+* design for XLSX bulk reading (A3, reading slice) ([dfcb4a3](https://github.com/Ank-KhoaHo/DocToolkit/commit/dfcb4a3e4bf51ca170bc588079ea8601fa9865cb))
+* implementation plan for XLSX bulk reading ([4b9e824](https://github.com/Ank-KhoaHo/DocToolkit/commit/4b9e824974b3677424d40b637fbc8f4deb125b21))
+* keep the version below 1.0.0 ([3074725](https://github.com/Ank-KhoaHo/DocToolkit/commit/3074725a1f9dcab6ca561d1bca0c48b687216c36))
+* keep the version below 1.0.0 ([c6a446c](https://github.com/Ank-KhoaHo/DocToolkit/commit/c6a446c613a3a32cfdc588b896ea441f49daf49e))
+* record where ReplaceImage puts image parts (closed — verified in Word) ([edbbe2d](https://github.com/Ank-KhoaHo/DocToolkit/commit/edbbe2da6e9e2f7639541e3a4342308f86448bfa))
+* record where ReplaceImage puts image parts, and why it was not changed ([8aedb52](https://github.com/Ank-KhoaHo/DocToolkit/commit/8aedb526718292decc834ce0c4411f4f20c261ba))
+* **samples:** demonstrate image placeholders in ConsoleSample ([6901d3b](https://github.com/Ank-KhoaHo/DocToolkit/commit/6901d3b0ce78d982f89bd41ebfb160211ae66651))
+* **samples:** demonstrate image placeholders in ConsoleSample ([5940cf0](https://github.com/Ank-KhoaHo/DocToolkit/commit/5940cf09f5c0791736aac1e4266937ce517eec36))
+
 ## [0.5.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.4.0...v0.5.0) (2026-08-03)
 
 
