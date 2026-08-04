@@ -166,7 +166,8 @@ Recorded so a later pass does not re-investigate them:
    real-world Word-template need and the first item here a consumer would see. Self-contained
    enough for a single spec.
 2. **B1 — public-API approval tests.** Unchanged in priority. One accidental source-breaking change
-   has already shipped, and pre-1.0 is the cheap moment to install the guard.
+   has already shipped. The package stays below 1.0.0 permanently, so semver never starts
+   protecting consumers on its own - which makes a mechanical guard the only thing that would.
 3. **A1–A3, A5 — the rest of the create-and-template gap**, each as its own spec.
 4. **C3 — SHA-pin the actions.** Newly practical: all seven action majors are current as of today,
    so pinning no longer freezes them at stale versions.
