@@ -162,7 +162,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 290 tests (247 core + 43 extensions) → 580 results.
+  report *2N* results. 312 tests (269 core + 43 extensions) → 624 results.
 - **`-warnaserror` is worthless on an already-built tree — pass `--no-incremental`.** MSBuild skips
   projects whose inputs are unchanged, and a skipped project re-emits *no diagnostics*, so the build
   cheerfully reports `0 Warning(s)`. Any earlier `dotnet test` or `dotnet build` compiles without
@@ -259,7 +259,7 @@ copy error, not a message pointing at the real cause.
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 290 tests x 2 TFMs = 580 results
+dotnet test  DocToolkit.sln -c Release            # 312 tests x 2 TFMs = 624 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 
