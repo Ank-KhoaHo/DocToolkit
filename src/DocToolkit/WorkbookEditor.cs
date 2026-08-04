@@ -171,12 +171,22 @@ public static class WorkbookEditor
     /// Values are produced exactly as <see cref="ReadCell"/> produces them, so the two can never
     /// disagree about what a cell says. A formula cell yields its cached value: nothing in this
     /// library evaluates formulas.
+    ///
+    /// Text follows the calling thread's <see cref="System.Globalization.CultureInfo.CurrentCulture"/>
+    /// — the same rule <see cref="ReadCell"/> uses, and asymmetric with <see cref="Create"/>, which
+    /// deliberately writes with <see cref="System.Globalization.CultureInfo.InvariantCulture"/> so
+    /// the same code produces the same file everywhere. A number such as <c>1234.5</c> reads back
+    /// as <c>"1234.5"</c> under an invariant or en-US culture but <c>"1234,5"</c> under de-DE;
+    /// callers who parse the returned text as a number should account for that, e.g. by parsing
+    /// with an explicit <see cref="System.Globalization.CultureInfo"/> rather than the default.
     /// </summary>
     /// <param name="xlsx">The workbook bytes.</param>
     /// <param name="sheetName">The sheet to read.</param>
     /// <returns>
-    /// The sheet's used range, anchored at A1 and padded rectangular; empty if the sheet holds no
-    /// values.
+    /// The sheet's used range, anchored at A1 and padded rectangular. Empty only if the sheet
+    /// holds no values and no cell comments: formatting alone never widens the range, but a
+    /// comment on an otherwise-blank cell does, because ClosedXML's <c>LastCellUsed()</c> counts
+    /// it as used.
     /// </returns>
     /// <remarks>
     /// The whole range is materialised into memory at once, so its cost is proportional to
@@ -219,8 +229,8 @@ public static class WorkbookEditor
     /// <param name="sheetName">The sheet to read.</param>
     /// <param name="ct">Cancels the read.</param>
     /// <returns>
-    /// The sheet's used range, anchored at A1 and padded rectangular; empty if the sheet holds no
-    /// values.
+    /// The sheet's used range, anchored at A1 and padded rectangular. Empty only if the sheet
+    /// holds no values and no cell comments — see <see cref="ReadSheet"/>.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
     /// <exception cref="ArgumentException">
