@@ -144,6 +144,7 @@ docs and implementation plans alongside this file.
 | D8 | **No roadmap.** |
 | D9 | **Three READMEs kept in sync by hand** (root, core package, extensions package), under a hard constraint that the root README stay byte-identical across `main` and `develop`. |
 | D10 | **Sample gaps.** No worker service, no MVC/Razor, no Docker, and **no large-file streaming sample** — even though the `Stream` overloads were the headline feature of 0.2.0. |
+| D12 | **No sample exercises `ImageInspector`'s JPEG path.** Retiring `ConsoleSample` removed the only sample that embedded a real JPEG — it pulled the thumbnail out of `sample.pptx`. `DocxImages` uses a PNG instead, so no sample now exercises the JPEG branch. The library still supports and tests it; this is sample coverage, not a regression. |
 
 ---
 
