@@ -170,4 +170,57 @@ public class WorkbookEditorTests
         try { return body(); }
         finally { CultureInfo.CurrentCulture = previous; }
     }
+
+    // ---------------------------------------------------------------------------------------
+    // SheetNames
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A workbook with three sheets, the middle one hidden, built directly with ClosedXML because
+    /// WorkbookEditor.Create only makes single-sheet workbooks.
+    /// </summary>
+    private static byte[] ThreeSheetWorkbook()
+    {
+        using var workbook = new XLWorkbook();
+        workbook.Worksheets.Add("First").Cell("A1").Value = "a";
+        var hidden = workbook.Worksheets.Add("Hidden");
+        hidden.Cell("A1").Value = "b";
+        hidden.Hide();
+        workbook.Worksheets.Add("Third").Cell("A1").Value = "c";
+
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void SheetNames_ReturnsEverySheetInTabOrder_IncludingHiddenOnes()
+    {
+        Assert.Equal(
+            new[] { "First", "Hidden", "Third" },
+            WorkbookEditor.SheetNames(ThreeSheetWorkbook()));
+    }
+
+    [Fact]
+    public void SheetNames_RejectsMissingContent()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.SheetNames(null!));
+        Assert.Throws<ArgumentException>(() => WorkbookEditor.SheetNames(Array.Empty<byte>()));
+    }
+
+    [Fact]
+    public void SheetNames_WrapsAFileThatIsNotAWorkbook()
+    {
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.SheetNames(new byte[] { 1, 2, 3, 4 }));
+    }
+
+    [Fact]
+    public async Task SheetNamesAsync_AgreesWithTheByteArrayOverload()
+    {
+        var xlsx = ThreeSheetWorkbook();
+        using var source = new MemoryStream(xlsx);
+
+        Assert.Equal(WorkbookEditor.SheetNames(xlsx), await WorkbookEditor.SheetNamesAsync(source));
+    }
 }

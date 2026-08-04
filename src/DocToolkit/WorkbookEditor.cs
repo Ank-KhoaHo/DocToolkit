@@ -97,6 +97,71 @@ public static class WorkbookEditor
         }
     }
 
+    /// <summary>
+    /// Lists every sheet in the workbook, in tab order, including hidden sheets — hiding a sheet
+    /// is a presentation choice, not a privacy boundary, and a caller who cannot see a hidden sheet
+    /// listed has no way to discover it exists.
+    /// </summary>
+    /// <param name="xlsx">The workbook bytes.</param>
+    /// <returns>The sheet names, in tab order.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be opened.</exception>
+    public static IReadOnlyList<string> SheetNames(byte[] xlsx)
+    {
+        ValidateWorkbook(xlsx);
+
+        try
+        {
+            using var workbook = Open(xlsx);
+            return SheetNamesCore(workbook);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read XLSX.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/> and lists every sheet in tab order,
+    /// including hidden sheets. <paramref name="source"/> is <b>read</b> to its end and is neither
+    /// disposed, closed nor sought.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>The sheet names, in tab order.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be opened.</exception>
+    public static async Task<IReadOnlyList<string>> SheetNamesAsync(
+        Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX.", ct)
+            .ConfigureAwait(false);
+
+        try
+        {
+            using var workbook = new XLWorkbook(xlsx);
+            return SheetNamesCore(workbook);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read XLSX.", ex);
+        }
+    }
+
+    // Ordered by Position explicitly: Position is the tab order, whereas the enumeration order of
+    // Worksheets is not documented to be. Sorting makes the guarantee true by construction.
+    private static List<string> SheetNamesCore(XLWorkbook workbook)
+        => workbook.Worksheets.OrderBy(sheet => sheet.Position).Select(sheet => sheet.Name).ToList();
+
     /// <summary>Reads a cell as a string. <paramref name="cellRef"/> is an A1-style reference.</summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or a name is blank.</exception>
@@ -243,6 +308,13 @@ public static class WorkbookEditor
         ArgumentNullException.ThrowIfNull(xlsx);
         ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
         ArgumentException.ThrowIfNullOrWhiteSpace(cellRef);
+        if (xlsx.Length == 0)
+            throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
+    }
+
+    private static void ValidateWorkbook(byte[] xlsx)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
         if (xlsx.Length == 0)
             throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
     }
