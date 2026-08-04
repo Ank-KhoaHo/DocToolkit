@@ -129,7 +129,7 @@ is pinned at **6.0.0** by OfficeIMO; the package is **`RBush.Signed`**, not `RBu
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 288 tests x 2 target frameworks = 576 results
+dotnet test  DocToolkit.sln -c Release      # 290 tests x 2 target frameworks = 580 results
 
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .   # verify Linux locally
 docker run --rm doctoolkit-linux-test
@@ -151,7 +151,7 @@ stored API key. Maintainer procedure lives in [`CLAUDE.md`](CLAUDE.md).
 ```
 src/DocToolkit/                                         the library
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
-tests/                                                  288 tests, including Stream-overload proofs and the air-gap/dependency guards
+tests/                                                  290 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
 samples/                                                console + minimal-API samples, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
 docs/                                                   design docs and implementation plans this was built from
