@@ -10,6 +10,35 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.7.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.6.0...v0.7.0) (2026-08-04)
+
+
+### Added
+
+* **core:** ship a package icon on both packages ([b5dfdff](https://github.com/Ank-KhoaHo/DocToolkit/commit/b5dfdff321f40028326f116cb5dd8a0bd18c71b5))
+* **core:** ship a package icon on both packages ([ba1424f](https://github.com/Ank-KhoaHo/DocToolkit/commit/ba1424f1591e809598a7279f66e9bd52b2de8be6))
+
+
+### Changed
+
+* close D11, the package icon shipped ([b1d396d](https://github.com/Ank-KhoaHo/DocToolkit/commit/b1d396df86ef49178102e5d4d1c89d7868d5a6ce))
+* design for splitting the samples per capability ([2cc29e3](https://github.com/Ank-KhoaHo/DocToolkit/commit/2cc29e3eae609665a2b98e150de67ced0d00a913))
+* design for splitting the samples per capability ([7966887](https://github.com/Ank-KhoaHo/DocToolkit/commit/796688722f30af41441c4b1245c9766009383c69))
+* implementation plan for splitting the samples per capability ([de2ae51](https://github.com/Ank-KhoaHo/DocToolkit/commit/de2ae5144aeafd9e873275dfa83038338a1a8c01))
+* record JPEG sample-coverage gap in enhancement backlog ([8b99058](https://github.com/Ank-KhoaHo/DocToolkit/commit/8b99058671391b9329c12c0e70a44ced2b13eee2))
+* record the missing NuGet package icon as D11 ([73275af](https://github.com/Ank-KhoaHo/DocToolkit/commit/73275af19ee7174cdfc98b4a7067e18e7056764b))
+* record the missing NuGet package icon as D11 ([f224e39](https://github.com/Ank-KhoaHo/DocToolkit/commit/f224e3915015aa51fd497e382e3b50d1424e7a74))
+* **samples:** add the DocxImages sample ([eab3f44](https://github.com/Ank-KhoaHo/DocToolkit/commit/eab3f443480907b9182bb5f397528434f0e67b4c))
+* **samples:** add the DocxTemplating sample ([ed38169](https://github.com/Ank-KhoaHo/DocToolkit/commit/ed38169373d0d718abfda4085e32c3c7c53bef59))
+* **samples:** add the HtmlConversion sample ([0e4a1a8](https://github.com/Ank-KhoaHo/DocToolkit/commit/0e4a1a862dc4fd242188274b8ee9181b2cb6e1c3))
+* **samples:** add the Presentations sample ([8070797](https://github.com/Ank-KhoaHo/DocToolkit/commit/80707971e508a8791edefa3dc60d594eb01f3839))
+* **samples:** add the Spreadsheets sample ([7451242](https://github.com/Ank-KhoaHo/DocToolkit/commit/7451242f6a9293c406eba0fcda03224b80e75500))
+* **samples:** correct ExtractText and FillRows/ReplaceText claims ([382177f](https://github.com/Ank-KhoaHo/DocToolkit/commit/382177fae89a6eb95e5540d3f0f68d8e03de4437))
+* **samples:** fix "one per capability" wording in layout blocks ([5b309b7](https://github.com/Ank-KhoaHo/DocToolkit/commit/5b309b72197a094d33a1163fddb36b4e3ecfdcbb))
+* **samples:** rename MinimalApiSample to MinimalApi ([185ac61](https://github.com/Ank-KhoaHo/DocToolkit/commit/185ac61c754f6a7b80c812696410759072bdcfc8))
+* **samples:** retire ConsoleSample in favour of per-capability samples ([d3c4b9b](https://github.com/Ank-KhoaHo/DocToolkit/commit/d3c4b9b7815d372546ee9ff5321f5d6b68b12087))
+* **samples:** split the samples per capability ([8fd9f09](https://github.com/Ank-KhoaHo/DocToolkit/commit/8fd9f0969c9bcd94c1ed9443cb4a55aaf901cf5d))
+
 ## [0.6.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.5.0...v0.6.0) (2026-08-04)
 
 
