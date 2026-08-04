@@ -329,8 +329,17 @@ Both packages are tracked as one component
 starts counting commits from (main's tip right before this automation was added) — it exists only
 to keep that first PR from sweeping in unrelated older history, goes inert once a real GitHub
 Release exists to anchor from instead, and can be deleted from the config once that's happened.
-**Pre-1.0, a breaking change (`!`/`BREAKING CHANGE:`) jumps straight to `1.0.0`**, not the next minor —
-`bump-minor-pre-major` is deliberately left at its default (`false`).
+### This package stays below 1.0.0
+
+That is a deliberate, standing decision: `0.x.y` forever. It is also **enforced in config, not just
+intended** — `release-please-config.json` sets `"bump-minor-pre-major": true`, so a breaking change
+(`!` or `BREAKING CHANGE:`) bumps the **minor** version (0.5.0 → 0.6.0) rather than jumping to
+1.0.0.
+
+Left at its default (`false`), release-please treats a breaking change pre-1.0 as the signal to
+*leave* pre-1.0, and a single `feat!:` commit would have shipped 1.0.0 with nobody choosing it.
+**Don't remove that setting.** Under 0.x, semver already says anything may break, so this costs
+nothing and removes the one commit that could take the version somewhere it should not go.
 
 **Any commit matching a recognized Conventional Commit type opens or updates the Release PR** —
 not just `feat:`/`fix:`, and this is not gated by `changelog-sections` visibility (that only
