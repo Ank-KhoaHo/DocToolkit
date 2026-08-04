@@ -88,20 +88,32 @@ decision if A14 is ever addressed.
 
 ## Traps
 
-**A sheet with no used range must be handled explicitly.** ClosedXML's used-range accessors return
-null for an empty sheet, and code that assumes otherwise throws a `NullReferenceException` that gets
-wrapped into a `DocumentConversionException` whose message points nowhere useful. The emptiness check
-comes first and is unconditional — correct whether or not the null case is reachable on a given
-input.
+**A sheet with no used range must be handled explicitly.** `LastCellUsed()` returns null for an
+empty sheet, and code that assumes otherwise throws a `NullReferenceException` that gets wrapped
+into a `DocumentConversionException` whose message points nowhere useful. That null *is* the
+empty-sheet case, and checking it is the first thing the code does.
+
+**Take the extent from `LastCellUsed()`, not from `LastRowUsed()`/`LastColumnUsed()`.** Those return
+`IXLRangeRow`/`IXLRangeColumn`, whose `RowNumber()`/`ColumnNumber()` are documented as positions
+*within the range* rather than within the sheet — an off-by-origin waiting to happen. `LastCellUsed()`
+returns a cell whose `Address.RowNumber`/`Address.ColumnNumber` are absolute worksheet coordinates,
+and its documentation states the address is exactly ([last row with a value], [last column with a
+value]). One call, no relative-versus-absolute question to get wrong.
+
+**Order sheets by `Position` explicitly.** `Worksheets` enumeration order is not documented as tab
+order. `Position` is the tab order, so sorting by it makes the guarantee true by construction rather
+than by luck.
 
 **Anchoring at A1 means not iterating `RangeUsed()`'s cells.** That range begins at the used origin,
 so iterating it directly would put C3's value at `rows[0][0]` — precisely the behaviour this design
 rules out. The loop runs from row 1 and column 1 to `LastRowUsed()` / `LastColumnUsed()`.
 
-**ClosedXML counts formatted-but-empty cells as used.** A sheet where someone bolded column Z
-reports a used range reaching column Z, so `ReadSheet` pads every row that far with `""`. That is
-ClosedXML's definition of "used", not a defect, and matching it is better than inventing a second
-definition — but it surprises people, so it is documented on the method.
+**"Used" must mean *has a value*, not *has formatting*.** ClosedXML offers both definitions. The
+parameterless `LastCellUsed()` documents "Formats are ignored", while the overload taking
+`XLCellsUsedOptions` can be asked to count formatting — and under that definition, a sheet where
+someone bolded column Z reports a used range reaching column Z, so every row gets padded that far
+with `""` for no reason a caller could see. The parameterless form is the one to use, and a test
+pins it: an empty-but-formatted cell beyond the data must not widen the result.
 
 **A1 anchoring has a memory cost.** A stray value at ZZ100000 produces a rectangular result of that
 size, almost entirely empty strings. That is the price of positional indices being meaningful, and
@@ -132,6 +144,8 @@ is `ReadCell`'s existing contract, reached through the same helpers.
 - **A formula cell yields its cached value** — pins the "nothing evaluates formulas" claim to a test
   rather than a sentence.
 - **Hidden sheets appear in `SheetNames`**, in tab order.
+- **An empty-but-formatted cell beyond the data does not widen the result** — pins "used means has
+  a value" rather than trusting the accessor to keep meaning that.
 - **A missing sheet throws**, matching `ReadCell`.
 - **Round trip:** `Create` then `ReadSheet` returns what went in.
 - **`byte[]` and `Stream` forms agree** for identical input.
