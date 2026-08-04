@@ -381,6 +381,58 @@ public class WorkbookEditorTests
         Assert.Equal("5", WorkbookEditor.ReadSheet(ms.ToArray(), "S")[0][2]);
     }
 
+    /// <summary>
+    /// XFD1048576 is not a made-up extreme — it is Excel's own maximum address (16,384 columns,
+    /// 1,048,576 rows). One stray value there, with nothing filled in between, still describes a
+    /// 1,048,576 x 16,384 = 17,179,869,184-cell rectangle, because ReadSheetCore's extent comes
+    /// from the single farthest-out used cell, not from how much of the sheet actually holds
+    /// data. Materialising that many string-array slots would exhaust memory long before this
+    /// method returns, so ReadSheet must refuse before it allocates anything — and the fixture
+    /// itself stays a few KB on disk, since ClosedXML only ever writes the cells that were set.
+    /// </summary>
+    [Fact]
+    public void ReadSheet_ThrowsRatherThanAllocateForAFarFlungStrayValue()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Sales");
+        sheet.Cell("A1").Value = "a";
+        sheet.Cell("XFD1048576").Value = "x";
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.ReadSheet(ms.ToArray(), "Sales"));
+
+        // The message must name the actual extent and the cap - something a caller can act on -
+        // not a bare "failed to read" that gives no hint memory, rather than the file, was the
+        // problem.
+        Assert.Contains("Sales", ex.Message);
+        Assert.Contains("1048576", ex.Message);
+        Assert.Contains("16384", ex.Message);
+        Assert.Contains("17179869184", ex.Message);
+        Assert.Contains("2000000", ex.Message);
+    }
+
+    /// <summary>Ordinary-sized data, comfortably under the 2,000,000-cell cap, must still work.</summary>
+    [Fact]
+    public void ReadSheet_ReadsASheetComfortablyUnderTheCellCap()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Big");
+        for (var r = 1; r <= 500; r++)
+            for (var c = 1; c <= 20; c++)
+                sheet.Cell(r, c).Value = $"{r}-{c}";
+        using var ms = new MemoryStream();
+        workbook.SaveAs(ms);
+
+        var rows = WorkbookEditor.ReadSheet(ms.ToArray(), "Big");
+
+        Assert.Equal(500, rows.Count);
+        Assert.All(rows, row => Assert.Equal(20, row.Count));
+        Assert.Equal("1-1", rows[0][0]);
+        Assert.Equal("500-20", rows[499][19]);
+    }
+
     [Fact]
     public void ReadSheet_ThrowsWhenTheSheetDoesNotExist()
     {

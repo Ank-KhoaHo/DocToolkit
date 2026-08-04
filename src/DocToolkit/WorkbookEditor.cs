@@ -178,12 +178,20 @@ public static class WorkbookEditor
     /// The sheet's used range, anchored at A1 and padded rectangular; empty if the sheet holds no
     /// values.
     /// </returns>
+    /// <remarks>
+    /// The whole range is materialised into memory at once, so its cost is proportional to
+    /// <c>rows &#215; columns</c>, not to how much of that rectangle actually holds data. To keep
+    /// one far-flung stray value from exhausting memory, <see cref="ReadSheet"/> throws
+    /// <see cref="DocumentConversionException"/> rather than allocate when the used range exceeds
+    /// 2,000,000 cells.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="xlsx"/> is empty, or <paramref name="sheetName"/> is blank.
     /// </exception>
     /// <exception cref="DocumentConversionException">
-    /// The workbook could not be opened, or the sheet does not exist.
+    /// The workbook could not be opened, the sheet does not exist, or the sheet's used range
+    /// exceeds the 2,000,000-cell limit <see cref="ReadSheet"/> will materialise.
     /// </exception>
     public static IReadOnlyList<IReadOnlyList<string>> ReadSheet(byte[] xlsx, string sheetName)
     {
@@ -221,7 +229,8 @@ public static class WorkbookEditor
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
-    /// The workbook could not be opened, or the sheet does not exist.
+    /// The workbook could not be opened, the sheet does not exist, or the sheet's used range
+    /// exceeds the 2,000,000-cell limit <see cref="ReadSheet"/> will materialise.
     /// </exception>
     public static async Task<IReadOnlyList<IReadOnlyList<string>>> ReadSheetAsync(
         Stream source, string sheetName, CancellationToken ct = default)
@@ -245,6 +254,16 @@ public static class WorkbookEditor
         }
     }
 
+    // Not part of any spec: the design only said "read a sheet without knowing its shape in
+    // advance". ReadSheetCore materialises the whole rows x columns rectangle up front, so its
+    // memory cost tracks the *rectangle*, not how much of it actually holds data — a single stray
+    // value (or even just a cell comment; see the LastCellUsed() note below) way out at
+    // XFD1048576, Excel's own maximum address, describes a 1,048,576 x 16,384 grid, ~17.2 billion
+    // string-array slots, from a workbook that can be a few KB on disk. 2,000,000 is chosen as
+    // comfortably above any sheet a caller would actually want back as an in-memory jagged array,
+    // while still catching that case before a single byte of it is allocated.
+    private const long ReadSheetCellLimit = 2_000_000;
+
     private static List<IReadOnlyList<string>> ReadSheetCore(XLWorkbook workbook, string sheetName)
     {
         var sheet = Sheet(workbook, sheetName);
@@ -252,14 +271,27 @@ public static class WorkbookEditor
         // The extent comes from LastCellUsed() rather than LastRowUsed()/LastColumnUsed(): those
         // return range rows/columns whose RowNumber()/ColumnNumber() are documented as positions
         // *within the range*, which is an off-by-origin waiting to happen. A cell's Address is
-        // absolute. LastCellUsed() also ignores formatting, so one bolded empty cell out at Z1
-        // cannot pad every row out to it. Null means the sheet holds no values at all.
+        // absolute. LastCellUsed() ignores formatting, so one bolded empty cell out at Z1 cannot
+        // pad every row out to it — but it does count a cell comment as "used" even with no value,
+        // so a comment out at the far corner widens the range exactly like a stray value would.
+        // Null means the sheet holds no values and no comments at all.
         var last = sheet.LastCellUsed();
         if (last is null)
             return new List<IReadOnlyList<string>>();
 
         var lastRow = last.Address.RowNumber;
         var lastColumn = last.Address.ColumnNumber;
+
+        // long, not int: lastRow * lastColumn as plain int arithmetic overflows (wraps, possibly
+        // negative) well before it reaches Excel's real maximum of ~17.2 billion, which would
+        // silently defeat this exact check.
+        var cellCount = (long)lastRow * lastColumn;
+        if (cellCount > ReadSheetCellLimit)
+        {
+            throw new DocumentConversionException(
+                $"Sheet '{sheetName}' spans {lastRow} rows x {lastColumn} columns ({cellCount} " +
+                $"cells), which exceeds the {ReadSheetCellLimit}-cell limit ReadSheet will materialise.");
+        }
 
         // From row 1 and column 1, not from the first used cell: the result is anchored at A1 so
         // rows[r][c] addresses the sheet the way the caller sees it in Excel.
