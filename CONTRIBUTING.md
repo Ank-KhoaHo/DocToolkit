@@ -81,9 +81,11 @@ possible.
 | `fix` | a bug fix | yes, under **Fixed** |
 | `perf` | a performance change | yes |
 | `build` | packaging or target frameworks | yes |
+| `revert` | reverting a previous commit | yes |
 | `docs` | documentation | no |
 | `ci` | workflows and automation | no |
 | `refactor` | internal restructuring, no behaviour change | no |
+| `style` | formatting only, no behaviour change | no |
 | `test` | tests only | no |
 | `chore` | anything else | no |
 
@@ -93,6 +95,17 @@ not enforced; any lowercase scope passes CI.
 **Getting the type wrong has consequences beyond style.** The type decides the version bump and
 which changelog section your change appears in. A `fix:` on something that is not a bug fix tells
 consumers a library bug was fixed. A `feat:` on a docs change consumes a minor version.
+
+### Marking a breaking change
+
+Mark one with a `!` after the type and optional scope — `feat(core)!: ...` — or with a
+`BREAKING CHANGE:` footer in the commit body. Either tells release-please to bump the version
+beyond a patch.
+
+It will not jump to `1.0.0`. `release-please-config.json` sets `bump-minor-pre-major: true`, so on
+this package a breaking change bumps the **minor** version instead (0.5.0 → 0.6.0), because staying
+below `1.0.0` is a deliberate, standing decision here, not an oversight. Do not assume `!` means
+`1.0.0` — on this repository it does not.
 
 ## Four things that will get a pull request rejected
 
