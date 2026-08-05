@@ -1,13 +1,16 @@
 # Contributing to DocToolkit
 
 Thanks for considering it. This package has a few constraints that are stricter than most, and
-they are the reason it exists — so this document leads with what will get a pull request rejected,
-rather than burying it.
+they are the reason it exists — so this document explains what will get a pull request rejected,
+not just the day-to-day workflow of building and testing it.
 
 ## Getting set up
 
-You need the .NET SDK. The projects target `net8.0` and `net10.0`, so you need a `net10.0`-capable
-SDK to build everything.
+You need the .NET SDK. The projects target `net8.0` and `net10.0`. A `net10.0`-capable SDK builds
+everything, but running the tests also executes the `net8.0` target — there is no `global.json` and
+no `RollForward` policy pinning that away, so without the .NET 8 runtime installed alongside it,
+`dotnet test` fails on that half of the suite. Install both the .NET 8 and .NET 10 SDKs; CI installs
+both for the same reason.
 
 ```bash
 git clone https://github.com/Ank-KhoaHo/DocToolkit.git
@@ -44,7 +47,9 @@ docker run --rm doctoolkit-linux-test
 
 ## Branching and pull requests
 
-There is one branch: `main`. It cannot be pushed directly.
+There is one branch: `main`. It cannot be pushed directly — every change arrives by pull request.
+
+**If you have push access to this repository:**
 
 ```bash
 git switch -c feat/your-change main
@@ -52,15 +57,35 @@ git switch -c feat/your-change main
 git push -u origin feat/your-change
 ```
 
-Then open a pull request into `main`. Branch names are `feat/**` for new capability and `fix/**`
-for bug fixes. There is no hotfix path and no second way in. CI runs on your branch and on the
-pull request.
+**If you do not** — the normal case for an outside contributor, since this repo is public — fork it
+on GitHub first, clone your fork, and add the original repository as `upstream` so you can branch
+from its `main` and stay current with it:
+
+```bash
+git clone https://github.com/<your-username>/DocToolkit.git
+cd DocToolkit
+git remote add upstream https://github.com/Ank-KhoaHo/DocToolkit.git
+git fetch upstream
+git switch -c feat/your-change upstream/main
+# ... work, commit ...
+git push -u origin feat/your-change
+```
+
+Then open the pull request from your fork's branch into `Ank-KhoaHo/DocToolkit`'s `main`.
+
+Branch names are not enforced by CI — use whichever commit type fits your change (`feat/**`,
+`fix/**`, `chore/**`, `refactor/**`, and so on). What *is* enforced is which pushes get a CI run before
+you open the pull request: only `main`, `feat/**` and `fix/**` trigger it on push, so a branch
+under any other type gets its first CI run when the pull request opens, not before. There is no
+hotfix path and no second way in — every change reaches `main` through a pull request.
 
 Rebasing onto `main` is preferred over merging it in, for readable history:
 
 ```bash
 git pull --rebase origin main
 ```
+
+(From a fork, that's `git pull --rebase upstream main`.)
 
 ## Commit messages
 
@@ -74,6 +99,11 @@ CI checks **every commit in your pull request**, not just the title. This reposi
 requests with a real merge commit, so every one of your commits lands on `main` and is read by the
 release tooling. Merge commits themselves are exempt — git writes those subjects and no prefix is
 possible.
+
+**Title the pull request without a Conventional Commit prefix.** GitHub copies the PR title into
+the merge commit's body, which release-please parses just like any other commit, so a PR titled
+`feat(core): x` whose branch also has a commit `feat(core): x` produces two identical lines in the
+published changelog — which cannot be rewritten once it ships.
 
 | Type | Use for | Appears in the public changelog |
 |---|---|---|
@@ -158,12 +188,21 @@ dotnet list package --include-transitive
 find . -path '*/bin/*' \( -name '*.so' -o -name '*.so.*' -o -name '*.dylib' \)
 ```
 
+If it's a direct dependency of `src/DocToolkit/` or `src/DocToolkit.Extensions.DependencyInjection/`,
+also regenerate that project's lockfile and commit the result — otherwise CI's `--locked-mode`
+restore fails on a dependency that was never actually banned:
+
+```bash
+dotnet restore src/DocToolkit/DocToolkit.csproj --force-evaluate
+dotnet restore src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj --force-evaluate
+```
+
 ## When a check goes red
 
 | Check | What it means |
 |---|---|
 | `build & test (ubuntu-latest)` / `(windows-latest)` | Both must pass. Linux is a supported platform, not a nice-to-have. |
-| `no native binaries / no banned packages` | A dependency broke one of the four constraints. **Remove the package. Never relax the test.** |
+| `no native binaries / no banned packages` | This job runs several checks in order, so the failing step tells you the cause. If it fails on the **first** step (`dotnet restore --locked-mode`), `packages.lock.json` is just stale — run `dotnet restore <project> --force-evaluate` and commit the regenerated lockfile; nothing is banned. If it fails **later** — a native binary in build output, a banned package in the resolved graph, or `SixLabors.Fonts` drifting off the `1.x` line (2.x moves to a revenue-gated licence) — a dependency actually broke one of the four constraints. **Remove or re-pin it. Never relax the test.** |
 | `commit message format` | A commit in your branch is not Conventional Commits. Amend or rebase. |
 | `pack & verify .nupkg (core)` / `(extensions)` | The NuGet package no longer builds or verifies. |
 | `build docs site` | The API documentation site failed to build. |
