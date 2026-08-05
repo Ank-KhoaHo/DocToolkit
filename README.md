@@ -58,6 +58,9 @@ byte[] invoice = DocxEditor.FillRows(filled, "item", lineItems);
 // Drop an image into a placeholder — sized from its own header, PNG or JPEG
 invoice = DocxEditor.ReplaceImage(invoice, "{{logo}}", logoBytes);
 
+// Or work directly with files — no ReadAllBytes/WriteAllBytes dance, and input/output may be the same file
+await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", new() { ["{{customer}}"] = "Contoso Ltd" });
+
 byte[] xlsx = WorkbookEditor.Create("Sales", new[] { new object?[] { "Region", "Total" } });
 
 // Read one back without knowing its shape in advance
@@ -66,8 +69,9 @@ IReadOnlyList<IReadOnlyList<string>> grid = WorkbookEditor.ReadSheet(xlsx, sheet
 IReadOnlyList<string> slideText = PresentationEditor.ExtractText(pptx);
 ```
 
-Six static classes, each stateless and safe to call concurrently, with a `byte[]` and a `Stream`
-overload for every capability, wrapping failures in `DocumentConversionException`. Full surface:
+Six static classes, each stateless and safe to call concurrently, with a `byte[]` overload, a
+`Stream` overload and a file-path overload for every capability, wrapping failures in
+`DocumentConversionException`. Full surface:
 **[package README](src/DocToolkit/README.md)** · [API docs](https://ank-khoaho.github.io/DocToolkit/).
 
 ## Dependency injection
@@ -134,7 +138,7 @@ is pinned at **6.0.0** by OfficeIMO; the package is **`RBush.Signed`**, not `RBu
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 320 tests x 2 target frameworks = 640 results
+dotnet test  DocToolkit.sln -c Release      # 339 tests x 2 target frameworks = 678 results
 
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .   # verify Linux locally
 docker run --rm doctoolkit-linux-test
@@ -157,7 +161,7 @@ nothing else publishes.
 ```
 src/DocToolkit/                                         the library
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
-tests/                                                  320 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
+tests/                                                  339 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
 samples/                                                six runnable samples, each answering one question, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
 ```

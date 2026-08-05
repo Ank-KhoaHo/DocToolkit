@@ -87,6 +87,14 @@ byte[] editedPptx = PresentationEditor.ReplaceText(pptx, new Dictionary<string, 
 {
     ["{{title}}"] = "Q3 Results",
 });
+
+// Work directly with files - no ReadAllBytes/WriteAllBytes dance
+var customer = new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" };
+await DocxEditor.ReplaceTextAsync("invoice-template.docx", "invoice.docx", customer);
+string invoiceText = await DocxEditor.ExtractTextAsync("invoice.docx");
+
+// Input and output may be the same file
+await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", customer);
 ```
 
 ## Repeating table rows

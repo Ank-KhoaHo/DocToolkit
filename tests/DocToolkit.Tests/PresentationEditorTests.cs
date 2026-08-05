@@ -162,4 +162,51 @@ public class PresentationEditorTests
         Assert.Throws<DocumentConversionException>(
             () => PresentationEditor.ExtractText(new byte[] { 1, 2, 3, 4, 5 }));
     }
+
+    // -----------------------------------------------------------------------------------------
+    // File-path overloads.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SlideCountAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var pptx = PptxFixtures.Sample();
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        Assert.Equal(
+            PresentationEditor.SlideCount(pptx),
+            await PresentationEditor.SlideCountAsync(input.Path));
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var pptx = PptxFixtures.Sample();
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        Assert.Equal(
+            PresentationEditor.ExtractText(pptx),
+            await PresentationEditor.ExtractTextAsync(input.Path));
+    }
+
+    [Fact]
+    public async Task ReplaceTextAsync_FromFileToFile_SubstitutesThePlaceholder()
+    {
+        var pptx = PptxFixtures.Sample();
+        var replacements = new Dictionary<string, string> { ["{{who}}"] = "World" };
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.ReplaceTextAsync(input.Path, output.Path, replacements);
+
+        var text = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Contains(text, entry => entry.Contains("World"));
+        Assert.DoesNotContain(text, entry => entry.Contains("{{who}}"));
+    }
 }

@@ -215,4 +215,100 @@ public class DocxEditorTests
     {
         Assert.Throws<ArgumentException>(() => DocxEditor.ExtractText(Array.Empty<byte>()));
     }
+
+    // ---------------------------------------------------------------------------------------
+    // File-path overloads.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ReplaceTextAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("Dear {{customer}}")));
+        var replacements = new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" };
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, docx);
+
+        await DocxEditor.ReplaceTextAsync(input.Path, output.Path, replacements);
+
+        Assert.Equal(
+            DocxEditor.ExtractText(DocxEditor.ReplaceText(docx, replacements)),
+            DocxEditor.ExtractText(await File.ReadAllBytesAsync(output.Path)));
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("Hello from disk")));
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, docx);
+
+        Assert.Equal(DocxEditor.ExtractText(docx), await DocxEditor.ExtractTextAsync(input.Path));
+    }
+
+    [Fact]
+    public async Task FillRowsAsync_FromFileToFile_ExpandsTheTemplateRow()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.Tbl(
+            DocxFixtures.Row(DocxFixtures.R("Description")),
+            DocxFixtures.Row(DocxFixtures.R("{{item.Desc}}"))));
+        var records = new[]
+        {
+            new Dictionary<string, string> { ["Desc"] = "Widget" },
+            new Dictionary<string, string> { ["Desc"] = "Gadget" },
+        };
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, docx);
+
+        await DocxEditor.FillRowsAsync(input.Path, output.Path, "item", records);
+
+        var text = DocxEditor.ExtractText(await File.ReadAllBytesAsync(output.Path));
+        Assert.Contains("Widget", text);
+        Assert.Contains("Gadget", text);
+        Assert.DoesNotContain("{{item.", text);
+    }
+
+    [Fact]
+    public async Task ReplaceImageAsync_FromFileToFile_ReplacesThePlaceholder()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("Logo: {{logo}}")));
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, docx);
+
+        await DocxEditor.ReplaceImageAsync(
+            input.Path, output.Path, "{{logo}}", ImageFixtures.Png(), widthPoints: 96);
+
+        Assert.DoesNotContain(
+            "{{logo}}", DocxEditor.ExtractText(await File.ReadAllBytesAsync(output.Path)));
+    }
+
+    [Fact]
+    public async Task FilePathOverloads_RejectBlankPathsBeforeTouchingTheDisk()
+    {
+        var replacements = new Dictionary<string, string>();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => DocxEditor.ReplaceTextAsync(null!, "out.docx", replacements));
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => DocxEditor.ReplaceTextAsync(" ", "out.docx", replacements));
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => DocxEditor.ReplaceTextAsync("in.docx", " ", replacements));
+    }
+
+    [Fact]
+    public async Task FilePathOverloads_LetFileNotFoundThrough_RatherThanWrappingIt()
+    {
+        // A wrong path and a broken document are different problems. Wrapping this in
+        // DocumentConversionException would make the caller unwrap it to tell them apart.
+        var missing = Path.Combine(Path.GetTempPath(), $"doctoolkit-missing-{Guid.NewGuid():N}.docx");
+
+        await Assert.ThrowsAsync<FileNotFoundException>(
+            () => DocxEditor.ExtractTextAsync(missing));
+    }
 }

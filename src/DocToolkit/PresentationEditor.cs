@@ -277,4 +277,89 @@ public static class PresentationEditor
         ms.Position = 0;
         return ms;
     }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="path"/> and returns its slide count, as counted from
+    /// the deck's slide list — see <see cref="SlideCount"/> for details.
+    /// </summary>
+    /// <param name="path">The .pptx to read.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>The number of slides in the deck.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank, or the file it names is empty.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<int> SlideCountAsync(string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        return SlideCount(bytes);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="path"/> and returns all text found on every slide, one
+    /// entry per text-bearing body, in deck order — see <see cref="ExtractText(byte[])"/> for
+    /// exactly what counts as a text-bearing body.
+    /// </summary>
+    /// <param name="path">The .pptx to read.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>One entry per text-bearing body, in deck order.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank, or the file it names is empty.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ExtractTextAsync(
+        string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        return ExtractText(bytes);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="inputPath"/>, replaces every key with its value across
+    /// all slide text, and writes the result to <paramref name="outputPath"/> — see
+    /// <see cref="ReplaceText"/> for exactly what counts as a match and how formatting survives
+    /// it. The two paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened, so a document that fails to process — cannot be
+    /// read, or cannot be edited — leaves <paramref name="outputPath"/> untouched. That guarantee
+    /// does not extend to a failure during the write itself: a full disk, a cancellation, or the
+    /// process dying mid-write can still leave a partial file, so in-place editing of an
+    /// irreplaceable document is not crash-safe.
+    /// </summary>
+    /// <param name="inputPath">The .pptx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="replacements">Each key is replaced by its value, longest key wins per match.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="replacements"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, or the file at <paramref name="inputPath"/> is empty.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task ReplaceTextAsync(
+        string inputPath, string outputPath,
+        IReadOnlyDictionary<string, string> replacements, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var result = ReplaceText(bytes, replacements);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
 }
