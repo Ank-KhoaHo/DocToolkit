@@ -162,7 +162,7 @@ missing from those lists is the only way to escape the whole suite.
 ## Conventions
 
 - **Target frameworks are `net8.0;net10.0`.** Every test runs once per framework, so *N* tests
-  report *2N* results. 320 tests (271 core + 49 extensions) → 640 results.
+  report *2N* results. 314 tests (271 core + 43 extensions) → 628 results.
 - **`-warnaserror` is worthless on an already-built tree — pass `--no-incremental`.** MSBuild skips
   projects whose inputs are unchanged, and a skipped project re-emits *no diagnostics*, so the build
   cheerfully reports `0 Warning(s)`. Any earlier `dotnet test` or `dotnet build` compiles without
@@ -206,24 +206,17 @@ would, against the *published* core package, not against whatever is currently o
 changing an interface here, confirm the byte[] method it wraps actually exists in the core
 version this project's `Ank.DocToolkit` reference floor requires.
 
-Six interfaces mirror the six static classes 1:1, `byte[]` overload for `byte[]` overload and
-`Stream` overload for `Stream` overload — `IWorkbookEditor` already declares `CreateAsync`,
-`ReadCellAsync` and `SetCellAsync`, all taking a `Stream`, and every other interface has its own
-`Stream`/async members the same way. There is no scope split between "the DI layer" and "the
-`Stream` overloads"; both shipped together per interface as the core static API grew them.
-
-The mirroring is not automatic, though, and it briefly went stale: core 0.7.0 added
-`SheetNames`/`SheetNamesAsync`/`ReadSheet`/`ReadSheetAsync` to `WorkbookEditor`, but
-`IWorkbookEditor` couldn't gain the matching members in that same change, because this project
-references `Ank.DocToolkit` as a **published** `PackageReference` (see above) — it cannot wrap a
-method that has not shipped in a release yet. Once 0.7.0 reached nuget.org, the version floor was
-bumped and the four members were added by hand, restoring 1:1. The general lesson still holds:
-a core addition can never be mirrored here in the same release that ships it, and nothing in this
-repo automatically adds the matching interface member or even flags that one is missing — that is
-a manual step for whoever next touches the core static API, and it is easy to forget. Service
-implementations are `internal sealed` — never `public` — and are pure delegation, one line per
-method, to the matching static method. If a service method does anything more than call through,
-that logic belongs in the core static method instead.
+Six interfaces mirror the six static classes (`byte[]` in, `byte[]`/`string`/`int` out — no
+`Stream` overloads here; that was a deliberate scope decision, not an oversight, since the DI
+layer was designed before the static API's `Stream` overloads existed), but the mirroring is no
+longer 1:1: `WorkbookEditor` gained `SheetNames`/`SheetNamesAsync`/`ReadSheet`/`ReadSheetAsync` and
+`IWorkbookEditor` did not, because this project references `Ank.DocToolkit` as a **published**
+`PackageReference` (see above) — it cannot wrap methods that have not shipped in a release yet.
+Expect that gap to persist until a release containing the new methods exists and someone adds the
+matching interface members by hand; nothing here does it automatically, and no test catches the
+drift if it's forgotten. Service implementations are `internal sealed` — never `public` — and are
+pure delegation, one line per method, to the matching static method. If a service method does
+anything more than call through, that logic belongs in the core static method instead.
 
 `DocToolkitOptions.AllowRemoteImageDownload` replaces the static API's per-call
 `allowRemoteImageDownload` bool: configured once at `AddDocToolkit(configure)`, not re-decided per
@@ -275,7 +268,7 @@ as base64 rather than borrowing one.
 
 ```bash
 dotnet build DocToolkit.sln -c Release -warnaserror
-dotnet test  DocToolkit.sln -c Release            # 320 tests x 2 TFMs = 640 results
+dotnet test  DocToolkit.sln -c Release            # 314 tests x 2 TFMs = 628 results
 dotnet pack  src/DocToolkit/DocToolkit.csproj -c Release
 dotnet pack  src/DocToolkit.Extensions.DependencyInjection -c Release
 
