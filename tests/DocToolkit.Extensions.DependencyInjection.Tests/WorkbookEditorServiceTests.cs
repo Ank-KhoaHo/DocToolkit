@@ -102,4 +102,87 @@ public class WorkbookEditorServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => sut.ReadCellAsync(new MemoryStream(), "Sales", "A1", cts.Token));
     }
+
+    [Fact]
+    public void SheetNames_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = sut.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+        });
+
+        Assert.Equal(WorkbookEditor.SheetNames(xlsx), sut.SheetNames(xlsx));
+        Assert.Equal(new[] { "Sales" }, sut.SheetNames(xlsx));
+    }
+
+    [Fact]
+    public async Task SheetNamesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = sut.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+        });
+
+        var fromWrapper = await sut.SheetNamesAsync(new MemoryStream(xlsx));
+        var fromStatic = await WorkbookEditor.SheetNamesAsync(new MemoryStream(xlsx));
+
+        Assert.Equal(fromStatic, fromWrapper);
+        Assert.Equal(new[] { "Sales" }, fromWrapper);
+    }
+
+    [Fact]
+    public void ReadSheet_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = sut.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "North", 1200 },
+        });
+
+        Assert.Equal(WorkbookEditor.ReadSheet(xlsx, "Sales"), sut.ReadSheet(xlsx, "Sales"));
+        Assert.Equal(
+            new[]
+            {
+                new[] { "Region", "Total" },
+                new[] { "North", "1200" },
+            },
+            sut.ReadSheet(xlsx, "Sales"));
+    }
+
+    [Fact]
+    public async Task ReadSheetAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = sut.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "North", 1200 },
+        });
+
+        var fromWrapper = await sut.ReadSheetAsync(new MemoryStream(xlsx), "Sales");
+        var fromStatic = await WorkbookEditor.ReadSheetAsync(new MemoryStream(xlsx), "Sales");
+
+        Assert.Equal(fromStatic, fromWrapper);
+        Assert.Equal(
+            new[]
+            {
+                new[] { "Region", "Total" },
+                new[] { "North", "1200" },
+            },
+            fromWrapper);
+    }
+
+    [Fact]
+    public async Task ReadSheetAsync_HonorsCancellation()
+    {
+        var sut = new WorkbookEditorService();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => sut.ReadSheetAsync(new MemoryStream(), "Sales", cts.Token));
+    }
 }
