@@ -57,6 +57,14 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<int> SlideCountAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<int> SlideCountAsync(string path, System.Threading.CancellationToken ct = default) { }
     }
+    public sealed class RemoteImageOptions
+    {
+        public RemoteImageOptions() { }
+        public bool AllowPrivateAddresses { get; set; }
+        public System.Collections.Generic.ISet<string> AllowedHosts { get; }
+        public long MaxBytesPerImage { get; set; }
+        public System.TimeSpan Timeout { get; set; }
+    }
     public static class WorkbookEditor
     {
         public static byte[] Create(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
