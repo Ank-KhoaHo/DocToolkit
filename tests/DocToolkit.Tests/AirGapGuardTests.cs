@@ -87,25 +87,27 @@ public class AirGapGuardTests
         {
             try
             {
+                // GuardedResourceLoader blocks loopback, private and link-local addresses by
+                // default (RemoteImageOptions.AllowPrivateAddresses is false), which would refuse
+                // this listener too. AllowPrivateAddresses = true is the escape hatch this test
+                // depends on to reach it - naming that opt-in here is more honest than the old
+                // form, which relied on there being no restriction at all.
                 await HtmlToDocxConverter.ConvertAsync(
                     $"""<p>Report <img src="{probe.BaseUrl}/logo.bmp" alt="logo" /></p>""",
-                    allowRemoteImageDownload: true);
+                    new RemoteImageOptions { AllowPrivateAddresses = true });
             }
             catch (DocumentConversionException)
             {
-                // HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient whose
-                // headers it mutates per request, so the download itself can blow up. Irrelevant
-                // here: what is under test is that the opt-in reaches the wire at all, and the
-                // connection count below settles that either way. (It is also one more reason the
-                // default is no-network.)
+                // A guarded fetch can still fail for other reasons (a malformed response, a
+                // cancelled read). Irrelevant here: what is under test is that the opt-in reaches
+                // the wire at all, and the connection count below settles that either way.
             }
         });
 
         Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(10)),
-            "allowRemoteImageDownload: true made no outbound connection. Either the opt-in no " +
-            "longer reaches HtmlToOpenXml's image processing mode, or this probe cannot detect " +
-            "a fetch - and if it cannot detect one, the zero-connection assertions below are " +
-            "vacuous.");
+            "The RemoteImageOptions opt-in made no outbound connection. Either it no longer " +
+            "reaches HtmlToOpenXml's image processing mode, or this probe cannot detect a fetch " +
+            "- and if it cannot detect one, the zero-connection assertions below are vacuous.");
     }
 
     [Fact]
@@ -117,9 +119,12 @@ public class AirGapGuardTests
         {
             try
             {
+                // As above: the guard blocks loopback by default, so AllowPrivateAddresses = true
+                // is the escape hatch this test names to prove HtmlToPdfConverter forwards the
+                // options through to the HTML stage rather than dropping them.
                 await HtmlToPdfConverter.ConvertAsync(
                     $"""<p>Report <img src="{probe.BaseUrl}/logo.bmp" alt="logo" /></p>""",
-                    allowRemoteImageDownload: true);
+                    new RemoteImageOptions { AllowPrivateAddresses = true });
             }
             catch (DocumentConversionException)
             {
@@ -128,7 +133,7 @@ public class AirGapGuardTests
         });
 
         Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(10)),
-            "HtmlToPdfConverter did not forward allowRemoteImageDownload: true to the HTML stage.");
+            "HtmlToPdfConverter did not forward the RemoteImageOptions opt-in to the HTML stage.");
     }
 
     // =====================================================================================

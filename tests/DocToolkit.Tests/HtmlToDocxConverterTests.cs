@@ -120,23 +120,26 @@ public class HtmlToDocxConverterTests
     {
         using var probe = new LoopbackProbe();
 
-        // Gated: HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient and
-        // mutates its headers per request, and this is no longer the only opt-in test in the suite.
+        // Gated: this is not the only opt-in test in the suite, and HtmlToOpenXml's ParseBody is
+        // not proven safe to run concurrently with itself.
         await RemoteDownloadGate.RunAsync(async () =>
         {
             try
             {
+                // GuardedResourceLoader blocks loopback, private and link-local addresses by
+                // default (RemoteImageOptions.AllowPrivateAddresses is false), which would refuse
+                // this listener too. AllowPrivateAddresses = true is the escape hatch this test
+                // depends on to reach it.
                 await HtmlToDocxConverter.ConvertAsync(
                     $"""<p>Report <img src="{probe.Url}" alt="logo" /></p>""",
-                    allowRemoteImageDownload: true);
+                    new RemoteImageOptions { AllowPrivateAddresses = true });
             }
             catch (DocumentConversionException)
             {
-                // Even gated, the download can blow up (NullReferenceException inside
-                // HttpConnection.WriteHeaderCollection). What is under test here is that the
-                // opt-in flag reaches the image processing mode at all - the outbound connection
-                // below proves that either way, and it is one more reason the default is
-                // no-network.
+                // A guarded fetch can still fail for other reasons (a malformed response, a
+                // cancelled read). What is under test here is that the opt-in flag reaches the
+                // image processing mode at all - the outbound connection below proves that either
+                // way, and it is one more reason the default is no-network.
             }
         });
 
