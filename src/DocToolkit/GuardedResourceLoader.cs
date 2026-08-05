@@ -43,8 +43,11 @@ internal sealed class GuardedResourceLoader : IWebRequest
 
     /// <summary>
     /// Loopback, private, link-local and unique-local addresses, including their IPv4-mapped forms
-    /// and every IPv6 transition mechanism that carries an IPv4 address inside it. <c>169.254.169.254</c>
-    /// falls out of the link-local check.
+    /// and the IPv6 transition mechanisms that carry an IPv4 address inside them: IPv4-mapped,
+    /// NAT64 (both the RFC 6052 well-known prefix and the RFC 8215 local-use prefix), 6to4, Teredo,
+    /// IPv4-translated and IPv4-compatible. <c>169.254.169.254</c> falls out of the link-local check.
+    /// This is not every IPv6 transition mechanism that exists (ISATAP and 6rd are not covered);
+    /// it is exactly the set <see cref="TryGetEmbeddedIPv4"/> unwraps.
     /// </summary>
     internal static bool IsBlockedAddress(IPAddress address)
     {
@@ -75,10 +78,13 @@ internal sealed class GuardedResourceLoader : IWebRequest
         if (TryGetEmbeddedIPv4(address, out var embedded))
             return IsBlockedAddress(embedded);
 
+        // :: (IPAddress.IPv6Any) is not checked here: it is all-zero, so it always matches the
+        // IPv4-compatible ::/96 branch above first and is blocked via the embedded 0.0.0.0 - a
+        // direct check here would never run. IsBlockedAddress_RefusesEveryPrivateForm("::") pins
+        // that this still blocks it, just through the embedded-address path.
         return address.IsIPv6LinkLocal
             || address.IsIPv6SiteLocal
             || address.IsIPv6Multicast
-            || address.Equals(IPAddress.IPv6Any)                 // :: unspecified
             || (address.GetAddressBytes()[0] & 0xFE) == 0xFC;      // fc00::/7 unique-local
     }
 
@@ -98,10 +104,37 @@ internal sealed class GuardedResourceLoader : IWebRequest
             return true;
         }
 
+        // NAT64 local-use prefix, RFC 8215: 64:ff9b:1::/48 - for operators who run NAT64 inside
+        // their own network rather than through the well-known /96 prefix above. A /48 prefix
+        // leaves only 16 bits of address space before the embedded v4 address, so RFC 6052 §2.2
+        // splits it around a "u" byte at position 8: bytes 6-7 carry the top two v4 octets, byte 8
+        // is reserved, bytes 9-10 carry the bottom two. On an IPv6-only host whose NAT64 uses this
+        // prefix instead of the global one, attacker-controlled DNS returning an address under it
+        // reaches the same private ranges once unwrapped - 64:ff9b:1:a9fe:a9:fe00:: is this
+        // encoding of 169.254.169.254.
+        if (b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xFF && b[3] == 0x9B && b[4] == 0x00 && b[5] == 0x01)
+        {
+            embedded = new IPAddress(new[] { b[6], b[7], b[9], b[10] });
+            return true;
+        }
+
         // 6to4, RFC 3056: 2002::/16, with the embedded v4 address at bytes 2-5.
         if (b[0] == 0x20 && b[1] == 0x02)
         {
             embedded = ToIPv4(b, 2);
+            return true;
+        }
+
+        // Teredo, RFC 4380: 2001::/32. Bytes 12-15 carry the client's public IPv4 address,
+        // obfuscated by XOR with 0xffffffff (so it does not appear in plaintext to routers along
+        // the way) - unwrapping it means XOR-ing back rather than reading it directly the way the
+        // other forms here do. 2001::5601:5601 decodes to 169.254.169.254 this way.
+        if (b[0] == 0x20 && b[1] == 0x01 && b[2] == 0x00 && b[3] == 0x00)
+        {
+            embedded = new IPAddress(new[]
+            {
+                (byte)(b[12] ^ 0xFF), (byte)(b[13] ^ 0xFF), (byte)(b[14] ^ 0xFF), (byte)(b[15] ^ 0xFF),
+            });
             return true;
         }
 
@@ -223,7 +256,7 @@ internal sealed class GuardedResourceLoader : IWebRequest
     /// directly, since that would leave resolution unbounded by <see cref="RemoteImageOptions.Timeout"/>.
     /// </param>
     /// <param name="timeoutToken">The linked, timeout-bearing token that actually bounds the lookup.</param>
-    private static async Task<bool> IsBlockedHostAsync(
+    internal static async Task<bool> IsBlockedHostAsync(
         string host, CancellationToken cancellationToken, CancellationToken timeoutToken)
     {
         // A literal address needs no lookup - and must not get one, since resolving it would be a
