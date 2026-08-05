@@ -523,14 +523,16 @@ public static class WorkbookEditor
     /// rules applied to each cell — this overload applies the identical logic, writing to
     /// <paramref name="outputPath"/> instead of returning an array.
     ///
-    /// Named <c>CreateToFileAsync</c> rather than a <c>CreateAsync</c> overload: <see cref="CreateAsync"/>
-    /// already starts with <c>string sheetName</c>, so a plain overload taking <c>string outputPath</c>
-    /// first would leave two <c>CreateAsync</c> methods whose first argument means different things.
+    /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload: <paramref
+    /// name="sheetName"/> and <paramref name="rows"/> come first, same as <see cref="CreateAsync"/>,
+    /// but the destination is a <c>string</c> path instead of a <c>Stream</c> — the distinct name
+    /// keeps which kind of destination a call writes to visible at the call site, rather than
+    /// resting on the argument type alone.
     /// </summary>
-    /// <param name="outputPath">Where to write the workbook. Overwritten if it exists.</param>
     /// <param name="sheetName">The name of the sheet to create.</param>
     /// <param name="rows">The rows to populate it with.</param>
-    /// <param name="ct">Cancels the build and the write to <paramref name="outputPath"/>.</param>
+    /// <param name="outputPath">Where to write the workbook. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the write to <paramref name="outputPath"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="outputPath"/> or <paramref name="sheetName"/> is blank, or a row is null.
@@ -539,7 +541,7 @@ public static class WorkbookEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be built.</exception>
     public static async Task CreateToFileAsync(
-        string outputPath, string sheetName, IEnumerable<IEnumerable<object?>> rows,
+        string sheetName, IEnumerable<IEnumerable<object?>> rows, string outputPath,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);

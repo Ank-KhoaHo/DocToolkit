@@ -540,11 +540,11 @@ public class WorkbookEditorTests
     {
         using var output = new TempFile();
 
-        await WorkbookEditor.CreateToFileAsync(output.Path, "Sales", new[]
+        await WorkbookEditor.CreateToFileAsync("Sales", new[]
         {
             new object?[] { "Region", "Total" },
             new object?[] { "North", 1200 },
-        });
+        }, output.Path);
 
         Assert.Equal("1200", await WorkbookEditor.ReadCellAsync(output.Path, "Sales", "B2"));
         Assert.Equal(new[] { "Sales" }, await WorkbookEditor.SheetNamesAsync(output.Path));
