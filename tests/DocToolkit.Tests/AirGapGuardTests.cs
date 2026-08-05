@@ -756,14 +756,23 @@ public class AirGapGuardTests
 /// <summary>
 /// Serialises the handful of tests that opt in to remote image downloads.
 ///
-/// HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient and mutates its
-/// headers per request, so two opt-in conversions running at once can corrupt each other. A plain
-/// semaphore is the right tool rather than an xUnit collection: a collection would also reorder
-/// the suite, and at least one neighbouring test measures wall-clock time and is sensitive to
-/// whether the assembly is warm by the time it runs.
+/// This is no longer about HtmlToOpenXml 3.5.0's own process-wide, header-mutating static
+/// HttpClient: both opt-in paths now hand <c>HtmlConverter</c> an explicit
+/// <see cref="GuardedResourceLoader"/> (or <c>OfflineResourceLoader</c> on the default path), so
+/// that DefaultWebRequest - and its shared HttpClient - is never constructed at all; see the
+/// comment in <see cref="HtmlToDocxConverter.BuildPackageAsync"/>. GuardedResourceLoader has its
+/// own static HttpClient, but a benign one: its configuration is fixed at construction and every
+/// request builds its own <c>HttpRequestMessage</c>, so nothing about it is mutated per call.
 ///
-/// Only the opt-in path needs this. The no-network default never touches that HttpClient - which
-/// is one of the reasons it is the default.
+/// The gate remains for a more conservative reason: nothing here has proven that
+/// <c>HtmlConverter.ParseBody</c> itself - the parsing and document-building logic, independent of
+/// the network layer - is safe to run on multiple threads at once. A plain semaphore is the right
+/// tool rather than an xUnit collection: a collection would also reorder the suite, and at least
+/// one neighbouring test measures wall-clock time and is sensitive to whether the assembly is warm
+/// by the time it runs.
+///
+/// Only the opt-in path needs this; the no-network default never constructs an HtmlConverter
+/// pointed at anything but the refusing OfflineResourceLoader.
 /// </summary>
 internal static class RemoteDownloadGate
 {

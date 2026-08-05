@@ -147,6 +147,27 @@ public class HtmlToDocxConverterTests
             "The opt-in flag did not reach HtmlToOpenXml's image processing mode.");
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Known gap: nothing here pins that allowRemoteImageDownload: true still constructs a
+    // GuardedResourceLoader rather than passing null (i.e. behaving like false/Offline).
+    //
+    // The test above necessarily drives its probe through the RemoteImageOptions overload with
+    // AllowPrivateAddresses = true, because GuardedResourceLoader refuses loopback by design and
+    // the bool overload can never set that flag - so it cannot be used to prove the bool path
+    // reaches the network. Checked directly: BuildPackageAsync(html, null, ct) and
+    // BuildPackageAsync(html, new RemoteImageOptions(), ct) produce byte-identical output for an
+    // <img> the fetch cannot reach (confirmed against a blocked loopback address, where both
+    // paths resolve to "image skipped" without any socket involved) - so there is no black-box
+    // signal in the produced document that tells "true mapped to null" and "true mapped to
+    // GuardedResourceLoader, then correctly refused" apart. Proving reachability the way the test
+    // above does would require a real routable address for the bool path too, which is an
+    // external dependency this suite deliberately does not take on elsewhere, and exposing an
+    // internal seam to observe the mapping directly is out of scope for a docs/tests-only pass.
+    // If a future edit ever changed `allowRemoteImageDownload ? new RemoteImageOptions() : null`
+    // in HtmlToDocxConverter/HtmlToPdfConverter to unconditionally pass null, nothing in this
+    // suite would catch it.
+    // ---------------------------------------------------------------------------------------
+
     /// <summary>
     /// A loopback TCP socket standing in for a remote image host. It answers the question "did
     /// anything connect?" and serves a real 1x1 bitmap, so the opt-in path converts cleanly

@@ -79,8 +79,10 @@ public class StreamOverloadTests
     {
         "HtmlToDocxConverter.ConvertAsync",
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
+        "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)",
         "HtmlToPdfConverter.ConvertAsync",
         "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)",
+        "HtmlToPdfConverter.ConvertAsync(RemoteImageOptions)",
         "DocxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
@@ -118,6 +120,7 @@ public class StreamOverloadTests
     {
         "HtmlToDocxConverter.ConvertAsync",
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
+        "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
@@ -534,10 +537,14 @@ public class StreamOverloadTests
                 HtmlToDocxConverter.ConvertAsync(Html, destination!, ct),
             "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)" =>
                 HtmlToDocxConverter.ConvertAsync(Html, false, destination!, ct),
+            "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)" =>
+                HtmlToDocxConverter.ConvertAsync(Html, new RemoteImageOptions(), destination!, ct),
             "HtmlToPdfConverter.ConvertAsync" =>
                 HtmlToPdfConverter.ConvertAsync(Html, destination!, ct),
             "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)" =>
                 HtmlToPdfConverter.ConvertAsync(Html, false, destination!, ct),
+            "HtmlToPdfConverter.ConvertAsync(RemoteImageOptions)" =>
+                HtmlToPdfConverter.ConvertAsync(Html, new RemoteImageOptions(), destination!, ct),
             "DocxToPdfConverter.ConvertAsync" =>
                 DocxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "DocxEditor.ReplaceTextAsync" =>
