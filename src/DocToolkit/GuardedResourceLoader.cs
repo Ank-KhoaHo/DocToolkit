@@ -42,8 +42,9 @@ internal sealed class GuardedResourceLoader : IWebRequest
         string.Equals(protocol, "https", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Loopback, private, link-local and unique-local addresses, including their IPv4-mapped forms.
-    /// <c>169.254.169.254</c> falls out of the link-local check.
+    /// Loopback, private, link-local and unique-local addresses, including their IPv4-mapped forms
+    /// and every IPv6 transition mechanism that carries an IPv4 address inside it. <c>169.254.169.254</c>
+    /// falls out of the link-local check.
     /// </summary>
     internal static bool IsBlockedAddress(IPAddress address)
     {
@@ -59,15 +60,93 @@ internal sealed class GuardedResourceLoader : IWebRequest
                 || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)      // 172.16.0.0/12
                 || (b[0] == 192 && b[1] == 168)                   // 192.168.0.0/16
                 || (b[0] == 169 && b[1] == 254)                   // 169.254.0.0/16 link-local
+                || (b[0] == 100 && b[1] >= 64 && b[1] <= 127)     // 100.64.0.0/10 CGNAT
                 || b[0] == 0                                      // 0.0.0.0/8
                 || b[0] >= 224;                                   // multicast and reserved
         }
 
+        // IsIPv4MappedToIPv6 above only covers ::ffff:0:0/96. NAT64, 6to4 and the older
+        // IPv4-compatible/IPv4-translated forms all carry a real IPv4 address inside an IPv6 one
+        // through a different well-known prefix, and every one of them is a documented bypass for
+        // an address check that only inspects the outer /96: on an IPv6-only host behind
+        // DNS64/NAT64 (AWS IPv6-only subnets, many Kubernetes clusters, mobile carriers), a
+        // hostname resolving to 64:ff9b::a9fe:a9fe reaches 169.254.169.254 unless the embedded
+        // address is extracted and checked in its own right.
+        if (TryGetEmbeddedIPv4(address, out var embedded))
+            return IsBlockedAddress(embedded);
+
         return address.IsIPv6LinkLocal
             || address.IsIPv6SiteLocal
             || address.IsIPv6Multicast
+            || address.Equals(IPAddress.IPv6Any)                 // :: unspecified
             || (address.GetAddressBytes()[0] & 0xFE) == 0xFC;      // fc00::/7 unique-local
     }
+
+    /// <summary>
+    /// Extracts the IPv4 address embedded in <paramref name="address"/> if it uses one of the
+    /// well-known IPv6 transition prefixes, so the caller can classify the real address rather than
+    /// the IPv6 wrapper around it.
+    /// </summary>
+    private static bool TryGetEmbeddedIPv4(IPAddress address, out IPAddress embedded)
+    {
+        var b = address.GetAddressBytes();
+
+        // NAT64 well-known prefix, RFC 6052: 64:ff9b::/96.
+        if (b[0] == 0x00 && b[1] == 0x64 && b[2] == 0xFF && b[3] == 0x9B && IsZero(b, 4, 8))
+        {
+            embedded = ToIPv4(b, 12);
+            return true;
+        }
+
+        // 6to4, RFC 3056: 2002::/16, with the embedded v4 address at bytes 2-5.
+        if (b[0] == 0x20 && b[1] == 0x02)
+        {
+            embedded = ToIPv4(b, 2);
+            return true;
+        }
+
+        // IPv4-translated (SIIT), historically written ::ffff:0:a.b.c.d: the first 8 bytes are
+        // zero, followed by ffff and a zero group, then the embedded address. Distinct from the
+        // IPv4-mapped ::ffff:a.b.c.d form handled by IsIPv4MappedToIPv6 above - that one has no
+        // extra zero group before the address.
+        if (IsZero(b, 0, 8) && b[8] == 0xFF && b[9] == 0xFF && b[10] == 0x00 && b[11] == 0x00)
+        {
+            embedded = ToIPv4(b, 12);
+            return true;
+        }
+
+        // IPv4-compatible, RFC 4291 (deprecated but still parseable): ::/96.
+        if (IsZero(b, 0, 12))
+        {
+            embedded = ToIPv4(b, 12);
+            return true;
+        }
+
+        embedded = IPAddress.Any;
+        return false;
+    }
+
+    private static bool IsZero(byte[] bytes, int offset, int count)
+    {
+        for (var i = offset; i < offset + count; i++)
+        {
+            if (bytes[i] != 0) return false;
+        }
+
+        return true;
+    }
+
+    private static IPAddress ToIPv4(byte[] ipv6Bytes, int offset) =>
+        new(new[] { ipv6Bytes[offset], ipv6Bytes[offset + 1], ipv6Bytes[offset + 2], ipv6Bytes[offset + 3] });
+
+    /// <summary>
+    /// Any blocked address blocks the host: a name with both a public and a private A record must
+    /// not be reachable just because the public one was checked first. Split out as a pure function
+    /// so it can be tested directly with a crafted address list, without needing a DNS response
+    /// that mixes public and private records to exist somewhere.
+    /// </summary>
+    internal static bool IsBlockedAddresses(IReadOnlyList<IPAddress> addresses) =>
+        addresses.Count == 0 || addresses.Any(IsBlockedAddress);
 
     public async Task<Resource?> FetchAsync(Uri requestUri, CancellationToken cancellationToken = default)
     {
@@ -76,15 +155,22 @@ internal sealed class GuardedResourceLoader : IWebRequest
         if (_options.AllowedHosts.Count > 0 && !_options.AllowedHosts.Contains(requestUri.Host))
             return null;
 
-        if (!_options.AllowPrivateAddresses && await IsBlockedHostAsync(requestUri.Host, cancellationToken)
-                .ConfigureAwait(false))
-            return null;
-
+        // Created before the DNS lookup, not after, so Timeout bounds resolution too: an attacker
+        // black-holing their own authoritative nameserver would otherwise stall every fetch for the
+        // OS resolver timeout (5-12 s) regardless of this setting, and HtmlToOpenXml calls
+        // FetchAsync twice per <img>, concurrently, which multiplies the cost.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_options.Timeout);
 
         try
         {
+            if (!_options.AllowPrivateAddresses &&
+                await IsBlockedHostAsync(requestUri.Host, cancellationToken, timeout.Token)
+                    .ConfigureAwait(false))
+            {
+                return null;
+            }
+
             using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
             using var response = await Client
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
@@ -130,7 +216,15 @@ internal sealed class GuardedResourceLoader : IWebRequest
         return buffer.ToArray();
     }
 
-    private static async Task<bool> IsBlockedHostAsync(string host, CancellationToken ct)
+    /// <param name="host">The host to resolve, or a literal address.</param>
+    /// <param name="cancellationToken">
+    /// The caller's own token, unlinked. Used only to tell the caller's cancellation apart from
+    /// <paramref name="timeoutToken"/> firing - never passed to <c>Dns.GetHostAddressesAsync</c>
+    /// directly, since that would leave resolution unbounded by <see cref="RemoteImageOptions.Timeout"/>.
+    /// </param>
+    /// <param name="timeoutToken">The linked, timeout-bearing token that actually bounds the lookup.</param>
+    private static async Task<bool> IsBlockedHostAsync(
+        string host, CancellationToken cancellationToken, CancellationToken timeoutToken)
     {
         // A literal address needs no lookup - and must not get one, since resolving it would be a
         // second chance to be told something different.
@@ -138,14 +232,16 @@ internal sealed class GuardedResourceLoader : IWebRequest
 
         try
         {
-            var addresses = await Dns.GetHostAddressesAsync(host, ct).ConfigureAwait(false);
-            // Any blocked address blocks the host: a name with both a public and a private A record
-            // must not be reachable just because the public one was checked first.
-            return addresses.Length == 0 || addresses.Any(IsBlockedAddress);
+            var addresses = await Dns.GetHostAddressesAsync(host, timeoutToken).ConfigureAwait(false);
+            return IsBlockedAddresses(addresses);
         }
-        catch
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            return true;   // cannot resolve it, cannot vouch for it
+            // Cannot resolve it, cannot vouch for it - whether that is a genuine resolution
+            // failure or Timeout firing during the lookup. Either way this is "skip the image",
+            // not "the caller cancelled": that case does not match this filter, so it propagates
+            // out uncaught instead of being reported as an unresolvable host.
+            return true;
         }
     }
 }
