@@ -530,4 +530,52 @@ public class WorkbookEditorTests
 
         Assert.Equal(expected, actual);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // File-path overloads
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task CreateToFileAsync_WritesAWorkbookTheOtherOverloadsCanRead()
+    {
+        using var output = new TempFile();
+
+        await WorkbookEditor.CreateToFileAsync(output.Path, "Sales", new[]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "North", 1200 },
+        });
+
+        Assert.Equal("1200", await WorkbookEditor.ReadCellAsync(output.Path, "Sales", "B2"));
+        Assert.Equal(new[] { "Sales" }, await WorkbookEditor.SheetNamesAsync(output.Path));
+    }
+
+    [Fact]
+    public async Task SetCellAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = SampleWorkbook();
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        await WorkbookEditor.SetCellAsync(input.Path, output.Path, "Sales", "B2", 1500);
+
+        Assert.Equal(
+            WorkbookEditor.ReadCell(WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500), "Sales", "B2"),
+            await WorkbookEditor.ReadCellAsync(output.Path, "Sales", "B2"));
+    }
+
+    [Fact]
+    public async Task ReadSheetAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = SampleWorkbook();
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(xlsx, "Sales"),
+            await WorkbookEditor.ReadSheetAsync(input.Path, "Sales"));
+    }
 }

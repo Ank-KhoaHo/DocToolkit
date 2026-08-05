@@ -516,4 +516,143 @@ public static class WorkbookEditor
             default: cell.Value = Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty; break;
         }
     }
+
+    /// <summary>
+    /// Builds a workbook with one sheet populated from <paramref name="rows"/> and writes it to
+    /// <paramref name="outputPath"/>. See <see cref="Create"/> for the exact typing and culture
+    /// rules applied to each cell — this overload applies the identical logic, writing to
+    /// <paramref name="outputPath"/> instead of returning an array.
+    ///
+    /// Named <c>CreateToFileAsync</c> rather than a <c>CreateAsync</c> overload: <see cref="CreateAsync"/>
+    /// already starts with <c>string sheetName</c>, so a plain overload taking <c>string outputPath</c>
+    /// first would leave two <c>CreateAsync</c> methods whose first argument means different things.
+    /// </summary>
+    /// <param name="outputPath">Where to write the workbook. Overwritten if it exists.</param>
+    /// <param name="sheetName">The name of the sheet to create.</param>
+    /// <param name="rows">The rows to populate it with.</param>
+    /// <param name="ct">Cancels the build and the write to <paramref name="outputPath"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="outputPath"/> or <paramref name="sheetName"/> is blank, or a row is null.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be built.</exception>
+    public static async Task CreateToFileAsync(
+        string outputPath, string sheetName, IEnumerable<IEnumerable<object?>> rows,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = Create(sheetName, rows);
+        await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="inputPath"/>, sets one cell, and writes the result to
+    /// <paramref name="outputPath"/>. <paramref name="cellRef"/> is an A1-style reference. The two
+    /// paths may be the same file: the input is read completely before the output is written, so
+    /// editing in place is safe, and a workbook that fails to process leaves whatever was at
+    /// <paramref name="outputPath"/> untouched.
+    /// </summary>
+    /// <param name="inputPath">The workbook to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="sheetName">The sheet containing the cell.</param>
+    /// <param name="cellRef">An A1-style cell reference, e.g. <c>"B2"</c>.</param>
+    /// <param name="value">The value to write. <c>null</c> clears the cell.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or a name is null.</exception>
+    /// <exception cref="ArgumentException">A path or a name is blank.</exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    public static async Task SetCellAsync(
+        string inputPath, string outputPath, string sheetName, string cellRef, object? value,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var result = SetCell(bytes, sheetName, cellRef, value);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="path"/> and returns a cell as a string.
+    /// <paramref name="cellRef"/> is an A1-style reference. See <see cref="ReadCell"/> for the
+    /// culture rule applied to the text.
+    /// </summary>
+    /// <param name="path">The workbook to read.</param>
+    /// <param name="sheetName">The sheet containing the cell.</param>
+    /// <param name="cellRef">An A1-style cell reference, e.g. <c>"B2"</c>.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>The cell's value as a string.</returns>
+    /// <exception cref="ArgumentNullException">A name is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="path"/> or a name is blank.</exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    public static async Task<string> ReadCellAsync(
+        string path, string sheetName, string cellRef, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        return ReadCell(bytes, sheetName, cellRef);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="path"/> and lists every sheet in tab order, including
+    /// hidden sheets. See <see cref="SheetNames"/> for the full rule.
+    /// </summary>
+    /// <param name="path">The workbook to read.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>The sheet names, in tab order.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="path"/> is blank.</exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be opened.</exception>
+    public static async Task<IReadOnlyList<string>> SheetNamesAsync(
+        string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        return SheetNames(bytes);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="path"/> and returns a whole sheet as strings. See
+    /// <see cref="ReadSheet"/> for the anchoring, padding, culture and formula rules — this
+    /// overload applies the identical logic.
+    /// </summary>
+    /// <param name="path">The workbook to read.</param>
+    /// <param name="sheetName">The sheet to read.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>
+    /// The sheet's used range, anchored at A1 and padded rectangular. Empty only if the sheet
+    /// holds no values and no cell comments — see <see cref="ReadSheet"/>.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="sheetName"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="path"/> or <paramref name="sheetName"/> is blank.</exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the sheet's used range
+    /// exceeds the 2,000,000-cell limit <see cref="ReadSheet"/> will materialise.
+    /// </exception>
+    public static async Task<IReadOnlyList<IReadOnlyList<string>>> ReadSheetAsync(
+        string path, string sheetName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        return ReadSheet(bytes, sheetName);
+    }
 }
