@@ -40,13 +40,6 @@ public class AirGapGuardTests
     public AirGapGuardTests(ITestOutputHelper output) => _output = output;
 
     /// <summary>
-    /// How long to keep listening after a conversion returns before declaring "nothing connected".
-    /// The conversion has already finished, so this only has to cover handing an accepted socket
-    /// over to the accept loop — but a fetch fired and abandoned late would still be caught.
-    /// </summary>
-    private static readonly TimeSpan SettleWindow = TimeSpan.FromMilliseconds(750);
-
-    /// <summary>
     /// TEST-NET-3 (RFC 5737). Reserved for documentation and guaranteed not to be routed, so a
     /// connection attempt to it stalls on SYN retransmits exactly the way an air-gapped machine
     /// stalls. That is the shape of the failure being guarded against: not a fast refusal, a hang.

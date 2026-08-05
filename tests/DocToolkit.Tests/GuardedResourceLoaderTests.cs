@@ -46,6 +46,13 @@ public class GuardedResourceLoaderTests
     [InlineData("2002:a00:5::")]         // 6to4 carrying 10.0.0.5
     [InlineData("::10.0.0.5")]           // IPv4-compatible carrying 10.0.0.5
     [InlineData("::ffff:0:10.0.0.5")]    // IPv4-translated carrying 10.0.0.5
+    // RFC 8215's local-use NAT64 prefix (64:ff9b:1::/48) and Teredo (2001::/32, RFC 4380) are two
+    // more IPv6 transition mechanisms that carry a real IPv4 address, missed until now. An
+    // IPv6-only host whose NAT64 deployment uses the local-use prefix instead of the well-known
+    // 64:ff9b::/96 one, or a Windows host with Teredo enabled, is reachable through either of
+    // these unless the embedded address is unwrapped the same way as the others above.
+    [InlineData("64:ff9b:1:a9fe:a9:fe00::")]   // RFC 8215 local-use NAT64 carrying 169.254.169.254
+    [InlineData("2001::5601:5601")]            // Teredo carrying 169.254.169.254, obfuscated
     public void IsBlockedAddress_RefusesEveryPrivateForm(string address)
     {
         Assert.True(GuardedResourceLoader.IsBlockedAddress(IPAddress.Parse(address)));
@@ -64,6 +71,17 @@ public class GuardedResourceLoaderTests
     [InlineData("223.255.255.255")]   // just below the multicast/reserved b[0] >= 224 cutoff
     [InlineData("100.63.255.255")]    // just below CGNAT 100.64.0.0/10
     [InlineData("100.128.0.0")]       // just above CGNAT 100.64.0.0/10
+    [InlineData("9.255.255.255")]     // just below RFC1918 10.0.0.0/8
+    [InlineData("169.253.0.1")]       // just below link-local 169.254.0.0/16
+    [InlineData("169.255.0.1")]       // just above link-local 169.254.0.0/16
+    // Boundary data for the embedded-IPv4 extraction itself: each of these carries a *public*
+    // address inside an IPv6 transition prefix. Without them, collapsing TryGetEmbeddedIPv4's
+    // per-prefix extraction into "block all of 2002::/16" or "block all of ::/96" - discarding the
+    // embedded address and blocking the whole prefix instead - leaves every theory above green,
+    // because none of them assert that a *public* embedded address is let through.
+    [InlineData("2002:5db8:d822::")]         // 6to4 carrying the public 93.184.216.34
+    [InlineData("64:ff9b::5db8:d822")]       // NAT64 carrying the public 93.184.216.34
+    [InlineData("::93.184.216.34")]          // IPv4-compatible carrying the public 93.184.216.34
     public void IsBlockedAddress_AllowsPublicAddresses(string address)
     {
         Assert.False(GuardedResourceLoader.IsBlockedAddress(IPAddress.Parse(address)));
@@ -136,6 +154,18 @@ public class GuardedResourceLoaderTests
     // six invariants the reviewer hand-verified, against a real loopback socket rather than a
     // mock, reusing AirGapGuardTests' LoopbackProbe with a custom responder rather than a second
     // raw-socket HTTP server.
+    //
+    // One property is deliberately NOT pinned here: that DNS resolution itself happens inside
+    // Timeout (the linked token is created and CancelAfter'd before IsBlockedHostAsync is called,
+    // specifically so a black-holed nameserver cannot stall past Timeout - see FetchAsync's own
+    // comment). Proving that against a loopback fixture would need a fake DNS resolver that can be
+    // told to hang for longer than Timeout, and this loader calls the real System.Net.Dns
+    // statically with no seam to substitute one - there is no way to control real resolution
+    // latency deterministically from a test, and a "real slow resolver" test would be exactly the
+    // flaky, environment-dependent kind of test this file exists to avoid (see the finding fixed
+    // above about FetchAsync_UnresolvableHost_IsBlocked). This is a structural gap, left
+    // documented rather than faked: if DNS resolution is ever moved outside the linked token, the
+    // suite stays green.
     // =========================================================================================
 
     [Fact]
@@ -241,17 +271,28 @@ public class GuardedResourceLoaderTests
     }
 
     [Fact]
-    public async Task FetchAsync_UnresolvableHost_IsBlocked()
+    public async Task IsBlockedHostAsync_UnresolvableHost_ReturnsTrue()
     {
+        // Asserted directly against IsBlockedHostAsync, not through FetchAsync. The previous
+        // version of this test called FetchAsync and asserted only Assert.Null(result) - which is
+        // satisfied identically by "blocked before connecting" and by "resolution returned
+        // something, SendAsync then failed for an unrelated reason, and FetchAsync's outer catch
+        // returned null anyway". Measured: flipping IsBlockedHostAsync's catch from fail-closed
+        // (return true) to fail-open (return false) and rebuilding left all 51 tests in the suite
+        // passing, including this one - the invariant was invisible end-to-end. Asserting the
+        // return value of IsBlockedHostAsync itself closes that gap, and as a side effect this
+        // test can never make a genuine outbound HTTP request: the function under test only
+        // resolves DNS, it never opens a socket to whatever address comes back.
+        //
         // ".invalid" is reserved by RFC 2606 specifically to never resolve.
-        var loader = new GuardedResourceLoader(
-            new RemoteImageOptions { Timeout = TimeSpan.FromSeconds(5) });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         var stopwatch = Stopwatch.StartNew();
-        var result = await loader.FetchAsync(new Uri("http://definitely-does-not-exist.invalid/x.png"));
+        var result = await GuardedResourceLoader.IsBlockedHostAsync(
+            "definitely-does-not-exist.invalid", CancellationToken.None, timeout.Token);
         stopwatch.Stop();
 
-        Assert.Null(result);
+        Assert.True(result);
         _output.WriteLine($"Gave up on an unresolvable host in {stopwatch.Elapsed.TotalSeconds:0.00} s.");
     }
 
