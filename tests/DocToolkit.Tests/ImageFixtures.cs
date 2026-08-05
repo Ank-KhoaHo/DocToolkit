@@ -65,6 +65,34 @@ internal static class ImageFixtures
     public static byte[] Gif() =>
         new byte[] { 0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00 };
 
+    /// <summary>
+    /// A 1x1 24-bit BMP built by hand: 14-byte file header, 40-byte BITMAPINFOHEADER, one padded
+    /// pixel. BMP rather than PNG so no compressor is involved. Used by <c>LoopbackProbe</c> and by
+    /// data-URI fixtures that need something a real image decoder would accept.
+    /// </summary>
+    public static byte[] Bmp()
+    {
+        var bmp = new byte[58];
+        var w = new BinaryWriter(new MemoryStream(bmp));
+        w.Write((byte)'B'); w.Write((byte)'M');
+        w.Write(58);            // file size
+        w.Write(0);             // reserved
+        w.Write(54);            // pixel data offset
+        w.Write(40);            // BITMAPINFOHEADER size
+        w.Write(1);             // width
+        w.Write(1);             // height
+        w.Write((short)1);      // planes
+        w.Write((short)24);     // bits per pixel
+        w.Write(0);             // BI_RGB, uncompressed
+        w.Write(4);             // image byte size
+        w.Write(2835);          // horizontal pixels per metre
+        w.Write(2835);          // vertical pixels per metre
+        w.Write(0);             // palette colours used
+        w.Write(0);             // important colours
+        w.Write(new byte[] { 0x00, 0x00, 0xFF, 0x00 }); // one red pixel + row padding
+        return bmp;
+    }
+
     private static void WriteChunk(Stream target, string type, byte[] data)
     {
         var length = new byte[4];
