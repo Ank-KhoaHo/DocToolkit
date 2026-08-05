@@ -578,4 +578,23 @@ public class WorkbookEditorTests
             WorkbookEditor.ReadSheet(xlsx, "Sales"),
             await WorkbookEditor.ReadSheetAsync(input.Path, "Sales"));
     }
+
+    /// <summary>
+    /// Exercised directly rather than only transitively through
+    /// <see cref="CreateToFileAsync_WritesAWorkbookTheOtherOverloadsCanRead"/>, so a bug here cannot
+    /// be mis-attributed to <c>CreateToFileAsync</c>, and two compensating bugs cannot mask each
+    /// other.
+    /// </summary>
+    [Fact]
+    public async Task SheetNamesAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = ThreeSheetWorkbook();
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        Assert.Equal(
+            WorkbookEditor.SheetNames(xlsx),
+            await WorkbookEditor.SheetNamesAsync(input.Path));
+    }
 }

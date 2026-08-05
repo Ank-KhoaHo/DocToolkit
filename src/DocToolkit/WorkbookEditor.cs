@@ -535,7 +535,7 @@ public static class WorkbookEditor
     /// <exception cref="ArgumentException">
     /// <paramref name="outputPath"/> or <paramref name="sheetName"/> is blank, or a row is null.
     /// </exception>
-    /// <exception cref="FileNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be built.</exception>
     public static async Task CreateToFileAsync(
