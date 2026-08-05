@@ -45,7 +45,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ank.DocToolkit" Version="[0.2.0, )" />
+    <PackageReference Include="Ank.DocToolkit" Version="[0.7.0, )" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="[8.0.0, )" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="[8.0.0, )" />
   </ItemGroup>

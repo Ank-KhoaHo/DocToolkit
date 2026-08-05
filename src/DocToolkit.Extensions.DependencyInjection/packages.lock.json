@@ -4,15 +4,15 @@
     "net10.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.2.0, )",
-        "resolved": "0.2.0",
-        "contentHash": "82UXjCJR4xYtaDsDGbPZ3/AFLb0f9L0aPG5kbJNrX2YUbceHXRJuI3NDdQHXqikZ4EnLiS1P/kmnAkXaIOfmcw==",
+        "requested": "[0.7.0, )",
+        "resolved": "0.7.0",
+        "contentHash": "Ex/YMDwof5Hpzmsq3dELLxjrxHnOAUleEWcN2cVg5wt+24iLSgIgAfXFAoskK7pRudDHEoW/aBvx6L4mo2IsyA==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
           "HtmlToOpenXml.dll": "3.5.0",
           "OfficeIMO.Word.Pdf": "3.0.3",
-          "SixLabors.Fonts": "[1.0.0]"
+          "SixLabors.Fonts": "[1.0.1]"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
@@ -147,8 +147,8 @@
       },
       "SixLabors.Fonts": {
         "type": "Transitive",
-        "resolved": "1.0.0",
-        "contentHash": "LFQsCZlV0xlUyXAOMUo5kkSl+8zAQXXbbdwWchtk0B4o7zotZhQsQOcJUELGHdfPfm/xDAsz6hONAuV25bJaAg=="
+        "resolved": "1.0.1",
+        "contentHash": "ljezRHWc7N0azdQViib7Aa5v+DagRVkKI2/93kEbtjVczLs+yTkSq6gtGmvOcx4IqyNbO3GjLt7SAQTpLkySNw=="
       },
       "System.IO.Packaging": {
         "type": "Transitive",
@@ -159,15 +159,15 @@
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.2.0, )",
-        "resolved": "0.2.0",
-        "contentHash": "82UXjCJR4xYtaDsDGbPZ3/AFLb0f9L0aPG5kbJNrX2YUbceHXRJuI3NDdQHXqikZ4EnLiS1P/kmnAkXaIOfmcw==",
+        "requested": "[0.7.0, )",
+        "resolved": "0.7.0",
+        "contentHash": "Ex/YMDwof5Hpzmsq3dELLxjrxHnOAUleEWcN2cVg5wt+24iLSgIgAfXFAoskK7pRudDHEoW/aBvx6L4mo2IsyA==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
           "HtmlToOpenXml.dll": "3.5.0",
           "OfficeIMO.Word.Pdf": "3.0.3",
-          "SixLabors.Fonts": "[1.0.0]"
+          "SixLabors.Fonts": "[1.0.1]"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
@@ -302,8 +302,8 @@
       },
       "SixLabors.Fonts": {
         "type": "Transitive",
-        "resolved": "1.0.0",
-        "contentHash": "LFQsCZlV0xlUyXAOMUo5kkSl+8zAQXXbbdwWchtk0B4o7zotZhQsQOcJUELGHdfPfm/xDAsz6hONAuV25bJaAg=="
+        "resolved": "1.0.1",
+        "contentHash": "ljezRHWc7N0azdQViib7Aa5v+DagRVkKI2/93kEbtjVczLs+yTkSq6gtGmvOcx4IqyNbO3GjLt7SAQTpLkySNw=="
       },
       "System.IO.Packaging": {
         "type": "Transitive",
