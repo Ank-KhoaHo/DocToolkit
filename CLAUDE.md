@@ -337,6 +337,32 @@ or updates the Release PR**, including `chore:` and `test:`, which are hidden fr
 a Release PR can propose a version whose changelog entry is a bare heading with no visible body.
 **Read the diff before merging** — an empty-looking entry means let more accumulate, not ship it.
 
+### What reaches the public changelog, and what does not
+
+`changelog-sections` shows only what a **consumer of the NuGet package** could act on: `feat:`,
+`fix:`, `perf:`, `revert:` and `build:` (which can change target frameworks or packaging).
+`docs:`, `ci:`, `refactor:`, `style:`, `chore:` and `test:` are `hidden: true`.
+
+That was not always so. v0.7.0 shipped a changelog of eighteen entries, sixteen of them
+documentation — "design for splitting the samples per capability", "record the missing NuGet
+package icon as D11" — repository bookkeeping presented to consumers as release notes. A published
+changelog cannot be rewritten, so those entries are permanent. Hiding a type does **not** stop it
+proposing a release (see above); it only keeps it out of the notes.
+
+**Expect entries to appear twice, and know why.** `merge_commit_message` is `PR_TITLE`, so GitHub
+copies the pull request's title into the merge commit's *body* — and release-please parses merge
+commits, body included. A PR titled `feat(core): x` whose branch also holds a commit `feat(core): x`
+therefore yields two identical changelog lines. GitHub permits only three title/message
+combinations (`PR_TITLE`+`PR_BODY`, `PR_TITLE`+`BLANK`, `MERGE_MESSAGE`+`PR_TITLE`), and the one
+that blanks the body puts the PR title in the merge commit's *subject* instead — still parsed, still
+duplicated. Squash-merging would fix it and is deliberately disabled, because true merges are what
+preserve every commit subject for the bump calculation.
+
+So the only free workaround is to **title pull requests without a Conventional Commit prefix** when
+the branch's own commits already carry one. `commit-format` does not check PR titles, so nothing
+breaks. Verified 2026-08-05 against `b5dfdff`, a merge commit whose body was
+`feat(core): ship a package icon on both packages` and which duly produced a second Added line.
+
 A manual `git tag v1.2.3 && git push origin v1.2.3` still works as a fallback — `release.yml` only
 cares that a `v*` tag arrived, not how. The **tag is the authoritative version**; the csproj
 `<Version>` in each project is only a local dev default, so do not expect them to match. There is
