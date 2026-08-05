@@ -29,13 +29,25 @@ public static class HtmlToDocxConverter
     /// Converts <paramref name="html"/> to the bytes of a .docx package, optionally downloading
     /// and embedding images referenced by absolute <c>http</c>/<c>https</c> URLs.
     ///
-    /// <b>Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> will fail in an
-    /// air-gapped or otherwise offline environment.</b> It makes this method issue outbound HTTP
-    /// requests to whatever hosts the markup names, on the calling thread's time budget, and a
-    /// host that does not serve the image fails the whole conversion - on a machine with no route
-    /// to the internet that failure arrives only after the OS connect timeout, once per image.
-    /// This is the only API on DocToolkit that opens a network connection; everything else,
-    /// including <paramref name="allowRemoteImageDownload"/> left <c>false</c>, is offline.
+    /// <b>Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> routes fetches
+    /// through a <see cref="RemoteImageOptions"/> with every default left in place.</b> Loopback,
+    /// private and link-local hosts - including <c>169.254.169.254</c>, the cloud metadata
+    /// endpoint - are refused, and every fetch is capped at 10 seconds and 5 MB. <b>A host that
+    /// cannot be reached, refuses the connection, or does not serve the image is skipped: that
+    /// image is left out of the result, and the conversion still succeeds</b>, at a cost of up to
+    /// 10 seconds for each image it cannot reach. That includes an air-gapped or otherwise offline
+    /// environment - the conversion completes, just with every remote image silently absent, one
+    /// 10-second wait at a time. This is the only API on DocToolkit that opens a network
+    /// connection; everything else, including <paramref name="allowRemoteImageDownload"/> left
+    /// <c>false</c>, is offline.
+    ///
+    /// This overload can never reach a private or internal host - an intranet image server, for
+    /// example - because a <c>bool</c> has no way to carry
+    /// <see cref="RemoteImageOptions.AllowPrivateAddresses"/>. A caller that needs one must use
+    /// <see cref="ConvertAsync(string, RemoteImageOptions, CancellationToken)"/> with
+    /// <see cref="RemoteImageOptions.AllowPrivateAddresses"/> set <c>true</c>; otherwise a consumer
+    /// converting intranet-hosted markup with <paramref name="allowRemoteImageDownload"/>
+    /// <c>true</c> gets a document with that image quietly missing, not an exception explaining why.
     ///
     /// Only pass <c>true</c> for markup you trust, and prefer to bound it with
     /// <paramref name="ct"/>.
@@ -62,13 +74,17 @@ public static class HtmlToDocxConverter
     /// images referenced by absolute <c>http</c>/<c>https</c> URLs, bounded by
     /// <paramref name="options"/>.
     ///
-    /// <b>This still fails in an air-gapped or otherwise offline environment</b> - the fetches
-    /// <paramref name="options"/> bounds still have to leave the machine. What <paramref
-    /// name="options"/> adds over <see cref="ConvertAsync(string, bool, CancellationToken)"/> is a
-    /// per-fetch timeout, a byte cap, an optional host allow-list and a block on loopback/private/
-    /// link-local addresses (so a hostile document cannot use this opt-in to reach
-    /// <c>169.254.169.254</c> or an internal service) - all active by default, so
-    /// <c>new RemoteImageOptions()</c> already narrows the unbounded form considerably. It is still
+    /// <b>This still succeeds in an air-gapped or otherwise offline environment.</b> A fetch that
+    /// cannot leave the machine is caught the same way as a host that refuses to serve the image:
+    /// that image is skipped, never the whole conversion. What <paramref name="options"/> adds
+    /// over <see cref="ConvertAsync(string, bool, CancellationToken)"/> is a per-fetch timeout, a
+    /// byte cap, an optional host allow-list and a block on loopback/private/link-local addresses
+    /// (so a hostile document cannot use this opt-in to reach <c>169.254.169.254</c> or an internal
+    /// service, unless <paramref name="options"/> sets
+    /// <see cref="RemoteImageOptions.AllowPrivateAddresses"/>) - all active by default, so
+    /// <c>new RemoteImageOptions()</c> already narrows the unbounded form considerably. Offline,
+    /// that means every remote image is silently missing from the result, at a cost of up to
+    /// <see cref="RemoteImageOptions.Timeout"/> per image - not a failed conversion. This is still
     /// not a complete SSRF defence; see <see cref="RemoteImageOptions"/>.
     /// </summary>
     /// <param name="html">The markup to convert.</param>
@@ -126,9 +142,10 @@ public static class HtmlToDocxConverter
     /// <b>not</b> disposed, closed or sought - it belongs to the caller, and may be write-only and
     /// forward-only, such as an HTTP response body.
     ///
-    /// <b>Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> will fail in an
-    /// air-gapped or otherwise offline environment</b>; see
-    /// <see cref="ConvertAsync(string, bool, CancellationToken)"/> for what that costs.
+    /// Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> still succeeds in an
+    /// air-gapped or otherwise offline environment; see
+    /// <see cref="ConvertAsync(string, bool, CancellationToken)"/> for what it does and does not
+    /// reach, including why it can never reach a private or internal host.
     /// </summary>
     /// <param name="html">The markup to convert.</param>
     /// <param name="allowRemoteImageDownload">Whether to fetch images named by absolute URLs.</param>
@@ -161,7 +178,8 @@ public static class HtmlToDocxConverter
     /// <b>not</b> disposed, closed or sought - it belongs to the caller, and may be write-only and
     /// forward-only, such as an HTTP response body.
     ///
-    /// <b>This still fails in an air-gapped or otherwise offline environment</b>; see
+    /// <b>This still succeeds in an air-gapped or otherwise offline environment</b>: an
+    /// unreachable host is skipped, not fatal; see
     /// <see cref="ConvertAsync(string, RemoteImageOptions, CancellationToken)"/> for what
     /// <paramref name="options"/> does and does not bound.
     /// </summary>

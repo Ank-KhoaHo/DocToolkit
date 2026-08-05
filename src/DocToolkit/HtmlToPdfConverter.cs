@@ -26,11 +26,12 @@ public static class HtmlToPdfConverter
     /// Converts <paramref name="html"/> straight to PDF bytes, optionally downloading and
     /// embedding images referenced by absolute <c>http</c>/<c>https</c> URLs.
     ///
-    /// <b>Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> will fail in an
-    /// air-gapped or otherwise offline environment</b>, because the HTML stage then issues
-    /// outbound HTTP requests to whatever hosts the markup names and a host that does not answer
-    /// fails the whole conversion. See
-    /// <see cref="HtmlToDocxConverter.ConvertAsync(string, bool, CancellationToken)"/>.
+    /// Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> still succeeds in an
+    /// air-gapped or otherwise offline environment: the HTML stage refuses loopback, private and
+    /// link-local hosts and caps every fetch at 10 seconds and 5 MB, and a host that cannot be
+    /// reached simply leaves that image out of the result rather than failing the conversion. See
+    /// <see cref="HtmlToDocxConverter.ConvertAsync(string, bool, CancellationToken)"/> for what
+    /// this does and does not reach, including why it can never reach a private or internal host.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="html"/> is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
@@ -48,7 +49,8 @@ public static class HtmlToPdfConverter
     /// Converts <paramref name="html"/> straight to PDF bytes, downloading and embedding images
     /// referenced by absolute <c>http</c>/<c>https</c> URLs, bounded by <paramref name="options"/>.
     ///
-    /// <b>This still fails in an air-gapped or otherwise offline environment</b>; see
+    /// <b>This still succeeds in an air-gapped or otherwise offline environment</b>: an
+    /// unreachable host is skipped, not fatal; see
     /// <see cref="HtmlToDocxConverter.ConvertAsync(string, RemoteImageOptions, CancellationToken)"/>
     /// for what <paramref name="options"/> does and does not bound. This method only composes that
     /// HTML stage with the DOCX-to-PDF render stage - the fetch itself happens there.
@@ -109,9 +111,10 @@ public static class HtmlToPdfConverter
     /// renderer produces it, so a failure part-way leaves whatever had already been produced on
     /// <paramref name="destination"/>.
     ///
-    /// <b>Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> will fail in an
-    /// air-gapped or otherwise offline environment</b>; see
-    /// <see cref="HtmlToDocxConverter.ConvertAsync(string, bool, CancellationToken)"/>.
+    /// Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> still succeeds in an
+    /// air-gapped or otherwise offline environment; see
+    /// <see cref="HtmlToDocxConverter.ConvertAsync(string, bool, CancellationToken)"/> for what
+    /// this does and does not reach, including why it can never reach a private or internal host.
     /// </summary>
     /// <param name="html">The markup to convert.</param>
     /// <param name="allowRemoteImageDownload">Whether to fetch images named by absolute URLs.</param>
@@ -151,7 +154,8 @@ public static class HtmlToPdfConverter
     /// renderer produces it, so a failure part-way leaves whatever had already been produced on
     /// <paramref name="destination"/>.
     ///
-    /// <b>This still fails in an air-gapped or otherwise offline environment</b>; see
+    /// <b>This still succeeds in an air-gapped or otherwise offline environment</b>: an
+    /// unreachable host is skipped, not fatal; see
     /// <see cref="HtmlToDocxConverter.ConvertAsync(string, RemoteImageOptions, CancellationToken)"/>
     /// for what <paramref name="options"/> does and does not bound. This is still a composition of
     /// the other two converters, not a third conversion: the HTML stage builds the package, bounded
