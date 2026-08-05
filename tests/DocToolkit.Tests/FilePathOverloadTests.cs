@@ -88,4 +88,38 @@ public class FilePathOverloadTests
 
         Assert.False(File.Exists(output.Path), "a cancelled call wrote an output file");
     }
+
+    /// <summary>
+    /// A zero-byte input file (an interrupted download, a pre-created placeholder) is not a blank
+    /// path, so it does not fail the path validation the docs lead with — it reaches the byte[]
+    /// overload's own empty-content check instead, and surfaces that overload's
+    /// <see cref="ArgumentException.ParamName"/> ("docx"), not the file-path parameter the caller
+    /// actually passed. This is documented behaviour, not a bug, so it is pinned here rather than
+    /// left to be "fixed" into a different exception later.
+    /// </summary>
+    [Fact]
+    public async Task AZeroByteInputFile_ThrowsArgumentException_OnAReadOverload()
+    {
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, Array.Empty<byte>());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => DocxEditor.ExtractTextAsync(input.Path));
+
+        Assert.Equal("docx", ex.ParamName);
+    }
+
+    /// <summary>Same pin as above, for a transform rather than a pure read.</summary>
+    [Fact]
+    public async Task AZeroByteInputFile_ThrowsArgumentException_OnATransform()
+    {
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, Array.Empty<byte>());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => DocxEditor.ReplaceTextAsync(input.Path, output.Path, Replacements()));
+
+        Assert.Equal("docx", ex.ParamName);
+    }
 }

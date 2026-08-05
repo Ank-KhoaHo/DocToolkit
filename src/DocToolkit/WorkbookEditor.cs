@@ -533,7 +533,9 @@ public static class WorkbookEditor
     /// <param name="rows">The rows to populate it with.</param>
     /// <param name="outputPath">Where to write the workbook. Overwritten if it exists.</param>
     /// <param name="ct">Cancels the write to <paramref name="outputPath"/>.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="outputPath"/>, <paramref name="sheetName"/> or <paramref name="rows"/> is null.
+    /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="outputPath"/> or <paramref name="sheetName"/> is blank, or a row is null.
     /// </exception>
@@ -553,19 +555,27 @@ public static class WorkbookEditor
     /// <summary>
     /// Reads a workbook from <paramref name="inputPath"/>, sets one cell, and writes the result to
     /// <paramref name="outputPath"/>. <paramref name="cellRef"/> is an A1-style reference. The two
-    /// paths may be the same file: the input is read completely before the output is written, so
-    /// editing in place is safe, and a workbook that fails to process leaves whatever was at
-    /// <paramref name="outputPath"/> untouched.
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened, so a workbook that fails to process — cannot be
+    /// read, or cannot be edited — leaves <paramref name="outputPath"/> untouched. That guarantee
+    /// does not extend to a failure during the write itself: a full disk, a cancellation, or the
+    /// process dying mid-write can still leave a partial file, so in-place editing of an
+    /// irreplaceable workbook is not crash-safe.
     /// </summary>
     /// <param name="inputPath">The workbook to read.</param>
     /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
     /// <param name="sheetName">The sheet containing the cell.</param>
     /// <param name="cellRef">An A1-style cell reference, e.g. <c>"B2"</c>.</param>
     /// <param name="value">The value to write. <c>null</c> clears the cell.</param>
-    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
     /// <exception cref="ArgumentNullException">A path or a name is null.</exception>
-    /// <exception cref="ArgumentException">A path or a name is blank.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path or a name is blank, or the file at <paramref name="inputPath"/> is empty.
+    /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
@@ -592,9 +602,12 @@ public static class WorkbookEditor
     /// <param name="cellRef">An A1-style cell reference, e.g. <c>"B2"</c>.</param>
     /// <param name="ct">Cancels the read.</param>
     /// <returns>The cell's value as a string.</returns>
-    /// <exception cref="ArgumentNullException">A name is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="path"/> or a name is blank.</exception>
+    /// <exception cref="ArgumentNullException">A path or a name is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> or a name is blank, or the file it names is empty.
+    /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
@@ -616,8 +629,11 @@ public static class WorkbookEditor
     /// <param name="ct">Cancels the read.</param>
     /// <returns>The sheet names, in tab order.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="path"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="path"/> is blank.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank, or the file it names is empty.
+    /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be opened.</exception>
     public static async Task<IReadOnlyList<string>> SheetNamesAsync(
@@ -641,9 +657,13 @@ public static class WorkbookEditor
     /// The sheet's used range, anchored at A1 and padded rectangular. Empty only if the sheet
     /// holds no values and no cell comments — see <see cref="ReadSheet"/>.
     /// </returns>
-    /// <exception cref="ArgumentNullException"><paramref name="sheetName"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="path"/> or <paramref name="sheetName"/> is blank.</exception>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="sheetName"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> or <paramref name="sheetName"/> is blank, or the file at
+    /// <paramref name="path"/> is empty.
+    /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The workbook could not be opened, the sheet does not exist, or the sheet's used range
