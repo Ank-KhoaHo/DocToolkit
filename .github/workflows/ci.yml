@@ -103,7 +103,7 @@ jobs:
       # Runs before Build because Build's implicit restore would otherwise
       # re-resolve first. Restores the two packable projects individually rather
       # than the solution: tests/ and samples/ deliberately carry no lockfile
-      # (see docs/2026-08-03-dependency-automation-design.md), and a
+      # (lockfiles are committed for the two packable projects only), and a
       # solution-wide --locked-mode would be ambiguous about them.
       - name: Assert the resolved graph matches the committed lockfiles
         run: |
@@ -216,7 +216,7 @@ jobs:
               continue
             fi
             if ! [[ "$subject" =~ $regex ]]; then
-              echo "::error::Commit $sha does not match Conventional Commits format (type(scope)?: description): \"$subject\". Amend it, or rebase to drop it - see CLAUDE.md > Releasing."
+              echo "::error::Commit $sha does not match Conventional Commits format (type(scope)?: description): \"$subject\". Amend it, or rebase to drop it. Use feat: for a new capability, fix: for a bug fix, docs:/ci:/test:/chore: otherwise - the type decides the version bump and the changelog section."
               bad=1
             fi
           done < <(git log --format='%H %s' "$base..$head")

@@ -24,3 +24,12 @@ docfx/api/
 
 # ─── Local git worktrees ───────────────────────────────────────────────
 .worktrees/
+
+# Kept local, never published. These are working material for whoever is developing
+# this package - design docs, the original proof-of-concept spike, and the assistant
+# guidance file - not something a consumer of the NuGet package needs. They still
+# exist on a maintainer's disk; they simply stop being pushed. Git history retains
+# every version committed before this point.
+docs/
+spike/
+CLAUDE.md

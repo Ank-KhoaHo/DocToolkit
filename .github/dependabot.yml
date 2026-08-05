@@ -6,7 +6,7 @@ version: 2
 # bump can break any of them silently. ci.yml's premise guards already
 # adjudicate a change once someone makes it; this file is what proposes them.
 #
-# See docs/2026-08-03-dependency-automation-design.md for why lockfiles exist on
+# Lockfiles exist on
 # src/ only, and why each ignore rule below is where it is.
 #
 # PRs land on main, the default branch. There is deliberately no target-branch:
