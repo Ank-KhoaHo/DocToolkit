@@ -148,7 +148,8 @@ Both packages ship at one version, from a single tag.
 commits land on `main`; merging it is a deliberate, manual decision, and
 [`release.yml`](.github/workflows/release.yml) then publishes, authenticated with
 [Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) — no
-stored API key. Maintainer procedure lives in [`CLAUDE.md`](CLAUDE.md).
+stored API key. Releases are cut by a maintainer merging a release pull request by hand;
+nothing else publishes.
 
 ## Repository layout
 
@@ -158,8 +159,6 @@ src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
 tests/                                                  320 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
 samples/                                                six runnable samples, each answering one question, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
-docs/                                                   design docs and implementation plans this was built from
-spike/                                                  original proof-of-concept, kept as reference
 ```
 
 ## Licence

@@ -10,7 +10,7 @@ name: release-please
 #
 # The publish itself re-proves every guard in release.yml before pushing to nuget.org,
 # which is irreversible. See release-please-config.json for the version/changelog rules,
-# and CLAUDE.md's "Releasing" section for the full flow.
+# The Release PR is merged by hand; nothing else publishes.
 #
 # Requires a Personal Access Token, not the default GITHUB_TOKEN: GitHub Actions does not
 # let a workflow's default token trigger OTHER workflows when it pushes a commit or tag
