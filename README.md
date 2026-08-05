@@ -20,8 +20,9 @@ Targets `net8.0` and `net10.0`. MIT licensed.
 📖 [API documentation](https://ank-khoaho.github.io/DocToolkit/) · 📦
 [package README](src/DocToolkit/README.md) · 📝 [CHANGELOG](CHANGELOG.md)
 
-> **Contributing?** Branch from `main`, and open a pull request back into it. `main` itself
-> cannot be pushed directly.
+> **Contributing?** Branch from `main` and open a pull request back into it — `main` itself cannot
+> be pushed directly. See [CONTRIBUTING.md](CONTRIBUTING.md) for the build, the commit-message
+> rules, and the four constraints that will get a pull request rejected.
 
 ## Why this exists
 
