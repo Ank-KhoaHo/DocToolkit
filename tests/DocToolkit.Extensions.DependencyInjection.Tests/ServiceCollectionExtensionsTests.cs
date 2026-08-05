@@ -28,6 +28,29 @@ public class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public async Task AddDocToolkit_ResolvedWorkbookEditor_SheetNamesAndReadSheetMatchTheStaticApi()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var sut = provider.GetRequiredService<IWorkbookEditor>();
+
+        var xlsx = DocToolkit.WorkbookEditor.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "North", 1200 },
+        });
+
+        Assert.Equal(DocToolkit.WorkbookEditor.SheetNames(xlsx), sut.SheetNames(xlsx));
+        Assert.Equal(
+            await DocToolkit.WorkbookEditor.SheetNamesAsync(new MemoryStream(xlsx)),
+            await sut.SheetNamesAsync(new MemoryStream(xlsx)));
+
+        Assert.Equal(DocToolkit.WorkbookEditor.ReadSheet(xlsx, "Sales"), sut.ReadSheet(xlsx, "Sales"));
+        Assert.Equal(
+            await DocToolkit.WorkbookEditor.ReadSheetAsync(new MemoryStream(xlsx), "Sales"),
+            await sut.ReadSheetAsync(new MemoryStream(xlsx), "Sales"));
+    }
+
+    [Fact]
     public void AddDocToolkit_RegistersEachInterfaceAsASingleton()
     {
         var services = new ServiceCollection().AddDocToolkit();

@@ -44,8 +44,12 @@ namespace DocToolkit.Extensions.DependencyInjection
         System.Threading.Tasks.Task CreateAsync(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         string ReadCell(byte[] xlsx, string sheetName, string cellRef);
         System.Threading.Tasks.Task<string> ReadCellAsync(System.IO.Stream source, string sheetName, string cellRef, System.Threading.CancellationToken ct = default);
+        System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>> ReadSheet(byte[] xlsx, string sheetName);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>>> ReadSheetAsync(System.IO.Stream source, string sheetName, System.Threading.CancellationToken ct = default);
         byte[] SetCell(byte[] xlsx, string sheetName, string cellRef, object? value);
         System.Threading.Tasks.Task SetCellAsync(System.IO.Stream source, string sheetName, string cellRef, object? value, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+        System.Collections.Generic.IReadOnlyList<string> SheetNames(byte[] xlsx);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> SheetNamesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
     }
     public static class ServiceCollectionExtensions
     {

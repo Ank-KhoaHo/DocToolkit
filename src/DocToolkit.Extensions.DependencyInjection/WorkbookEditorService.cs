@@ -9,6 +9,12 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
     public string ReadCell(byte[] xlsx, string sheetName, string cellRef)
         => DocToolkit.WorkbookEditor.ReadCell(xlsx, sheetName, cellRef);
 
+    public IReadOnlyList<string> SheetNames(byte[] xlsx)
+        => DocToolkit.WorkbookEditor.SheetNames(xlsx);
+
+    public IReadOnlyList<IReadOnlyList<string>> ReadSheet(byte[] xlsx, string sheetName)
+        => DocToolkit.WorkbookEditor.ReadSheet(xlsx, sheetName);
+
     public byte[] SetCell(byte[] xlsx, string sheetName, string cellRef, object? value)
         => DocToolkit.WorkbookEditor.SetCell(xlsx, sheetName, cellRef, value);
 
@@ -19,6 +25,13 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
 
     public Task<string> ReadCellAsync(Stream source, string sheetName, string cellRef, CancellationToken ct = default)
         => DocToolkit.WorkbookEditor.ReadCellAsync(source, sheetName, cellRef, ct);
+
+    public Task<IReadOnlyList<string>> SheetNamesAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.SheetNamesAsync(source, ct);
+
+    public Task<IReadOnlyList<IReadOnlyList<string>>> ReadSheetAsync(
+        Stream source, string sheetName, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.ReadSheetAsync(source, sheetName, ct);
 
     public Task SetCellAsync(
         Stream source, string sheetName, string cellRef, object? value, Stream destination,
