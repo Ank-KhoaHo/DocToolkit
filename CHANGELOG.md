@@ -26,6 +26,28 @@ repo-wide tooling (CI, release pipeline).
   `file://` local-disclosure path that existed before. This is still not a complete SSRF defence;
   see the package README.
 
+## [0.8.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.7.0...v0.8.0) (2026-08-06)
+
+
+### Added
+
+* **core:** add file-path overloads to DocxEditor ([a5cb36a](https://github.com/Ank-KhoaHo/DocToolkit/commit/a5cb36af911d07000e9af1e24e4111cd4ddb86c4))
+* **core:** add file-path overloads to PresentationEditor ([26f550c](https://github.com/Ank-KhoaHo/DocToolkit/commit/26f550cf2508739fa2c5a9ddc0312c2f84cdc639))
+* **core:** add file-path overloads to WorkbookEditor ([6e91be2](https://github.com/Ank-KhoaHo/DocToolkit/commit/6e91be2e2c4b465063e027d0c98a6095ab1d1d34))
+* **core:** add GuardedResourceLoader ([f4e42b5](https://github.com/Ank-KhoaHo/DocToolkit/commit/f4e42b54f468222d446a6478b9966632e4866a4d))
+* **core:** add RemoteImageOptions ([9fcaee8](https://github.com/Ank-KhoaHo/DocToolkit/commit/9fcaee8382fd0ed877f62a21393d25a19f082119))
+* **core:** route the remote-image opt-in through the guard ([4807372](https://github.com/Ank-KhoaHo/DocToolkit/commit/480737293f00acdf48d5f63be901619c5c2676a3))
+* **extensions:** mirror WorkbookEditor sheet-listing/reading in IWorkbookEditor ([9d89803](https://github.com/Ank-KhoaHo/DocToolkit/commit/9d898032d3b231952075ed1291f3968a999777d7))
+
+
+### Fixed
+
+* **core:** close SSRF and cancellation gaps in GuardedResourceLoader ([c2148be](https://github.com/Ank-KhoaHo/DocToolkit/commit/c2148be5ba456fba93781e451c5fb9ff426f2ad6))
+* **core:** close two more IPv6 transition bypasses, drop a dead check ([db26bb8](https://github.com/Ank-KhoaHo/DocToolkit/commit/db26bb8351e4b83782eabd67911fae0a78cc503d))
+* **core:** correct doc-comment inaccuracies on the file-path overloads ([d71d57f](https://github.com/Ank-KhoaHo/DocToolkit/commit/d71d57f8e0132634f4f4df641c028f907c05c9b9))
+* **core:** match CreateToFileAsync's parameter order to the rest of the library ([9aae511](https://github.com/Ank-KhoaHo/DocToolkit/commit/9aae511e14c9ccbe3a8fc6ad804c85ae38bf708a))
+* **extensions:** bump Ank.DocToolkit version floor to 0.7.0 ([a1cba62](https://github.com/Ank-KhoaHo/DocToolkit/commit/a1cba62396ae54649f4395bcfafa8b5a24fd6590))
+
 ## [0.7.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.6.0...v0.7.0) (2026-08-04)
 
 
