@@ -120,29 +120,53 @@ public class HtmlToDocxConverterTests
     {
         using var probe = new LoopbackProbe();
 
-        // Gated: HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient and
-        // mutates its headers per request, and this is no longer the only opt-in test in the suite.
+        // Gated: this is not the only opt-in test in the suite, and HtmlToOpenXml's ParseBody is
+        // not proven safe to run concurrently with itself.
         await RemoteDownloadGate.RunAsync(async () =>
         {
             try
             {
+                // GuardedResourceLoader blocks loopback, private and link-local addresses by
+                // default (RemoteImageOptions.AllowPrivateAddresses is false), which would refuse
+                // this listener too. AllowPrivateAddresses = true is the escape hatch this test
+                // depends on to reach it.
                 await HtmlToDocxConverter.ConvertAsync(
                     $"""<p>Report <img src="{probe.Url}" alt="logo" /></p>""",
-                    allowRemoteImageDownload: true);
+                    new RemoteImageOptions { AllowPrivateAddresses = true });
             }
             catch (DocumentConversionException)
             {
-                // Even gated, the download can blow up (NullReferenceException inside
-                // HttpConnection.WriteHeaderCollection). What is under test here is that the
-                // opt-in flag reaches the image processing mode at all - the outbound connection
-                // below proves that either way, and it is one more reason the default is
-                // no-network.
+                // A guarded fetch can still fail for other reasons (a malformed response, a
+                // cancelled read). What is under test here is that the opt-in flag reaches the
+                // image processing mode at all - the outbound connection below proves that either
+                // way, and it is one more reason the default is no-network.
             }
         });
 
         Assert.True(await probe.WasContactedAsync(),
             "The opt-in flag did not reach HtmlToOpenXml's image processing mode.");
     }
+
+    // ---------------------------------------------------------------------------------------
+    // Known gap: nothing here pins that allowRemoteImageDownload: true still constructs a
+    // GuardedResourceLoader rather than passing null (i.e. behaving like false/Offline).
+    //
+    // The test above necessarily drives its probe through the RemoteImageOptions overload with
+    // AllowPrivateAddresses = true, because GuardedResourceLoader refuses loopback by design and
+    // the bool overload can never set that flag - so it cannot be used to prove the bool path
+    // reaches the network. Checked directly: BuildPackageAsync(html, null, ct) and
+    // BuildPackageAsync(html, new RemoteImageOptions(), ct) produce byte-identical output for an
+    // <img> the fetch cannot reach (confirmed against a blocked loopback address, where both
+    // paths resolve to "image skipped" without any socket involved) - so there is no black-box
+    // signal in the produced document that tells "true mapped to null" and "true mapped to
+    // GuardedResourceLoader, then correctly refused" apart. Proving reachability the way the test
+    // above does would require a real routable address for the bool path too, which is an
+    // external dependency this suite deliberately does not take on elsewhere, and exposing an
+    // internal seam to observe the mapping directly is out of scope for a docs/tests-only pass.
+    // If a future edit ever changed `allowRemoteImageDownload ? new RemoteImageOptions() : null`
+    // in HtmlToDocxConverter/HtmlToPdfConverter to unconditionally pass null, nothing in this
+    // suite would catch it.
+    // ---------------------------------------------------------------------------------------
 
     /// <summary>
     /// A loopback TCP socket standing in for a remote image host. It answers the question "did

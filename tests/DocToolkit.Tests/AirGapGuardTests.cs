@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -40,13 +38,6 @@ public class AirGapGuardTests
     private readonly ITestOutputHelper _output;
 
     public AirGapGuardTests(ITestOutputHelper output) => _output = output;
-
-    /// <summary>
-    /// How long to keep listening after a conversion returns before declaring "nothing connected".
-    /// The conversion has already finished, so this only has to cover handing an accepted socket
-    /// over to the accept loop — but a fetch fired and abandoned late would still be caught.
-    /// </summary>
-    private static readonly TimeSpan SettleWindow = TimeSpan.FromMilliseconds(750);
 
     /// <summary>
     /// TEST-NET-3 (RFC 5737). Reserved for documentation and guaranteed not to be routed, so a
@@ -96,25 +87,27 @@ public class AirGapGuardTests
         {
             try
             {
+                // GuardedResourceLoader blocks loopback, private and link-local addresses by
+                // default (RemoteImageOptions.AllowPrivateAddresses is false), which would refuse
+                // this listener too. AllowPrivateAddresses = true is the escape hatch this test
+                // depends on to reach it - naming that opt-in here is more honest than the old
+                // form, which relied on there being no restriction at all.
                 await HtmlToDocxConverter.ConvertAsync(
                     $"""<p>Report <img src="{probe.BaseUrl}/logo.bmp" alt="logo" /></p>""",
-                    allowRemoteImageDownload: true);
+                    new RemoteImageOptions { AllowPrivateAddresses = true });
             }
             catch (DocumentConversionException)
             {
-                // HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient whose
-                // headers it mutates per request, so the download itself can blow up. Irrelevant
-                // here: what is under test is that the opt-in reaches the wire at all, and the
-                // connection count below settles that either way. (It is also one more reason the
-                // default is no-network.)
+                // A guarded fetch can still fail for other reasons (a malformed response, a
+                // cancelled read). Irrelevant here: what is under test is that the opt-in reaches
+                // the wire at all, and the connection count below settles that either way.
             }
         });
 
         Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(10)),
-            "allowRemoteImageDownload: true made no outbound connection. Either the opt-in no " +
-            "longer reaches HtmlToOpenXml's image processing mode, or this probe cannot detect " +
-            "a fetch - and if it cannot detect one, the zero-connection assertions below are " +
-            "vacuous.");
+            "The RemoteImageOptions opt-in made no outbound connection. Either it no longer " +
+            "reaches HtmlToOpenXml's image processing mode, or this probe cannot detect a fetch " +
+            "- and if it cannot detect one, the zero-connection assertions below are vacuous.");
     }
 
     [Fact]
@@ -126,9 +119,12 @@ public class AirGapGuardTests
         {
             try
             {
+                // As above: the guard blocks loopback by default, so AllowPrivateAddresses = true
+                // is the escape hatch this test names to prove HtmlToPdfConverter forwards the
+                // options through to the HTML stage rather than dropping them.
                 await HtmlToPdfConverter.ConvertAsync(
                     $"""<p>Report <img src="{probe.BaseUrl}/logo.bmp" alt="logo" /></p>""",
-                    allowRemoteImageDownload: true);
+                    new RemoteImageOptions { AllowPrivateAddresses = true });
             }
             catch (DocumentConversionException)
             {
@@ -137,7 +133,7 @@ public class AirGapGuardTests
         });
 
         Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(10)),
-            "HtmlToPdfConverter did not forward allowRemoteImageDownload: true to the HTML stage.");
+            "HtmlToPdfConverter did not forward the RemoteImageOptions opt-in to the HTML stage.");
     }
 
     // =====================================================================================
@@ -224,7 +220,7 @@ public class AirGapGuardTests
     public async Task DataUriImagesAreStillEmbedded_WithNothingFetchable()
     {
         using var probe = new LoopbackProbe(_output);
-        var dataUri = "data:image/bmp;base64," + Convert.ToBase64String(OnePixelBitmap());
+        var dataUri = "data:image/bmp;base64," + Convert.ToBase64String(ImageFixtures.Bmp());
 
         var docx = await HtmlToDocxConverter.ConvertAsync(
             $"""
@@ -752,185 +748,31 @@ public class AirGapGuardTests
         }
     }
 
-    /// <summary>
-    /// A real TCP listener on 127.0.0.1 that counts accepted connections and records the request
-    /// line of each one.
-    ///
-    /// Counting at the socket, not at an injected HTTP abstraction, is the point: it holds
-    /// regardless of which dependency does the fetching, whether it uses HttpClient, WebRequest or
-    /// a raw socket, and whether a future version of that dependency changes its mind. The
-    /// connection is counted the instant it is accepted - before a single byte is read - so a
-    /// caller that connects and then gives up is still caught.
-    /// </summary>
-    private sealed class LoopbackProbe : IDisposable
-    {
-        private readonly TcpListener _listener;
-        private readonly CancellationTokenSource _stopping = new();
-        private readonly ConcurrentQueue<string> _requestLines = new();
-        private readonly ITestOutputHelper _output;
-        private int _connections;
-
-        public LoopbackProbe(ITestOutputHelper output)
-        {
-            _output = output;
-            _listener = new TcpListener(IPAddress.Loopback, 0);
-            _listener.Start();
-            Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-            _ = AcceptLoopAsync();
-        }
-
-        public int Port { get; }
-
-        public string BaseUrl => $"http://127.0.0.1:{Port}";
-
-        public int Connections => Volatile.Read(ref _connections);
-
-        /// <summary>Waits out the settle window, then requires that nothing ever connected.</summary>
-        public async Task AssertSilentAsync(string api)
-        {
-            await Task.Delay(SettleWindow);
-
-            _output.WriteLine(
-                $"{api}: {Connections} connection(s) accepted on {BaseUrl} " +
-                $"(listened a further {SettleWindow.TotalMilliseconds:0} ms after the call returned).");
-
-            Assert.True(Connections == 0,
-                $"{api} opened {Connections} outbound connection(s) to {BaseUrl}" +
-                (_requestLines.IsEmpty ? "." : $": {string.Join(" | ", _requestLines)}.") +
-                " DocToolkit's users have no internet access, so this hangs and then fails on " +
-                "their machines.");
-        }
-
-        public async Task<bool> WaitForConnectionAsync(TimeSpan timeout)
-        {
-            var deadline = Stopwatch.StartNew();
-            while (deadline.Elapsed < timeout)
-            {
-                if (Connections > 0) return true;
-                await Task.Delay(25);
-            }
-
-            return Connections > 0;
-        }
-
-        private async Task AcceptLoopAsync()
-        {
-            while (!_stopping.IsCancellationRequested)
-            {
-                TcpClient client;
-                try
-                {
-                    client = await _listener.AcceptTcpClientAsync(_stopping.Token);
-                }
-                catch (Exception)
-                {
-                    return; // Listener stopped, or the test finished. Nothing left to count.
-                }
-
-                Interlocked.Increment(ref _connections);
-                _ = ServeAsync(client);
-            }
-        }
-
-        /// <summary>
-        /// Answers plausibly - a 1x1 bitmap for anything image-shaped, a stylesheet otherwise - so
-        /// the opt-in path has something real to embed and a leak on the default path would be a
-        /// *successful* fetch rather than a connection error that might be swallowed silently.
-        /// </summary>
-        private async Task ServeAsync(TcpClient client)
-        {
-            using (client)
-            {
-                try
-                {
-                    var stream = client.GetStream();
-                    var requestLine = await ReadRequestLineAsync(stream);
-                    _requestLines.Enqueue(requestLine);
-
-                    var css = requestLine.Contains(".css", StringComparison.OrdinalIgnoreCase);
-                    var body = css
-                        ? Encoding.ASCII.GetBytes("p { color: #333; }")
-                        : OnePixelBitmap();
-
-                    await stream.WriteAsync(Encoding.ASCII.GetBytes(
-                        "HTTP/1.1 200 OK\r\n" +
-                        $"Content-Type: {(css ? "text/css" : "image/bmp")}\r\n" +
-                        $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n"));
-                    await stream.WriteAsync(body);
-                    await stream.FlushAsync();
-                }
-                catch (Exception)
-                {
-                    // The caller hung up, or the probe is being torn down. The connection has
-                    // already been counted, which is all this class exists to do.
-                }
-            }
-        }
-
-        private static async Task<string> ReadRequestLineAsync(NetworkStream stream)
-        {
-            var buffer = new byte[2048];
-            var seen = new StringBuilder();
-
-            while (seen.ToString().IndexOf("\r\n", StringComparison.Ordinal) < 0 && seen.Length < 8192)
-            {
-                var read = await stream.ReadAsync(buffer);
-                if (read == 0) break;
-                seen.Append(Encoding.ASCII.GetString(buffer, 0, read));
-            }
-
-            var text = seen.ToString();
-            var end = text.IndexOf("\r\n", StringComparison.Ordinal);
-            return end < 0 ? text : text[..end];
-        }
-
-        public void Dispose()
-        {
-            _stopping.Cancel();
-            _listener.Stop();
-            _stopping.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// A 1x1 24-bit BMP built by hand: 14-byte file header, 40-byte BITMAPINFOHEADER, one padded
-    /// pixel. BMP rather than PNG so no compressor is involved.
-    /// </summary>
-    private static byte[] OnePixelBitmap()
-    {
-        var bmp = new byte[58];
-        var w = new BinaryWriter(new MemoryStream(bmp));
-        w.Write((byte)'B'); w.Write((byte)'M');
-        w.Write(58);            // file size
-        w.Write(0);             // reserved
-        w.Write(54);            // pixel data offset
-        w.Write(40);            // BITMAPINFOHEADER size
-        w.Write(1);             // width
-        w.Write(1);             // height
-        w.Write((short)1);      // planes
-        w.Write((short)24);     // bits per pixel
-        w.Write(0);             // BI_RGB, uncompressed
-        w.Write(4);             // image byte size
-        w.Write(2835);          // horizontal pixels per metre
-        w.Write(2835);          // vertical pixels per metre
-        w.Write(0);             // palette colours used
-        w.Write(0);             // important colours
-        w.Write(new byte[] { 0x00, 0x00, 0xFF, 0x00 }); // one red pixel + row padding
-        return bmp;
-    }
+    // LoopbackProbe lives in its own file now: GuardedResourceLoaderTests reuses it (with a custom
+    // responder) to exercise FetchAsync's byte cap, timeout and cancellation behaviour, and a
+    // second copy of a raw-socket HTTP responder is not something to maintain twice.
 }
 
 /// <summary>
 /// Serialises the handful of tests that opt in to remote image downloads.
 ///
-/// HtmlToOpenXml 3.5.0 downloads through one process-wide static HttpClient and mutates its
-/// headers per request, so two opt-in conversions running at once can corrupt each other. A plain
-/// semaphore is the right tool rather than an xUnit collection: a collection would also reorder
-/// the suite, and at least one neighbouring test measures wall-clock time and is sensitive to
-/// whether the assembly is warm by the time it runs.
+/// This is no longer about HtmlToOpenXml 3.5.0's own process-wide, header-mutating static
+/// HttpClient: both opt-in paths now hand <c>HtmlConverter</c> an explicit
+/// <see cref="GuardedResourceLoader"/> (or <c>OfflineResourceLoader</c> on the default path), so
+/// that DefaultWebRequest - and its shared HttpClient - is never constructed at all; see the
+/// comment in <see cref="HtmlToDocxConverter.BuildPackageAsync"/>. GuardedResourceLoader has its
+/// own static HttpClient, but a benign one: its configuration is fixed at construction and every
+/// request builds its own <c>HttpRequestMessage</c>, so nothing about it is mutated per call.
 ///
-/// Only the opt-in path needs this. The no-network default never touches that HttpClient - which
-/// is one of the reasons it is the default.
+/// The gate remains for a more conservative reason: nothing here has proven that
+/// <c>HtmlConverter.ParseBody</c> itself - the parsing and document-building logic, independent of
+/// the network layer - is safe to run on multiple threads at once. A plain semaphore is the right
+/// tool rather than an xUnit collection: a collection would also reorder the suite, and at least
+/// one neighbouring test measures wall-clock time and is sensitive to whether the assembly is warm
+/// by the time it runs.
+///
+/// Only the opt-in path needs this; the no-network default never constructs an HtmlConverter
+/// pointed at anything but the refusing OfflineResourceLoader.
 /// </summary>
 internal static class RemoteDownloadGate
 {

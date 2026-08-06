@@ -1,0 +1,344 @@
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace DocToolkit.Tests;
+
+public class GuardedResourceLoaderTests
+{
+    private readonly ITestOutputHelper _output;
+
+    public GuardedResourceLoaderTests(ITestOutputHelper output) => _output = output;
+
+    [Theory]
+    [InlineData("127.0.0.1")]        // loopback
+    [InlineData("::1")]              // loopback, v6
+    [InlineData("::")]               // unspecified - Socket.ConnectAsync refuses it anyway, but
+                                      // defence in depth should not depend on that
+    [InlineData("10.0.0.5")]         // RFC1918
+    [InlineData("10.0.0.0")]         // RFC1918, exact low edge - a narrowed range must fail here
+    [InlineData("10.255.255.255")]   // RFC1918, exact high edge
+    [InlineData("172.16.0.1")]       // RFC1918
+    [InlineData("172.16.0.0")]       // RFC1918, exact low edge
+    [InlineData("172.31.255.255")]   // RFC1918, exact high edge
+    [InlineData("192.168.1.1")]      // RFC1918
+    [InlineData("192.168.0.0")]      // RFC1918, exact low edge
+    [InlineData("192.168.255.255")]  // RFC1918, exact high edge
+    [InlineData("169.254.169.254")]  // link-local - the cloud metadata endpoint
+    [InlineData("100.64.0.1")]       // CGNAT (RFC 6598)
+    [InlineData("100.64.0.0")]       // CGNAT, exact low edge
+    [InlineData("100.127.255.255")]  // CGNAT, exact high edge
+    [InlineData("224.0.0.0")]        // multicast, exact low edge - catches ">= 224" narrowed to ">"
+    [InlineData("fe80::1")]          // link-local, v6
+    [InlineData("fc00::1")]          // unique-local, v6
+    [InlineData("::ffff:10.0.0.5")]  // v4-mapped RFC1918 - the obvious bypass
+    // NAT64 (RFC 6052), 6to4 (RFC 3056), IPv4-translated and IPv4-compatible: every one of these
+    // wraps a real IPv4 address in an IPv6 prefix that IsIPv4MappedToIPv6 does not recognise, so
+    // an address check that only unwraps ::ffff:0:0/96 waves all of these through. On an IPv6-only
+    // host behind DNS64/NAT64 (AWS IPv6-only subnets, many Kubernetes clusters, mobile carriers), a
+    // hostname resolving to 64:ff9b::a9fe:a9fe reaches the cloud metadata endpoint unless these are
+    // unwrapped too.
+    [InlineData("64:ff9b::a9fe:a9fe")]   // NAT64 carrying 169.254.169.254
+    [InlineData("64:ff9b::7f00:1")]      // NAT64 carrying 127.0.0.1
+    [InlineData("2002:a00:5::")]         // 6to4 carrying 10.0.0.5
+    [InlineData("::10.0.0.5")]           // IPv4-compatible carrying 10.0.0.5
+    [InlineData("::ffff:0:10.0.0.5")]    // IPv4-translated carrying 10.0.0.5
+    // RFC 8215's local-use NAT64 prefix (64:ff9b:1::/48) and Teredo (2001::/32, RFC 4380) are two
+    // more IPv6 transition mechanisms that carry a real IPv4 address, missed until now. An
+    // IPv6-only host whose NAT64 deployment uses the local-use prefix instead of the well-known
+    // 64:ff9b::/96 one, or a Windows host with Teredo enabled, is reachable through either of
+    // these unless the embedded address is unwrapped the same way as the others above.
+    [InlineData("64:ff9b:1:a9fe:a9:fe00::")]   // RFC 8215 local-use NAT64 carrying 169.254.169.254
+    [InlineData("2001::5601:5601")]            // Teredo carrying 169.254.169.254, obfuscated
+    public void IsBlockedAddress_RefusesEveryPrivateForm(string address)
+    {
+        Assert.True(GuardedResourceLoader.IsBlockedAddress(IPAddress.Parse(address)));
+    }
+
+    [Theory]
+    [InlineData("93.184.216.34")]
+    [InlineData("2606:2800:220:1:248:1893:25c8:1946")]
+    // Boundary data for every range above: each of these sits one address outside a blocked
+    // range. Without them, widening 172.16-31 to all of 172, or "b[0] >= 224" to "b[0] >= 192",
+    // leaves every theory in this file green - these are what actually discriminate the edges.
+    [InlineData("172.15.0.1")]        // just below RFC1918 172.16.0.0/12
+    [InlineData("172.32.0.1")]        // just above RFC1918 172.16.0.0/12
+    [InlineData("11.0.0.1")]          // just above RFC1918 10.0.0.0/8
+    [InlineData("192.167.0.1")]       // just below RFC1918 192.168.0.0/16
+    [InlineData("223.255.255.255")]   // just below the multicast/reserved b[0] >= 224 cutoff
+    [InlineData("100.63.255.255")]    // just below CGNAT 100.64.0.0/10
+    [InlineData("100.128.0.0")]       // just above CGNAT 100.64.0.0/10
+    [InlineData("9.255.255.255")]     // just below RFC1918 10.0.0.0/8
+    [InlineData("169.253.0.1")]       // just below link-local 169.254.0.0/16
+    [InlineData("169.255.0.1")]       // just above link-local 169.254.0.0/16
+    // Boundary data for the embedded-IPv4 extraction itself: each of these carries a *public*
+    // address inside an IPv6 transition prefix. Without them, collapsing TryGetEmbeddedIPv4's
+    // per-prefix extraction into "block all of 2002::/16" or "block all of ::/96" - discarding the
+    // embedded address and blocking the whole prefix instead - leaves every theory above green,
+    // because none of them assert that a *public* embedded address is let through.
+    [InlineData("2002:5db8:d822::")]         // 6to4 carrying the public 93.184.216.34
+    [InlineData("64:ff9b::5db8:d822")]       // NAT64 carrying the public 93.184.216.34
+    [InlineData("::93.184.216.34")]          // IPv4-compatible carrying the public 93.184.216.34
+    public void IsBlockedAddress_AllowsPublicAddresses(string address)
+    {
+        Assert.False(GuardedResourceLoader.IsBlockedAddress(IPAddress.Parse(address)));
+    }
+
+    [Theory]
+    [InlineData("file")]
+    [InlineData("ftp")]
+    [InlineData("data")]
+    [InlineData("gopher")]
+    public void SupportsProtocol_RefusesEverythingButHttpAndHttps(string protocol)
+    {
+        var loader = new GuardedResourceLoader(new RemoteImageOptions());
+
+        Assert.False(loader.SupportsProtocol(protocol));
+    }
+
+    [Theory]
+    [InlineData("http")]
+    [InlineData("https")]
+    public void SupportsProtocol_AcceptsHttpAndHttps(string protocol)
+    {
+        var loader = new GuardedResourceLoader(new RemoteImageOptions());
+
+        Assert.True(loader.SupportsProtocol(protocol));
+    }
+
+    // =========================================================================================
+    // IsBlockedAddresses - the "any blocked address blocks the whole host" rule, pulled out as a
+    // pure function specifically so it can be tested with a crafted address list. A live DNS
+    // response that mixes a public and a private A record is not something to depend on existing
+    // anywhere, let alone offline.
+    // =========================================================================================
+
+    [Fact]
+    public void IsBlockedAddresses_BlocksWhenAnyAddressIsBlocked_PrivateFirst()
+    {
+        var addresses = new[] { IPAddress.Parse("10.0.0.5"), IPAddress.Parse("93.184.216.34") };
+
+        Assert.True(GuardedResourceLoader.IsBlockedAddresses(addresses));
+    }
+
+    [Fact]
+    public void IsBlockedAddresses_BlocksWhenAnyAddressIsBlocked_PublicFirst()
+    {
+        // The public record must not be enough just because it happened to be checked first.
+        var addresses = new[] { IPAddress.Parse("93.184.216.34"), IPAddress.Parse("10.0.0.5") };
+
+        Assert.True(GuardedResourceLoader.IsBlockedAddresses(addresses));
+    }
+
+    [Fact]
+    public void IsBlockedAddresses_AllowsWhenEveryAddressIsPublic()
+    {
+        var addresses = new[] { IPAddress.Parse("93.184.216.34"), IPAddress.Parse("1.1.1.1") };
+
+        Assert.False(GuardedResourceLoader.IsBlockedAddresses(addresses));
+    }
+
+    [Fact]
+    public void IsBlockedAddresses_BlocksAnEmptyList()
+    {
+        // No A record at all is exactly as unusable as an unresolvable host.
+        Assert.True(GuardedResourceLoader.IsBlockedAddresses(Array.Empty<IPAddress>()));
+    }
+
+    // =========================================================================================
+    // FetchAsync - pinned here in isolation, against the loader directly. RemoteImageGuardTests
+    // covers the same guard end to end through HtmlToDocxConverter; these tests exist alongside it
+    // because a converter-level assertion cannot tell "FetchAsync refused it" apart from "the
+    // conversion never asked", and several invariants below (the exact byte-cap boundary, caller
+    // cancellation during the DNS phase) have no observable end-to-end signal at all. Each test
+    // pins one invariant against a real loopback socket rather than a mock, reusing LoopbackProbe
+    // with a custom responder rather than a second raw-socket HTTP server.
+    //
+    // One property is deliberately NOT pinned here: that DNS resolution itself happens inside
+    // Timeout (the linked token is created and CancelAfter'd before IsBlockedHostAsync is called,
+    // specifically so a black-holed nameserver cannot stall past Timeout - see FetchAsync's own
+    // comment). Proving that against a loopback fixture would need a fake DNS resolver that can be
+    // told to hang for longer than Timeout, and this loader calls the real System.Net.Dns
+    // statically with no seam to substitute one - there is no way to control real resolution
+    // latency deterministically from a test, and a "real slow resolver" test would be exactly the
+    // flaky, environment-dependent kind of test this file exists to avoid (see the finding fixed
+    // above about FetchAsync_UnresolvableHost_IsBlocked). This is a structural gap, left
+    // documented rather than faked: if DNS resolution is ever moved outside the linked token, the
+    // suite stays green.
+    // =========================================================================================
+
+    [Fact]
+    public async Task FetchAsync_AllowlistDoesNotWaiveTheAddressCheck()
+    {
+        using var probe = new LoopbackProbe(_output);
+        var options = new RemoteImageOptions();
+        options.AllowedHosts.Add("127.0.0.1");   // explicitly allowlisted...
+        // ...but AllowPrivateAddresses stays false, the default. The allowlist narrows which
+        // hosts may be fetched; it must never widen what counts as a safe address.
+        var loader = new GuardedResourceLoader(options);
+
+        var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/x.png"));
+
+        Assert.Null(result);
+        Assert.False(await probe.WaitForConnectionAsync(TimeSpan.FromMilliseconds(500)),
+            "AllowedHosts must not waive the address check: a name with a public and a private " +
+            "A record, or an operator who allowlists a literal private address by mistake, must " +
+            "still be blocked before a socket opens - this is the DNS-rebinding hole otherwise.");
+    }
+
+    [Fact]
+    public async Task FetchAsync_ByteCap_RejectsOneByteOverTheLimit_WithNoContentLengthToConsult()
+    {
+        const int cap = 16;
+
+        // No Content-Length header at all - the body is delimited purely by the connection
+        // closing (HTTP/1.1 RFC 7230 §3.3.3 case 7). If the cap were driven by a declared length
+        // instead of the bytes actually read, there would be nothing here to drive it with, and
+        // the whole cap+1 bytes would go through.
+        using var probe = new LoopbackProbe(_output, FixedBodyResponder(cap + 1));
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true, MaxBytesPerImage = cap });
+
+        var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/x.bin"));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FetchAsync_ByteCap_AcceptsExactlyTheLimit()
+    {
+        const int cap = 16;
+        using var probe = new LoopbackProbe(_output, FixedBodyResponder(cap));
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true, MaxBytesPerImage = cap });
+
+        var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/x.bin"));
+
+        Assert.NotNull(result);
+        Assert.Equal(cap, result!.Content.Length);
+    }
+
+    [Fact]
+    public async Task FetchAsync_Timeout_BoundsASlowDripBody()
+    {
+        using var probe = new LoopbackProbe(_output, SlowDripResponder);
+        var loader = new GuardedResourceLoader(new RemoteImageOptions
+        {
+            AllowPrivateAddresses = true,
+            Timeout = TimeSpan.FromMilliseconds(300),
+        });
+
+        var stopwatch = Stopwatch.StartNew();
+        var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/slow.bin"));
+        stopwatch.Stop();
+
+        Assert.Null(result);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5),
+            $"Took {stopwatch.Elapsed.TotalSeconds:0.00} s against a slow-drip body with a " +
+            "300 ms Timeout - Timeout is not bounding the read.");
+    }
+
+    [Fact]
+    public async Task FetchAsync_CallerCancellation_PropagatesDuringTheHttpPhase()
+    {
+        using var probe = new LoopbackProbe(_output, SlowDripResponder);
+        var loader = new GuardedResourceLoader(new RemoteImageOptions
+        {
+            AllowPrivateAddresses = true,
+            Timeout = TimeSpan.FromSeconds(30),   // long enough that Timeout cannot be what fires
+        });
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => loader.FetchAsync(new Uri($"{probe.BaseUrl}/slow.bin"), cts.Token));
+    }
+
+    [Fact]
+    public async Task FetchAsync_CallerCancellation_PropagatesDuringTheDnsPhase()
+    {
+        // Regression test for the finding: a pre-cancelled token against a non-literal host takes
+        // the DNS path in IsBlockedHostAsync, whose bare catch used to swallow
+        // OperationCanceledException and report the host as merely unresolvable - a *completed*
+        // null result instead of the cancellation propagating, which would leave a cancelled
+        // conversion looking like a successful one with images silently missing.
+        var loader = new GuardedResourceLoader(new RemoteImageOptions());
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => loader.FetchAsync(new Uri("http://example.org/x.png"), cts.Token));
+    }
+
+    [Fact]
+    public async Task IsBlockedHostAsync_UnresolvableHost_ReturnsTrue()
+    {
+        // Asserted directly against IsBlockedHostAsync, not through FetchAsync. The previous
+        // version of this test called FetchAsync and asserted only Assert.Null(result) - which is
+        // satisfied identically by "blocked before connecting" and by "resolution returned
+        // something, SendAsync then failed for an unrelated reason, and FetchAsync's outer catch
+        // returned null anyway". Measured: flipping IsBlockedHostAsync's catch from fail-closed
+        // (return true) to fail-open (return false) and rebuilding left all 51 tests in the suite
+        // passing, including this one - the invariant was invisible end-to-end. Asserting the
+        // return value of IsBlockedHostAsync itself closes that gap, and as a side effect this
+        // test can never make a genuine outbound HTTP request: the function under test only
+        // resolves DNS, it never opens a socket to whatever address comes back.
+        //
+        // ".invalid" is reserved by RFC 2606 specifically to never resolve.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var stopwatch = Stopwatch.StartNew();
+        var result = await GuardedResourceLoader.IsBlockedHostAsync(
+            "definitely-does-not-exist.invalid", CancellationToken.None, timeout.Token);
+        stopwatch.Stop();
+
+        Assert.True(result);
+        _output.WriteLine($"Gave up on an unresolvable host in {stopwatch.Elapsed.TotalSeconds:0.00} s.");
+    }
+
+    /// <summary>
+    /// Writes a response with no <c>Content-Length</c> header, exactly <paramref name="length"/>
+    /// bytes of body, then closes the connection - the framing HTTP/1.1 uses when the length is
+    /// not declared up front.
+    /// </summary>
+    private static Func<NetworkStream, string, CancellationToken, Task> FixedBodyResponder(int length) =>
+        async (stream, _, ct) =>
+        {
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n\r\n"),
+                ct);
+            await stream.WriteAsync(new byte[length], ct);
+            await stream.FlushAsync(ct);
+        };
+
+    /// <summary>
+    /// Sends headers immediately, then one byte at a time with a delay between each - long enough
+    /// in total (up to 10 s) that a correctly-bounded <c>Timeout</c> or a caller's own
+    /// cancellation cuts the read off well before the drip finishes, but capped so a test failure
+    /// here cannot hang the run if cancellation is not observed for some reason.
+    /// </summary>
+    private static async Task SlowDripResponder(NetworkStream stream, string requestLine, CancellationToken ct)
+    {
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n\r\n"), ct);
+
+        using var bound = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        bound.CancelAfter(TimeSpan.FromSeconds(10));
+        try
+        {
+            for (var i = 0; i < 50; i++)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(200), bound.Token);
+                await stream.WriteAsync(new byte[] { 0 }, bound.Token);
+                await stream.FlushAsync(bound.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The client gave up - Timeout, its own cancellation, or the probe tearing down.
+            // Either way there is nothing left to serve.
+        }
+    }
+}
