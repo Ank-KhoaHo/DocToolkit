@@ -15,7 +15,21 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **extensions:** carry RemoteImageOptions through DocToolkitOptions ([67f0e29](https://github.com/Ank-KhoaHo/DocToolkit/commit/67f0e29f7670fb8d9eb76065327317bfec7ebef3))
+* **Extensions:** `DocToolkitOptions.RemoteImage` carries the `RemoteImageOptions` bounds applied
+  when `AllowRemoteImageDownload` is `true` — per-fetch timeout, byte cap, host allow-list and the
+  private-address block. It is get-only and configured in place, so a restrictive default cannot be
+  lost by assigning an object that missed one. The bool keeps its meaning as the only switch
+  deciding whether anything is fetched at all. Requires `Ank.DocToolkit` 0.8.0 or later.
+
+### Changed
+
+* **Extensions:** remote image download through `AddDocToolkit` now refuses loopback, private and
+  link-local addresses by default, inheriting the guard core gained in 0.8.0. **This affects anyone
+  registering `AllowRemoteImageDownload = true` to fetch images from an intranet host**: the
+  conversion still succeeds, but that image is now silently left out, with no exception raised. Add
+  `o.RemoteImage.AllowPrivateAddresses = true` to restore the old reach. Every fetch is also now
+  bounded by a 10-second timeout and a 5 MB cap. This is still not a complete SSRF defence; see
+  `SECURITY.md`.
 
 ## [0.8.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.7.0...v0.8.0) (2026-08-06)
 
