@@ -83,7 +83,12 @@ no duplication.
 ```csharp
 // dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
 services.AddDocToolkit();                                       // six interfaces, as singletons
-services.AddDocToolkit(o => o.AllowRemoteImageDownload = true);  // opt in to remote images
+
+services.AddDocToolkit(o =>
+{
+    o.AllowRemoteImageDownload = true;                  // opt in to remote images...
+    o.RemoteImage.AllowedHosts.Add("cdn.example.com");  // ...bounded; defaults are restrictive
+});
 
 public class InvoiceService(IHtmlToPdfConverter toPdf)
 {

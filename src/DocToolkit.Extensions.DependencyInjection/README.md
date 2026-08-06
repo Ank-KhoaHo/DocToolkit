@@ -19,9 +19,40 @@ Targets `net8.0` and `net10.0`. MIT licensed.
 using DocToolkit.Extensions.DependencyInjection;
 
 services.AddDocToolkit();
-// or, to allow remote image download for HTML->DOCX/PDF (fails in an air-gapped environment):
+
+// Or opt in to remote image download for HTML->DOCX/PDF. This still succeeds in an air-gapped
+// environment - an unreachable host leaves that image out rather than failing the conversion.
 services.AddDocToolkit(o => o.AllowRemoteImageDownload = true);
 ```
+
+### Bounding the remote-image opt-in
+
+`AllowRemoteImageDownload` is the only switch that decides *whether* anything is fetched. When it
+is `true`, every fetch is bounded by `RemoteImage`, whose defaults are already the restrictive
+ones — **loopback, private and link-local addresses are refused** (including `169.254.169.254`, the
+cloud metadata endpoint), only `http` and `https` are spoken, redirects are not followed, and each
+fetch is capped at 10 seconds and 5 MB counted on bytes actually read.
+
+```csharp
+services.AddDocToolkit(o =>
+{
+    o.AllowRemoteImageDownload = true;
+    o.RemoteImage.Timeout = TimeSpan.FromSeconds(3);
+    o.RemoteImage.AllowedHosts.Add("cdn.example.com");   // empty means "any public host"
+});
+```
+
+`RemoteImage` is configured **in place**, not assigned: the property is get-only so that a
+restrictive default cannot be lost by dropping in an object that missed one.
+
+> **Fetching from an intranet image host?** The address block refuses private ranges by default, so
+> that image is skipped silently. Set `o.RemoteImage.AllowPrivateAddresses = true` to allow it —
+> and be aware that doing so is what re-opens the SSRF reach if any caller converts untrusted HTML.
+
+**This is not a complete SSRF defence.** A host's address is resolved and checked, then resolved
+again by the HTTP stack when it connects; a DNS answer that changes in between defeats the check.
+See the [core package README](https://www.nuget.org/packages/Ank.DocToolkit) and
+[`SECURITY.md`](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/SECURITY.md).
 
 ```csharp
 public class InvoiceService
@@ -66,10 +97,10 @@ Two things on the static API deliberately do **not** appear on these interfaces:
 - **The file-path helpers** (`ConvertToFileAsync`, `ConvertFile`). Inject the converter, take the
   `byte[]` or write to a `Stream`, and put the bytes wherever they belong — that keeps the
   injected surface free of filesystem coupling.
-- **The per-call `allowRemoteImageDownload` argument.** Remote image download is configured once,
-  at registration, via `DocToolkitOptions` — so whether an application is allowed to reach the
-  network is a property of how it is composed, not a decision at each call site. It is `false`
-  unless you opt in.
+- **The per-call `allowRemoteImageDownload` argument and `RemoteImageOptions` overloads.** Remote
+  image download is configured once, at registration, via `DocToolkitOptions` — so whether an
+  application may reach the network, and how far, is a property of how it is composed rather than a
+  decision at each call site. It is `false` unless you opt in.
 
 ## Why a separate package
 
