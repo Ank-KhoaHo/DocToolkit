@@ -10,7 +10,20 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
-## Unreleased
+## [0.8.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.7.0...v0.8.0) (2026-08-06)
+
+### Added
+
+* **Core:** `RemoteImageOptions`, and four `ConvertAsync` overloads taking it on
+  `HtmlToDocxConverter` and `HtmlToPdfConverter`. They bound the remote-image opt-in with a
+  per-fetch timeout, a byte cap, an optional host allow-list and a private-address block, all
+  restrictive by default. See **Changed** below — this also alters what the existing
+  `allowRemoteImageDownload: true` reaches.
+* **Core:** file-path overloads on `DocxEditor`, `PresentationEditor` and `WorkbookEditor`, so a
+  capability can now be reached as `byte[]`, as a `Stream`, or by path.
+* **Extensions:** `IWorkbookEditor` gained `SheetNames`, `SheetNamesAsync`, `ReadSheet` and
+  `ReadSheetAsync`, restoring 1:1 parity with `WorkbookEditor` after the core package shipped them
+  in 0.7.0.
 
 ### Changed
 
