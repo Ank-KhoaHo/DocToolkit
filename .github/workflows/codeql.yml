@@ -1,0 +1,87 @@
+name: CodeQL
+
+# Static analysis behind the security claim this package now makes in public.
+#
+# SECURITY.md states a boundary - the remote-image guard refuses private addresses,
+# speaks only http/https, follows no redirects, caps every fetch - and states where
+# that boundary stops. A stated boundary with nothing analysing the code behind it is
+# a claim resting entirely on review having been thorough. This is the cheap machine
+# check that keeps it honest between reviews.
+#
+# Scope note: CodeQL analyses THIS repository's C#. It is not a dependency scanner -
+# Dependabot alerts cover the resolved graph, and ci.yml's premise guards cover
+# licensing and native binaries. Three different questions, three different tools.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so a newly published query finds existing code rather than waiting for
+    # the next push. Monday 03:17 UTC - an odd minute, because GitHub drops scheduled
+    # runs that pile up on the hour.
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  SOLUTION: DocToolkit.sln
+
+jobs:
+  analyze:
+    name: analyze (csharp)
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Least privilege, matching docs.yml and release.yml rather than inheriting the
+      # repository default. security-events: write is what lets results reach the
+      # Security tab; without it the upload step fails at the very end of the run.
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Both SDKs: the projects multi-target net8.0;net10.0, and a manual build below
+      # needs to resolve both.
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: csharp
+          # Manual rather than build-mode: none. Buildless C# analysis skips code it
+          # cannot resolve, and this repository's interesting surface - the resource
+          # loader, the address classifier, the Stream overloads - is exactly the code
+          # a resolver would struggle with across two target frameworks.
+          build-mode: manual
+          queries: security-and-quality
+
+      # Deliberately NOT -warnaserror, unlike ci.yml. This build exists to produce
+      # something for CodeQL to analyse; failing it on a warning would hide the
+      # analysis rather than surface a problem, and ci.yml already holds that line on
+      # the same commit.
+      - name: Build
+        run: |
+          dotnet restore "$SOLUTION"
+          dotnet build "$SOLUTION" -c Release --no-restore
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:csharp"
