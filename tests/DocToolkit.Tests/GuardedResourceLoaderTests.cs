@@ -149,11 +149,13 @@ public class GuardedResourceLoaderTests
     }
 
     // =========================================================================================
-    // FetchAsync - this loader is not wired into any converter yet (a later task does that), so
-    // these are the only tests in the project that exercise it. Each test below pins one of the
-    // six invariants the reviewer hand-verified, against a real loopback socket rather than a
-    // mock, reusing AirGapGuardTests' LoopbackProbe with a custom responder rather than a second
-    // raw-socket HTTP server.
+    // FetchAsync - pinned here in isolation, against the loader directly. RemoteImageGuardTests
+    // covers the same guard end to end through HtmlToDocxConverter; these tests exist alongside it
+    // because a converter-level assertion cannot tell "FetchAsync refused it" apart from "the
+    // conversion never asked", and several invariants below (the exact byte-cap boundary, caller
+    // cancellation during the DNS phase) have no observable end-to-end signal at all. Each test
+    // pins one invariant against a real loopback socket rather than a mock, reusing LoopbackProbe
+    // with a custom responder rather than a second raw-socket HTTP server.
     //
     // One property is deliberately NOT pinned here: that DNS resolution itself happens inside
     // Timeout (the linked token is created and CancelAfter'd before IsBlockedHostAsync is called,

@@ -28,9 +28,28 @@ internal sealed class GuardedResourceLoader : IWebRequest
         Timeout = System.Threading.Timeout.InfiniteTimeSpan,   // per-request, via a linked token
     };
 
-    private readonly RemoteImageOptions _options;
+    // Read once, here, rather than off the caller's RemoteImageOptions on each fetch. That object
+    // is mutable and stays theirs, so a conversion that read it per fetch would be reading values
+    // Validate() has not vouched for: a Timeout mutated negative mid-conversion would make
+    // CancelAfter below throw out of FetchAsync rather than skip the image, and a MaxBytesPerImage
+    // mutated mid-read would move the cap under a read already in flight. Snapshotting makes the
+    // loader immutable once constructed, so the whole question stops existing.
+    private readonly TimeSpan _timeout;
+    private readonly long _maxBytesPerImage;
+    private readonly bool _allowPrivateAddresses;
+    private readonly HashSet<string> _allowedHosts;
 
-    public GuardedResourceLoader(RemoteImageOptions options) => _options = options;
+    public GuardedResourceLoader(RemoteImageOptions options)
+    {
+        _timeout = options.Timeout;
+        _maxBytesPerImage = options.MaxBytesPerImage;
+        _allowPrivateAddresses = options.AllowPrivateAddresses;
+
+        // The comparer is restated rather than inherited: RemoteImageOptions.AllowedHosts is
+        // documented as case-insensitive, and a copy that silently became ordinal would narrow
+        // the allow-list without any test noticing.
+        _allowedHosts = new HashSet<string>(options.AllowedHosts, StringComparer.OrdinalIgnoreCase);
+    }
 
     /// <summary>
     /// http and https only. Refusing at the protocol gate is what removes the <c>file://</c>
@@ -185,7 +204,7 @@ internal sealed class GuardedResourceLoader : IWebRequest
     {
         if (!SupportsProtocol(requestUri.Scheme)) return null;
 
-        if (_options.AllowedHosts.Count > 0 && !_options.AllowedHosts.Contains(requestUri.Host))
+        if (_allowedHosts.Count > 0 && !_allowedHosts.Contains(requestUri.Host))
             return null;
 
         // Created before the DNS lookup, not after, so Timeout bounds resolution too: an attacker
@@ -193,11 +212,11 @@ internal sealed class GuardedResourceLoader : IWebRequest
         // OS resolver timeout (5-12 s) regardless of this setting, and HtmlToOpenXml calls
         // FetchAsync twice per <img>, concurrently, which multiplies the cost.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(_options.Timeout);
+        timeout.CancelAfter(_timeout);
 
         try
         {
-            if (!_options.AllowPrivateAddresses &&
+            if (!_allowPrivateAddresses &&
                 await IsBlockedHostAsync(requestUri.Host, cancellationToken, timeout.Token)
                     .ConfigureAwait(false))
             {
@@ -242,7 +261,7 @@ internal sealed class GuardedResourceLoader : IWebRequest
         int read;
         while ((read = await source.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0)
         {
-            if (buffer.Length + read > _options.MaxBytesPerImage) return null;
+            if (buffer.Length + read > _maxBytesPerImage) return null;
             buffer.Write(chunk, 0, read);
         }
 
