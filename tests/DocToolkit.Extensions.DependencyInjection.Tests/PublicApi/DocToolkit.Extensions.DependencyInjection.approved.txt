@@ -4,6 +4,7 @@ namespace DocToolkit.Extensions.DependencyInjection
     {
         public DocToolkitOptions() { }
         public bool AllowRemoteImageDownload { get; set; }
+        public DocToolkit.RemoteImageOptions RemoteImage { get; }
     }
     public interface IDocxEditor
     {
