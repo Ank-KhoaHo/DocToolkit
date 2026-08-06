@@ -193,6 +193,17 @@ jobs:
             echo "::endgroup::"
           done
 
+      # The steps above assert that no BANNED package is present. None of them say
+      # anything about what the packages that ARE present are licensed under - that
+      # claim lived only in two hand-maintained text files and a hand-counted line
+      # in README.md, and had already drifted in all three.
+      #
+      # Runs here rather than in its own job because it needs the restored packages:
+      # licences are read from each package's own .nuspec in the NuGet cache, which
+      # the --locked-mode restore at the top of this job has already populated.
+      - name: Assert THIRD-PARTY-NOTICES.txt matches the resolved graph
+        run: python3 scripts/gen-third-party-notices.py --check
+
   # Enforces Conventional Commits so release-please's version-bump and changelog inference
   # (release-please-config.json) is never silently wrong. Checks every commit in the PR's
   # range, not just the PR title, because this repo true-merges - every individual commit

@@ -3,17 +3,30 @@ Ank.DocToolkit.Extensions.DependencyInjection third-party notices
 
 This package depends on the following. All are permissively licensed and free for commercial use.
 
-1. Ank.DocToolkit - MIT License
-   Copyright (c) Khoa Ho
-   https://github.com/Ank-KhoaHo/DocToolkit
-   (See that package's own THIRD-PARTY-NOTICES.txt for its further dependencies.)
+What this package adds
+-----------------------
+Only the packages this one introduces are listed below, with the version each resolves to and the
+licence its own .nuspec declares. Everything else in the closure arrives through Ank.DocToolkit and
+is listed in that package's own THIRD-PARTY-NOTICES.txt - repeating seventeen entries here would
+only create a second copy to drift.
 
-2. Microsoft.Extensions.DependencyInjection.Abstractions - MIT License
-   Copyright (c) .NET Foundation and Contributors
-   https://github.com/dotnet/runtime
+This block is GENERATED from packages.lock.json by scripts/gen-third-party-notices.py, and CI
+regenerates it and fails if the result differs. Do not edit it by hand; run the script instead.
+The script computes "what this package adds" by subtracting the core package's resolved closure
+from this one's, which is what surfaced Microsoft.Extensions.Primitives: it reaches this package
+through Microsoft.Extensions.Options rather than through Ank.DocToolkit, so the pointer to the core
+notices never covered it and the hand-written list had simply left it out.
 
-3. Microsoft.Extensions.Options - MIT License
-   Copyright (c) .NET Foundation and Contributors
-   https://github.com/dotnet/runtime
+--- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---
+- Ank.DocToolkit 0.8.0 - MIT (direct) - https://github.com/Ank-KhoaHo/DocToolkit
+- Microsoft.Extensions.DependencyInjection.Abstractions 8.0.0 - MIT (direct) - https://github.com/dotnet/runtime
+- Microsoft.Extensions.Options 8.0.0 - MIT (direct) - https://github.com/dotnet/runtime
+- Microsoft.Extensions.Primitives 8.0.0 - MIT (transitive) - https://github.com/dotnet/runtime
+
+Totals: 4 packages (3 direct, 1 transitive) - 4 MIT.
+--- END GENERATED ---
+
+Copyright holders: Ank.DocToolkit - Copyright (c) Khoa Ho. The Microsoft.Extensions.* packages -
+Copyright (c) .NET Foundation and Contributors.
 
 The full MIT licence text is reproduced in the LICENSE file in the parent repository.
