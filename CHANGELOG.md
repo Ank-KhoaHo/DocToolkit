@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.9.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.8.0...v0.9.0) (2026-08-06)
+
+
+### Added
+
+* **extensions:** carry RemoteImageOptions through DocToolkitOptions ([67f0e29](https://github.com/Ank-KhoaHo/DocToolkit/commit/67f0e29f7670fb8d9eb76065327317bfec7ebef3))
+
 ## [0.8.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.7.0...v0.8.0) (2026-08-06)
 
 ### Added
