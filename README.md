@@ -102,10 +102,16 @@ sixteen ways (`<img src>`, `srcset`, `<link rel=stylesheet>`, `@import`, `backgr
 `<iframe>`, `<object>`, `<script>`). The guard is proved by mutation: enabling downloads turns nine
 of those tests red with real request lines, so it discriminates rather than passing vacuously.
 
-The one exception is explicit and opt-in, and **fails in an air-gapped environment**:
+The one exception is explicit and opt-in, and **is silently image-less in an air-gapped
+environment** — an unreachable host is skipped, not fatal:
 
 ```csharp
 await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true);
+
+// Bounded instead of wide open: timeout, byte cap, host allow-list and a block on
+// loopback/private/link-local addresses, all on by default. Not a complete SSRF defence — see
+// the package README.
+await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
 ```
 
 ## Design notes
@@ -138,7 +144,7 @@ is pinned at **6.0.0** by OfficeIMO; the package is **`RBush.Signed`**, not `RBu
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 339 tests x 2 target frameworks = 678 results
+dotnet test  DocToolkit.sln -c Release      # 421 tests x 2 target frameworks = 842 results
 
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .   # verify Linux locally
 docker run --rm doctoolkit-linux-test
@@ -161,7 +167,7 @@ nothing else publishes.
 ```
 src/DocToolkit/                                         the library
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
-tests/                                                  339 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
+tests/                                                  421 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
 samples/                                                six runnable samples, each answering one question, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
 ```

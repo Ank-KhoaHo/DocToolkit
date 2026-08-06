@@ -9,17 +9,40 @@ Works after `dotnet restore` alone, and runs on Linux.
 
 **No method on DocToolkit's public API opens a network connection.** Not for images, not for
 stylesheets, not for fonts, not for linked pictures or external workbook references. Once the
-package is restored, DocToolkit never needs the network again.
+package is restored, DocToolkit never needs the network again. That default is unchanged and still
+proven by 37 dedicated tests — see below.
 
 There is exactly one way to change that, and you have to ask for it by name:
 
 ```csharp
-// The ONLY API that makes an outbound request. It downloads and embeds the images the markup
-// names, so it FAILS in an air-gapped environment - a host that will not answer fails the whole
-// conversion, after a connect timeout. Leave it alone unless your machines have internet access.
+// The ONLY API family that makes an outbound request: downloads and embeds images the markup
+// names. It still succeeds in an air-gapped environment - a host that will not answer just leaves
+// that image out of the result, after a per-image timeout, rather than failing the conversion.
 byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
 byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+
+// RemoteImageOptions bounds that opt-in instead of leaving it wide open. Every default here is
+// already the restrictive one, so `new RemoteImageOptions()` is far narrower than the bool form.
+byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions(), ct);
 ```
+
+**The opt-in is now bounded, not just present.** Every fetch it makes is subject to fixed limits:
+
+- **http and https only** — never `file://`, which would otherwise read the host's own disk.
+- **No redirects are followed** — each hop would need re-validating against the whole policy below;
+  an unvalidated hop is the standard way past an address check like this one.
+- **Loopback, private and link-local addresses are blocked by default**, including
+  `169.254.169.254` (the cloud metadata endpoint), unless
+  `RemoteImageOptions.AllowPrivateAddresses` is set `true`.
+- **A 10-second timeout and a 5 MB cap per image**, both configurable, and the cap is enforced by
+  counting bytes actually read off the stream — never by trusting a `Content-Length` header, which
+  a hostile server can understate.
+
+**This is not a complete SSRF defence.** A host's address is resolved and checked, then resolved
+again by the HTTP stack when it actually connects — a DNS answer that changes between those two
+moments defeats the check. It stops the ordinary cases (a literal metadata address, a hard-coded
+internal hostname) and raises the cost of the rest. A service that converts genuinely untrusted
+HTML should also be egress-filtered at the network layer, not rely on this alone.
 
 Everything else — `ConvertAsync(html)`, `ConvertToFileAsync`, `DocxToPdfConverter`, `DocxEditor`,
 `WorkbookEditor`, `PresentationEditor` — is offline, unconditionally.
@@ -29,7 +52,11 @@ feeds every public API markup that names it as an `<img src>`, a `<link rel="sty
 `@import`, a `background-image`, an `<a href>`, an externally linked DOCX picture, an external
 XLSX workbook link and more, and requires the accepted-connection count to be **exactly zero**. A
 companion test points the same APIs at an unroutable address (TEST-NET-3) and requires them to
-return promptly rather than stall on a connect timeout.
+return promptly rather than stall on a connect timeout. A further suite proves the opt-in itself
+over a real socket, not a mock: `file://` is refused even with downloads enabled, loopback is
+refused by default and only reached with `AllowPrivateAddresses = true`, a host outside a non-empty
+`AllowedHosts` is refused while one inside it is fetched, an oversized or slow response is aborted
+rather than trusted, and invalid options are rejected by the converter itself.
 
 `dotnet restore` is the one step that still needs a package feed. `THIRD-PARTY-NOTICES.txt` lists
 the full dependency closure with resolved versions, so it can be mirrored onto an internal feed;

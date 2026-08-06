@@ -10,6 +10,22 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## Unreleased
+
+### Changed
+
+* **Core:** the remote-image opt-in (`allowRemoteImageDownload: true`, and the new
+  `RemoteImageOptions` overloads on `HtmlToDocxConverter`/`HtmlToPdfConverter`) now refuses
+  loopback, private and link-local addresses by default, including `169.254.169.254` — the cloud
+  metadata endpoint. **This affects anyone currently converting intranet-hosted `<img>` markup with
+  `allowRemoteImageDownload: true`**: the conversion still succeeds, but that image is now silently
+  left out, with no exception raised. Pass `new RemoteImageOptions { AllowPrivateAddresses = true }`
+  in place of the bool overload to restore the old reach. The opt-in is also now bounded by a
+  10-second per-fetch timeout, a 5 MB cap enforced on bytes actually read (never on a `Content-Length`
+  header), an optional host allow-list, and refuses every scheme but `http`/`https` — closing a
+  `file://` local-disclosure path that existed before. This is still not a complete SSRF defence;
+  see the package README.
+
 ## [0.7.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.6.0...v0.7.0) (2026-08-04)
 
 
