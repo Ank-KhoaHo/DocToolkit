@@ -114,6 +114,13 @@ await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true);
 await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
 ```
 
+## Reporting a vulnerability
+
+Privately, through GitHub — [open an advisory](https://github.com/Ank-KhoaHo/DocToolkit/security/advisories/new),
+not a public issue. [`SECURITY.md`](SECURITY.md) says what is in scope, and lists the limits that
+are already documented and therefore aren't findings on their own — chief among them that the
+remote-image guard above is **not a complete SSRF defence**.
+
 ## Design notes
 
 **HTML → PDF goes through DOCX.** No permissively-licensed, NuGet-only, Linux-safe library renders
