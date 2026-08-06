@@ -1,3 +1,4 @@
+using System.Globalization;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -36,6 +37,8 @@ internal static class DocxDocumentWriter
                 foreach (var block in blocks)
                     AppendBlock(main, body, block, ref nextDrawingId);
 
+                AddHeadingStyles(main, blocks);
+
                 main.Document.Save();
             }
 
@@ -68,6 +71,10 @@ internal static class DocxDocumentWriter
                 body.AppendChild(TextParagraph(p.Text));
                 break;
 
+            case HeadingBlock h:
+                body.AppendChild(TextParagraph(h.Text, $"Heading{h.Level}"));
+                break;
+
             default:
                 // Reached whenever a block type has no case above. That is NOT merely theoretical
                 // while this feature is being built: Heading, Table and Image are already public
@@ -97,5 +104,56 @@ internal static class DocxDocumentWriter
 
         paragraph.AppendChild(new Run(new Text(text) { Space = SpaceProcessingModeValues.Preserve }));
         return paragraph;
+    }
+
+    /// <summary>
+    /// Half-point font sizes per heading level, matching Word's own built-in defaults closely
+    /// enough that a document looks unremarkable when opened. w:sz is in HALF-points, so 32 is 16pt.
+    /// </summary>
+    private static readonly int[] HeadingHalfPointSizes = { 32, 28, 26, 24, 22, 20 };
+
+    /// <summary>
+    /// Defines a real style for each heading level actually used.
+    ///
+    /// Referencing a style without defining it is the silent failure this exists to prevent: Word
+    /// renders the paragraph as ordinary text, the package stays schema-valid, and nothing reports
+    /// a problem. Only the levels used are defined, so a document with one heading does not carry
+    /// six unused style definitions.
+    /// </summary>
+    private static void AddHeadingStyles(MainDocumentPart main, IReadOnlyList<DocxBlock> blocks)
+    {
+        var levels = blocks.OfType<HeadingBlock>().Select(h => h.Level).Distinct().OrderBy(l => l).ToList();
+        if (levels.Count == 0) return;
+
+        var styles = new Styles();
+
+        // Every heading is basedOn Normal, so Normal has to exist or the basedOn dangles.
+        styles.AppendChild(new Style(new StyleName { Val = "Normal" })
+        {
+            Type = StyleValues.Paragraph,
+            StyleId = "Normal",
+            Default = true,
+        });
+
+        foreach (var level in levels)
+        {
+            styles.AppendChild(new Style(
+                new StyleName { Val = $"heading {level}" },
+                new BasedOn { Val = "Normal" },
+                new StyleParagraphProperties(
+                    new KeepNext(),
+                    new OutlineLevel { Val = level - 1 }),
+                new StyleRunProperties(
+                    new Bold(),
+                    new FontSize { Val = HeadingHalfPointSizes[level - 1].ToString(CultureInfo.InvariantCulture) }))
+            {
+                Type = StyleValues.Paragraph,
+                StyleId = $"Heading{level}",
+            });
+        }
+
+        var part = main.AddNewPart<StyleDefinitionsPart>();
+        part.Styles = styles;
+        part.Styles.Save();
     }
 }
