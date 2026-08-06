@@ -51,18 +51,18 @@ jobs:
       actions: read
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Both SDKs: the projects multi-target net8.0;net10.0, and a manual build below
       # needs to resolve both.
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           languages: csharp
           # Manual rather than build-mode: none. Buildless C# analysis skips code it
@@ -82,6 +82,6 @@ jobs:
           dotnet build "$SOLUTION" -c Release --no-restore
 
       - name: Analyze
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           category: "/language:csharp"
