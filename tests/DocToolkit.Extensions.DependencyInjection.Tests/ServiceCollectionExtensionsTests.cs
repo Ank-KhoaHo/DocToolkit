@@ -104,7 +104,17 @@ public class ServiceCollectionExtensionsTests
     {
         using var probe = new LoopbackProbe();
         var provider = new ServiceCollection()
-            .AddDocToolkit(o => o.AllowRemoteImageDownload = true)
+            .AddDocToolkit(o =>
+            {
+                o.AllowRemoteImageDownload = true;
+
+                // Core 0.8.0's guard refuses loopback, private and link-local addresses by
+                // default, which would refuse this probe too. Naming that escape hatch here is
+                // what keeps this test discriminating - and this test is what stops every
+                // Assert.Equal(0, probe.Connections) in this file from passing vacuously,
+                // because nothing connected rather than because connecting was blocked.
+                o.RemoteImage.AllowPrivateAddresses = true;
+            })
             .BuildServiceProvider();
         var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
 
@@ -139,7 +149,17 @@ public class ServiceCollectionExtensionsTests
     {
         using var probe = new LoopbackProbe();
         var provider = new ServiceCollection()
-            .AddDocToolkit(o => o.AllowRemoteImageDownload = true)
+            .AddDocToolkit(o =>
+            {
+                o.AllowRemoteImageDownload = true;
+
+                // Core 0.8.0's guard refuses loopback, private and link-local addresses by
+                // default, which would refuse this probe too. Naming that escape hatch here is
+                // what keeps this test discriminating - and this test is what stops every
+                // Assert.Equal(0, probe.Connections) in this file from passing vacuously,
+                // because nothing connected rather than because connecting was blocked.
+                o.RemoteImage.AllowPrivateAddresses = true;
+            })
             .BuildServiceProvider();
         var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
 
@@ -174,7 +194,17 @@ public class ServiceCollectionExtensionsTests
     {
         using var probe = new LoopbackProbe();
         var provider = new ServiceCollection()
-            .AddDocToolkit(o => o.AllowRemoteImageDownload = true)
+            .AddDocToolkit(o =>
+            {
+                o.AllowRemoteImageDownload = true;
+
+                // Core 0.8.0's guard refuses loopback, private and link-local addresses by
+                // default, which would refuse this probe too. Naming that escape hatch here is
+                // what keeps this test discriminating - and this test is what stops every
+                // Assert.Equal(0, probe.Connections) in this file from passing vacuously,
+                // because nothing connected rather than because connecting was blocked.
+                o.RemoteImage.AllowPrivateAddresses = true;
+            })
             .BuildServiceProvider();
         var sut = provider.GetRequiredService<IHtmlToPdfConverter>();
 
@@ -209,7 +239,17 @@ public class ServiceCollectionExtensionsTests
     {
         using var probe = new LoopbackProbe();
         var provider = new ServiceCollection()
-            .AddDocToolkit(o => o.AllowRemoteImageDownload = true)
+            .AddDocToolkit(o =>
+            {
+                o.AllowRemoteImageDownload = true;
+
+                // Core 0.8.0's guard refuses loopback, private and link-local addresses by
+                // default, which would refuse this probe too. Naming that escape hatch here is
+                // what keeps this test discriminating - and this test is what stops every
+                // Assert.Equal(0, probe.Connections) in this file from passing vacuously,
+                // because nothing connected rather than because connecting was blocked.
+                o.RemoteImage.AllowPrivateAddresses = true;
+            })
             .BuildServiceProvider();
         var sut = provider.GetRequiredService<IHtmlToPdfConverter>();
 
@@ -224,5 +264,35 @@ public class ServiceCollectionExtensionsTests
         }
 
         Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    // The four DoesConnectOutbound tests above are, between them, the proof that RemoteImage
+    // actually reaches the core converter rather than being an inert property: a service that
+    // ignored it and kept passing the bool would send core `new RemoteImageOptions()`, whose
+    // defaults block loopback, and all four would fail. This test pins a second field for the
+    // same reason - AllowPrivateAddresses alone could be threaded through by accident, a whole
+    // options object being passed cannot.
+
+    [Fact]
+    public async Task AddDocToolkit_RemoteImageAllowedHosts_NarrowsWhatIsFetched()
+    {
+        using var probe = new LoopbackProbe();
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o =>
+            {
+                o.AllowRemoteImageDownload = true;
+                o.RemoteImage.AllowPrivateAddresses = true;   // the address check would refuse it...
+
+                // ...but the allow-list names a host this probe is not, so nothing should connect.
+                // Same registration as the tests above, one field different, opposite outcome.
+                o.RemoteImage.AllowedHosts.Add("images.example.invalid");
+            })
+            .BuildServiceProvider();
+        var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
+
+        await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">");
+        await Task.Delay(SettleWindow);
+
+        Assert.Equal(0, probe.Connections);
     }
 }

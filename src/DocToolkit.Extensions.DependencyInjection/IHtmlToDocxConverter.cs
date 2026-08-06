@@ -3,7 +3,8 @@ namespace DocToolkit.Extensions.DependencyInjection;
 /// <summary>
 /// Converts HTML to a Word (.docx) package. Registered by
 /// <see cref="ServiceCollectionExtensions.AddDocToolkit"/>; remote image download is controlled
-/// once, at registration, via <see cref="DocToolkitOptions.AllowRemoteImageDownload"/>.
+/// once, at registration, via <see cref="DocToolkitOptions.AllowRemoteImageDownload"/>, and
+/// bounded by <see cref="DocToolkitOptions.RemoteImage"/>.
 /// </summary>
 public interface IHtmlToDocxConverter
 {
