@@ -13,6 +13,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Least privilege, matching docs.yml, release.yml and codeql.yml rather than
+# inheriting the repository default. Nothing here writes to the repository: the
+# jobs check out, build, test, pack and upload artifacts. Artifact upload and the
+# Codecov upload both authenticate on their own - upload-artifact through the
+# runtime's artifact service, Codecov through CODECOV_TOKEN - so neither needs a
+# scope on GITHUB_TOKEN. commit-format reads history from the checkout, not the
+# API. If a job ever does need to write, give the scope to that job rather than
+# widening this.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -27,14 +38,32 @@ env:
 
 jobs:
   build-test:
-    name: build & test (${{ matrix.os }})
+    # The name deliberately carries the PLATFORM, not the runner image. Branch
+    # protection requires status checks BY NAME, so `build & test (${{ matrix.os }})`
+    # made the required-check name a function of the runner version: pinning the
+    # image below renamed the check to one protection had never heard of, and a
+    # required check that never reports blocks every PR forever - including the one
+    # doing the pinning. Decoupling the label is what lets the image be repinned
+    # (24.04 -> 26.04) without touching repository settings at all.
+    name: build & test (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         # ubuntu is the point of this workflow; windows guards against
         # accidentally depending on Linux-only behaviour in the fix.
-        os: [ubuntu-latest, windows-latest]
+        #
+        # Pinned to ubuntu-24.04, not ubuntu-latest, because README.md states
+        # "Verified in CI on ubuntu-24.04, not inferred" - and `latest` is an
+        # alias GitHub repoints on its own schedule. While the alias happens to
+        # resolve to 24.04 the two agree, so the day it moves to 26.04 the claim
+        # would go quietly false with nothing failing. Naming the version is what
+        # makes the README a checkable statement rather than a hopeful one.
+        include:
+          - label: linux
+            os: ubuntu-24.04
+          - label: windows
+            os: windows-latest
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -75,7 +104,7 @@ jobs:
       # token is optional - see CODECOV_TOKEN note in the design doc if this step
       # ever starts failing with a token-required error.
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.label == 'linux'
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -85,7 +114,7 @@ jobs:
   # Kept separate so a failure here is unambiguous: it is never a test bug.
   premise-guard:
     name: no native binaries / no banned packages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -170,7 +199,7 @@ jobs:
   # lands on main and matters to release-please's bump calculation.
   commit-format:
     name: commit message format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -232,7 +261,7 @@ jobs:
   # regression should fail here, not surface after release.
   docs-build:
     name: build docs site
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -254,7 +283,7 @@ jobs:
   # the solution compiles. Catches missing TFMs and metadata regressions.
   package:
     name: pack & verify .nupkg (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-test
     strategy:
       fail-fast: false
