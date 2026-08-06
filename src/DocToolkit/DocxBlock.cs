@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace DocToolkit;
 
 /// <summary>
@@ -57,15 +59,46 @@ public abstract class DocxBlock
     }
 
     /// <summary>
-    /// A table with a bold header row. Cell values follow exactly the typing and culture rules of
-    /// <see cref="WorkbookEditor.Create"/> — see that method. A Word table cell has no type of its
-    /// own, unlike a spreadsheet cell, so "as a number" means invariant formatting here.
+    /// A table with a bold header row.
+    ///
+    /// Cell values are typed the same WAY as <see cref="WorkbookEditor.Create"/> —
+    /// <see cref="bool"/>, <see cref="DateTime"/>, <see cref="DateOnly"/>, <see cref="TimeOnly"/>
+    /// and <see cref="TimeSpan"/> are handled by name, and everything else, numbers included, is
+    /// formatted through <see cref="CultureInfo.InvariantCulture"/> — but they do <b>not</b> always
+    /// render to the same TEXT, and that is deliberate. A spreadsheet cell stores a typed value
+    /// that Excel formats on display; a Word table cell stores only text, so the value is rendered
+    /// here and the rendering is this library's choice. For example:
+    /// <list type="bullet">
+    /// <item>Dates use ISO-8601 (<c>2026-08-06</c>). The workbook path renders the same date in a
+    /// slashed form whose field order follows the reader's culture — <c>08/06/2026</c> or
+    /// <c>06/08/2026</c> for this date, depending on the machine. That ambiguity between day-first
+    /// and month-first readings is precisely what ISO-8601 removes.</item>
+    /// <item>A <see cref="TimeSpan"/> keeps its days (<c>1.02:03:04</c>). Excel flattens them into
+    /// hours (<c>26:03:04</c>), which is a different unit convention, not just a different
+    /// pattern.</item>
+    /// <item>A very large <see cref="decimal"/>, <see cref="long"/> or <see cref="ulong"/> keeps
+    /// every digit here. The workbook path converts through <see cref="double"/> first, so it can
+    /// show a rounded value — <c>decimal.MaxValue</c> becomes <c>7.92281625142643E+28</c> there
+    /// and stays <c>79228162514264337593543950335</c> here. That is a different number, not a
+    /// different pattern.</item>
+    /// </list>
+    /// Those examples are illustrative, not an exhaustive list of the differences. What both
+    /// guarantee identically is that the same input produces the same output on every machine,
+    /// because neither consults the current culture.
     ///
     /// Rows are materialised immediately; mutating the caller's sequence afterwards does not change
     /// the block.
+    ///
+    /// A row SHORTER than the header is padded with empty cells: ragged data is normal, and padding
+    /// discards nothing. A row LONGER than the header throws, and the asymmetry is the point — the
+    /// surplus values could only be dropped, which is data loss with no signal anywhere. Word would
+    /// render the table as though it were complete. Same reasoning as <see cref="Heading"/> refusing
+    /// to clamp an out-of-range level: a loss that only shows up in the finished document is worth
+    /// more than the convenience of accepting the call.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="headers"/> or <paramref name="rows"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="headers"/> is empty, or a row is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="headers"/> is empty, a row is null, or a
+    /// row has more cells than there are headers.</exception>
     public static DocxBlock Table(
         IEnumerable<string> headers, IEnumerable<IEnumerable<object?>> rows)
     {
@@ -77,9 +110,21 @@ public abstract class DocxBlock
             throw new ArgumentException("A table needs at least one header.", nameof(headers));
 
         var materialisedRows = rows
-            .Select((row, index) => row is null
-                ? throw new ArgumentException($"Row {index + 1} was null.", nameof(rows))
-                : (IReadOnlyList<object?>)row.ToList())
+            .Select((row, index) =>
+            {
+                if (row is null)
+                    throw new ArgumentException($"Row {index + 1} was null.", nameof(rows));
+
+                var cells = (IReadOnlyList<object?>)row.ToList();
+                if (cells.Count > materialisedHeaders.Count)
+                    throw new ArgumentException(
+                        $"Row {index + 1} has {cells.Count} cells but the table has " +
+                        $"{materialisedHeaders.Count} " +
+                        $"{(materialisedHeaders.Count == 1 ? "column" : "columns")}.",
+                        nameof(rows));
+
+                return cells;
+            })
             .ToList();
 
         return new TableBlock(materialisedHeaders, materialisedRows);

@@ -75,6 +75,10 @@ internal static class DocxDocumentWriter
                 body.AppendChild(TextParagraph(h.Text, $"Heading{h.Level}"));
                 break;
 
+            case TableBlock t:
+                body.AppendChild(BuildTable(t));
+                break;
+
             default:
                 // Reached whenever a block type has no case above. That is NOT merely theoretical
                 // while this feature is being built: Heading, Table and Image are already public
@@ -156,4 +160,104 @@ internal static class DocxDocumentWriter
         part.Styles = styles;
         part.Styles.Save();
     }
+
+    private static Table BuildTable(TableBlock block)
+    {
+        var columns = block.Headers.Count;
+
+        // Child order is Top, Left, Bottom, Right, InsideH, InsideV - the CT_TblBorders
+        // sequence. It is NOT the clockwise order it reads like. An earlier draft used
+        // Top, Bottom, Left, Right and OpenXmlValidator rejected it with
+        // "unexpected child element 'left'". Verified by mutation: restoring that order
+        // fails the table test, and correcting it passes.
+        var table = new Table(
+            new TableProperties(
+                new TableBorders(
+                    new TopBorder { Val = BorderValues.Single, Size = 4 },
+                    new LeftBorder { Val = BorderValues.Single, Size = 4 },
+                    new BottomBorder { Val = BorderValues.Single, Size = 4 },
+                    new RightBorder { Val = BorderValues.Single, Size = 4 },
+                    new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4 },
+                    new InsideVerticalBorder { Val = BorderValues.Single, Size = 4 })));
+
+        // REQUIRED. Without a w:tblGrid the validator rejects the first w:tr as an unexpected child.
+        var grid = new TableGrid();
+        for (var i = 0; i < columns; i++) grid.AppendChild(new GridColumn());
+        table.AppendChild(grid);
+
+        table.AppendChild(BuildRow(block.Headers.Select(h => (object?)h), columns, bold: true));
+
+        foreach (var row in block.Rows)
+            table.AppendChild(BuildRow(row, columns, bold: false));
+
+        return table;
+    }
+
+    /// <summary>
+    /// One row, padded to <paramref name="columns"/>.
+    ///
+    /// A row shorter than the header is padded rather than rejected: ragged data is normal, and a
+    /// table cell count that disagrees with the grid is what makes Word show a malformed table.
+    ///
+    /// An over-long row is rejected by <see cref="DocxBlock.Table"/> before it can reach here, which
+    /// is where the useful diagnostic lives — it names the caller's own line. The throw below is not
+    /// dead code dressed as a guard: <c>TableBlock</c> is internal, so internal code can still build
+    /// one directly, and <c>OpenXmlValidator</c> was measured to catch a row/grid count mismatch in
+    /// NEITHER direction. Without this, that mistake would produce a silently malformed table.
+    /// </summary>
+    private static TableRow BuildRow(IEnumerable<object?> values, int columns, bool bold)
+    {
+        var row = new TableRow();
+        var written = 0;
+
+        foreach (var value in values)
+        {
+            if (written == columns)
+                throw new InvalidOperationException(
+                    $"A table row has more than {columns} " +
+                    $"{(columns == 1 ? "cell" : "cells")}. DocxBlock.Table rejects this, so a " +
+                    "TableBlock was built internally without going through it.");
+
+            row.AppendChild(BuildCell(Format(value), bold));
+            written++;
+        }
+
+        for (; written < columns; written++)
+            row.AppendChild(BuildCell(string.Empty, bold));
+
+        return row;
+    }
+
+    private static TableCell BuildCell(string text, bool bold)
+    {
+        var run = new Run();
+        if (bold) run.AppendChild(new RunProperties(new Bold()));
+        run.AppendChild(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+
+        // A w:tc must contain at least one block-level element; an empty cell still needs a w:p.
+        return new TableCell(new Paragraph(run));
+    }
+
+    /// <summary>
+    /// Formats a cell value, handling the same types BY NAME as <see cref="WorkbookEditor.Create"/>
+    /// but NOT always to the same text. See <see cref="DocxBlock.Table"/> for the measured
+    /// divergences and why they are deliberate.
+    ///
+    /// A Word table cell has no type of its own, unlike a spreadsheet cell, so every value ends up
+    /// as text, and choosing that text is this library's call rather than a renderer's. What the two
+    /// paths do guarantee identically is culture-invariance: otherwise the same code produces a
+    /// different document depending on the machine's regional settings.
+    /// </summary>
+    private static string Format(object? value) => value switch
+    {
+        null => string.Empty,
+        string s => s,
+        bool b => b ? "TRUE" : "FALSE",
+        DateTime d => d.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+        DateOnly d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        TimeOnly t => t.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
+        TimeSpan ts => ts.ToString(null, CultureInfo.InvariantCulture),
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
+    };
 }
