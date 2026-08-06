@@ -1,7 +1,7 @@
 namespace DocToolkit;
 
 /// <summary>
-/// One block of content in a document built by <see cref="DocxEditor"/>.Create.
+/// One block of content in a document built by <see cref="DocxEditor.Create"/>.
 ///
 /// The hierarchy is CLOSED: the constructor is <c>private protected</c>, the concrete types are
 /// <c>internal sealed</c>, and a block can only be obtained from one of the factory methods below.
@@ -9,7 +9,7 @@ namespace DocToolkit;
 /// is unrepresentable rather than a runtime failure.
 ///
 /// Each factory validates its arguments immediately, so a bad value throws at the line that
-/// produced it rather than later inside a <see cref="DocxEditor"/>.Create call assembling many
+/// produced it rather than later inside a <see cref="DocxEditor.Create"/> call assembling many
 /// blocks at once.
 /// </summary>
 public abstract class DocxBlock

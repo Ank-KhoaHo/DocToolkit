@@ -9,6 +9,42 @@ namespace DocToolkit;
 public static class DocxEditor
 {
     /// <summary>
+    /// Creates a document from <paramref name="blocks"/>.
+    ///
+    /// A DOCX can also be produced by converting HTML with <see cref="HtmlToDocxConverter"/>. This
+    /// exists for the case where the content comes from data rather than from markup: there is no
+    /// HTML to escape, so a value containing <c>&lt;</c> cannot corrupt the document's structure,
+    /// and the same blocks produce the same bytes on every machine.
+    ///
+    /// An empty sequence is valid and produces a valid empty document.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="blocks"/> is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="blocks"/> is null.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be built.</exception>
+    public static byte[] Create(IEnumerable<DocxBlock> blocks)
+    {
+        var materialised = ValidateBlocks(blocks);
+        using var ms = DocxDocumentWriter.Write(materialised);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Materialises and null-checks up front, so a null block surfaces as the
+    /// <see cref="ArgumentException"/> it is rather than as a <see cref="NullReferenceException"/>
+    /// wrapped in a conversion failure. Mirrors <c>WorkbookEditor.ValidateRows</c>.
+    /// </summary>
+    private static List<DocxBlock> ValidateBlocks(IEnumerable<DocxBlock> blocks)
+    {
+        ArgumentNullException.ThrowIfNull(blocks);
+
+        return blocks
+            .Select((block, index) => block
+                ?? throw new ArgumentException($"Block {index + 1} was null.", nameof(blocks)))
+            .ToList();
+    }
+
+    /// <summary>
     /// Replaces every key with its value across the document body, its headers and footers, and
     /// its footnotes and endnotes.
     ///
