@@ -38,6 +38,14 @@ byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOpt
   counting bytes actually read off the stream — never by trusting a `Content-Length` header, which
   a hostile server can understate.
 
+**Those limits are per image, not per document.** A document naming many remote images has no
+aggregate ceiling of its own: at the defaults, peak memory lands near 240 MB whatever the image
+count (fetches run concurrently, and buffering one costs roughly three times the cap), and images
+on hosts that never answer cost about ten seconds each, several at a time. Neither is unbounded —
+your `CancellationToken` is honoured throughout, and `Timeout` and `MaxBytesPerImage` are yours to
+lower — but if you convert documents of unknown size, bound them with a deadline rather than
+assuming the per-image caps do it for you.
+
 **This is not a complete SSRF defence.** A host's address is resolved and checked, then resolved
 again by the HTTP stack when it actually connects — a DNS answer that changes between those two
 moments defeats the check. It stops the ordinary cases (a literal metadata address, a hard-coded

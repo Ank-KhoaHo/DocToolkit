@@ -221,6 +221,53 @@ public class GuardedResourceLoaderTests
         Assert.Equal(cap, result!.Content.Length);
     }
 
+    // Chunked transfer encoding is the third framing HTTP/1.1 offers, and the one a streaming
+    // attacker actually reaches for: the response declares no length at all and the server keeps
+    // emitting chunks for as long as the client keeps reading. The two tests above cover the other
+    // two framings (declared Content-Length, and close-delimited), so without these the cap was
+    // reasoned about on this path rather than measured - ReadCappedAsync checks inside the read
+    // loop and HttpClient dechunks above the stream it reads, so chunked bodies traverse the
+    // identical loop, but "traverses the identical loop" is an argument, not a test.
+    //
+    // Note what the accepting case asserts: exactly `cap` bytes back from a body whose *wire*
+    // form is larger (chunk-size lines and CRLFs between every chunk). A cap accidentally counting
+    // wire bytes instead of decoded ones would reject that body, so the pair also pins which of
+    // the two is being measured.
+
+    [Fact]
+    public async Task FetchAsync_ByteCap_RejectsAChunkedBodyThatCrossesTheLimit()
+    {
+        const int cap = 16;
+
+        // Four 8-byte chunks: 32 bytes total, but no single chunk is over the cap and no single
+        // read is either. Only the running total crosses it, which is what a cap checked per-read
+        // rather than per-total would miss entirely.
+        using var probe = new LoopbackProbe(_output, ChunkedBodyResponder(chunkSize: 8, chunkCount: 4));
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true, MaxBytesPerImage = cap });
+
+        var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/x.bin"));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task FetchAsync_ByteCap_AcceptsAChunkedBodyWithinTheLimit()
+    {
+        const int cap = 16;
+
+        // The counterweight: two 8-byte chunks land exactly on the cap. Without this, a guard that
+        // simply refused every chunked response would pass the rejection test above.
+        using var probe = new LoopbackProbe(_output, ChunkedBodyResponder(chunkSize: 8, chunkCount: 2));
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true, MaxBytesPerImage = cap });
+
+        var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/x.bin"));
+
+        Assert.NotNull(result);
+        Assert.Equal(cap, result!.Content.Length);
+    }
+
     [Fact]
     public async Task FetchAsync_Timeout_BoundsASlowDripBody()
     {
@@ -310,6 +357,36 @@ public class GuardedResourceLoaderTests
                 "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n\r\n"),
                 ct);
             await stream.WriteAsync(new byte[length], ct);
+            await stream.FlushAsync(ct);
+        };
+
+    /// <summary>
+    /// Writes a <c>Transfer-Encoding: chunked</c> response of <paramref name="chunkCount"/> chunks
+    /// of <paramref name="chunkSize"/> bytes each, terminated by the zero-length chunk. Written by
+    /// hand at the socket rather than through any HTTP server library, for the same reason
+    /// <see cref="LoopbackProbe"/> exists at all: a framing bug in a server abstraction would
+    /// otherwise be indistinguishable from the behaviour under test.
+    /// </summary>
+    private static Func<NetworkStream, string, CancellationToken, Task> ChunkedBodyResponder(
+        int chunkSize, int chunkCount) =>
+        async (stream, _, ct) =>
+        {
+            // No Content-Length: chunked framing supplies the length per chunk instead, so there
+            // is nothing here a length-driven cap could consult even if it wanted to.
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n" +
+                "Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n"), ct);
+
+            for (var i = 0; i < chunkCount; i++)
+            {
+                // Chunk size is hex, per RFC 7230 section 4.1 - "10" here would mean 16 bytes.
+                await stream.WriteAsync(Encoding.ASCII.GetBytes($"{chunkSize:x}\r\n"), ct);
+                await stream.WriteAsync(new byte[chunkSize], ct);
+                await stream.WriteAsync(Encoding.ASCII.GetBytes("\r\n"), ct);
+                await stream.FlushAsync(ct);
+            }
+
+            await stream.WriteAsync(Encoding.ASCII.GetBytes("0\r\n\r\n"), ct);
             await stream.FlushAsync(ct);
         };
 
