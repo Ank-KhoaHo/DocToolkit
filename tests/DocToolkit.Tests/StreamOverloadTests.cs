@@ -42,6 +42,13 @@ public class StreamOverloadTests
     private static readonly byte[] ImageDocx = DocxFixtures.Build(
         DocxFixtures.P(DocxFixtures.R("Logo: {{logo}} end")));
 
+    /// <summary>Blocks for DocxEditor.CreateAsync, which takes no source.</summary>
+    private static readonly DocxBlock[] Blocks =
+    {
+        DocxBlock.Heading("Quarterly Report", 1),
+        DocxBlock.Paragraph("Revenue was up 12%."),
+    };
+
     private static readonly IReadOnlyList<IReadOnlyDictionary<string, string>> FillRowsRecords =
         new[]
         {
@@ -87,6 +94,7 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
+        "DocxEditor.CreateAsync",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -124,6 +132,7 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
+        "DocxEditor.CreateAsync",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -557,6 +566,8 @@ public class StreamOverloadTests
                 DocxEditor.ExtractTextAsync(source!, ct),
             "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)" =>
                 DocxEditor.ExtractTextAsync(source!, true, ct),
+            "DocxEditor.CreateAsync" =>
+                DocxEditor.CreateAsync(Blocks, destination!, ct),
             "WorkbookEditor.CreateAsync" =>
                 WorkbookEditor.CreateAsync("Sales", Rows, destination!, ct),
             "WorkbookEditor.ReadCellAsync" =>
@@ -590,7 +601,9 @@ public class StreamOverloadTests
 
     /// <summary>A fresh, valid source for <paramref name="api"/>, or an empty one if it takes none.</summary>
     private static MemoryStream NewSource(string api)
-        => api.StartsWith("HtmlTo", StringComparison.Ordinal) || api == "WorkbookEditor.CreateAsync"
+        => api.StartsWith("HtmlTo", StringComparison.Ordinal)
+            || api == "WorkbookEditor.CreateAsync"
+            || api == "DocxEditor.CreateAsync"
             ? new MemoryStream()
             : StreamDoubles.Seekable(SourceBytesFor(api));
 

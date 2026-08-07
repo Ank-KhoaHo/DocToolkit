@@ -15,6 +15,8 @@ namespace DocToolkit
     public static class DocxEditor
     {
         public static byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks) { }
+        public static System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task CreateToFileAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static string ExtractText(byte[] docx) { }
         public static string ExtractText(byte[] docx, bool includeHeadersAndFooters) { }
         public static System.Threading.Tasks.Task<string> ExtractTextAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }

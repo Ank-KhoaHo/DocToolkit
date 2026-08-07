@@ -30,6 +30,69 @@ public static class DocxEditor
     }
 
     /// <summary>
+    /// Builds a document from <paramref name="blocks"/> and writes it to
+    /// <paramref name="destination"/>. See <see cref="Create"/> for the block semantics — this
+    /// overload applies identical logic, writing to <paramref name="destination"/> instead of
+    /// returning an array.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought — it belongs to the caller, and may be write-only and
+    /// forward-only, such as an HTTP response body.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="destination">The stream the document is written to.</param>
+    /// <param name="ct">Cancels the build and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="blocks"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// An element of <paramref name="blocks"/> is null, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be built or written.</exception>
+    public static async Task CreateAsync(
+        IEnumerable<DocxBlock> blocks, Stream destination, CancellationToken ct = default)
+    {
+        var materialised = ValidateBlocks(blocks);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = DocxDocumentWriter.Write(materialised);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to create DOCX.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds a document from <paramref name="blocks"/> and writes it to
+    /// <paramref name="outputPath"/>. See <see cref="Create"/> for the block semantics.
+    ///
+    /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
+    /// <see cref="WorkbookEditor.CreateToFileAsync"/>: the distinct name keeps which kind of
+    /// destination a call writes to visible at the call site, rather than resting on the argument
+    /// type alone.
+    ///
+    /// The document is built completely before the output is opened. That ordering is the reason a
+    /// failed build cannot truncate a file that was already there, and it is pinned by
+    /// <c>FilePathOverloadTests</c> rather than left as a comment — it survives only as long as
+    /// nobody rewrites this into a streaming write.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="outputPath">Where to write the document. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the write to <paramref name="outputPath"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="blocks"/> or <paramref name="outputPath"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="outputPath"/> is blank, or an element of <paramref name="blocks"/> is null.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be built.</exception>
+    public static async Task CreateToFileAsync(
+        IEnumerable<DocxBlock> blocks, string outputPath, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = Create(blocks);
+        await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Materialises and null-checks up front, so a null block surfaces as the
     /// <see cref="ArgumentException"/> it is rather than as a <see cref="NullReferenceException"/>
     /// wrapped in a conversion failure. Mirrors <c>WorkbookEditor.ValidateRows</c>.

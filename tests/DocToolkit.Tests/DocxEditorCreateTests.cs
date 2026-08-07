@@ -398,6 +398,34 @@ public class DocxEditorCreateTests
     }
 
     /// <summary>
+    /// The Stream overload must produce the same document as the byte[] one — same content, not
+    /// same bytes. An OOXML package is a ZIP whose entries carry timestamps, so byte-identity would
+    /// be a flaky test wearing the costume of a strict one.
+    ///
+    /// StreamOverloadTests covers the SHAPE of this overload (forward-only destinations, not
+    /// disposing the caller's stream, sync-vs-async call counts) across every overload at once.
+    /// What it does not check is that this particular one writes the right document, which is what
+    /// this adds.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_MatchesTheByteArrayOverload()
+    {
+        var blocks = new[]
+        {
+            DocxBlock.Heading("Quarterly Report", 1),
+            DocxBlock.Paragraph("Revenue was up 12%."),
+            DocxBlock.Table(new[] { "Region" }, new[] { new object?[] { "North" } }),
+        };
+
+        using var destination = new MemoryStream();
+        await DocxEditor.CreateAsync(blocks, destination);
+
+        var written = destination.ToArray();
+        AssertValid(written);
+        Assert.Equal(DocxEditor.ExtractText(DocxEditor.Create(blocks)), DocxEditor.ExtractText(written));
+    }
+
+    /// <summary>
     /// An ImagePart must belong to the part that owns the paragraph. Get the scope wrong and the
     /// relationship id resolves against the wrong container: Word opens the file and simply shows
     /// nothing where the image should be — no error, no exception, and every text assertion still
@@ -475,6 +503,29 @@ public class DocxEditorCreateTests
         // bytes, and collapsing them would be a different behaviour that happens to share this id
         // assertion.
         Assert.Equal(3, doc.MainDocumentPart.ImageParts.Count());
+    }
+
+    /// <summary>
+    /// The missing link between "Resolve returns a number" and "the document is valid". Every other
+    /// size test asserts on Resolve in isolation, so the bound could be — and for one commit was —
+    /// four orders of magnitude too loose while every unit test passed. This runs the largest
+    /// ACCEPTED size through the real writer and the real validator.
+    ///
+    /// The rejected side is asserted from the public factory too, because the exception type differs
+    /// by entry point unless the factory enforces it: Resolve throws inside
+    /// DocxDocumentWriter.Write's try, which would wrap it as DocumentConversionException.
+    /// </summary>
+    [Fact]
+    public void Create_AcceptsTheLargestValidImageSizeAndRejectsAnythingLarger()
+    {
+        // 2 x 3 px: the height derives at 1.5x, so the WIDTH that fits is bounded by the height.
+        var docx = DocxEditor.Create(new[] { DocxBlock.Image(ImageFixtures.Png(), widthPoints: 112_000) });
+
+        AssertValid(docx);
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocxBlock.Image(ImageFixtures.Png(), widthPoints: 200_000));
+        Assert.Equal("widthPoints", ex.ParamName);
     }
 
     /// <summary>
