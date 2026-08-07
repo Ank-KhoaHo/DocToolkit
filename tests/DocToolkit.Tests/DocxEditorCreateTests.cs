@@ -2,6 +2,8 @@ using System.Globalization;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
 using DocumentFormat.OpenXml.Wordprocessing;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 
 namespace DocToolkit.Tests;
 
@@ -393,6 +395,117 @@ public class DocxEditorCreateTests
         Assert.Equal(2, cells.Count);
         Assert.Equal(string.Empty, cells[0].InnerText);
         Assert.Equal("x", cells[1].InnerText);
+    }
+
+    /// <summary>
+    /// An ImagePart must belong to the part that owns the paragraph. Get the scope wrong and the
+    /// relationship id resolves against the wrong container: Word opens the file and simply shows
+    /// nothing where the image should be — no error, no exception, and every text assertion still
+    /// passes. So this asserts the part is there AND that the drawing's <c>r:embed</c> actually
+    /// resolves back to it; counting parts alone would pass against a drawing pointing nowhere.
+    /// </summary>
+    /// <remarks>
+    /// BOTH formats, deliberately. With PNG alone, <c>Assert.Equal("image/png", …)</c> distinguishes
+    /// only a wrong constant from a right one — hardcoding <c>AddNewPart&lt;ImagePart&gt;("image/png")</c>
+    /// passed all 408 tests. Two formats is what makes it test DERIVATION from the magic bytes,
+    /// which is the property the doc comments claim. The sibling
+    /// <c>ReplaceImage_DeclaresTheContentTypeTheBytesActuallyAre</c> already covers both this way.
+    /// </remarks>
+    [Theory]
+    [InlineData("png", "image/png")]
+    [InlineData("jpeg", "image/jpeg")]
+    public void Create_EmbedsAnImageOwnedByTheMainDocumentPart(string format, string expectedContentType)
+    {
+        var bytes = format == "png" ? ImageFixtures.Png() : ImageFixtures.Jpeg();
+
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Paragraph("Logo below."),
+            DocxBlock.Image(bytes),
+        });
+
+        AssertValid(docx);
+
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var main = doc.MainDocumentPart!;
+
+        var part = Assert.Single(main.ImageParts);
+        Assert.Equal(expectedContentType, part.ContentType);
+        Assert.Single(main.Document!.Body!.Descendants<Drawing>());
+
+        var embedId = main.Document.Body.Descendants<A.Blip>().Single().Embed!.Value!;
+        Assert.Same(part, main.GetPartById(embedId));
+
+        // The part must actually HOLD the caller's bytes. Deleting the FeedData call leaves a
+        // schema-valid package with an empty part — resolving r:embed, correct extents, unique ids —
+        // that Word renders as a blank frame. Measured: that deletion passed all 408 tests, because
+        // nothing else in this repo reads an ImagePart's stream back.
+        using var stored = part.GetStream();
+        using var buffer = new MemoryStream();
+        stored.CopyTo(buffer);
+        Assert.Equal(bytes, buffer.ToArray());
+    }
+
+    /// <summary>
+    /// A duplicate <c>wp:docPr/@id</c> makes Word declare the file corrupt and offer to repair it —
+    /// invisible to any test that only reads text back, and invisible to the validator too.
+    /// </summary>
+    [Fact]
+    public void Create_GivesEveryDrawingAUniqueId()
+    {
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Image(ImageFixtures.Png()),
+            DocxBlock.Image(ImageFixtures.Png()),
+            DocxBlock.Image(ImageFixtures.Png()),
+        });
+
+        AssertValid(docx);
+
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var ids = doc.MainDocumentPart!.Document!.Body!
+            .Descendants<DW.DocProperties>().Select(p => p.Id!.Value).ToList();
+
+        Assert.Equal(3, ids.Count);
+        Assert.Equal(3, ids.Distinct().Count());
+
+        // Three separate parts, not one part referenced three times: each block carried its own
+        // bytes, and collapsing them would be a different behaviour that happens to share this id
+        // assertion.
+        Assert.Equal(3, doc.MainDocumentPart.ImageParts.Count());
+    }
+
+    /// <summary>
+    /// Given one dimension, the other preserves the aspect ratio. The height is asserted EXACTLY,
+    /// not merely as positive: the fixture is 2x3 px, so 72pt wide must give 108pt tall. A
+    /// <c>&gt; 0</c> assertion would pass against any scaling bug that still produced a number,
+    /// which is the whole failure mode here — nothing downstream validates these values, so a
+    /// factor-of-ten slip yields a perfectly valid document containing a wrongly sized image.
+    /// </summary>
+    [Fact]
+    public void Create_ScalesAnImageProportionallyFromASingleDimension()
+    {
+        var natural = DocxEditor.Create(new[] { DocxBlock.Image(ImageFixtures.Png()) });
+        var scaled = DocxEditor.Create(new[] { DocxBlock.Image(ImageFixtures.Png(), widthPoints: 72) });
+
+        // Both sides asserted by VALUE. An inequality between them would be satisfied by any pair of
+        // different numbers, so it could not tell correct scaling from a scaling bug — and it left
+        // the intrinsic path unpinned end-to-end: hardcoding a width default passed all 408 tests.
+        // Intrinsic is the pixel size at 96 DPI, 9525 EMU per pixel.
+        Assert.Equal((2L * 9525, 3L * 9525), ExtentOf(natural));
+
+        // 1 point = 12,700 EMU. 72pt wide, and 2:3 gives 108pt tall.
+        Assert.Equal((72L * 12700, 108L * 12700), ExtentOf(scaled));
+
+        static (long Width, long Height) ExtentOf(byte[] docx)
+        {
+            using var ms = new MemoryStream(docx);
+            using var doc = WordprocessingDocument.Open(ms, false);
+            var extent = doc.MainDocumentPart!.Document!.Body!.Descendants<DW.Extent>().First();
+            return (extent.Cx!.Value, extent.Cy!.Value);
+        }
     }
 
     /// <summary>

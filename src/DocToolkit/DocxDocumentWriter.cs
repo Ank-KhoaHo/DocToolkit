@@ -79,6 +79,10 @@ internal static class DocxDocumentWriter
                 body.AppendChild(BuildTable(t));
                 break;
 
+            case ImageBlock i:
+                body.AppendChild(BuildImageParagraph(main, i, ref nextDrawingId));
+                break;
+
             default:
                 // Reached whenever a block type has no case above. That is NOT merely theoretical
                 // while this feature is being built: Heading, Table and Image are already public
@@ -91,6 +95,41 @@ internal static class DocxDocumentWriter
                 throw new DocumentConversionException(
                     $"No writer case handles {block.GetType().Name}. This is a bug in DocToolkit.");
         }
+    }
+
+    /// <summary>
+    /// Adds the image as a part of <paramref name="main"/> and returns a paragraph holding an
+    /// inline drawing that references it.
+    ///
+    /// The part is added to the part that OWNS the paragraph — here always the main document. That
+    /// is not incidental: a relationship id is scoped to its container, so a part added to the wrong
+    /// one still produces a schema-valid package in which Word shows nothing at all. There is no
+    /// error and no exception; the image is simply absent.
+    ///
+    /// The content type comes from the image's own magic bytes via <see cref="ImageInspector"/>,
+    /// never from a filename or a caller's assertion — a part declaring <c>image/png</c> while
+    /// holding JPEG bytes renders as a blank frame, silently.
+    /// </summary>
+    private static Paragraph BuildImageParagraph(
+        MainDocumentPart main, ImageBlock block, ref uint nextDrawingId)
+    {
+        var info = ImageInspector.Inspect(block.Bytes);
+        var (widthEmu, heightEmu) = ImageInspector.Resolve(info, block.WidthPoints, block.HeightPoints);
+
+        // The same content-type DERIVATION as DocxEditor.ReplaceImage, so the two paths cannot
+        // disagree about what a given set of bytes is. The mechanics differ and that is not a
+        // claim worth making: ReplaceImage writes through GetStream(FileMode.Create), this uses
+        // FeedData. Equivalent in effect, but "exactly how ReplaceImage does it" would be false,
+        // and this repo has twice been misled by a comment that overstated a shared invariant.
+        var part = main.AddNewPart<ImagePart>(info.ContentType);
+        using (var source = new MemoryStream(block.Bytes))
+            part.FeedData(source);
+
+        var drawing = DrawingFactory.InlineImage(
+            main.GetIdOfPart(part), $"Image {nextDrawingId}", nextDrawingId, widthEmu, heightEmu);
+
+        nextDrawingId++;
+        return new Paragraph(new Run(drawing));
     }
 
     /// <summary>
