@@ -103,6 +103,34 @@ updates:
   # version and rewrites BOTH the SHA and the comment. Keep the comment on every
   # pinned `uses:` - without it Dependabot cannot tell what version the SHA is,
   # and the pin silently stops being updated.
+  # ── The local tool manifest ─────────────────────────────────────────────────
+  # .config/dotnet-tools.json only. Dependabot supports the manifest ONLY in
+  # .config/ and not at the repository root (dependabot-core#7969), which is why
+  # it lives there rather than beside the solution.
+  #
+  # This block is rooted at "/" because that is where Dependabot looks for
+  # .config/dotnet-tools.json. That also puts DocToolkit.sln in its view, and a
+  # solution reaches every project - so per the trap recorded in the backlog as
+  # C19, every guard that protects src/ is REPEATED here. An ignore rule is
+  # scoped to the block that declares it; a new block does not inherit anything.
+  # Without these, a bump proposed through the solution would bypass the pins
+  # that the per-project blocks above exist to enforce.
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    ignore:
+      # Repeated from /src/DocToolkit - the licensing wall.
+      - dependency-name: "SixLabors.Fonts"
+        update-types: ["version-update:semver-major"]
+      # Repeated from /src/DocToolkit.Extensions.DependencyInjection - raising a
+      # floor narrows who can consume the package, which is never routine.
+      - dependency-name: "Ank.DocToolkit"
+      - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
+      - dependency-name: "Microsoft.Extensions.Options"
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
