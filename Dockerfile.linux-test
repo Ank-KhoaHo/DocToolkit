@@ -3,10 +3,26 @@
 # SDK 10 is required: the projects multi-target net8.0;net10.0, and the 8.0 SDK
 # cannot build a net10.0 target (fails restore with NETSDK1045). The 10.0 SDK
 # builds both, so this image covers the full matrix.
-FROM mcr.microsoft.com/dotnet/sdk:10.0
+# Pinned to the exact SDK global.json requires, not the floating 10.0 tag. rollForward is
+# latestPatch, which does NOT cross feature bands - so a floating tag that moves from 10.0.3xx to
+# 10.0.4xx would start failing here with "a compatible .NET SDK was not found". Bump this and
+# global.json together.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302
 
 WORKDIR /src
-COPY DocToolkit.sln ./
+
+# global.json and the root Directory.Build.props are NOT optional here.
+#
+# src/Directory.Build.props imports the root one by walking up the tree, so without it MSBuild
+# fails outright, and every property that moved out of the csproj files - Nullable, ImplicitUsings,
+# LangVersion, TreatWarningsAsErrors - is simply absent. Omitting global.json is quieter and worse:
+# the build silently uses whatever SDK the image carries, which is the drift this file was pinned
+# to remove.
+#
+# This is not hypothetical. The props file arrived and this COPY list was not updated, so the
+# documented Linux check was broken for a day and nothing said so - because nothing runs it. That
+# is backlog C6, and this is the second time it has cost something.
+COPY global.json Directory.Build.props DocToolkit.sln ./
 COPY src/ ./src/
 COPY tests/ ./tests/
 COPY samples/ ./samples/

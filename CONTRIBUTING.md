@@ -6,11 +6,17 @@ not just the day-to-day workflow of building and testing it.
 
 ## Getting set up
 
-You need the .NET SDK. The projects target `net8.0` and `net10.0`. A `net10.0`-capable SDK builds
-everything, but running the tests also executes the `net8.0` target — there is no `global.json` and
-no `RollForward` policy pinning that away, so without the .NET 8 runtime installed alongside it,
-`dotnet test` fails on that half of the suite. Install both the .NET 8 and .NET 10 SDKs; CI installs
-both for the same reason.
+You need **.NET SDK 10.0.302**, and the .NET 8 SDK alongside it.
+
+`global.json` pins the 10.x SDK to `10.0.302` with `rollForward: latestPatch`, so a newer patch in
+the same feature band is fine but a different band is not — `dotnet` will refuse to run rather than
+quietly build with something else. Before this pin, local builds and CI were on genuinely different
+toolchains: `10.0.101` against `10.0.302`, two feature bands apart, with different Roslyn and
+analyzers.
+
+The .NET 8 SDK is still needed even though the 10.x SDK builds every target: the tests also *run*
+the `net8.0` half of the suite, which needs the .NET 8 runtime. CI installs both for the same
+reason.
 
 ```bash
 git clone https://github.com/Ank-KhoaHo/DocToolkit.git
