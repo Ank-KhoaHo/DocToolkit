@@ -35,6 +35,12 @@
           "Microsoft.Extensions.Logging.Abstractions": "6.0.0"
         }
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "ISahzLHsHY7vrwqr2p1YWZ+gsxoBRtH7gWRDK8fDUst9pp2He0GiesaqEfeX0V8QMCJM3eNEHGGpnIcPjFo2NQ=="
+      },
       "OfficeIMO.Word.Pdf": {
         "type": "Direct",
         "requested": "[3.1.0, )",
@@ -113,6 +119,7 @@
         "contentHash": "JTpM4z0wpoIHHDvlCU27HsXo+zVnpWib94HXQpzzr+jc/P9NYf4w353AK4MXyGq/grm1mbLi7eXsOsDU8sGmNg=="
       }
     },
+    "net10.0/linux-x64": {},
     "net8.0": {
       "ClosedXML": {
         "type": "Direct",
@@ -146,6 +153,12 @@
           "DocumentFormat.OpenXml": "3.5.1",
           "Microsoft.Extensions.Logging.Abstractions": "6.0.0"
         }
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[8.0.22, )",
+        "resolved": "8.0.22",
+        "contentHash": "MhcMithKEiyyNkD2ZfbDZPmcOdi0GheGfg8saEIIEfD/fol3iHmcV8TsZkD4ZYz5gdUuoX4YtlVySUU7Sxl9SQ=="
       },
       "OfficeIMO.Word.Pdf": {
         "type": "Direct",
@@ -224,6 +237,7 @@
         "resolved": "8.0.1",
         "contentHash": "KYkIOAvPexQOLDxPO2g0BVoWInnQhPpkFzRqvNrNrMhVT6kqhVr0zEb6KCHlptLFukxnZrjuMVAnxK7pOGUYrw=="
       }
-    }
+    },
+    "net8.0/linux-x64": {}
   }
 }

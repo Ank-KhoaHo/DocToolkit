@@ -39,6 +39,23 @@ All four are properties of the *resolved dependency graph*, so a single upstream
 them silently — which is why CI re-checks every one on every push. That has happened once already
 (see [Design notes](#design-notes)).
 
+### Trimming
+
+Both packages are marked `IsTrimmable`, so `PublishTrimmed` apps keep only what they use.
+
+That claim is checked the same way as the four above — CI trim-publishes an application over the
+real dependency graph, then **runs it** and asserts every capability still works. A trim failure
+does not appear at publish time: the trimmer removes a type something looks up by name, and the app
+throws, or quietly produces an empty document, in production.
+
+One caveat that is a dependency's rather than ours: **ClosedXML emits a trim warning**
+(`IL2090`, in `DescribedEnumParser<T>`). Spreadsheet reading and writing work correctly in the
+trimmed app CI runs, but the warning will appear in your publish output.
+
+**Native AOT is not claimed.** `IsAotCompatible` is a strictly stronger promise than `IsTrimmable`,
+and it has not been verified end to end here. An unverified compatibility claim is worse than an
+absent one, so it is absent until a CI job compiles *and* runs an AOT build.
+
 ## Usage
 
 ```csharp

@@ -55,6 +55,23 @@ def nuget_cache() -> Path:
     return Path(env) if env else Path.home() / ".nuget" / "packages"
 
 
+# Packages that appear in packages.lock.json but never reach a consumer, so they are not
+# third-party content this project redistributes and must not be attributed as such.
+#
+# The lockfile cannot tell you this on its own: it records Microsoft.NET.ILLink.Tasks with
+# "type": "Direct", exactly like a real dependency. What distinguishes it is PrivateAssets, which
+# the lockfile does not carry - so the exclusion has to be named here.
+#
+# Microsoft.NET.ILLink.Tasks is injected by the SDK because src/Directory.Build.props sets
+# IsTrimmable. It is the trimmer itself, running at the CONSUMER's publish time from their own SDK.
+# Verified when it was added: it is absent from both generated .nuspec files, so nothing about it
+# ships. Without this exclusion the notices and README would have claimed 18 packages instead of
+# 16, attributing a build tool as redistributed content.
+#
+# Add to this set only after checking the .nuspec confirms the package really does not ship.
+BUILD_ONLY_PACKAGES = {"Microsoft.NET.ILLink.Tasks"}
+
+
 def resolved_packages(project: Path) -> dict[str, set[str]]:
     """Map package id -> set of resolved versions, unioned across every TFM.
 
@@ -67,6 +84,8 @@ def resolved_packages(project: Path) -> dict[str, set[str]]:
     out: dict[str, set[str]] = {}
     for packages in lock["dependencies"].values():
         for name, info in packages.items():
+            if name in BUILD_ONLY_PACKAGES:
+                continue
             version = info.get("resolved")
             if version:
                 out.setdefault(name, set()).add(version)
@@ -79,7 +98,7 @@ def direct_packages(project: Path) -> set[str]:
         name
         for packages in lock["dependencies"].values()
         for name, info in packages.items()
-        if info.get("type") == "Direct"
+        if info.get("type") == "Direct" and name not in BUILD_ONLY_PACKAGES
     }
 
 
