@@ -54,7 +54,9 @@ public class HtmlToPdfConverterServiceTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        using var destination = new MemoryStream();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sut.ConvertAsync("<p>Body.</p>", new MemoryStream(), cts.Token));
+            () => sut.ConvertAsync("<p>Body.</p>", destination, cts.Token));
     }
 }

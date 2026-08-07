@@ -61,8 +61,11 @@ public class DocxEditorServiceTests
         var docx = await HtmlToDocxConverter.ConvertAsync("<p>Body copy.</p>");
         var sut = new DocxEditorService();
 
-        var expected = await DocxEditor.ExtractTextAsync(new MemoryStream(docx));
-        var actual = await sut.ExtractTextAsync(new MemoryStream(docx));
+        using var expectedSource = new MemoryStream(docx);
+        using var actualSource = new MemoryStream(docx);
+
+        var expected = await DocxEditor.ExtractTextAsync(expectedSource);
+        var actual = await sut.ExtractTextAsync(actualSource);
 
         Assert.Equal(expected, actual);
     }
@@ -73,8 +76,11 @@ public class DocxEditorServiceTests
         var docx = DocxWithHeaderAndFooter("Body text.", "Page header", "Page footer");
         var sut = new DocxEditorService();
 
-        var expected = await DocxEditor.ExtractTextAsync(new MemoryStream(docx), includeHeadersAndFooters: true);
-        var actual = await sut.ExtractTextAsync(new MemoryStream(docx), includeHeadersAndFooters: true);
+        using var expectedSource = new MemoryStream(docx);
+        using var actualSource = new MemoryStream(docx);
+
+        var expected = await DocxEditor.ExtractTextAsync(expectedSource, includeHeadersAndFooters: true);
+        var actual = await sut.ExtractTextAsync(actualSource, includeHeadersAndFooters: true);
 
         Assert.Equal(expected, actual);
         Assert.Contains("Page header", actual);
@@ -87,11 +93,13 @@ public class DocxEditorServiceTests
         var sut = new DocxEditorService();
         var replacements = new Dictionary<string, string> { ["{{name}}"] = "Contoso Ltd" };
 
+        using var expectedSource = new MemoryStream(docx);
         using var expected = new MemoryStream();
-        await DocxEditor.ReplaceTextAsync(new MemoryStream(docx), replacements, expected);
+        await DocxEditor.ReplaceTextAsync(expectedSource, replacements, expected);
 
+        using var actualSource = new MemoryStream(docx);
         using var actual = new MemoryStream();
-        await sut.ReplaceTextAsync(new MemoryStream(docx), replacements, actual);
+        await sut.ReplaceTextAsync(actualSource, replacements, actual);
 
         Assert.Equal(expected.ToArray(), actual.ToArray());
     }
@@ -103,8 +111,10 @@ public class DocxEditorServiceTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        using var source = new MemoryStream();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sut.ExtractTextAsync(new MemoryStream(), cts.Token));
+            () => sut.ExtractTextAsync(source, cts.Token));
     }
 
     private static byte[] DocxWithHeaderAndFooter(string bodyText, string headerText, string footerText)

@@ -245,9 +245,10 @@ public class DocxEditorReplaceImageTests
 
         var expected = DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 24);
 
+        using var source = new MemoryStream(docx);
         using var destination = new MemoryStream();
         await DocxEditor.ReplaceImageAsync(
-            new MemoryStream(docx), "{{logo}}", png, destination, widthPoints: 24);
+            source, "{{logo}}", png, destination, widthPoints: 24);
         var actual = destination.ToArray();
 
         Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));

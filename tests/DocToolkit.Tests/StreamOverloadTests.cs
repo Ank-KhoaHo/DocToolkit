@@ -234,8 +234,9 @@ public class StreamOverloadTests
     {
         var forwardOnly = new ForwardOnlySource(SourceBytesFor(api));
         var source = new TrackingStream(forwardOnly);
+        using var destination = new MemoryStream();
 
-        await InvokeAsync(api, source, new MemoryStream());
+        await InvokeAsync(api, source, destination);
 
         Assert.True(source.AsyncReads > 0, $"{api} never called ReadAsync on the source.");
         Assert.Equal(0, source.SyncReads);
@@ -253,15 +254,21 @@ public class StreamOverloadTests
     [MemberData(nameof(SourceReaders))]
     public async Task EverySourceReader_RejectsASourceItCannotRead(string api)
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(() => InvokeAsync(api, null, new MemoryStream()));
+        using var nullCaseDestination = new MemoryStream();
+        using var unreadableCaseDestination = new MemoryStream();
+        using var emptyCaseSource = new MemoryStream();
+        using var emptyCaseDestination = new MemoryStream();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => InvokeAsync(api, null, nullCaseDestination));
 
         var unreadable = await Assert.ThrowsAsync<ArgumentException>(
-            () => InvokeAsync(api, new NonReadableStream(), new MemoryStream()));
+            () => InvokeAsync(api, new NonReadableStream(), unreadableCaseDestination));
         Assert.Equal("source", unreadable.ParamName);
         Assert.Contains("readable", unreadable.Message, StringComparison.OrdinalIgnoreCase);
 
         var empty = await Assert.ThrowsAsync<ArgumentException>(
-            () => InvokeAsync(api, new MemoryStream(), new MemoryStream()));
+            () => InvokeAsync(api, emptyCaseSource, emptyCaseDestination));
         Assert.Equal("source", empty.ParamName);
         Assert.Contains("empty", empty.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -277,9 +284,10 @@ public class StreamOverloadTests
     {
         using var cts = new CancellationTokenSource();
         var source = new CancelsOnFirstReadSource(SourceBytesFor(api), cts);
+        using var destination = new MemoryStream();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => InvokeAsync(api, source, new MemoryStream(), cts.Token));
+            () => InvokeAsync(api, source, destination, cts.Token));
     }
 
     /// <summary>Nothing starts on a token that is already cancelled.</summary>
@@ -290,9 +298,10 @@ public class StreamOverloadTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
         using var source = NewSource(api);
+        using var destination = new MemoryStream();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => InvokeAsync(api, source, new MemoryStream(), cts.Token));
+            () => InvokeAsync(api, source, destination, cts.Token));
     }
 
     // =====================================================================================
@@ -486,34 +495,45 @@ public class StreamOverloadTests
 
     [Fact]
     public async Task HtmlToDocx_StreamOverload_RejectsNullHtml()
-        => await Assert.ThrowsAsync<ArgumentNullException>(
-            () => HtmlToDocxConverter.ConvertAsync(null!, new MemoryStream()));
+    {
+        using var destination = new MemoryStream();
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToDocxConverter.ConvertAsync(null!, destination));
+    }
 
     [Fact]
     public async Task HtmlToPdf_StreamOverload_RejectsNullHtml()
-        => await Assert.ThrowsAsync<ArgumentNullException>(
-            () => HtmlToPdfConverter.ConvertAsync(null!, new MemoryStream()));
+    {
+        using var destination = new MemoryStream();
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToPdfConverter.ConvertAsync(null!, destination));
+    }
 
     [Fact]
     public async Task DocxEditor_ReplaceTextAsync_RejectsNullReplacements()
     {
         using var source = StreamDoubles.Seekable(Docx);
+        using var destination = new MemoryStream();
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => DocxEditor.ReplaceTextAsync(source, null!, new MemoryStream()));
+            () => DocxEditor.ReplaceTextAsync(source, null!, destination));
     }
 
     [Fact]
     public async Task PresentationEditor_ReplaceTextAsync_RejectsNullReplacements()
     {
         using var source = StreamDoubles.Seekable(Pptx);
+        using var destination = new MemoryStream();
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => PresentationEditor.ReplaceTextAsync(source, null!, new MemoryStream()));
+            () => PresentationEditor.ReplaceTextAsync(source, null!, destination));
     }
 
     [Fact]
     public async Task WorkbookEditor_CreateAsync_RejectsABlankSheetName()
-        => await Assert.ThrowsAsync<ArgumentException>(
-            () => WorkbookEditor.CreateAsync(" ", Rows, new MemoryStream()));
+    {
+        using var destination = new MemoryStream();
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => WorkbookEditor.CreateAsync(" ", Rows, destination));
+    }
 
     [Fact]
     public async Task WorkbookEditor_ReadCellAsync_ReportsAMissingSheetAsAConversionFailure()
@@ -530,9 +550,10 @@ public class StreamOverloadTests
     public async Task DocxToPdf_ReportsARubbishSourceAsAConversionFailure()
     {
         using var source = StreamDoubles.Seekable(Encoding.ASCII.GetBytes("this is not a docx"));
+        using var destination = new MemoryStream();
 
         await Assert.ThrowsAsync<DocumentConversionException>(
-            () => DocxToPdfConverter.ConvertAsync(source, new MemoryStream()));
+            () => DocxToPdfConverter.ConvertAsync(source, destination));
     }
 
     // =====================================================================================
