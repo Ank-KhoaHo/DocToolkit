@@ -30,7 +30,7 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 
 | Constraint | How |
 |---|---|
-| **Free for commercial use** | 19 dependencies: 18 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
+| **Free for commercial use** | 18 dependencies: 17 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
 | **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
 | **Runs on Linux** | Verified in CI on `ubuntu-24.04`, not inferred. |
 | **Works offline** | No runtime network I/O. Proven by 37 air-gap tests. |
@@ -144,7 +144,7 @@ fails restore loudly rather than silently relicensing you.
 ## Dependencies
 
 Direct: `DocumentFormat.OpenXml` · `HtmlToOpenXml.dll` · `OfficeIMO.Word.Pdf` · `ClosedXML` ·
-`SixLabors.Fonts [1.0.0]`. Full closure is 19 packages — 18 MIT, 1 Apache-2.0; see
+`SixLabors.Fonts [1.0.0]`. Full closure is 18 packages — 17 MIT, 1 Apache-2.0; see
 [`THIRD-PARTY-NOTICES.txt`](src/DocToolkit/THIRD-PARTY-NOTICES.txt).
 
 **Mirroring to a private feed?** Four things catch people out: `System.IO.Packaging` resolves to

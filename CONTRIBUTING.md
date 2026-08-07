@@ -201,11 +201,12 @@ dotnet restore src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensio
 
 | Check | What it means |
 |---|---|
-| `build & test (ubuntu-latest)` / `(windows-latest)` | Both must pass. Linux is a supported platform, not a nice-to-have. |
-| `no native binaries / no banned packages` | This job runs several checks in order, so the failing step tells you the cause. If it fails on the **first** step (`dotnet restore --locked-mode`), `packages.lock.json` is just stale — run `dotnet restore <project> --force-evaluate` and commit the regenerated lockfile; nothing is banned. If it fails **later** — a native binary in build output, a banned package in the resolved graph, or `SixLabors.Fonts` drifting off the `1.x` line (2.x moves to a revenue-gated licence) — a dependency actually broke one of the four constraints. **Remove or re-pin it. Never relax the test.** |
+| `build & test (ubuntu-24.04)` / `(windows-latest)` | Both must pass. Linux is a supported platform, not a nice-to-have. The Ubuntu runner names its version rather than using `ubuntu-latest`, so the README's "verified on `ubuntu-24.04`" stays a checkable claim. |
+| `no native binaries / no banned packages` | This job runs several checks in order, so the failing step tells you the cause. If it fails on the **first** step (`dotnet restore --locked-mode`), `packages.lock.json` is just stale — run `dotnet restore <project> --force-evaluate` and commit the regenerated lockfile; nothing is banned. If it fails **later** — a native binary in build output, a banned package in the resolved graph, or `SixLabors.Fonts` drifting off the `1.x` line (2.x moves to a revenue-gated licence) — a dependency actually broke one of the four constraints. **Remove or re-pin it. Never relax the test.** If it fails on the **last** step (`THIRD-PARTY-NOTICES.txt matches the resolved graph`), nothing is wrong with the dependency — the attribution files just need regenerating: run `python scripts/gen-third-party-notices.py` and commit the result. |
 | `commit message format` | A commit in your branch is not Conventional Commits. Amend or rebase. |
 | `pack & verify .nupkg (core)` / `(extensions)` | The NuGet package no longer builds or verifies. |
 | `build docs site` | The API documentation site failed to build. |
+| `analyze (csharp)` | CodeQL static analysis. A failure here is the job breaking (usually the build step); a *finding* surfaces as a code-scanning alert on the pull request rather than as a red check. |
 
 There is also a public-API approval test. It generates the shipped public surface and compares it
 to a checked-in approved file. If it fails and **your change to the public API was intended**,

@@ -68,7 +68,14 @@ env:
 jobs:
   release:
     name: verify, pack and publish
-    runs-on: ubuntu-latest
+    # Pinned for the same reason as ci.yml, and it matters more here. This job
+    # runs the suite and all four premise guards and then pushes to nuget.org,
+    # which cannot be undone - a version can be unlisted, never replaced. Letting
+    # the `latest` alias move the toolchain underneath an irreversible publish is
+    # the one place a surprise is least affordable, and it would also mean the
+    # runner that verifies a release differs from the one ci.yml verified the
+    # same commit on.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
