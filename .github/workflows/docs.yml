@@ -51,11 +51,13 @@ jobs:
       # DocFX restores each project itself while generating metadata - no separate
       # solution-wide restore needed, and this way a nuget hiccup resolving a sample
       # project's package can't fail an otherwise-unrelated docs deploy.
-      - name: Install DocFX
-        run: dotnet tool update -g docfx --version 2.78.5
+      # The version lives in .config/dotnet-tools.json, not here. It used to be written
+      # in this file AND in the other workflow, with nothing keeping the two in step.
+      - name: Restore local tools
+        run: dotnet tool restore
 
       - name: Build docs site
-        run: docfx docfx/docfx.json --warningsAsErrors
+        run: dotnet docfx docfx/docfx.json --warningsAsErrors
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 

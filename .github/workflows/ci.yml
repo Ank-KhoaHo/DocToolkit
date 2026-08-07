@@ -340,13 +340,15 @@ jobs:
             8.0.x
             10.0.302
 
-      - name: Install DocFX
-        run: dotnet tool update -g docfx --version 2.78.5
+      # The version lives in .config/dotnet-tools.json, not here. It used to be written
+      # in this file AND in the other workflow, with nothing keeping the two in step.
+      - name: Restore local tools
+        run: dotnet tool restore
 
       # --warningsAsErrors catches a regression like the InvalidFileLink warning
       # this pipeline hit once already (see docfx/index.md's xref: links).
       - name: Build docs site
-        run: docfx docfx/docfx.json --warningsAsErrors
+        run: dotnet docfx docfx/docfx.json --warningsAsErrors
 
   # Proves the artifacts consumers actually install are correct - not just that
   # the solution compiles. Catches missing TFMs and metadata regressions.
