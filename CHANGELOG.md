@@ -15,16 +15,38 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** add stream and file overloads for creating a deck ([f832b17](https://github.com/Ank-KhoaHo/DocToolkit/commit/f832b17a5fc754700be451039109e155711dd943))
-* **core:** add the PptxSlide model ([faac36b](https://github.com/Ank-KhoaHo/DocToolkit/commit/faac36b194963f993716ef4bc4a47f15e3f35a5d))
-* **core:** build the PPTX scaffold and create an empty deck ([5fc9738](https://github.com/Ank-KhoaHo/DocToolkit/commit/5fc97388e1e4a8386aba0f9d6de143f418deb5c4))
-* **core:** write slides with titles and bullets ([6756955](https://github.com/Ank-KhoaHo/DocToolkit/commit/675695556f048a5a5cb471f2ddb8a88de38b7d36))
-* **extensions:** restore 1:1 with DocxEditor, closing a two-release gap ([0c3d90e](https://github.com/Ank-KhoaHo/DocToolkit/commit/0c3d90e8c4ee0142e12e2fe15eeb38ad106f1b92))
+* **Core: create a PPTX from scratch, from a typed slide model.** `PresentationEditor.Create`,
+  `CreateAsync` and `CreateToFileAsync` build a deck from `PptxSlide` values — a title and bullet
+  lines per slide. Previously `PresentationEditor` could count slides, extract text and replace
+  text, but there was no way to obtain a `.pptx` in the first place. As with the DOCX equivalent,
+  content comes from **data** rather than a template, so there is nothing to escape and no source
+  file to edit.
 
+  ```csharp
+  byte[] deck = PresentationEditor.Create(new[]
+  {
+      PptxSlide.Titled("Q3 Results", "Revenue up 12%", "Costs flat"),
+      PptxSlide.Titled("Outlook", "Hiring 3 engineers"),
+  });
+  ```
 
-### Fixed
+  ([faac36b](https://github.com/Ank-KhoaHo/DocToolkit/commit/faac36b194963f993716ef4bc4a47f15e3f35a5d),
+  [5fc9738](https://github.com/Ank-KhoaHo/DocToolkit/commit/5fc97388e1e4a8386aba0f9d6de143f418deb5c4),
+  [6756955](https://github.com/Ank-KhoaHo/DocToolkit/commit/675695556f048a5a5cb471f2ddb8a88de38b7d36),
+  [f832b17](https://github.com/Ank-KhoaHo/DocToolkit/commit/f832b17a5fc754700be451039109e155711dd943),
+  [321d3e0](https://github.com/Ank-KhoaHo/DocToolkit/commit/321d3e0d5ff9d5936f08ef625fac8f3152a4cfa3))
 
-* **core:** link the slide layout to its master so PowerPoint opens the deck ([321d3e0](https://github.com/Ank-KhoaHo/DocToolkit/commit/321d3e0d5ff9d5936f08ef625fac8f3152a4cfa3))
+* **Extensions: `IDocxEditor` regains parity with `DocxEditor`.**
+  `FillRows`/`FillRowsAsync` — repeating table rows — have been missing from the interface since
+  **0.4.0** shipped them in the core package, and `ReplaceImage`/`ReplaceImageAsync` since **0.5.0**.
+  Both features were therefore unreachable through dependency injection entirely, and available only
+  through the static API. Both are now present, along with `Create`/`CreateAsync` for the block model
+  added in 0.10.0.
+
+  **If you use `IDocxEditor` and worked around either gap by calling `DocToolkit.DocxEditor`
+  statically, you can now inject it instead.** File-path overloads remain deliberately unmirrored,
+  as they are for every interface in this package.
+  ([0c3d90e](https://github.com/Ank-KhoaHo/DocToolkit/commit/0c3d90e8c4ee0142e12e2fe15eeb38ad106f1b92))
 
 ## [0.10.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.9.0...v0.10.0) (2026-08-07)
 
