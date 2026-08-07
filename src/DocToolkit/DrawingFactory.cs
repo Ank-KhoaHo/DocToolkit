@@ -15,6 +15,13 @@ namespace DocToolkit;
 /// </summary>
 internal static class DrawingFactory
 {
+    /// <summary>
+    /// One inline image, sized in EMUs, referencing an image part that already exists.
+    ///
+    /// Adds nothing to the package itself — the caller owns creating the <c>ImagePart</c> and
+    /// feeding it bytes, because which container that part belongs to is the caller's decision and
+    /// getting it wrong is invisible (see <paramref name="relationshipId"/>).
+    /// </summary>
     /// <param name="relationshipId">
     /// The image part's relationship id, resolved in the part that OWNS the paragraph. A header's
     /// image referenced by a main-document relationship id resolves in the wrong scope: Word opens

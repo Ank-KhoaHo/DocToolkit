@@ -125,7 +125,7 @@ internal static class ImageInspector
                     ? (nameof(widthPoints), widthPoints)
                 : heightPoints is not null
                     ? (nameof(heightPoints), heightPoints)
-                    : (nameof(info), (double?)null);
+                    : (nameof(info), null);
 
             throw new ArgumentOutOfRangeException(name, value,
                 $"The resulting image size is outside what OOXML can represent " +
