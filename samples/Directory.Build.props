@@ -1,9 +1,15 @@
 <Project>
 
+  <!--
+    MSBuild stops at the NEAREST Directory.Build.props walking up from the project, so this file
+    shadows the repository-wide one at the root. Without this import the samples would silently
+    opt out of TreatWarningsAsErrors and ContinuousIntegrationBuild - and the samples are exactly
+    where a silent opt-out hurts, since they are the canary for a breaking API change.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

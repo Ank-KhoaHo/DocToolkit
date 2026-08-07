@@ -1,32 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-  </PropertyGroup>
-
-  <!-- NuGet package identity -->
+  <!--
+    Shared build and packaging properties live in src/Directory.Build.props. Only what differs
+    between the two packages belongs here.
+  -->
   <PropertyGroup>
     <PackageId>Ank.DocToolkit</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Khoa Ho</Authors>
     <Description>
       Convert HTML to DOCX and PDF, and open/edit DOCX, XLSX and PPTX - pure managed,
       no native binaries, no browser, no LibreOffice. Runs on Linux.
     </Description>
     <PackageTags>docx;pdf;xlsx;pptx;html;openxml;document;conversion</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/Ank-KhoaHo/DocToolkit</PackageProjectUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>icon.png</PackageIcon>
-    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts</PackageOutputPath>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <Deterministic>true</Deterministic>
   </PropertyGroup>
 
   <ItemGroup>
@@ -46,18 +30,14 @@
     <PackageReference Include="SixLabors.Fonts" Version="[1.0.1]" />
   </ItemGroup>
 
+  <!--
+    README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by
+    src/Directory.Build.props. LICENSE is packed by this project only, matching what has shipped
+    since 0.1.0 - the extensions package has never carried one. That asymmetry is preserved here
+    rather than quietly fixed, because changing a package's contents is a release-visible change
+    and belongs in its own commit.
+  -->
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
-
-    <!--
-      One icon, shared by both packages: they are companions that always ship at the same
-      version, so two files could only ever drift. It is a committed PNG, never generated at
-      build time - every convenient imaging library is either revenue-gated or carries native
-      binaries, which is exactly what DependencyGuardTests exists to keep out. assets/make-icon.py
-      regenerates it and is deliberately not wired into any build.
-    -->
-    <None Include="$(MSBuildThisFileDirectory)../../assets/icon.png" Pack="true" PackagePath="\" />
-    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
 

@@ -1,0 +1,64 @@
+<Project>
+
+  <!--
+    Applies to every project in the repository: src/, tests/ and samples/.
+
+    samples/Directory.Build.props is NEARER than this file, and MSBuild stops at the nearest
+    Directory.Build.props it finds walking up. It therefore imports this one explicitly - without
+    that import the samples would silently opt out of everything below, which is precisely the kind
+    of quiet divergence this file exists to remove.
+  -->
+
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      CI builds with `-warnaserror`. Without this property a plain local `dotnet build` does NOT
+      hold that line, so a warning is invisible until it reaches a pull request - which has already
+      happened twice (see CLAUDE.md > Conventions). Setting it here makes the local build and CI
+      agree by construction rather than by remembering a command-line flag.
+
+      Note the interaction recorded in CLAUDE.md: MSBuild skips projects whose inputs are unchanged,
+      and a skipped project emits no diagnostics at all. The no-incremental switch is still required
+      to trust a clean result on an already-built tree. This property removes the need to remember
+      the warnaserror switch; it does not remove the need to remember that one.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      AnalysisMode is deliberately left at its default. `EnableNETAnalyzers` is already true by
+      default for net5.0+, so the analyzers ARE running and the tree is clean at the default rule
+      set - measured 2026-08-07: 0 warnings.
+
+      Raising it is not a free tightening, which is why it is not done here. Measured the same day
+      across the whole solution:
+
+        AnalysisMode=Recommended -> 1622 warnings
+        AnalysisMode=All         -> 2732 warnings
+
+      and 1400 of them - 86% of Recommended - are CA1707 "identifiers should not contain
+      underscores", fired on this repository's deliberate `Method_Behaviour` xunit test names. Any
+      future attempt at this needs an .editorconfig suppression set first (backlog C13), and should
+      begin by re-measuring rather than by trusting these numbers.
+    -->
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      Deterministic alone does NOT normalize source paths - it leaves absolute local paths embedded
+      in the assembly and the PDB, so builds from two machines differ and the "reproducible" claim
+      is not actually held. ContinuousIntegrationBuild is the property that normalizes them, and it
+      must be set only in CI: switching it on locally breaks step-through debugging, because the
+      debugger can no longer map the normalized paths back to files on disk.
+
+      GITHUB_ACTIONS is set to "true" by the runner on every hosted job.
+    -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+</Project>

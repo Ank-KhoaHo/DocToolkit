@@ -1,18 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-  </PropertyGroup>
-
+  <!--
+    Shared build and packaging properties live in src/Directory.Build.props. Only what differs
+    between the two packages belongs here.
+  -->
   <PropertyGroup>
     <PackageId>Ank.DocToolkit.Extensions.DependencyInjection</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Khoa Ho</Authors>
     <Description>
       Dependency-injection registration for Ank.DocToolkit. services.AddDocToolkit() registers
       six injectable interfaces (IHtmlToDocxConverter, IDocxToPdfConverter, IHtmlToPdfConverter,
@@ -20,29 +13,9 @@
       PDF/XLSX/PPTX conversion and editing logic, for ASP.NET Core and worker-service consumers.
     </Description>
     <PackageTags>docx;pdf;xlsx;pptx;dependency-injection;aspnetcore;openxml</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/Ank-KhoaHo/DocToolkit</PackageProjectUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>icon.png</PackageIcon>
-    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts</PackageOutputPath>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <Deterministic>true</Deterministic>
   </PropertyGroup>
 
-  <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="\" />
-
-    <!--
-      One icon, shared by both packages: they are companions that always ship at the same
-      version, so two files could only ever drift. It is a committed PNG, never generated at
-      build time - every convenient imaging library is either revenue-gated or carries native
-      binaries, which is exactly what DependencyGuardTests exists to keep out. assets/make-icon.py
-      regenerates it and is deliberately not wired into any build.
-    -->
-    <None Include="$(MSBuildThisFileDirectory)../../assets/icon.png" Pack="true" PackagePath="\" />
-    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
-  </ItemGroup>
+  <!-- README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by src/Directory.Build.props. -->
 
   <ItemGroup>
     <PackageReference Include="Ank.DocToolkit" Version="[0.11.0, )" />
