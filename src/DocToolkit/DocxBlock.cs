@@ -138,7 +138,19 @@ public abstract class DocxBlock
     /// Size is in points, matching <see cref="DocxEditor.ReplaceImage"/>. Omit both and the image's
     /// intrinsic size at 96 DPI is used; give one and the other scales to preserve the aspect ratio;
     /// give both and the image is stretched, distortion accepted as the caller's choice.
+    ///
+    /// <paramref name="altText"/> becomes the drawing's <c>descr</c>, which is what a screen reader
+    /// announces. Omit it and the attribute is omitted too, rather than filled with a placeholder:
+    /// a generated value like "Image 1" is worse than nothing, because it is read out as though it
+    /// described the picture. Supply it for any image carrying meaning; leave it off for one that is
+    /// purely decorative.
     /// </summary>
+    /// <param name="image">PNG or JPEG bytes.</param>
+    /// <param name="widthPoints">Rendered width in points, or null to derive it.</param>
+    /// <param name="heightPoints">Rendered height in points, or null to derive it.</param>
+    /// <param name="altText">
+    /// What a screen reader announces in place of the image. Null omits it.
+    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="image"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="image"/> is empty, or is neither PNG nor JPEG.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -146,7 +158,7 @@ public abstract class DocxBlock
     /// hold — see <see cref="DocxEditor.ReplaceImage"/> for the same bound on the editing path.
     /// </exception>
     public static DocxBlock Image(
-        byte[] image, double? widthPoints = null, double? heightPoints = null)
+        byte[] image, double? widthPoints = null, double? heightPoints = null, string? altText = null)
     {
         ArgumentNullException.ThrowIfNull(image);
         if (image.Length == 0) throw new ArgumentException("Image content was empty.", nameof(image));
@@ -176,7 +188,7 @@ public abstract class DocxBlock
         // point the caller used. ReplaceImage calls Resolve outside its try and was always fine.
         _ = ImageInspector.Resolve(info, widthPoints, heightPoints);
 
-        return new ImageBlock(image, widthPoints, heightPoints);
+        return new ImageBlock(image, widthPoints, heightPoints, altText);
     }
 }
 
@@ -204,9 +216,10 @@ internal sealed class TableBlock(
 // (CS8866); as a class it would merely shadow it confusingly. Either way the public factory keeps
 // the name Image - it is the approved API - so the internal member is the one that moves.
 internal sealed class ImageBlock(
-    byte[] bytes, double? widthPoints, double? heightPoints) : DocxBlock
+    byte[] bytes, double? widthPoints, double? heightPoints, string? altText) : DocxBlock
 {
     public byte[] Bytes { get; } = bytes;
     public double? WidthPoints { get; } = widthPoints;
     public double? HeightPoints { get; } = heightPoints;
+    public string? AltText { get; } = altText;
 }

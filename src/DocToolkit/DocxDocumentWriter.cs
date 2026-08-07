@@ -126,7 +126,8 @@ internal static class DocxDocumentWriter
             part.FeedData(source);
 
         var drawing = DrawingFactory.InlineImage(
-            main.GetIdOfPart(part), $"Image {nextDrawingId}", nextDrawingId, widthEmu, heightEmu);
+            main.GetIdOfPart(part), $"Image {nextDrawingId}", nextDrawingId, widthEmu, heightEmu,
+            block.AltText);
 
         nextDrawingId++;
         return new Paragraph(new Run(drawing));

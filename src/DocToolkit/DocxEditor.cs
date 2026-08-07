@@ -756,7 +756,12 @@ public static class DocxEditor
             for (var i = offsets.Count - 1; i >= 0; i--)
             {
                 var relationshipId = AddImagePart(owner, image, info);
-                var drawing = DrawingFactory.InlineImage(relationshipId, name, nextId++, widthEmu, heightEmu);
+                // The placeholder-derived name doubles as the alt text here, deliberately and as
+                // shipped: "{{logo}}" gives "logo", which is a genuine if terse description. That is
+                // NOT true of the create path, whose names are generated ("Image 1"), so it passes
+                // real alt text or none. Do not "unify" these - they differ because the inputs do.
+                var drawing = DrawingFactory.InlineImage(
+                    relationshipId, name, nextId++, widthEmu, heightEmu, description: name);
                 SpliceDrawingIn(texts, offsets[i], placeholder.Length, drawing);
                 inserted++;
             }

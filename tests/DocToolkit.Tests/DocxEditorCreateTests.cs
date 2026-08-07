@@ -508,6 +508,51 @@ public class DocxEditorCreateTests
     }
 
     /// <summary>
+    /// Alt text reaches <c>wp:docPr/@descr</c>, which is what a screen reader announces.
+    ///
+    /// <c>@name</c> is a different thing — it labels the object in Word's selection pane — and stays
+    /// the generated "Image N". Setting both from one value is what the bug was.
+    /// </summary>
+    [Fact]
+    public void Create_PutsAltTextOnTheDrawing()
+    {
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Image(ImageFixtures.Png(), altText: "Company logo, blue on white"),
+        });
+
+        AssertValid(docx);
+
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var props = doc.MainDocumentPart!.Document!.Body!.Descendants<DW.DocProperties>().Single();
+
+        Assert.Equal("Company logo, blue on white", props.Description!.Value);
+        Assert.Equal("Image 1", props.Name!.Value);
+    }
+
+    /// <summary>
+    /// With no alt text the attribute is OMITTED, not filled with the generated name. Emitting
+    /// <c>descr="Image 1"</c> is worse than emitting nothing: a screen reader reads it out as though
+    /// it described the picture, so the user is told "Image 1" instead of being told there is an
+    /// undescribed image. That was the behaviour before this test existed.
+    /// </summary>
+    [Fact]
+    public void Create_OmitsAltTextWhenNoneIsGiven()
+    {
+        var docx = DocxEditor.Create(new[] { DocxBlock.Image(ImageFixtures.Png()) });
+
+        AssertValid(docx);
+
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var props = doc.MainDocumentPart!.Document!.Body!.Descendants<DW.DocProperties>().Single();
+
+        Assert.Null(props.Description);
+        Assert.Equal("Image 1", props.Name!.Value);
+    }
+
+    /// <summary>
     /// The one place in the package where two INDEPENDENT drawing-id schemes meet: Create issues ids
     /// from a monotonic counter starting at 1, because it builds an empty document; ReplaceImage
     /// scans every part for the highest existing id, because it edits a template it did not write.

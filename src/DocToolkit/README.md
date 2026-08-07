@@ -102,6 +102,11 @@ var blocks = new[]
     DocxBlock.Table(
         new[] { "Region", "Revenue" },
         new[] { new object[] { "EMEA", 1200 }, new object[] { "APAC", 980 } }),
+
+    // altText becomes the drawing's descr - what a screen reader announces. Omit it for a
+    // purely decorative image; omitted means the attribute is absent, not filled with a
+    // placeholder that would be read out as though it described the picture.
+    DocxBlock.Image(logoBytes, widthPoints: 120, altText: "Contoso logo"),
 };
 byte[] report = DocxEditor.Create(blocks);
 

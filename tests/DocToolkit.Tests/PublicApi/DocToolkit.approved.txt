@@ -8,7 +8,7 @@ namespace DocToolkit
     public abstract class DocxBlock
     {
         public static DocToolkit.DocxBlock Heading(string text, int level) { }
-        public static DocToolkit.DocxBlock Image(byte[] image, double? widthPoints = default, double? heightPoints = default) { }
+        public static DocToolkit.DocxBlock Image(byte[] image, double? widthPoints = default, double? heightPoints = default, string? altText = null) { }
         public static DocToolkit.DocxBlock Paragraph(string text) { }
         public static DocToolkit.DocxBlock Table(System.Collections.Generic.IEnumerable<string> headers, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
     }
