@@ -10,6 +10,22 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.11.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.10.0...v0.11.0) (2026-08-07)
+
+
+### Added
+
+* **core:** add stream and file overloads for creating a deck ([f832b17](https://github.com/Ank-KhoaHo/DocToolkit/commit/f832b17a5fc754700be451039109e155711dd943))
+* **core:** add the PptxSlide model ([faac36b](https://github.com/Ank-KhoaHo/DocToolkit/commit/faac36b194963f993716ef4bc4a47f15e3f35a5d))
+* **core:** build the PPTX scaffold and create an empty deck ([5fc9738](https://github.com/Ank-KhoaHo/DocToolkit/commit/5fc97388e1e4a8386aba0f9d6de143f418deb5c4))
+* **core:** write slides with titles and bullets ([6756955](https://github.com/Ank-KhoaHo/DocToolkit/commit/675695556f048a5a5cb471f2ddb8a88de38b7d36))
+* **extensions:** restore 1:1 with DocxEditor, closing a two-release gap ([0c3d90e](https://github.com/Ank-KhoaHo/DocToolkit/commit/0c3d90e8c4ee0142e12e2fe15eeb38ad106f1b92))
+
+
+### Fixed
+
+* **core:** link the slide layout to its master so PowerPoint opens the deck ([321d3e0](https://github.com/Ank-KhoaHo/DocToolkit/commit/321d3e0d5ff9d5936f08ef625fac8f3152a4cfa3))
+
 ## [0.10.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.9.0...v0.10.0) (2026-08-07)
 
 
