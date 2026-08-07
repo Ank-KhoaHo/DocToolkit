@@ -173,16 +173,32 @@ public class RemoteImageGuardTests
             Timeout = TimeSpan.FromMilliseconds(300),
         };
 
-        var stopwatch = Stopwatch.StartNew();
         byte[] docx = Array.Empty<byte>();
+
+        // The stopwatch starts INSIDE the gate, and that is the whole point of this shape.
+        //
+        // RemoteDownloadGate is a process-wide SemaphoreSlim(1, 1) that serialises all ten opt-in
+        // download tests, several of which deliberately spend a full Timeout waiting on a host that
+        // never answers. Timing the RunAsync call from outside therefore measures "queued behind
+        // other tests" plus "converted", and charges the total to a threshold that only the second
+        // half is about. That is not a tight race that occasionally loses - the lock wait is
+        // unbounded in principle, and on a loaded runner it is seconds.
+        //
+        // Measured 2026-08-07: commit 191d8f3a produced a PASS and a FAIL on Windows from the SAME
+        // sha, on its push-triggered and pull_request-triggered runs. The failing one reported
+        // 5.99 s against a 5 s bound, for a conversion whose fetch is capped at 300 ms.
+        var elapsed = TimeSpan.Zero;
         await RemoteDownloadGate.RunAsync(async () =>
+        {
+            var stopwatch = Stopwatch.StartNew();
             docx = await HtmlToDocxConverter.ConvertAsync(
-                $"""<p><img src="{probe.BaseUrl}/slow.bin" alt="slow" /></p>""", options));
-        stopwatch.Stop();
+                $"""<p><img src="{probe.BaseUrl}/slow.bin" alt="slow" /></p>""", options);
+            elapsed = stopwatch.Elapsed;
+        });
 
         Assert.NotEmpty(docx);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5),
-            $"Took {stopwatch.Elapsed.TotalSeconds:0.00} s against a slow-drip body with a " +
+        Assert.True(elapsed < TimeSpan.FromSeconds(5),
+            $"Took {elapsed.TotalSeconds:0.00} s against a slow-drip body with a " +
             "300 ms Timeout - Timeout is not bounding the conversion.");
     }
 
