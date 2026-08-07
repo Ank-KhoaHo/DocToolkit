@@ -28,7 +28,10 @@ byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, stri
 IReadOnlyList<string> editedText = PresentationEditor.ExtractText(edited);
 Console.WriteLine($"After replace: \"{(editedText.Count > 0 ? editedText[0] : "(empty)")}\"");
 
-string outputPath = Path.Combine(AppContext.BaseDirectory, "deck.pptx");
+// Path.Join, not Path.Combine: Combine silently discards everything before an argument that turns
+// out to be rooted, which is a trap in copied sample code the moment the filename becomes a
+// variable. Join always concatenates. (CodeQL cs/path-combine flags the Combine form here.)
+string outputPath = Path.Join(AppContext.BaseDirectory, "deck.pptx");
 await File.WriteAllBytesAsync(outputPath, edited);
 Console.WriteLine($"\nWrote {outputPath}");
 
