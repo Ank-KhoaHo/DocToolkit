@@ -145,6 +145,19 @@ byte[] editedPptx = PresentationEditor.ReplaceText(pptx, new Dictionary<string, 
     ["{{title}}"] = "Q3 Results",
 });
 
+// Or build a deck from data - titles and bullets, no template needed
+var deckSlides = new[]
+{
+    PptxSlide.Titled("Q3 Results", "Revenue up 12%", "Costs flat"),
+    PptxSlide.Titled("Outlook", "Hiring 3 engineers"),
+};
+byte[] deck = PresentationEditor.Create(deckSlides);
+
+// Straight to a stream or a file, without materialising the byte[]
+using var deckStream = new MemoryStream();
+await PresentationEditor.CreateAsync(deckSlides, deckStream);
+await PresentationEditor.CreateToFileAsync(deckSlides, "deck.pptx");
+
 // Work directly with files - no ReadAllBytes/WriteAllBytes dance
 var customer = new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" };
 await DocxEditor.ReplaceTextAsync("invoice-template.docx", "invoice.docx", customer);
