@@ -1,0 +1,52 @@
+<Project>
+
+  <!--
+    Shared by the two packable projects only. Imports the repository-wide file above rather than
+    replacing it - MSBuild stops at the nearest Directory.Build.props, so without this import
+    src/ would silently lose TreatWarningsAsErrors and ContinuousIntegrationBuild.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <!--
+    Package identity shared by both packages. PackageId, Description and PackageTags stay in the
+    individual projects - those differ per package. Version is the local dev default only: the
+    git tag is the authoritative version (see CLAUDE.md > Releasing), which is why both projects
+    have always said 0.1.0 regardless of what shipped.
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Authors>Khoa Ho</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ank-KhoaHo/DocToolkit</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts</PackageOutputPath>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Relative item paths in an imported file resolve against the PROJECT being built, not against
+      this file - so each package picks up its own README.md and its own THIRD-PARTY-NOTICES.txt.
+      $(MSBuildThisFileDirectory) does resolve against this file, which is why the icon path is
+      written that way.
+
+      One icon, shared by both packages: they are companions that always ship at the same version,
+      so two files could only ever drift. It is a committed PNG, never generated at build time -
+      every convenient imaging library is either revenue-gated or carries native binaries, which is
+      exactly what DependencyGuardTests exists to keep out. assets/make-icon.py regenerates it and
+      is deliberately not wired into any build.
+    -->
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
+    <None Include="$(MSBuildThisFileDirectory)../assets/icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
