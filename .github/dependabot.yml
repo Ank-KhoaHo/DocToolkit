@@ -92,8 +92,17 @@ updates:
   # published a version containing nothing but a sample's version number.
 
   # ── GitHub Actions ──────────────────────────────────────────────────────────
-  # Actions are currently pinned by tag. Keeping them current is the thing that
-  # makes SHA-pinning practical later rather than a maintenance burden.
+  # Actions are pinned to commit SHAs, each with a trailing `# vX.Y.Z` comment.
+  # A tag is a mutable pointer the upstream owner can move, so `@v7` is a promise
+  # to run whatever that account publishes later - and publishing here is
+  # OIDC-only, with no stored API key left to steal, which makes the workflow
+  # itself the realistic attack path. A SHA cannot be moved.
+  #
+  # This block is what keeps that from freezing the actions at their pinned
+  # versions forever: Dependabot reads the trailing comment to learn the current
+  # version and rewrites BOTH the SHA and the comment. Keep the comment on every
+  # pinned `uses:` - without it Dependabot cannot tell what version the SHA is,
+  # and the pin silently stops being updated.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
