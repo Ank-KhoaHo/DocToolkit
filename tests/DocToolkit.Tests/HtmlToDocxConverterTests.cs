@@ -196,6 +196,10 @@ public class HtmlToDocxConverterTests
         private readonly TaskCompletionSource<bool> _contacted =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        /// <summary>
+        /// Starts a loopback listener that serves a one-pixel bitmap to whatever fetches it, and
+        /// records that it was contacted.
+        /// </summary>
         /// <param name="onContact">
         /// Runs the instant the parser fetches the image, before this probe answers. That is a
         /// deterministic point INSIDE HtmlToOpenXml's work, which is what
