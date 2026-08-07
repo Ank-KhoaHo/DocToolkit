@@ -46,7 +46,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            10.0.x
+            10.0.302
 
       # DocFX restores each project itself while generating metadata - no separate
       # solution-wide restore needed, and this way a nuget hiccup resolving a sample

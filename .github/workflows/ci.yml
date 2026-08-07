@@ -73,7 +73,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            10.0.x
+            10.0.302
 
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION }}
@@ -122,7 +122,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            10.0.x
+            10.0.302
 
       # The other premise guards check WHAT the resolved graph contains. This one
       # checks it is the graph we agreed to. --locked-mode fails rather than
@@ -223,7 +223,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            10.0.x
+            10.0.302
 
       - name: Trim-publish the probe
         run: |
@@ -338,7 +338,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            10.0.x
+            10.0.302
 
       - name: Install DocFX
         run: dotnet tool update -g docfx --version 2.78.5
@@ -371,7 +371,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            10.0.x
+            10.0.302
 
       - name: Pack
         run: dotnet pack ${{ matrix.project }} -c Release
