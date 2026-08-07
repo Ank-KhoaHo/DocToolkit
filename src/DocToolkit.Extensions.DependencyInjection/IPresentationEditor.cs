@@ -1,8 +1,18 @@
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Opens and edits PowerPoint (.pptx) presentations. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
+/// <summary>Creates, reads and edits PowerPoint (.pptx) presentations. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
 public interface IPresentationEditor
 {
+    /// <summary>
+    /// Builds a deck from <paramref name="slides"/>, one slide each — a title and bullet lines.
+    /// Content comes from data rather than a template, so there is no source file to edit. An empty
+    /// sequence is valid and produces a valid deck with no slides.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="slides"/> is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="slides"/> is null.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The deck could not be built.</exception>
+    byte[] Create(IEnumerable<DocToolkit.PptxSlide> slides);
+
     /// <summary>Number of slides in the deck, as counted from the deck's slide list.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
@@ -61,4 +71,17 @@ public interface IPresentationEditor
     Task ReplaceTextAsync(
         Stream source, IReadOnlyDictionary<string, string> replacements, Stream destination,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Builds a deck from <paramref name="slides"/> and writes it to <paramref name="destination"/>.
+    /// See <see cref="Create"/> for the slide semantics. <paramref name="destination"/> is
+    /// <b>written</b> and is neither disposed, closed nor sought, so an HTTP response body is a
+    /// valid destination.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="slides"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="slides"/> is null, or <paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The deck could not be built or written.</exception>
+    Task CreateAsync(
+        IEnumerable<DocToolkit.PptxSlide> slides, Stream destination, CancellationToken ct = default);
 }

@@ -73,6 +73,41 @@ public class PresentationEditorServiceTests
     }
 
     [Fact]
+    public void Create_MatchesTheStaticMethod()
+    {
+        var slides = new[]
+        {
+            PptxSlide.Titled("Quarterly review", "Revenue up", "Costs flat"),
+            PptxSlide.Titled("Next steps"),
+        };
+        var sut = new PresentationEditorService();
+
+        var expected = PresentationEditor.Create(slides);
+        var actual = sut.Create(slides);
+
+        // Semantic agreement, not byte equality: a freshly built package carries zip entry
+        // timestamps, so two Create calls a second apart legitimately differ byte-for-byte.
+        Assert.Equal(PresentationEditor.SlideCount(expected), PresentationEditor.SlideCount(actual));
+        Assert.Equal(PresentationEditor.ExtractText(expected), PresentationEditor.ExtractText(actual));
+        Assert.Contains(PresentationEditor.ExtractText(actual), t => t.Contains("Quarterly review"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WritesTheSameDeckToTheDestination()
+    {
+        var slides = new[] { PptxSlide.Titled("Roadmap", "Ship 0.11.0") };
+        var sut = new PresentationEditorService();
+
+        using var destination = new MemoryStream();
+        await sut.CreateAsync(slides, destination);
+
+        var written = destination.ToArray();
+        Assert.Equal(
+            PresentationEditor.ExtractText(PresentationEditor.Create(slides)),
+            PresentationEditor.ExtractText(written));
+    }
+
+    [Fact]
     public async Task SlideCountAsync_HonorsCancellation()
     {
         var sut = new PresentationEditorService();
