@@ -5,7 +5,7 @@ using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace DocToolkit;
 
-/// <summary>Opens and edits an existing .docx package.</summary>
+/// <summary>Creates, reads and edits Word (.docx) documents.</summary>
 public static class DocxEditor
 {
     /// <summary>
@@ -14,7 +14,10 @@ public static class DocxEditor
     /// A DOCX can also be produced by converting HTML with <see cref="HtmlToDocxConverter"/>. This
     /// exists for the case where the content comes from data rather than from markup: there is no
     /// HTML to escape, so a value containing <c>&lt;</c> cannot corrupt the document's structure,
-    /// and the same blocks produce the same bytes on every machine.
+    /// and the same blocks produce the same CONTENT on every machine — nothing here consults the
+    /// current culture. Not the same BYTES: the OpenXml SDK mints fresh relationship ids per
+    /// package, so two calls with identical blocks in the same process differ. Do not build a cache
+    /// key, a content hash or a golden-file test on the bytes.
     ///
     /// An empty sequence is valid and produces a valid empty document.
     /// </summary>
@@ -548,7 +551,11 @@ public static class DocxEditor
     /// <paramref name="docx"/> or <paramref name="image"/> is empty, or <paramref name="placeholder"/>
     /// is blank.
     /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A supplied size is zero or negative, or the resulting size is larger than a drawing extent can
+    /// hold (2,147,483,647 EMU per side — about 2,348 inches). The upper bound also applies when the
+    /// side that overflows is the one DERIVED from the aspect ratio rather than the one supplied.
+    /// </exception>
     /// <exception cref="DocumentConversionException">
     /// The image is neither PNG nor JPEG, the package could not be edited, or
     /// <paramref name="placeholder"/> does not appear anywhere — a call matching nothing is a bug in
@@ -596,7 +603,11 @@ public static class DocxEditor
     /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/> is
     /// not writable, <paramref name="image"/> is empty, or <paramref name="placeholder"/> is blank.
     /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A supplied size is zero or negative, or the resulting size is larger than a drawing extent can
+    /// hold (2,147,483,647 EMU per side — about 2,348 inches). The upper bound also applies when the
+    /// side that overflows is the one DERIVED from the aspect ratio rather than the one supplied.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The image is neither PNG nor JPEG, the package could not be edited, or the placeholder was

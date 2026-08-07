@@ -101,7 +101,7 @@ var blocks = new[]
     DocxBlock.Paragraph("Revenue rose 12% against a flat cost base."),
     DocxBlock.Table(
         new[] { "Region", "Revenue" },
-        new[] { new object?[] { "EMEA", 1200 }, new object?[] { "APAC", 980 } }),
+        new[] { new object[] { "EMEA", 1200 }, new object[] { "APAC", 980 } }),
 };
 byte[] report = DocxEditor.Create(blocks);
 
