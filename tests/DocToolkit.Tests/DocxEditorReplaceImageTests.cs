@@ -149,14 +149,26 @@ public class DocxEditorReplaceImageTests
     public void ReplaceImage_DeclaresTheContentTypeTheBytesActuallyAre()
     {
         var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{photo}}")));
+        var jpeg = ImageFixtures.Jpeg();
 
-        var filled = DocxEditor.ReplaceImage(docx, "{{photo}}", ImageFixtures.Jpeg());
+        var filled = DocxEditor.ReplaceImage(docx, "{{photo}}", jpeg);
 
         using var ms = new MemoryStream(filled);
         using var doc = WordprocessingDocument.Open(ms, false);
 
         // A part declaring image/png while holding JPEG bytes renders as a blank frame, silently.
-        Assert.Equal("image/jpeg", doc.MainDocumentPart!.ImageParts.Single().ContentType);
+        var part = doc.MainDocumentPart!.ImageParts.Single();
+        Assert.Equal("image/jpeg", part.ContentType);
+
+        // And the part must actually HOLD those bytes. Until this line, deleting the stream.Write in
+        // AddImagePart passed the entire suite: the result is a schema-valid document with a
+        // correctly typed but EMPTY image part, which Word renders as a blank frame. Nothing else in
+        // this repo reads an ImagePart's stream back, on either the edit or the create path.
+        using var stored = part.GetStream();
+        using var buffer = new MemoryStream();
+        stored.CopyTo(buffer);
+        Assert.Equal(jpeg, buffer.ToArray());
+
         AssertValid(filled);
     }
 
