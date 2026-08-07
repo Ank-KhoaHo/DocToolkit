@@ -32,4 +32,9 @@
     <InternalsVisibleTo Include="DocToolkit.Extensions.DependencyInjection.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- See src/DocToolkit/DocToolkit.csproj for why this is an attribute and not <IsTrimmable>. -->
+    <AssemblyMetadata Include="IsTrimmable" Value="True" />
+  </ItemGroup>
+
 </Project>

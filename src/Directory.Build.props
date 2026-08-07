@@ -13,24 +13,6 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <!--
-      Claims these assemblies are safe to trim, and turns the trim analyzer on over their own
-      source - where the root's TreatWarningsAsErrors applies, so an unsafe reflection pattern
-      fails the build rather than being reported to whoever publishes a trimmed app months later.
-
-      This is a claim about THIS code, not about the dependency closure. That distinction is the
-      expensive lesson of this repository - ShapeCrawler's API was checked and its dependencies
-      never were - so the claim is backed by tests/TrimProbe, which trim-publishes the whole graph
-      and RUNS it. See ci.yml's trim-guard job.
-
-      IsAotCompatible is deliberately NOT set. It is a strictly stronger claim than IsTrimmable and
-      nothing here has verified it end to end: a native AOT publish could not be run on the machine
-      where this was added (no platform linker), and an unverified compatibility claim is worse than
-      an absent one. Setting it needs an AOT publish that compiles AND runs, in CI, first.
-    -->
-    <IsTrimmable>true</IsTrimmable>
-  </PropertyGroup>
 
   <!--
     Package identity shared by both packages. PackageId, Description and PackageTags stay in the

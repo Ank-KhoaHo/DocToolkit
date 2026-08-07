@@ -52,4 +52,38 @@
     <InternalsVisibleTo Include="DocToolkit.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Marks this assembly safe to trim. This attribute IS the claim: it is exactly what the MSBuild
+      <IsTrimmable> property emits, and what the trimmer reads to decide an assembly's default
+      action.
+
+      Written as the attribute rather than the property on purpose, and the reason is not style.
+      Setting <IsTrimmable>true</IsTrimmable> makes the SDK inject a Microsoft.NET.ILLink.Tasks
+      PackageReference at the version bundled with THAT SDK: 8.0.22/10.0.1 on the machine this was
+      written, 8.0.29/10.0.10 on the CI runner. Both projects commit a packages.lock.json that CI
+      asserts in locked mode, so that entry breaks the build on any SDK patch difference between any
+      two machines, permanently. Measured: it failed CI on the first push, NU1004 "the package
+      reference Microsoft.NET.ILLink.Tasks version has changed from [10.0.1, ) to [10.0.10, )".
+
+      It also has to live in the project file rather than src/Directory.Build.props. An
+      AssemblyMetadata item declared there makes multi-target framework inference fail outright with
+      NETSDK1013, "the TargetFramework value was not recognized" - measured, and a Condition on
+      TargetFramework does not avoid it.
+
+      What this costs: the trim ANALYZER no longer runs over src/ at build time, since it ships in
+      that package. What replaces it is strictly stronger. ci.yml's trim-guard job trim-publishes
+      tests/TrimProbe over the whole dependency closure, fails on any warning naming DocToolkit, and
+      RUNS the trimmed binary. The analyzer only ever saw our own source; the guard also sees
+      ClosedXML, OpenXML, HtmlToOpenXml and OfficeIMO. Mutation-verified: an unsafe reflection call
+      added to PptxSlide.Titled fails that job.
+
+      IsAotCompatible is deliberately not set either, for a different reason: it is a strictly
+      stronger claim and nothing has verified it end to end. A native AOT publish could not run on
+      the machine where this was added (no platform linker, so ILC never started). An unverified
+      compatibility claim is worse than an absent one.
+    -->
+    <AssemblyMetadata Include="IsTrimmable" Value="True" />
+  </ItemGroup>
+
 </Project>
