@@ -52,7 +52,6 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 
 --- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---
 - AngleSharp 1.5.0 - MIT (transitive) - https://github.com/AngleSharp/AngleSharp
-- BouncyCastle.Cryptography 2.6.2 - MIT (transitive) - https://github.com/bcgit/bc-csharp
 - ClosedXML 0.105.1 - MIT (direct) - https://github.com/ClosedXML/ClosedXML
 - ClosedXML.Parser 2.0.0 - MIT (transitive) - https://github.com/ClosedXML/ClosedXML.Parser
 - DocumentFormat.OpenXml 3.5.1 - MIT (direct) - https://github.com/dotnet/Open-XML-SDK
@@ -60,17 +59,16 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - ExcelNumberFormat 1.1.0 - MIT (transitive) - https://github.com/andersnm/ExcelNumberFormat
 - HtmlToOpenXml.dll 3.5.0 - MIT (direct) - https://github.com/onizet/html2openxml
 - Microsoft.Extensions.Logging.Abstractions 6.0.0 - MIT (transitive) - https://github.com/dotnet/runtime
-- OfficeIMO.Drawing 3.0.3 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Pdf 3.0.3 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Security 3.0.3 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Word 3.0.3 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Word.Pdf 3.0.3 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Core 3.1.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Pdf 3.1.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Word 3.1.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Word.Pdf 3.1.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - RBush.Signed 4.0.0 - MIT (transitive) - https://github.com/viceroypenguin/RBush
 - SixLabors.Fonts 1.0.1 - Apache-2.0 (direct) - https://github.com/SixLabors/Fonts
 - System.IO.Packaging 10.0.2 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 
-Totals: 18 packages (5 direct, 13 transitive) - 1 Apache-2.0, 17 MIT.
+Totals: 16 packages (5 direct, 11 transitive) - 1 Apache-2.0, 15 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---

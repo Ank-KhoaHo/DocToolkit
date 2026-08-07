@@ -19,11 +19,14 @@ notices never covered it and the hand-written list had simply left it out.
 
 --- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---
 - Ank.DocToolkit 0.8.0 - MIT (direct) - https://github.com/Ank-KhoaHo/DocToolkit
+- BouncyCastle.Cryptography 2.6.2 - MIT (transitive) - https://github.com/bcgit/bc-csharp
 - Microsoft.Extensions.DependencyInjection.Abstractions 8.0.0 - MIT (direct) - https://github.com/dotnet/runtime
 - Microsoft.Extensions.Options 8.0.0 - MIT (direct) - https://github.com/dotnet/runtime
 - Microsoft.Extensions.Primitives 8.0.0 - MIT (transitive) - https://github.com/dotnet/runtime
+- OfficeIMO.Drawing 3.0.3 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Security 3.0.3 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 
-Totals: 4 packages (3 direct, 1 transitive) - 4 MIT.
+Totals: 7 packages (3 direct, 4 transitive) - 7 MIT.
 --- END GENERATED ---
 
 Copyright holders: Ank.DocToolkit - Copyright (c) Khoa Ho. The Microsoft.Extensions.* packages -
