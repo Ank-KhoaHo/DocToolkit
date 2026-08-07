@@ -4,14 +4,14 @@
     "net10.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.8.0, )",
-        "resolved": "0.8.0",
-        "contentHash": "qfT/ZdKlpE46mSWm9koz3Gz3VNet+x62GJVdf/QNsAzwanejNZxf/q6TfRn5cqCumOlUotH1o4/JyFRquUm1pw==",
+        "requested": "[0.10.0, )",
+        "resolved": "0.10.0",
+        "contentHash": "iKY6ToCOuQbw0xWyoRaXLnAYXzECS9TitZ24LiEv+IkmAd138Kg1HGEq7tABaLyIRBAN6MVUWpN2jaJFn+JMUA==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
           "HtmlToOpenXml.dll": "3.5.0",
-          "OfficeIMO.Word.Pdf": "3.0.3",
+          "OfficeIMO.Word.Pdf": "3.1.0",
           "SixLabors.Fonts": "[1.0.1]"
         }
       },
@@ -35,11 +35,6 @@
         "type": "Transitive",
         "resolved": "1.5.0",
         "contentHash": "REAdFOAlTxr6yqmxWFFLLMB/+uvIS3N6tXXUAWjoexA0LsQB/CfZYadg+z+DkcpAwJk8gF1VF4YLsq4U1Gficg=="
-      },
-      "BouncyCastle.Cryptography": {
-        "type": "Transitive",
-        "resolved": "2.6.2",
-        "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
       },
       "ClosedXML": {
         "type": "Transitive",
@@ -99,45 +94,36 @@
         "resolved": "8.0.0",
         "contentHash": "bXJEZrW9ny8vjMF1JV253WeLhpEVzFo1lyaZu1vQ4ZxWUlVvknZ/+ftFgVheLubb4eZPSwwxBeqS1JkCOjxd8g=="
       },
-      "OfficeIMO.Drawing": {
+      "OfficeIMO.Core": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "xpFbtcKgYZ27uWjQD8GAxWERdvOnpEG7VfOY5qk7TTk4AeyIIsqdqIt/PPlE+Ht4STpdSUvaH37PuyyuNpHgIg=="
+        "resolved": "3.1.0",
+        "contentHash": "emx6dngAz5tgLHkJZTgG5LjHBavuOKTNYjORw1Egep8C9VvhfrCA3THBcb9yAg1YyF0KABBEtOT736ecQCXSBQ=="
       },
       "OfficeIMO.Pdf": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "Yl9tLV4p6n+1ShhlmQEO88klUysdNnnKnX1tXaoKoU7dPJKE18wXWs0W8Ao7r2MCDNnZSx7kLrEQ7TGWcq9aqg==",
+        "resolved": "3.1.0",
+        "contentHash": "9DXHrE67q5BOsw9iBUG6rO5bZD/w4EyVOuJVyLGOthpDc+ISbj1fFU4ZAU/cYzK+9uWCha+EZjCJUKknpmMoqQ==",
         "dependencies": {
-          "OfficeIMO.Drawing": "3.0.3",
-          "OfficeIMO.Security": "3.0.3"
-        }
-      },
-      "OfficeIMO.Security": {
-        "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "Pn5aJKB9dgPVOT/j4l6mUZpffw+nYlI+MI8MPGkkKkyw4EA+io82NOBlFyinaxg92S0fqzz1Xs2V9XTql//JMw==",
-        "dependencies": {
-          "BouncyCastle.Cryptography": "[2.6.2, 3.0.0)"
+          "OfficeIMO.Core": "3.1.0"
         }
       },
       "OfficeIMO.Word": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "6QS/JXZMbmolNaEbw5lWs4xNSFTHKRhuJVAd6lwBtcOcK192HB2Use52ro5mMILayz6U0JZqR5mSKrtMalW+XA==",
+        "resolved": "3.1.0",
+        "contentHash": "CQ9gI+9X1jV4aVRq0uxPfCdeCGwrEPiN5gh8JHMGTV/baWuBkn0vTTFjmFZV7q6JgJoH67rE18FQqkjbO/IVhA==",
         "dependencies": {
           "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
-          "OfficeIMO.Drawing": "3.0.3"
+          "OfficeIMO.Core": "3.1.0"
         }
       },
       "OfficeIMO.Word.Pdf": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "52uuveTE/NizSMsmTQwSNmFI9LMiq4/4PTKzbuAqvw8BeV1p1m/zMkUFSa6B8q2UhidL0S5JbXgV06FYtwGq+A==",
+        "resolved": "3.1.0",
+        "contentHash": "S3ZVozZ61YkMNDUg6sfCvDWJYa6wDpV5b+tDuEP8MFLJozijIIAg9iNynurrB3s0wmmUkeC6Rwhx33K9qsGNZw==",
         "dependencies": {
-          "OfficeIMO.Drawing": "3.0.3",
-          "OfficeIMO.Pdf": "3.0.3",
-          "OfficeIMO.Word": "3.0.3"
+          "OfficeIMO.Core": "3.1.0",
+          "OfficeIMO.Pdf": "3.1.0",
+          "OfficeIMO.Word": "3.1.0"
         }
       },
       "RBush.Signed": {
@@ -159,14 +145,14 @@
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.8.0, )",
-        "resolved": "0.8.0",
-        "contentHash": "qfT/ZdKlpE46mSWm9koz3Gz3VNet+x62GJVdf/QNsAzwanejNZxf/q6TfRn5cqCumOlUotH1o4/JyFRquUm1pw==",
+        "requested": "[0.10.0, )",
+        "resolved": "0.10.0",
+        "contentHash": "iKY6ToCOuQbw0xWyoRaXLnAYXzECS9TitZ24LiEv+IkmAd138Kg1HGEq7tABaLyIRBAN6MVUWpN2jaJFn+JMUA==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
           "HtmlToOpenXml.dll": "3.5.0",
-          "OfficeIMO.Word.Pdf": "3.0.3",
+          "OfficeIMO.Word.Pdf": "3.1.0",
           "SixLabors.Fonts": "[1.0.1]"
         }
       },
@@ -190,11 +176,6 @@
         "type": "Transitive",
         "resolved": "1.5.0",
         "contentHash": "REAdFOAlTxr6yqmxWFFLLMB/+uvIS3N6tXXUAWjoexA0LsQB/CfZYadg+z+DkcpAwJk8gF1VF4YLsq4U1Gficg=="
-      },
-      "BouncyCastle.Cryptography": {
-        "type": "Transitive",
-        "resolved": "2.6.2",
-        "contentHash": "7oWOcvnntmMKNzDLsdxAYqApt+AjpRpP2CShjMfIa3umZ42UQMvH0tl1qAliYPNYO6vTdcGMqnRrCPmsfzTI1w=="
       },
       "ClosedXML": {
         "type": "Transitive",
@@ -254,45 +235,36 @@
         "resolved": "8.0.0",
         "contentHash": "bXJEZrW9ny8vjMF1JV253WeLhpEVzFo1lyaZu1vQ4ZxWUlVvknZ/+ftFgVheLubb4eZPSwwxBeqS1JkCOjxd8g=="
       },
-      "OfficeIMO.Drawing": {
+      "OfficeIMO.Core": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "xpFbtcKgYZ27uWjQD8GAxWERdvOnpEG7VfOY5qk7TTk4AeyIIsqdqIt/PPlE+Ht4STpdSUvaH37PuyyuNpHgIg=="
+        "resolved": "3.1.0",
+        "contentHash": "emx6dngAz5tgLHkJZTgG5LjHBavuOKTNYjORw1Egep8C9VvhfrCA3THBcb9yAg1YyF0KABBEtOT736ecQCXSBQ=="
       },
       "OfficeIMO.Pdf": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "Yl9tLV4p6n+1ShhlmQEO88klUysdNnnKnX1tXaoKoU7dPJKE18wXWs0W8Ao7r2MCDNnZSx7kLrEQ7TGWcq9aqg==",
+        "resolved": "3.1.0",
+        "contentHash": "9DXHrE67q5BOsw9iBUG6rO5bZD/w4EyVOuJVyLGOthpDc+ISbj1fFU4ZAU/cYzK+9uWCha+EZjCJUKknpmMoqQ==",
         "dependencies": {
-          "OfficeIMO.Drawing": "3.0.3",
-          "OfficeIMO.Security": "3.0.3"
-        }
-      },
-      "OfficeIMO.Security": {
-        "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "Pn5aJKB9dgPVOT/j4l6mUZpffw+nYlI+MI8MPGkkKkyw4EA+io82NOBlFyinaxg92S0fqzz1Xs2V9XTql//JMw==",
-        "dependencies": {
-          "BouncyCastle.Cryptography": "[2.6.2, 3.0.0)"
+          "OfficeIMO.Core": "3.1.0"
         }
       },
       "OfficeIMO.Word": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "6QS/JXZMbmolNaEbw5lWs4xNSFTHKRhuJVAd6lwBtcOcK192HB2Use52ro5mMILayz6U0JZqR5mSKrtMalW+XA==",
+        "resolved": "3.1.0",
+        "contentHash": "CQ9gI+9X1jV4aVRq0uxPfCdeCGwrEPiN5gh8JHMGTV/baWuBkn0vTTFjmFZV7q6JgJoH67rE18FQqkjbO/IVhA==",
         "dependencies": {
           "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
-          "OfficeIMO.Drawing": "3.0.3"
+          "OfficeIMO.Core": "3.1.0"
         }
       },
       "OfficeIMO.Word.Pdf": {
         "type": "Transitive",
-        "resolved": "3.0.3",
-        "contentHash": "52uuveTE/NizSMsmTQwSNmFI9LMiq4/4PTKzbuAqvw8BeV1p1m/zMkUFSa6B8q2UhidL0S5JbXgV06FYtwGq+A==",
+        "resolved": "3.1.0",
+        "contentHash": "S3ZVozZ61YkMNDUg6sfCvDWJYa6wDpV5b+tDuEP8MFLJozijIIAg9iNynurrB3s0wmmUkeC6Rwhx33K9qsGNZw==",
         "dependencies": {
-          "OfficeIMO.Drawing": "3.0.3",
-          "OfficeIMO.Pdf": "3.0.3",
-          "OfficeIMO.Word": "3.0.3"
+          "OfficeIMO.Core": "3.1.0",
+          "OfficeIMO.Pdf": "3.1.0",
+          "OfficeIMO.Word": "3.1.0"
         }
       },
       "RBush.Signed": {

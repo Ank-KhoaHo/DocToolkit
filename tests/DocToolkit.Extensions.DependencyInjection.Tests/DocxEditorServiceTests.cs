@@ -10,6 +10,129 @@ namespace DocToolkit.Extensions.DependencyInjection.Tests;
 
 public class DocxEditorServiceTests
 {
+    // ---------------------------------------------------------------------------------------
+    // The six members that restore 1:1 with DocxEditor. FillRows and ReplaceImage shipped in
+    // core 0.8.0 and were never mirrored here; Create arrived in 0.10.0. Each test asserts the
+    // wrapper agrees with the static method rather than merely that it returns something -
+    // a wrapper that ignored its arguments and returned an empty document would pass the
+    // weaker check.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Create_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService();
+        var blocks = new[]
+        {
+            DocxBlock.Heading("Quarterly Report", 1),
+            DocxBlock.Paragraph("Revenue rose 12%."),
+            DocxBlock.Table(new[] { "Region" }, new[] { new object[] { "EMEA" } }),
+        };
+
+        var fromWrapper = sut.Create(blocks);
+
+        Assert.Equal(
+            DocxEditor.ExtractText(DocxEditor.Create(blocks)),
+            DocxEditor.ExtractText(fromWrapper));
+        Assert.Contains("Quarterly Report", sut.ExtractText(fromWrapper));
+    }
+
+    [Fact]
+    public async Task CreateAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService();
+        var blocks = new[] { DocxBlock.Paragraph("Written to a stream.") };
+
+        using var destination = new MemoryStream();
+        await sut.CreateAsync(blocks, destination);
+
+        Assert.Equal(
+            DocxEditor.ExtractText(DocxEditor.Create(blocks)),
+            DocxEditor.ExtractText(destination.ToArray()));
+    }
+
+    [Fact]
+    public async Task FillRows_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService();
+        var docx = await HtmlToDocxConverter.ConvertAsync(
+            "<table border=\"1\"><tr><td>{{item.Desc}}</td></tr></table>");
+        var records = new[]
+        {
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Desc"] = "Widget" },
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Desc"] = "Gadget" },
+        };
+
+        var fromWrapper = sut.FillRows(docx, "item", records);
+
+        Assert.Equal(
+            DocxEditor.ExtractText(DocxEditor.FillRows(docx, "item", records)),
+            DocxEditor.ExtractText(fromWrapper));
+
+        var text = sut.ExtractText(fromWrapper);
+        Assert.Contains("Widget", text);
+        Assert.Contains("Gadget", text);
+        Assert.DoesNotContain("{{item.Desc}}", text);
+    }
+
+    [Fact]
+    public async Task FillRowsAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService();
+        var docx = await HtmlToDocxConverter.ConvertAsync(
+            "<table border=\"1\"><tr><td>{{item.Desc}}</td></tr></table>");
+        var records = new[]
+        {
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["Desc"] = "Widget" },
+        };
+
+        using var source = new MemoryStream(docx);
+        using var destination = new MemoryStream();
+        await sut.FillRowsAsync(source, "item", records, destination);
+
+        Assert.Contains("Widget", DocxEditor.ExtractText(destination.ToArray()));
+    }
+
+    [Fact]
+    public async Task ReplaceImage_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService();
+        var docx = await HtmlToDocxConverter.ConvertAsync("<p>Logo: {{logo}}</p>");
+        var png = OnePixelPng();
+
+        var fromWrapper = sut.ReplaceImage(docx, "{{logo}}", png, widthPoints: 24);
+
+        // The placeholder is gone and a real image part exists - a wrapper that dropped the
+        // image would still remove the text, so the part is what proves it.
+        Assert.DoesNotContain("{{logo}}", sut.ExtractText(fromWrapper));
+
+        using var ms = new MemoryStream(fromWrapper);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.Single(doc.MainDocumentPart!.ImageParts);
+    }
+
+    [Fact]
+    public async Task ReplaceImageAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService();
+        var docx = await HtmlToDocxConverter.ConvertAsync("<p>Logo: {{logo}}</p>");
+
+        using var source = new MemoryStream(docx);
+        using var destination = new MemoryStream();
+        await sut.ReplaceImageAsync(source, "{{logo}}", OnePixelPng(), destination, widthPoints: 24);
+
+        var written = destination.ToArray();
+        Assert.DoesNotContain("{{logo}}", DocxEditor.ExtractText(written));
+
+        using var ms = new MemoryStream(written);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.Single(doc.MainDocumentPart!.ImageParts);
+    }
+
+    /// <summary>A 1x1 PNG, inline so this project needs no fixture asset.</summary>
+    private static byte[] OnePixelPng() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
     [Fact]
     public async Task ReplaceText_SubstitutesPlaceholders()
     {
