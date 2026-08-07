@@ -9,15 +9,11 @@
   </ItemGroup>
 
   <!--
-    There is no "create a PPTX from scratch" method in the public API, so demonstrating PPTX
-    reading needs a real file. This borrows the test project's fixture rather than committing a
-    second copy. If that fixture ever moves, this fails with an opaque MSBuild copy error rather
-    than a message naming the real cause.
+    No fixture item, and deliberately so. This sample used to link
+    tests/DocToolkit.Tests/assets/sample.pptx because the public API could not produce a deck;
+    PresentationEditor.Create (0.11.0) can, so the sample builds its own input. Don't reintroduce
+    a Content item pointing into the test project - it made a moved fixture surface as an opaque
+    MSBuild copy error.
   -->
-  <ItemGroup>
-    <Content Include="..\..\tests\DocToolkit.Tests\assets\sample.pptx"
-             Link="assets\sample.pptx"
-             CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
 
 </Project>

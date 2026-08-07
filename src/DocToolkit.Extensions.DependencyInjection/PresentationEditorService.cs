@@ -3,6 +3,9 @@ namespace DocToolkit.Extensions.DependencyInjection;
 /// <summary>Default <see cref="IPresentationEditor"/>, delegating to <see cref="DocToolkit.PresentationEditor"/>.</summary>
 internal sealed class PresentationEditorService : IPresentationEditor
 {
+    public byte[] Create(IEnumerable<DocToolkit.PptxSlide> slides)
+        => DocToolkit.PresentationEditor.Create(slides);
+
     public int SlideCount(byte[] pptx) => DocToolkit.PresentationEditor.SlideCount(pptx);
 
     public IReadOnlyList<string> ExtractText(byte[] pptx) => DocToolkit.PresentationEditor.ExtractText(pptx);
@@ -20,4 +23,8 @@ internal sealed class PresentationEditorService : IPresentationEditor
         Stream source, IReadOnlyDictionary<string, string> replacements, Stream destination,
         CancellationToken ct = default)
         => DocToolkit.PresentationEditor.ReplaceTextAsync(source, replacements, destination, ct);
+
+    public Task CreateAsync(
+        IEnumerable<DocToolkit.PptxSlide> slides, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.CreateAsync(slides, destination, ct);
 }
