@@ -24,12 +24,35 @@ internal static class PptxDocumentWriter
     private const int SlideWidthEmu = 12192000;
     private const int SlideHeightEmu = 6858000;
 
+    // p:notesSz is required by the schema. US Letter portrait, which is what PowerPoint itself
+    // writes for a 16:9 deck - the notes page is a printed page and does not track the slide's
+    // aspect ratio, so this deliberately is not SlideWidthEmu/SlideHeightEmu.
+    private const int NotesWidthEmu = 6858000;
+    private const int NotesHeightEmu = 9144000;
+
     // p:sldMasterId/@id must be >= 2147483648; p:sldId/@id must be in 256..2147483647. Out-of-range
     // values are rejected outright, and duplicates inside a list are the PPTX analogue of a
     // duplicate wp:docPr/@id - PowerPoint declares the file corrupt.
     private const uint FirstMasterId = 2147483648;
     private const uint FirstLayoutId = 2147483649;
     private const uint FirstSlideId = 256;
+
+    // The title and body boxes, shared by the layout's placeholders and every slide's. They must
+    // agree: a slide placeholder inherits geometry from the layout placeholder with the same
+    // type/idx, so differing boxes mean "Reset Slide" visibly moves the shape.
+    private const long TitleXEmu = 838200;
+    private const long TitleYEmu = 365125;
+    private const long TitleWidthEmu = 10515600;
+    private const long TitleHeightEmu = 1325563;
+    private const long BodyXEmu = 838200;
+    private const long BodyYEmu = 1825625;
+    private const long BodyWidthEmu = 10515600;
+    private const long BodyHeightEmu = 4351338;
+
+    // p:ph/@idx on the body placeholder. Type alone cannot distinguish two body placeholders on one
+    // layout; idx is what binds a slide's shape to the layout's. The title placeholder carries no
+    // idx - a layout has at most one, and ECMA-376 treats an absent idx as 0.
+    private const uint BodyPlaceholderIndex = 1;
 
     /// <summary>
     /// Builds the package into a fresh <see cref="MemoryStream"/>, positioned at 0. The caller owns
@@ -56,7 +79,7 @@ internal static class PptxDocumentWriter
                     }),
                     new P.SlideIdList(),
                     new P.SlideSize { Cx = SlideWidthEmu, Cy = SlideHeightEmu },
-                    new P.NotesSize { Cx = 6858000, Cy = 9144000 });
+                    new P.NotesSize { Cx = NotesWidthEmu, Cy = NotesHeightEmu });
 
                 var slideIdList = presentationPart.Presentation.GetFirstChild<P.SlideIdList>()!;
                 var nextSlideId = FirstSlideId;
@@ -128,8 +151,14 @@ internal static class PptxDocumentWriter
 
         layoutPart = masterPart.AddNewPart<SlideLayoutPart>();
         layoutPart.SlideLayout = new P.SlideLayout(
-            EmptyShapeTree(),
-            new P.ColorMapOverride(new A.MasterColorMapping()));
+            LayoutShapeTree(),
+            new P.ColorMapOverride(new A.MasterColorMapping()))
+        {
+            // Without these PowerPoint's layout gallery shows the part's filename - "SlideLayout2".
+            // "obj" is the type PowerPoint uses for its own built-in Title and Content, which is
+            // what this writer builds.
+            Type = P.SlideLayoutValues.Object,
+        };
 
         // Master->layout and layout->master are TWO separate relationships, not one expressed from
         // both ends. AddNewPart<SlideLayoutPart>() above created only the first; p:sldLayoutIdLst
@@ -165,6 +194,67 @@ internal static class PptxDocumentWriter
                 new P.NonVisualGroupShapeDrawingProperties(),
                 new P.ApplicationNonVisualDrawingProperties()),
             new P.GroupShapeProperties()));
+
+    /// <summary>
+    /// The layout's shape tree: the title and body placeholders every slide inherits from. They
+    /// hold no text — a layout placeholder defines the box and the role, and PowerPoint renders the
+    /// slide's own copy. Their geometry must match the slide's, because "Reset Slide" restores the
+    /// slide shape to the layout's box.
+    ///
+    /// The <c>name</c> on <see cref="P.CommonSlideData"/> is what PowerPoint's layout gallery
+    /// labels this layout; without it the label is the part filename, "SlideLayout2".
+    ///
+    /// Measured against PowerPoint 16.0, the same deck built without any of this: every slide
+    /// reported <c>Shapes.HasTitle = False</c> and <c>CustomLayout.Name = "SlideLayout2"</c>, so
+    /// Outline View listed the slides with no titles at all. With it: <c>HasTitle = True</c>,
+    /// <c>Shapes.Title.TextFrame.TextRange.Text</c> returns the title, layout name
+    /// "Title and Content". Every schema validator passed both ways — a p:ph is a role, and roles
+    /// are not something a schema can check.
+    /// </summary>
+    private static P.CommonSlideData LayoutShapeTree()
+    {
+        var tree = new P.ShapeTree(
+            new P.NonVisualGroupShapeProperties(
+                new P.NonVisualDrawingProperties { Id = 1U, Name = string.Empty },
+                new P.NonVisualGroupShapeDrawingProperties(),
+                new P.ApplicationNonVisualDrawingProperties()),
+            new P.GroupShapeProperties());
+
+        tree.Append(PlaceholderShape(
+            id: 2U, name: "Title Placeholder 1",
+            xEmu: TitleXEmu, yEmu: TitleYEmu, widthEmu: TitleWidthEmu, heightEmu: TitleHeightEmu,
+            placeholder: new P.PlaceholderShape { Type = P.PlaceholderValues.Title }));
+
+        tree.Append(PlaceholderShape(
+            id: 3U, name: "Content Placeholder 2",
+            xEmu: BodyXEmu, yEmu: BodyYEmu, widthEmu: BodyWidthEmu, heightEmu: BodyHeightEmu,
+            placeholder: new P.PlaceholderShape
+            {
+                Type = P.PlaceholderValues.Body,
+                Index = BodyPlaceholderIndex,
+            }));
+
+        return new P.CommonSlideData(tree) { Name = "Title and Content" };
+    }
+
+    /// <summary>
+    /// An empty placeholder shape for the layout. A text body is schema-required on
+    /// <see cref="P.Shape"/> even when the shape carries no text.
+    /// </summary>
+    private static P.Shape PlaceholderShape(
+        uint id, string name, long xEmu, long yEmu, long widthEmu, long heightEmu,
+        P.PlaceholderShape placeholder) =>
+        new(
+            new P.NonVisualShapeProperties(
+                new P.NonVisualDrawingProperties { Id = id, Name = name },
+                new P.NonVisualShapeDrawingProperties(new A.ShapeLocks { NoGrouping = true }),
+                new P.ApplicationNonVisualDrawingProperties(placeholder)),
+            new P.ShapeProperties(
+                new A.Transform2D(
+                    new A.Offset { X = xEmu, Y = yEmu },
+                    new A.Extents { Cx = widthEmu, Cy = heightEmu }),
+                new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle }),
+            new P.TextBody(new A.BodyProperties(), new A.ListStyle(), new A.Paragraph()));
 
     /// <summary>
     /// A theme is not required for the package to validate - measured, a themeless deck reports
@@ -244,19 +334,25 @@ internal static class PptxDocumentWriter
 
         tree.Append(TextShape(
             id: 2U, name: "Title",
-            xEmu: 838200, yEmu: 365125, widthEmu: 10515600, heightEmu: 1325563,
+            xEmu: TitleXEmu, yEmu: TitleYEmu, widthEmu: TitleWidthEmu, heightEmu: TitleHeightEmu,
             fontSizeHundredths: 4400,
             lines: new[] { slide.Title },
-            bulleted: false));
+            bulleted: false,
+            placeholder: new P.PlaceholderShape { Type = P.PlaceholderValues.Title }));
 
         if (slide.Bullets.Count > 0)
         {
             tree.Append(TextShape(
                 id: 3U, name: "Content",
-                xEmu: 838200, yEmu: 1825625, widthEmu: 10515600, heightEmu: 4351338,
+                xEmu: BodyXEmu, yEmu: BodyYEmu, widthEmu: BodyWidthEmu, heightEmu: BodyHeightEmu,
                 fontSizeHundredths: 2000,
                 lines: slide.Bullets,
-                bulleted: true));
+                bulleted: true,
+                placeholder: new P.PlaceholderShape
+                {
+                    Type = P.PlaceholderValues.Body,
+                    Index = BodyPlaceholderIndex,
+                }));
         }
 
         return new P.Slide(new P.CommonSlideData(tree), new P.ColorMapOverride(new A.MasterColorMapping()));
@@ -267,15 +363,20 @@ internal static class PptxDocumentWriter
     /// slide's shape tree; 1 is taken by the group shape itself.
     ///
     /// <paramref name="bulleted"/> controls whether each paragraph gets an explicit bullet
-    /// character. This is not cosmetic: none of the master, the layout or any shape here is a
-    /// placeholder, so there is no inherited bullet formatting anywhere in the chain for a
-    /// paragraph to fall back on. Without an explicit <see cref="A.CharacterBullet"/>, PowerPoint
-    /// reports Bullet.Visible = 0 and renders a plain line - schema-valid, and silently not what
-    /// "bullet" promised.
+    /// character. This is not cosmetic, and it stays explicit even though the shape is now a
+    /// placeholder: bullet formatting would be inherited from the master's <c>p:txStyles</c>, which
+    /// this minimal master does not define, so there is still nothing in the chain to fall back on.
+    /// Without an explicit <see cref="A.CharacterBullet"/>, PowerPoint reports Bullet.Visible = 0
+    /// and renders a plain line - schema-valid, and silently not what "bullet" promised.
+    ///
+    /// <paramref name="placeholder"/> is what makes the shape a title or body rather than a loose
+    /// text box. Every visual property here is still set explicitly and overrides what the
+    /// placeholder would inherit, so adding it changes roles and not appearance.
     /// </summary>
     private static P.Shape TextShape(
         uint id, string name, long xEmu, long yEmu, long widthEmu, long heightEmu,
-        int fontSizeHundredths, IReadOnlyList<string> lines, bool bulleted)
+        int fontSizeHundredths, IReadOnlyList<string> lines, bool bulleted,
+        P.PlaceholderShape placeholder)
     {
         var body = new P.TextBody(new A.BodyProperties(), new A.ListStyle());
 
@@ -303,7 +404,7 @@ internal static class PptxDocumentWriter
             new P.NonVisualShapeProperties(
                 new P.NonVisualDrawingProperties { Id = id, Name = name },
                 new P.NonVisualShapeDrawingProperties(new A.ShapeLocks { NoGrouping = true }),
-                new P.ApplicationNonVisualDrawingProperties()),
+                new P.ApplicationNonVisualDrawingProperties(placeholder)),
             new P.ShapeProperties(
                 new A.Transform2D(
                     new A.Offset { X = xEmu, Y = yEmu },

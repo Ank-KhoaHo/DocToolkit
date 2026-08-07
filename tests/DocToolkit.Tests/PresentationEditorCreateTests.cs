@@ -287,6 +287,87 @@ public class PresentationEditorCreateTests
     }
 
     /// <summary>
+    /// A shape holding the title text is not a title until it says so. `p:ph type="title"` is what
+    /// makes PowerPoint treat it as one, and the effects are all invisible to a validator and to
+    /// ExtractText: Outline View lists slides by their title placeholder and shows nothing without
+    /// it, "Reset Slide" has no placeholder to restore geometry to, and Rehearse/accessibility
+    /// tooling cannot name the slide. A deck can look perfect on screen and still fail all three.
+    /// </summary>
+    [Fact]
+    public void Create_MarksTheTitleAndContentShapesAsPlaceholders()
+    {
+        var pptx = PresentationEditor.Create(new[]
+        {
+            PptxSlide.Titled("Title", "First bullet"),
+        });
+
+        using var ms = new MemoryStream(pptx);
+        using var doc = PresentationDocument.Open(ms, false);
+        var shapes = doc.PresentationPart!.SlideParts.Single().Slide!
+            .CommonSlideData!.ShapeTree!.Elements<P.Shape>().ToList();
+
+        Assert.Equal(2, shapes.Count);
+
+        var title = shapes[0].NonVisualShapeProperties!
+            .ApplicationNonVisualDrawingProperties!.GetFirstChild<P.PlaceholderShape>();
+        Assert.NotNull(title);
+        Assert.Equal(P.PlaceholderValues.Title, title!.Type!.Value);
+
+        // The body placeholder needs its own index: type alone does not distinguish two body
+        // placeholders on one layout, and idx is what binds a slide's shape to a layout's.
+        var content = shapes[1].NonVisualShapeProperties!
+            .ApplicationNonVisualDrawingProperties!.GetFirstChild<P.PlaceholderShape>();
+        Assert.NotNull(content);
+        Assert.Equal(P.PlaceholderValues.Body, content!.Type!.Value);
+        Assert.Equal(1U, content.Index!.Value);
+    }
+
+    /// <summary>
+    /// A slide placeholder inherits from the layout placeholder with the same type and idx. If the
+    /// layout declares none, every slide placeholder is a dangling reference — which PowerPoint
+    /// tolerates silently, so the only symptom is that "Reset Slide" wipes the shape's geometry
+    /// instead of restoring it. The layout's boxes must therefore match the slide's.
+    /// </summary>
+    [Fact]
+    public void Create_DeclaresMatchingPlaceholdersOnTheLayout()
+    {
+        var pptx = PresentationEditor.Create(Array.Empty<PptxSlide>());
+
+        using var ms = new MemoryStream(pptx);
+        using var doc = PresentationDocument.Open(ms, false);
+        var layout = Assert.Single(Assert.Single(doc.PresentationPart!.SlideMasterParts).SlideLayoutParts);
+
+        var placeholders = layout.SlideLayout!.CommonSlideData!.ShapeTree!
+            .Elements<P.Shape>()
+            .Select(s => s.NonVisualShapeProperties!
+                .ApplicationNonVisualDrawingProperties!.GetFirstChild<P.PlaceholderShape>())
+            .ToList();
+
+        Assert.Equal(2, placeholders.Count);
+        Assert.Equal(P.PlaceholderValues.Title, placeholders[0]!.Type!.Value);
+        Assert.Equal(P.PlaceholderValues.Body, placeholders[1]!.Type!.Value);
+        Assert.Equal(1U, placeholders[1]!.Index!.Value);
+    }
+
+    /// <summary>
+    /// An unnamed, untyped layout shows up in PowerPoint's layout gallery as "SlideLayout2" — the
+    /// part's filename, leaking an implementation detail into the UI. `type="obj"` is what PowerPoint
+    /// itself uses for its built-in "Title and Content", which is exactly what this writer builds.
+    /// </summary>
+    [Fact]
+    public void Create_NamesAndTypesTheLayout()
+    {
+        var pptx = PresentationEditor.Create(Array.Empty<PptxSlide>());
+
+        using var ms = new MemoryStream(pptx);
+        using var doc = PresentationDocument.Open(ms, false);
+        var layout = Assert.Single(Assert.Single(doc.PresentationPart!.SlideMasterParts).SlideLayoutParts);
+
+        Assert.Equal("Title and Content", layout.SlideLayout!.CommonSlideData!.Name!.Value);
+        Assert.Equal(P.SlideLayoutValues.Object, layout.SlideLayout.Type!.Value);
+    }
+
+    /// <summary>
     /// ReplaceText is a genuinely different code path from Create: it opens the package for write
     /// with PresentationDocument.Open(ms, true) and re-saves the slide part, rather than assembling
     /// fresh parts. This pins that a Create-built deck survives that path rather than assuming a
