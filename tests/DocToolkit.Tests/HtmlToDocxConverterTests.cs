@@ -60,31 +60,47 @@ public class HtmlToDocxConverterTests
     // actually be abandoned mid-flight rather than only at the entry check.
     // ---------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// The token must reach HtmlToOpenXml's parser, not merely the guard on the way in. Proved by
+    /// cancelling at a point that is INSIDE the parse by construction rather than by timing.
+    ///
+    /// The image is the first element, so the parser fetches it before converting the 60,000
+    /// paragraphs that follow. The probe cancels the moment that fetch arrives. Cancellation is
+    /// therefore requested while the parser demonstrably still has most of its work left, with no
+    /// clock involved anywhere.
+    ///
+    /// WHY NOT A TIMER, which is what this test used to do: `cts.CancelAfter(150ms)` schedules its
+    /// callback on the thread pool, and xunit runs test collections in parallel, so on a loaded
+    /// machine the callback can fire long after the parse has finished - the call then returns a
+    /// document and the assertion fails with "no exception was thrown". That is exactly how it
+    /// broke: it passed 5/5 run alone and failed inside the full suite on a Windows runner,
+    /// blocking a release PR. Backlog B10 removed an earlier timing assertion but left the race,
+    /// and was marked done while this remained.
+    ///
+    /// The assertion itself is unchanged and is still the whole point. ConvertAsync checks the
+    /// token once on entry - which cannot fire here, because the token is live when the call starts
+    /// - and then hands it to ParseBody, with no check afterwards. So a token that never reached
+    /// the parser would let this run to completion and return a document.
+    /// </summary>
     [Fact]
     public async Task ConvertAsync_CancelsPartwayThroughALongParse()
     {
-        // Sized so the parse takes the best part of a second (measured ~0.8-1.8 s), so a token
-        // cancelled after 150 ms is guaranteed to land inside HtmlToOpenXml's work rather than at
-        // the guard on the way in.
+        using var cts = new CancellationTokenSource();
+        using var probe = new LoopbackProbe(onContact: cts.Cancel);
+
         var sb = new StringBuilder();
+        sb.Append("<img src=\"").Append(probe.Url).Append("\" />");
         for (var i = 0; i < 60_000; i++)
             sb.Append("<p>Paragraph ").Append(i).Append(" of the stress fixture.</p>");
 
-        using var cts = new CancellationTokenSource();
-        cts.CancelAfter(TimeSpan.FromMilliseconds(150));
-
-        // The exception alone proves what this test exists to prove. ConvertAsync checks the token
-        // once on entry - which cannot fire here, since the token is still live when the call
-        // starts - and then hands it to ParseBody. There is no check after the parse. So if the
-        // token were NOT reaching the parser, this call would run to completion and return a
-        // document: no exception at all, and this assertion fails.
-        //
-        // An earlier version also asserted the whole thing finished inside 600 ms. That added
-        // nothing the above does not already establish, and made the test depend on how loaded the
-        // CI runner happened to be - it failed three times in one day on pull requests that changed
-        // only Markdown and a sample. See backlog B10.
+        // AllowPrivateAddresses is the documented escape hatch for a loopback probe: the guard
+        // blocks loopback by default and would otherwise refuse this listener, so the fetch - and
+        // with it the cancellation - would never happen. Same reason AirGapGuardTests sets it.
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => HtmlToDocxConverter.ConvertAsync(sb.ToString(), cts.Token));
+            () => HtmlToDocxConverter.ConvertAsync(
+                sb.ToString(),
+                new RemoteImageOptions { AllowPrivateAddresses = true },
+                cts.Token));
     }
 
     [Fact]
@@ -176,11 +192,19 @@ public class HtmlToDocxConverterTests
     private sealed class LoopbackProbe : IDisposable
     {
         private readonly TcpListener _listener;
+        private readonly Action? _onContact;
         private readonly TaskCompletionSource<bool> _contacted =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public LoopbackProbe()
+        /// <param name="onContact">
+        /// Runs the instant the parser fetches the image, before this probe answers. That is a
+        /// deterministic point INSIDE HtmlToOpenXml's work, which is what
+        /// <see cref="ConvertAsync_CancelsPartwayThroughALongParse"/> needs and what a wall-clock
+        /// timer could not provide.
+        /// </param>
+        public LoopbackProbe(Action? onContact = null)
         {
+            _onContact = onContact;
             _listener = new TcpListener(IPAddress.Loopback, 0);
             _listener.Start();
             Url = $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}/logo.bmp";
@@ -202,6 +226,7 @@ public class HtmlToDocxConverterTests
             {
                 using var client = await _listener.AcceptTcpClientAsync();
                 _contacted.TrySetResult(true);
+                _onContact?.Invoke();
 
                 var stream = client.GetStream();
                 await DrainRequestAsync(stream);
