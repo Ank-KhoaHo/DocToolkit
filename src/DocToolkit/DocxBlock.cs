@@ -141,7 +141,10 @@ public abstract class DocxBlock
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="image"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="image"/> is empty, or is neither PNG nor JPEG.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A supplied size is zero or negative, or the resulting size is larger than a drawing extent can
+    /// hold — see <see cref="DocxEditor.ReplaceImage"/> for the same bound on the editing path.
+    /// </exception>
     public static DocxBlock Image(
         byte[] image, double? widthPoints = null, double? heightPoints = null)
     {
@@ -155,14 +158,23 @@ public abstract class DocxBlock
         // Rejected here rather than at write time, and surfaced as ArgumentException rather than the
         // DocumentConversionException ImageInspector raises: at this point it is plainly a bad
         // argument, not a document that failed to build.
+        ImageInfo info;
         try
         {
-            _ = ImageInspector.Inspect(image);
+            info = ImageInspector.Inspect(image);
         }
         catch (DocumentConversionException ex)
         {
             throw new ArgumentException(ex.Message, nameof(image), ex);
         }
+
+        // The size bound is enforced HERE as well as inside Resolve, for the same reason the checks
+        // above are: at the factory it is an ArgumentOutOfRangeException naming the caller's own
+        // argument. Reached from Create instead, Resolve throws inside DocxDocumentWriter.Write's
+        // try, which wraps it as "DocumentConversionException: Failed to create DOCX." — so without
+        // this the same bad size produced a different exception type depending on which public entry
+        // point the caller used. ReplaceImage calls Resolve outside its try and was always fine.
+        _ = ImageInspector.Resolve(info, widthPoints, heightPoints);
 
         return new ImageBlock(image, widthPoints, heightPoints);
     }

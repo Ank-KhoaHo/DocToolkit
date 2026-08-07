@@ -37,6 +37,25 @@ internal static class ImageInspector
     /// <summary>Word assumes 96 DPI for an image carrying no DPI metadata, so this does too.</summary>
     private const long EmuPerPixelAt96Dpi = 9525;
 
+    /// <summary>
+    /// The largest extent a drawing may carry, in EMU — about 2,348 inches per side.
+    ///
+    /// ECMA-376 types an extent as <c>ST_PositiveCoordinate</c>, whose documented maximum is
+    /// 27,273,042,316,900 EMU (exactly <see cref="int.MaxValue"/> POINTS). <b>DocumentFormat.OpenXml
+    /// does not enforce that value.</b> Measured against OpenXmlValidator 3.5.1, on both
+    /// <c>wp:extent</c> and <c>a:ext</c>: 2,147,483,647 validates, 2,147,483,648 fails with
+    /// "The MaxInclusive constraint failed. The value must be less than or equal to 2147483647",
+    /// and the spec's own maximum fails the same way. The SDK caps at <see cref="int.MaxValue"/>
+    /// EMU, four orders of magnitude lower.
+    ///
+    /// The SDK's number wins here, deliberately: OpenXmlValidator is this library's definition of
+    /// "schema-valid" — it is what every AssertValid in the test suite calls — so a bound the
+    /// validator rejects would let this guard pass documents the repo considers invalid. Using the
+    /// spec value first was measured to do exactly that: widthPoints of 1,000,000 returned a
+    /// document with four validation errors and threw nothing.
+    /// </summary>
+    private const long MaxCoordinateEmu = int.MaxValue;
+
     private static ReadOnlySpan<byte> PngSignature =>
         new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 
@@ -74,20 +93,58 @@ internal static class ImageInspector
         var intrinsicWidth = info.WidthPx * EmuPerPixelAt96Dpi;
         var intrinsicHeight = info.HeightPx * EmuPerPixelAt96Dpi;
 
-        if (widthPoints is null && heightPoints is null)
-            return (intrinsicWidth, intrinsicHeight);
+        var resolved =
+            widthPoints is null && heightPoints is null
+                ? (intrinsicWidth, intrinsicHeight)
+            : widthPoints is not null && heightPoints is not null
+                ? ((long)(widthPoints.Value * EmuPerPoint), (long)(heightPoints.Value * EmuPerPoint))
+            : widthPoints is not null
+                ? ScaleFromWidth(widthPoints.Value)
+                : ScaleFromHeight(heightPoints!.Value);
 
-        if (widthPoints is not null && heightPoints is not null)
-            return ((long)(widthPoints.Value * EmuPerPoint), (long)(heightPoints.Value * EmuPerPoint));
-
-        if (widthPoints is not null)
+        // Checked AFTER resolving, not on the arguments, because the out-of-range value is often one
+        // the caller never passed: a legal widthPoints on a tall image derives a larger height, so
+        // the derived side can exceed the limit while the argument sits comfortably inside it.
+        //
+        // The INTRINSIC path cannot overflow and is not why this exists: WidthPx is an int, so the
+        // largest size any header can express is int.MaxValue * 9525 = 20,454,781,737,675 EMU, about
+        // three quarters of the limit. Measured, after a comment here first claimed the opposite.
+        //
+        // Without this the (long) cast saturates to long.MinValue and the document is written with a
+        // NEGATIVE extent — schema-invalid, but produced with no exception, so the caller gets a
+        // corrupt file and no signal. Nothing downstream validates these numbers.
+        if (resolved.Item1 is <= 0 or > MaxCoordinateEmu || resolved.Item2 is <= 0 or > MaxCoordinateEmu)
         {
-            var width = (long)(widthPoints.Value * EmuPerPoint);
+            // Which argument to blame. When only one side was given, blame it even if the DERIVED
+            // side is what overflowed — the caller chose the one number that caused it. When BOTH
+            // were given the sides are independent, so name the one actually out of range; blaming
+            // widthPoints for a bad heightPoints would report a value the caller can see is fine.
+            var widthBad = resolved.Item1 is <= 0 or > MaxCoordinateEmu;
+            var (name, value) =
+                widthPoints is not null && (heightPoints is null || widthBad)
+                    ? (nameof(widthPoints), widthPoints)
+                : heightPoints is not null
+                    ? (nameof(heightPoints), heightPoints)
+                    : (nameof(info), (double?)null);
+
+            throw new ArgumentOutOfRangeException(name, value,
+                $"The resulting image size is outside what OOXML can represent " +
+                $"({MaxCoordinateEmu} EMU, or {MaxCoordinateEmu / EmuPerPoint} points, per side).");
+        }
+
+        return resolved;
+
+        (long, long) ScaleFromWidth(double points)
+        {
+            var width = (long)(points * EmuPerPoint);
             return (width, (long)(width * (double)intrinsicHeight / intrinsicWidth));
         }
 
-        var height = (long)(heightPoints!.Value * EmuPerPoint);
-        return ((long)(height * (double)intrinsicWidth / intrinsicHeight), height);
+        (long, long) ScaleFromHeight(double points)
+        {
+            var height = (long)(points * EmuPerPoint);
+            return ((long)(height * (double)intrinsicWidth / intrinsicHeight), height);
+        }
     }
 
     /// <summary>
