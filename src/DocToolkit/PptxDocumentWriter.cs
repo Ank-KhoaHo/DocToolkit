@@ -131,6 +131,15 @@ internal static class PptxDocumentWriter
             EmptyShapeTree(),
             new P.ColorMapOverride(new A.MasterColorMapping()));
 
+        // Master->layout and layout->master are TWO separate relationships, not one expressed from
+        // both ends. AddNewPart<SlideLayoutPart>() above created only the first; p:sldLayoutIdLst
+        // below records that same direction again, as data rather than as a package relationship.
+        // Without this line the package has no ppt/slideLayouts/_rels/ directory at all. That is
+        // schema-valid - OpenXmlValidator checks part XML against the schema, not the relationship
+        // graph - so every test was green while PowerPoint's Presentations.Open failed with E_FAIL.
+        // Verified by controlled experiment against PowerPoint 16.0.
+        layoutPart.AddPart(masterPart);
+
         masterPart.SlideMaster.Append(new P.SlideLayoutIdList(new P.SlideLayoutId
         {
             Id = FirstLayoutId,
@@ -166,8 +175,8 @@ internal static class PptxDocumentWriter
     /// worth that risk.
     ///
     /// Every child here is schema-required: the colour scheme needs all twelve slots, the font
-    /// scheme both major and minor with latin/ea/cs, and the format scheme at least three entries
-    /// in each of its four style lists.
+    /// scheme both major and minor with latin/ea/cs, and the format scheme exactly three entries
+    /// in each of its four style lists — ECMA-376 fixes the count, it is not merely a minimum.
     /// </summary>
     private static A.Theme MinimalTheme()
     {
@@ -237,7 +246,8 @@ internal static class PptxDocumentWriter
             id: 2U, name: "Title",
             xEmu: 838200, yEmu: 365125, widthEmu: 10515600, heightEmu: 1325563,
             fontSizeHundredths: 4400,
-            lines: new[] { slide.Title }));
+            lines: new[] { slide.Title },
+            bulleted: false));
 
         if (slide.Bullets.Count > 0)
         {
@@ -245,7 +255,8 @@ internal static class PptxDocumentWriter
                 id: 3U, name: "Content",
                 xEmu: 838200, yEmu: 1825625, widthEmu: 10515600, heightEmu: 4351338,
                 fontSizeHundredths: 2000,
-                lines: slide.Bullets));
+                lines: slide.Bullets,
+                bulleted: true));
         }
 
         return new P.Slide(new P.CommonSlideData(tree), new P.ColorMapOverride(new A.MasterColorMapping()));
@@ -254,19 +265,38 @@ internal static class PptxDocumentWriter
     /// <summary>
     /// A text box holding one paragraph per line. <paramref name="id"/> must be unique within the
     /// slide's shape tree; 1 is taken by the group shape itself.
+    ///
+    /// <paramref name="bulleted"/> controls whether each paragraph gets an explicit bullet
+    /// character. This is not cosmetic: none of the master, the layout or any shape here is a
+    /// placeholder, so there is no inherited bullet formatting anywhere in the chain for a
+    /// paragraph to fall back on. Without an explicit <see cref="A.CharacterBullet"/>, PowerPoint
+    /// reports Bullet.Visible = 0 and renders a plain line - schema-valid, and silently not what
+    /// "bullet" promised.
     /// </summary>
     private static P.Shape TextShape(
         uint id, string name, long xEmu, long yEmu, long widthEmu, long heightEmu,
-        int fontSizeHundredths, IReadOnlyList<string> lines)
+        int fontSizeHundredths, IReadOnlyList<string> lines, bool bulleted)
     {
         var body = new P.TextBody(new A.BodyProperties(), new A.ListStyle());
 
         foreach (var line in lines)
         {
-            body.Append(new A.Paragraph(
-                new A.Run(
-                    new A.RunProperties { Language = "en-US", FontSize = fontSizeHundredths },
-                    new A.Text(line))));
+            var paragraph = new A.Paragraph();
+
+            if (bulleted)
+            {
+                paragraph.Append(new A.ParagraphProperties(new A.CharacterBullet { Char = "•" })
+                {
+                    LeftMargin = 285750,
+                    Indent = -285750,
+                });
+            }
+
+            paragraph.Append(new A.Run(
+                new A.RunProperties { Language = "en-US", FontSize = fontSizeHundredths },
+                new A.Text(line)));
+
+            body.Append(paragraph);
         }
 
         return new P.Shape(

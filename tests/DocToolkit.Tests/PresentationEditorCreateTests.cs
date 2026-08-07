@@ -1,5 +1,6 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
+using A = DocumentFormat.OpenXml.Drawing;
 using P = DocumentFormat.OpenXml.Presentation;
 
 namespace DocToolkit.Tests;
@@ -90,12 +91,17 @@ public class PresentationEditorCreateTests
         using var doc = PresentationDocument.Open(ms, false);
         var master = Assert.Single(doc.PresentationPart!.SlideMasterParts);
 
-        var layoutId = Assert.Single(
-            master.SlideMaster!.SlideLayoutIdList!.Elements<P.SlideLayoutId>());
+        Assert.NotNull(master.SlideMaster!.SlideLayoutIdList);
+        var layoutId = Assert.Single(master.SlideMaster.SlideLayoutIdList!.Elements<P.SlideLayoutId>());
 
-        Assert.Same(
-            Assert.Single(master.SlideLayoutParts),
-            master.GetPartById(layoutId.RelationshipId!.Value!));
+        var layout = Assert.Single(master.SlideLayoutParts);
+        Assert.Same(layout, master.GetPartById(layoutId.RelationshipId!.Value!));
+
+        // The back-relationship: p:sldLayoutIdLst only ever records master->layout. A package
+        // missing layout->master is schema-valid (OpenXmlValidator checks part XML against the
+        // schema, not the relationship graph) and unopenable in PowerPoint - E_FAIL on
+        // Presentations.Open. Measured against PowerPoint 16.0.
+        Assert.Same(master, layout.SlideMasterPart);
     }
 
     [Fact]
@@ -137,8 +143,9 @@ public class PresentationEditorCreateTests
         var text = PresentationEditor.ExtractText(pptx);
         Assert.Equal(3, text.Count);
         Assert.Contains("Q3 Results", text[0]);
-        Assert.Contains("Revenue up 12%", text[1]);
-        Assert.Contains("Costs flat", text[1]);
+        // Exact equality, not two Assert.Contains: those would pass identically if the bullets came
+        // out in the opposite order, which a two-Contains version of this test did not catch.
+        Assert.Equal("Revenue up 12%\nCosts flat", text[1]);
         Assert.Contains("Outlook", text[2]);
     }
 
@@ -244,5 +251,86 @@ public class PresentationEditorCreateTests
         Assert.Equal(
             PresentationEditor.ExtractText(PresentationEditor.Create(slides)),
             PresentationEditor.ExtractText(written));
+    }
+
+    /// <summary>
+    /// Pins the bullet fix directly against the XML: a paragraph named "bullet" is worthless if
+    /// nothing in the inheritance chain gives it a:buChar, p:txStyles or a placeholder to inherit
+    /// from — none of which this writer supplies, so the paragraph itself must carry it. The title
+    /// paragraph must NOT get one; a bulleted title is not what Titled(title, bullets) promises.
+    /// This is the only thing that stops a future refactor silently dropping the bullet again.
+    /// </summary>
+    [Fact]
+    public void Create_GivesBulletParagraphsACharacterBulletAndLeavesTheTitleWithout()
+    {
+        var pptx = PresentationEditor.Create(new[]
+        {
+            PptxSlide.Titled("Title", "First bullet", "Second bullet"),
+        });
+
+        using var ms = new MemoryStream(pptx);
+        using var doc = PresentationDocument.Open(ms, false);
+        var paragraphs = doc.PresentationPart!.SlideParts.Single().Slide!
+            .Descendants<A.Paragraph>().ToList();
+
+        Assert.Equal(3, paragraphs.Count);
+
+        var titleBullet = paragraphs[0].ParagraphProperties?.GetFirstChild<A.CharacterBullet>();
+        Assert.Null(titleBullet);
+
+        foreach (var bulletParagraph in paragraphs.Skip(1))
+        {
+            var bullet = bulletParagraph.ParagraphProperties?.GetFirstChild<A.CharacterBullet>();
+            Assert.NotNull(bullet);
+            Assert.Equal("•", bullet!.Char!.Value);
+        }
+    }
+
+    /// <summary>
+    /// ReplaceText is a genuinely different code path from Create: it opens the package for write
+    /// with PresentationDocument.Open(ms, true) and re-saves the slide part, rather than assembling
+    /// fresh parts. This pins that a Create-built deck survives that path rather than assuming a
+    /// package this writer produces is automatically compatible with one this project reads back.
+    /// </summary>
+    [Fact]
+    public void ReplaceText_EditsADeckThatCreateBuilt()
+    {
+        var pptx = PresentationEditor.Create(new[]
+        {
+            PptxSlide.Titled("Q3 Results", "Revenue up {{pct}}"),
+            PptxSlide.Titled("Outlook"),
+        });
+
+        var edited = PresentationEditor.ReplaceText(
+            pptx, new Dictionary<string, string> { ["{{pct}}"] = "12%" });
+
+        AssertValid(edited);
+        Assert.Equal(2, PresentationEditor.SlideCount(edited));
+
+        var text = PresentationEditor.ExtractText(edited);
+        Assert.Contains(text, t => t.Contains("Revenue up 12%"));
+        Assert.DoesNotContain(text, t => t.Contains("{{pct}}"));
+    }
+
+    /// <summary>
+    /// Create inherits the promise the rest of this package makes for content sourced from data
+    /// rather than markup: a value holding XML metacharacters cannot corrupt the document's
+    /// structure. The OpenXml SDK's typed A.Text setter is what is trusted to escape these — this
+    /// test is what would catch a future change that concatenates slide text into raw XML instead.
+    /// </summary>
+    [Fact]
+    public void Create_EscapesXmlMetacharactersInTitlesAndBullets()
+    {
+        const string title = "Report <Q3> & \"Highlights\"";
+        const string bullet = "Revenue < costs & \"flat\" 'growth'";
+
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled(title, bullet) });
+
+        AssertValid(pptx);
+
+        var text = PresentationEditor.ExtractText(pptx);
+        Assert.Equal(2, text.Count);
+        Assert.Equal(title, text[0]);
+        Assert.Equal(bullet, text[1]);
     }
 }

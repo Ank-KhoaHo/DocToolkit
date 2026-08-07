@@ -12,8 +12,13 @@ public static class PresentationEditor
     /// Creates a deck from <paramref name="slides"/>, one slide each.
     ///
     /// This exists for content that comes from data rather than from an existing file: there is no
-    /// template to edit, so <see cref="ReplaceText"/> cannot help. An empty sequence is valid and
-    /// produces a valid deck with no slides.
+    /// template to edit, so <see cref="ReplaceText"/> cannot help, and the same slides produce the
+    /// same CONTENT on every machine — nothing here consults the current culture. Not the same
+    /// BYTES: the OpenXml SDK mints fresh relationship ids per package, so two calls with identical
+    /// slides in the same process differ. Do not build a cache key, a content hash or a golden-file
+    /// test on the bytes.
+    ///
+    /// An empty sequence is valid and produces a valid deck with no slides.
     /// </summary>
     /// <param name="slides">The slides, in deck order.</param>
     /// <exception cref="ArgumentNullException"><paramref name="slides"/> is null.</exception>
@@ -57,6 +62,11 @@ public static class PresentationEditor
     /// <summary>
     /// Builds a deck from <paramref name="slides"/> and writes it to <paramref name="outputPath"/>.
     /// See <see cref="Create"/> for the slide semantics.
+    ///
+    /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
+    /// <see cref="WorkbookEditor.CreateToFileAsync"/>: the distinct name keeps which kind of
+    /// destination a call writes to visible at the call site, rather than resting on the argument
+    /// type alone.
     ///
     /// The deck is built completely before the output is opened. That ordering is what stops a
     /// failed build truncating a file that was already there, and it is pinned by
