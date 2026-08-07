@@ -35,8 +35,9 @@ public class DocxToPdfConverterServiceTests
 
         var expected = sut.Convert(docx);
 
+        using var source = new MemoryStream(docx);
         using var destination = new MemoryStream();
-        await sut.ConvertAsync(new MemoryStream(docx), destination);
+        await sut.ConvertAsync(source, destination);
 
         Assert.Equal(expected, destination.ToArray());
     }
@@ -48,7 +49,10 @@ public class DocxToPdfConverterServiceTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        using var source = new MemoryStream();
+        using var destination = new MemoryStream();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sut.ConvertAsync(new MemoryStream(), new MemoryStream(), cts.Token));
+            () => sut.ConvertAsync(source, destination, cts.Token));
     }
 }

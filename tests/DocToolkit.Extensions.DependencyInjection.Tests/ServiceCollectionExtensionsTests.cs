@@ -39,15 +39,21 @@ public class ServiceCollectionExtensionsTests
             new object?[] { "North", 1200 },
         });
 
+        using var namesStaticSource = new MemoryStream(xlsx);
+        using var namesWrapperSource = new MemoryStream(xlsx);
+
         Assert.Equal(DocToolkit.WorkbookEditor.SheetNames(xlsx), sut.SheetNames(xlsx));
         Assert.Equal(
-            await DocToolkit.WorkbookEditor.SheetNamesAsync(new MemoryStream(xlsx)),
-            await sut.SheetNamesAsync(new MemoryStream(xlsx)));
+            await DocToolkit.WorkbookEditor.SheetNamesAsync(namesStaticSource),
+            await sut.SheetNamesAsync(namesWrapperSource));
+
+        using var sheetStaticSource = new MemoryStream(xlsx);
+        using var sheetWrapperSource = new MemoryStream(xlsx);
 
         Assert.Equal(DocToolkit.WorkbookEditor.ReadSheet(xlsx, "Sales"), sut.ReadSheet(xlsx, "Sales"));
         Assert.Equal(
-            await DocToolkit.WorkbookEditor.ReadSheetAsync(new MemoryStream(xlsx), "Sales"),
-            await sut.ReadSheetAsync(new MemoryStream(xlsx), "Sales"));
+            await DocToolkit.WorkbookEditor.ReadSheetAsync(sheetStaticSource, "Sales"),
+            await sut.ReadSheetAsync(sheetWrapperSource, "Sales"));
     }
 
     [Fact]

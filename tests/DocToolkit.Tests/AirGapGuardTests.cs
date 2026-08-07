@@ -358,8 +358,9 @@ public class AirGapGuardTests
 
         Assert.NotEmpty(DocxEditor.ExtractText(filled));
 
+        using var source = new MemoryStream(docx);
         using var destination = new MemoryStream();
-        await DocxEditor.FillRowsAsync(new MemoryStream(docx), "item", new[]
+        await DocxEditor.FillRowsAsync(source, "item", new[]
         {
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -385,9 +386,10 @@ public class AirGapGuardTests
         var filled = DocxEditor.ReplaceImage(docx, "{{logo}}", ImageFixtures.Png());
         Assert.NotEmpty(filled);
 
+        using var source = new MemoryStream(docx);
         using var destination = new MemoryStream();
         await DocxEditor.ReplaceImageAsync(
-            new MemoryStream(docx), "{{logo}}", ImageFixtures.Jpeg(), destination);
+            source, "{{logo}}", ImageFixtures.Jpeg(), destination);
         Assert.NotEmpty(destination.ToArray());
 
         await probe.AssertSilentAsync("DocxEditor.ReplaceImage / ReplaceImageAsync");

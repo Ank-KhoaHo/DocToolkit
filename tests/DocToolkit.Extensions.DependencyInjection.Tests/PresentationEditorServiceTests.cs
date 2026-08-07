@@ -39,13 +39,19 @@ public class PresentationEditorServiceTests
         var pptx = SamplePptx();
         var sut = new PresentationEditorService();
 
-        Assert.Equal(
-            await PresentationEditor.SlideCountAsync(new MemoryStream(pptx)),
-            await sut.SlideCountAsync(new MemoryStream(pptx)));
+        using var countStaticSource = new MemoryStream(pptx);
+        using var countWrapperSource = new MemoryStream(pptx);
 
         Assert.Equal(
-            await PresentationEditor.ExtractTextAsync(new MemoryStream(pptx)),
-            await sut.ExtractTextAsync(new MemoryStream(pptx)));
+            await PresentationEditor.SlideCountAsync(countStaticSource),
+            await sut.SlideCountAsync(countWrapperSource));
+
+        using var textStaticSource = new MemoryStream(pptx);
+        using var textWrapperSource = new MemoryStream(pptx);
+
+        Assert.Equal(
+            await PresentationEditor.ExtractTextAsync(textStaticSource),
+            await sut.ExtractTextAsync(textWrapperSource));
     }
 
     [Fact]
@@ -55,11 +61,13 @@ public class PresentationEditorServiceTests
         var sut = new PresentationEditorService();
         var replacements = new Dictionary<string, string> { ["{{who}}"] = "World" };
 
+        using var expectedSource = new MemoryStream(pptx);
         using var expected = new MemoryStream();
-        await PresentationEditor.ReplaceTextAsync(new MemoryStream(pptx), replacements, expected);
+        await PresentationEditor.ReplaceTextAsync(expectedSource, replacements, expected);
 
+        using var actualSource = new MemoryStream(pptx);
         using var actual = new MemoryStream();
-        await sut.ReplaceTextAsync(new MemoryStream(pptx), replacements, actual);
+        await sut.ReplaceTextAsync(actualSource, replacements, actual);
 
         Assert.Equal(expected.ToArray(), actual.ToArray());
     }
@@ -71,7 +79,9 @@ public class PresentationEditorServiceTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        using var source = new MemoryStream();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sut.SlideCountAsync(new MemoryStream(), cts.Token));
+            () => sut.SlideCountAsync(source, cts.Token));
     }
 }

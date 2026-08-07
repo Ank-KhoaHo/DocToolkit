@@ -281,8 +281,9 @@ public class DocxEditorFillRowsTests
 
         var expected = DocxEditor.FillRows(docx, "item", records);
 
+        using var source = new MemoryStream(docx);
         using var destination = new MemoryStream();
-        await DocxEditor.FillRowsAsync(new MemoryStream(docx), "item", records, destination);
+        await DocxEditor.FillRowsAsync(source, "item", records, destination);
         var actual = destination.ToArray();
 
         // Parity on readable content, not bytes. Two OpenXML saves happen to be byte-deterministic
@@ -299,12 +300,19 @@ public class DocxEditorFillRowsTests
             DocxFixtures.Row(DocxFixtures.R("{{item.Desc}}"))));
         var none = Array.Empty<IReadOnlyDictionary<string, string>>();
 
+        using var nullCollectionSource = new MemoryStream(docx);
+        using var nullCollectionDestination = new MemoryStream();
+        using var nullRecordsSource = new MemoryStream(docx);
+        using var nullRecordsDestination = new MemoryStream();
+        using var blankCollectionSource = new MemoryStream(docx);
+        using var blankCollectionDestination = new MemoryStream();
+
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DocxEditor.FillRowsAsync(new MemoryStream(docx), null!, none, new MemoryStream()));
+            DocxEditor.FillRowsAsync(nullCollectionSource, null!, none, nullCollectionDestination));
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DocxEditor.FillRowsAsync(new MemoryStream(docx), "item", null!, new MemoryStream()));
+            DocxEditor.FillRowsAsync(nullRecordsSource, "item", null!, nullRecordsDestination));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            DocxEditor.FillRowsAsync(new MemoryStream(docx), " ", none, new MemoryStream()));
+            DocxEditor.FillRowsAsync(blankCollectionSource, " ", none, blankCollectionDestination));
     }
 
     [Fact]

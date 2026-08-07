@@ -54,8 +54,11 @@ public class WorkbookEditorServiceTests
         Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, xlsx.Take(4).ToArray());
         Assert.Equal("Region", WorkbookEditor.ReadCell(xlsx, "Sales", "A1"));
 
-        var cell = await sut.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2");
-        Assert.Equal(await WorkbookEditor.ReadCellAsync(new MemoryStream(xlsx), "Sales", "B2"), cell);
+        using var wrapperSource = new MemoryStream(xlsx);
+        using var staticSource = new MemoryStream(xlsx);
+
+        var cell = await sut.ReadCellAsync(wrapperSource, "Sales", "B2");
+        Assert.Equal(await WorkbookEditor.ReadCellAsync(staticSource, "Sales", "B2"), cell);
         Assert.Equal("1200", cell);
 
         // This half asserts on readable content too, for the same reason as above.
@@ -71,11 +74,13 @@ public class WorkbookEditorServiceTests
         // CI reported. The same probe found PPTX and DOCX edits and DOCX->PDF conversion all
         // byte-deterministic, which is why the byte-equality assertions in the other service
         // tests are sound and were left alone. Only ClosedXML rebuilds the package this way.
+        using var setWrapperSource = new MemoryStream(xlsx);
         using var updated = new MemoryStream();
-        await sut.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, updated);
+        await sut.SetCellAsync(setWrapperSource, "Sales", "B2", 1500, updated);
 
+        using var setStaticSource = new MemoryStream(xlsx);
         using var expectedUpdated = new MemoryStream();
-        await WorkbookEditor.SetCellAsync(new MemoryStream(xlsx), "Sales", "B2", 1500, expectedUpdated);
+        await WorkbookEditor.SetCellAsync(setStaticSource, "Sales", "B2", 1500, expectedUpdated);
 
         var fromWrapper = updated.ToArray();
         var fromStatic = expectedUpdated.ToArray();
@@ -89,7 +94,8 @@ public class WorkbookEditorServiceTests
                 WorkbookEditor.ReadCell(fromWrapper, "Sales", cellRef));
         }
 
-        Assert.Equal("1500", await sut.ReadCellAsync(new MemoryStream(fromWrapper), "Sales", "B2"));
+        using var verifySource = new MemoryStream(fromWrapper);
+        Assert.Equal("1500", await sut.ReadCellAsync(verifySource, "Sales", "B2"));
     }
 
     [Fact]
@@ -99,8 +105,10 @@ public class WorkbookEditorServiceTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        using var source = new MemoryStream();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sut.ReadCellAsync(new MemoryStream(), "Sales", "A1", cts.Token));
+            () => sut.ReadCellAsync(source, "Sales", "A1", cts.Token));
     }
 
     [Fact]
@@ -125,8 +133,11 @@ public class WorkbookEditorServiceTests
             new object?[] { "Region", "Total" },
         });
 
-        var fromWrapper = await sut.SheetNamesAsync(new MemoryStream(xlsx));
-        var fromStatic = await WorkbookEditor.SheetNamesAsync(new MemoryStream(xlsx));
+        using var wrapperSource = new MemoryStream(xlsx);
+        using var staticSource = new MemoryStream(xlsx);
+
+        var fromWrapper = await sut.SheetNamesAsync(wrapperSource);
+        var fromStatic = await WorkbookEditor.SheetNamesAsync(staticSource);
 
         Assert.Equal(fromStatic, fromWrapper);
         Assert.Equal(new[] { "Sales" }, fromWrapper);
@@ -162,8 +173,11 @@ public class WorkbookEditorServiceTests
             new object?[] { "North", 1200 },
         });
 
-        var fromWrapper = await sut.ReadSheetAsync(new MemoryStream(xlsx), "Sales");
-        var fromStatic = await WorkbookEditor.ReadSheetAsync(new MemoryStream(xlsx), "Sales");
+        using var wrapperSource = new MemoryStream(xlsx);
+        using var staticSource = new MemoryStream(xlsx);
+
+        var fromWrapper = await sut.ReadSheetAsync(wrapperSource, "Sales");
+        var fromStatic = await WorkbookEditor.ReadSheetAsync(staticSource, "Sales");
 
         Assert.Equal(fromStatic, fromWrapper);
         Assert.Equal(
@@ -182,7 +196,9 @@ public class WorkbookEditorServiceTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        using var source = new MemoryStream();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => sut.ReadSheetAsync(new MemoryStream(), "Sales", cts.Token));
+            () => sut.ReadSheetAsync(source, "Sales", cts.Token));
     }
 }
