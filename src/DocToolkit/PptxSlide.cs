@@ -2,12 +2,7 @@ namespace DocToolkit;
 
 /// <summary>
 /// One slide: a title and zero or more bullet lines. Built by <see cref="Titled"/> and passed to
-/// <see cref="PresentationEditor"/>.Create.
-///
-/// The cref names the TYPE, not the method, because PresentationEditor.Create does not exist yet —
-/// Task 2 adds it. GenerateDocumentationFile is on and the build runs -warnaserror, so an
-/// unresolved cref is CS1574 and therefore a build error. Task 2 tightens these two crefs to the
-/// real member once it resolves.
+/// <see cref="PresentationEditor.Create"/>.
 ///
 /// A single sealed type rather than the closed hierarchy <see cref="DocxBlock"/> uses. That
 /// hierarchy exists because a document has four kinds of block an external assembly must not be
@@ -34,7 +29,7 @@ public sealed class PptxSlide
     /// <paramref name="bullets"/>. Pass no bullets for a title-only slide.
     ///
     /// Arguments are validated immediately, so a bad value throws at the line that produced it
-    /// rather than later inside a <see cref="PresentationEditor"/>.Create call assembling many
+    /// rather than later inside a <see cref="PresentationEditor.Create"/> call assembling many
     /// slides.
     /// Bullets are materialised here; mutating the caller's array afterwards does not change the
     /// slide.

@@ -8,6 +8,39 @@ namespace DocToolkit;
 /// <summary>Opens and edits PowerPoint (.pptx) presentations.</summary>
 public static class PresentationEditor
 {
+    /// <summary>
+    /// Creates a deck from <paramref name="slides"/>, one slide each.
+    ///
+    /// This exists for content that comes from data rather than from an existing file: there is no
+    /// template to edit, so <see cref="ReplaceText"/> cannot help. An empty sequence is valid and
+    /// produces a valid deck with no slides.
+    /// </summary>
+    /// <param name="slides">The slides, in deck order.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="slides"/> is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="slides"/> is null.</exception>
+    /// <exception cref="DocumentConversionException">The deck could not be built.</exception>
+    public static byte[] Create(IEnumerable<PptxSlide> slides)
+    {
+        var materialised = ValidateSlides(slides);
+        using var ms = PptxDocumentWriter.Write(materialised);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Materialises and null-checks up front, so a null slide surfaces as the
+    /// <see cref="ArgumentException"/> it is rather than as a <see cref="NullReferenceException"/>
+    /// wrapped in a conversion failure. Mirrors <c>DocxEditor.ValidateBlocks</c>.
+    /// </summary>
+    private static IReadOnlyList<PptxSlide> ValidateSlides(IEnumerable<PptxSlide> slides)
+    {
+        ArgumentNullException.ThrowIfNull(slides);
+
+        return slides
+            .Select((slide, index) => slide
+                ?? throw new ArgumentException($"Slide {index + 1} was null.", nameof(slides)))
+            .ToList();
+    }
+
     /// <summary>Number of slides in the deck, as counted from the deck's slide list.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
