@@ -118,10 +118,8 @@ public static class PdfProbe
             : null;
 
         var sb = new StringBuilder();
-        foreach (Match m in HexText.Matches(raw))
+        foreach (var hex in HexText.Matches(raw).Select(m => m.Groups[1].Value))
         {
-            var hex = m.Groups[1].Value;
-
             if (glyphs is not null)
             {
                 if (hex.Length % 4 != 0) continue;
