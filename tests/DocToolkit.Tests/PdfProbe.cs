@@ -16,6 +16,19 @@ public static class PdfProbe
 {
     private static readonly Regex HexText = new(@"<([0-9A-Fa-f]+)>\s*Tj", RegexOptions.Compiled);
 
+    // /ToUnicode CMap sections. Singleline so the bodies can span lines, which they always do.
+    private static readonly Regex BfCharSection =
+        new(@"beginbfchar(.*?)endbfchar", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    private static readonly Regex BfCharPair =
+        new(@"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>", RegexOptions.Compiled);
+
+    private static readonly Regex BfRangeSection =
+        new(@"beginbfrange(.*?)endbfrange", RegexOptions.Compiled | RegexOptions.Singleline);
+
+    private static readonly Regex BfRangeEntry =
+        new(@"<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>", RegexOptions.Compiled);
+
     // A dictionary that may contain up to one level of nested "<< ... >>" (e.g. a Catalog's
     // /Names dictionary, or a Page's /Resources dictionary), and/or single-angle-bracket hex
     // string tokens (e.g. a trailer's "/ID [<HEX> <HEX>]"). This is not a full PDF parser - it
@@ -78,17 +91,95 @@ public static class PdfProbe
     public static bool IsPdf(byte[] pdf) =>
         pdf.Length >= 5 && Encoding.ASCII.GetString(pdf, 0, 5) == "%PDF-";
 
-    /// <summary>All visible text, in content-stream order.</summary>
+    /// <summary>
+    /// All visible text, in content-stream order.
+    ///
+    /// TWO ENCODINGS, decided per document. OfficeIMO up to 3.0.3 emitted single-byte WinAnsi hex
+    /// strings. From 3.1.0 it embeds a subset TrueType font as a Type0/Identity-H composite, so the
+    /// same <c>&lt;...&gt; Tj</c> operator now holds <b>two-byte glyph IDs</b>, not character codes:
+    /// <c>&lt;002C0051&gt;</c> is glyph 0x2C then 0x51, which happen to be "In". Decoding those as
+    /// WinAnsi bytes yields NUL-separated rubbish and every text assertion fails while the PDF is
+    /// perfectly good — which is exactly the silent-looking failure this class exists to prevent.
+    ///
+    /// Glyph IDs are meaningless without the font, so the mapping back to characters comes from the
+    /// document's own <c>/ToUnicode</c> CMap. That is a required part of a well-formed Type0 font
+    /// and is what makes the PDF extractable by any conforming reader — its absence would be a real
+    /// defect rather than a probe problem.
+    /// </summary>
     public static string ExtractText(byte[] pdf)
     {
+        var raw = Raw(pdf);
+
+        // /Identity-H is the signal that codes are two-byte glyph IDs. Keyed on that rather than on
+        // "a ToUnicode exists", so a simple-encoded PDF that happens to carry one still decodes the
+        // old way.
+        var glyphs = raw.Contains("/Identity-H", StringComparison.Ordinal)
+            ? ToUnicodeMap(raw)
+            : null;
+
         var sb = new StringBuilder();
-        foreach (Match m in HexText.Matches(Raw(pdf)))
+        foreach (Match m in HexText.Matches(raw))
         {
             var hex = m.Groups[1].Value;
+
+            if (glyphs is not null)
+            {
+                if (hex.Length % 4 != 0) continue;
+                for (var i = 0; i < hex.Length; i += 4)
+                {
+                    var code = Convert.ToInt32(hex.Substring(i, 4), 16);
+                    if (glyphs.TryGetValue(code, out var text)) sb.Append(text);
+                }
+                continue;
+            }
+
             if (hex.Length % 2 != 0) continue;
             for (var i = 0; i < hex.Length; i += 2)
                 sb.Append(DecodeWinAnsiByte(Convert.ToInt32(hex.Substring(i, 2), 16)));
         }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Glyph id to text, read from the <c>/ToUnicode</c> CMap's <c>bfchar</c> and <c>bfrange</c>
+    /// sections.
+    ///
+    /// The CMap is emitted uncompressed, so it is parsed straight out of the raw bytes — the same
+    /// reason the content streams are readable at all. A destination may be several UTF-16 code
+    /// units, because one glyph can stand for a ligature ("fi" from a single glyph), so the value is
+    /// a string rather than a char.
+    /// </summary>
+    private static Dictionary<int, string> ToUnicodeMap(string raw)
+    {
+        var map = new Dictionary<int, string>();
+
+        foreach (Match section in BfCharSection.Matches(raw))
+            foreach (Match pair in BfCharPair.Matches(section.Groups[1].Value))
+                map[Convert.ToInt32(pair.Groups[1].Value, 16)] = FromUtf16Hex(pair.Groups[2].Value);
+
+        foreach (Match section in BfRangeSection.Matches(raw))
+        {
+            foreach (Match entry in BfRangeEntry.Matches(section.Groups[1].Value))
+            {
+                var lo = Convert.ToInt32(entry.Groups[1].Value, 16);
+                var hi = Convert.ToInt32(entry.Groups[2].Value, 16);
+                var dst = Convert.ToInt32(entry.Groups[3].Value, 16);
+
+                // Guarded: a malformed range must not hang the suite on a 2^32 loop.
+                if (hi < lo || hi - lo > 0xFFFF) continue;
+                for (var g = lo; g <= hi; g++) map[g] = char.ConvertFromUtf32(dst + (g - lo));
+            }
+        }
+
+        return map;
+    }
+
+    /// <summary>A CMap destination is UTF-16BE hex, so surrogate pairs arrive as four bytes.</summary>
+    private static string FromUtf16Hex(string hex)
+    {
+        var sb = new StringBuilder();
+        for (var i = 0; i + 4 <= hex.Length; i += 4)
+            sb.Append((char)Convert.ToInt32(hex.Substring(i, 4), 16));
         return sb.ToString();
     }
 
