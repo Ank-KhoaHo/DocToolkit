@@ -58,6 +58,73 @@ public class FilePathOverloadTests
         Assert.Equal(sentinel, await File.ReadAllBytesAsync(output.Path));
     }
 
+    /// <summary>
+    /// The same three properties, for <c>CreateToFileAsync</c>. It has no input file, so the
+    /// read-completely half does not apply — but "a failed build must not touch an existing output"
+    /// does, and it held for none of them until these tests existed: the plan specified only a
+    /// happy-path test and a blank-path test, so this overload would have shipped carrying none of
+    /// the guarantees this class exists to pin. Structurally the same escape as an overload missing
+    /// from <c>StreamOverloadTests</c>' name lists, one layer out.
+    /// </summary>
+    [Fact]
+    public async Task AFailedBuild_LeavesAnExistingOutputFileUntouched()
+    {
+        var sentinel = "do not overwrite me"u8.ToArray();
+
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(output.Path, sentinel);
+
+        // A null block fails ValidateBlocks, before any byte of the document is built.
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => DocxEditor.CreateToFileAsync(new DocxBlock[] { null! }, output.Path));
+
+        Assert.Equal(sentinel, await File.ReadAllBytesAsync(output.Path));
+    }
+
+    /// <summary>A successful build overwrites, and the result is a real document.</summary>
+    [Fact]
+    public async Task CreateToFileAsync_WritesAValidDocument_OverwritingWhatWasThere()
+    {
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(output.Path, "stale"u8.ToArray());
+
+        await DocxEditor.CreateToFileAsync(
+            new[] { DocxBlock.Paragraph("Written to disk.") }, output.Path);
+
+        Assert.Contains("Written to disk.", await DocxEditor.ExtractTextAsync(output.Path));
+    }
+
+    /// <summary>
+    /// The <c>ParamName</c> assertion is what makes this non-vacuous on Windows. Deleting the
+    /// <c>ThrowIfNullOrWhiteSpace</c> guard entirely still throws <see cref="ArgumentException"/>
+    /// here, because <c>File.WriteAllBytesAsync(" ", …)</c> rejects the path itself — but with
+    /// <c>ParamName = "path"</c>, not <c>"outputPath"</c>. On Linux <c>" "</c> is a legal filename
+    /// and the guard is the only thing rejecting it, so without this assertion the test proves
+    /// nothing locally and something entirely different in CI.
+    /// </summary>
+    [Fact]
+    public async Task CreateToFileAsync_RejectsABlankPath()
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => DocxEditor.CreateToFileAsync(Array.Empty<DocxBlock>(), " "));
+
+        Assert.Equal("outputPath", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task CreateToFileAsync_AnAlreadyCancelledToken_PreventsAnyOutputBeingWritten()
+    {
+        using var output = new TempFile();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => DocxEditor.CreateToFileAsync(
+                new[] { DocxBlock.Paragraph("x") }, output.Path, cts.Token));
+
+        Assert.False(File.Exists(output.Path), "a cancelled call wrote an output file");
+    }
+
     /// <summary>A successful conversion does overwrite — the previous contents are gone.</summary>
     [Fact]
     public async Task ASuccessfulConversion_OverwritesAnExistingOutputFile()

@@ -48,6 +48,17 @@ byte[] docx = await HtmlToDocxConverter.ConvertAsync("<h1>Invoice</h1><p>Total: 
 byte[] pdf  = await HtmlToPdfConverter.ConvertAsync("<h1>Invoice</h1>");  // pivots through DOCX
 byte[] rendered = DocxToPdfConverter.Convert(docx);
 
+// Or build a DOCX from data rather than markup — no HTML to escape, so a value
+// containing '<' cannot corrupt the document's structure
+byte[] report = DocxEditor.Create(new[]
+{
+    DocxBlock.Heading("Quarterly Report", 1),
+    DocxBlock.Paragraph("Revenue rose 12% against a flat cost base."),
+    DocxBlock.Table(
+        new[] { "Region", "Revenue" },
+        new[] { new object[] { "EMEA", 1200 }, new object[] { "APAC", 980 } }),
+});
+
 // Fill a template — handles placeholders split across runs, and headers/footers
 byte[] filled = DocxEditor.ReplaceText(docx, new() { ["{{customer}}"] = "Contoso Ltd" });
 

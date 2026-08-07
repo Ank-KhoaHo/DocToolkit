@@ -149,14 +149,26 @@ public class DocxEditorReplaceImageTests
     public void ReplaceImage_DeclaresTheContentTypeTheBytesActuallyAre()
     {
         var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{photo}}")));
+        var jpeg = ImageFixtures.Jpeg();
 
-        var filled = DocxEditor.ReplaceImage(docx, "{{photo}}", ImageFixtures.Jpeg());
+        var filled = DocxEditor.ReplaceImage(docx, "{{photo}}", jpeg);
 
         using var ms = new MemoryStream(filled);
         using var doc = WordprocessingDocument.Open(ms, false);
 
         // A part declaring image/png while holding JPEG bytes renders as a blank frame, silently.
-        Assert.Equal("image/jpeg", doc.MainDocumentPart!.ImageParts.Single().ContentType);
+        var part = doc.MainDocumentPart!.ImageParts.Single();
+        Assert.Equal("image/jpeg", part.ContentType);
+
+        // And the part must actually HOLD those bytes. Until this line, deleting the stream.Write in
+        // AddImagePart passed the entire suite: the result is a schema-valid document with a
+        // correctly typed but EMPTY image part, which Word renders as a blank frame. Nothing else in
+        // this repo reads an ImagePart's stream back, on either the edit or the create path.
+        using var stored = part.GetStream();
+        using var buffer = new MemoryStream();
+        stored.CopyTo(buffer);
+        Assert.Equal(jpeg, buffer.ToArray());
+
         AssertValid(filled);
     }
 
@@ -262,5 +274,29 @@ public class DocxEditorReplaceImageTests
         Assert.Throws<ArgumentException>(() => DocxEditor.ReplaceImage(docx, "{{logo}}", Array.Empty<byte>()));
         Assert.Throws<ArgumentOutOfRangeException>(
             () => DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 0));
+    }
+
+    /// <summary>
+    /// The upper size bound, which applies to THIS already-shipped method and not only to the newer
+    /// create path. Before the bound existed, an oversized value returned a document whose drawing
+    /// extent had overflowed to a negative number — schema-invalid, produced with no exception.
+    ///
+    /// This test exists because the bound was added in a commit whose tests all sat on the create
+    /// side: reverting the bound reddened three tests and not one of them was here, even though
+    /// ReplaceImage shares the same choke point and its observable behaviour changed.
+    /// </summary>
+    [Fact]
+    public void ReplaceImage_RejectsASizeTooLargeForADrawingExtent()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{logo}}")));
+        var png = ImageFixtures.Png();
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 1_000_000));
+        Assert.Equal("widthPoints", ex.ParamName);
+
+        // The derived side counts too: a legal width on a tall image overflows the height.
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 150_000));
     }
 }

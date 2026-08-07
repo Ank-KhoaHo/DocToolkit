@@ -5,8 +5,18 @@ namespace DocToolkit
         public DocumentConversionException(string message) { }
         public DocumentConversionException(string message, System.Exception inner) { }
     }
+    public abstract class DocxBlock
+    {
+        public static DocToolkit.DocxBlock Heading(string text, int level) { }
+        public static DocToolkit.DocxBlock Image(byte[] image, double? widthPoints = default, double? heightPoints = default, string? altText = null) { }
+        public static DocToolkit.DocxBlock Paragraph(string text) { }
+        public static DocToolkit.DocxBlock Table(System.Collections.Generic.IEnumerable<string> headers, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
+    }
     public static class DocxEditor
     {
+        public static byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks) { }
+        public static System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task CreateToFileAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static string ExtractText(byte[] docx) { }
         public static string ExtractText(byte[] docx, bool includeHeadersAndFooters) { }
         public static System.Threading.Tasks.Task<string> ExtractTextAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }

@@ -92,6 +92,28 @@ byte[] pdf = await HtmlToPdfConverter.ConvertAsync("<h1>Invoice</h1><p>Total: 18
 // DOCX -> PDF
 byte[] rendered = DocxToPdfConverter.Convert(docx);
 
+// Build a DOCX from data rather than markup - headings, paragraphs, tables and images.
+// There is no HTML to escape here, so a value containing '<' cannot corrupt the
+// document's structure, and the same blocks produce the same content on every machine.
+var blocks = new[]
+{
+    DocxBlock.Heading("Quarterly Report", 1),
+    DocxBlock.Paragraph("Revenue rose 12% against a flat cost base."),
+    DocxBlock.Table(
+        new[] { "Region", "Revenue" },
+        new[] { new object[] { "EMEA", 1200 }, new object[] { "APAC", 980 } }),
+
+    // altText becomes the drawing's descr - what a screen reader announces. Omit it for a
+    // purely decorative image; omitted means the attribute is absent, not filled with a
+    // placeholder that would be read out as though it described the picture.
+    DocxBlock.Image(logoBytes, widthPoints: 120, altText: "Contoso logo"),
+};
+byte[] report = DocxEditor.Create(blocks);
+
+// Straight to a stream or a file, without materialising the byte[]
+await DocxEditor.CreateAsync(blocks, responseBody);
+await DocxEditor.CreateToFileAsync(blocks, "report.docx");
+
 // Fill a DOCX template - body, headers, footers, footnotes, endnotes and text boxes
 byte[] filled = DocxEditor.ReplaceText(docx, new Dictionary<string, string>
 {
