@@ -15,24 +15,61 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** add alt text to inline images ([20a1602](https://github.com/Ank-KhoaHo/DocToolkit/commit/20a1602c277ad0b702cc81b43b32839d7091442d))
-* **core:** add stream and file overloads for creating a document ([57a8add](https://github.com/Ank-KhoaHo/DocToolkit/commit/57a8add09514bfd7b6ad11af44cfa00a0e2f595d))
-* **core:** add the DocxBlock content model ([5c30c52](https://github.com/Ank-KhoaHo/DocToolkit/commit/5c30c52ce3991b3def51402334d959750a6c034e))
-* **core:** create a DOCX from paragraph blocks ([0c785b0](https://github.com/Ank-KhoaHo/DocToolkit/commit/0c785b04524bab49da012d4a188bded722915b31))
-* **core:** embed inline images in created documents ([5353d20](https://github.com/Ank-KhoaHo/DocToolkit/commit/5353d20536b6d41660c9731ef8285a28fc46ec83))
-* **core:** write headings as real Word heading styles ([60b484e](https://github.com/Ank-KhoaHo/DocToolkit/commit/60b484e0d8deb468b4f5f1f160ae4c330a710ea1))
-* **core:** write tables with a grid and invariant cell formatting ([b8efc54](https://github.com/Ank-KhoaHo/DocToolkit/commit/b8efc54a3f7d07cf7c6c44b1c58ea45aaa2ad2dd))
+* **Core: create a DOCX from scratch, from a typed block model.** `DocxEditor.Create`,
+  `CreateAsync` and `CreateToFileAsync` build a document from `DocxBlock` values — headings,
+  paragraphs, tables, and inline images with alt text. Previously the only way to obtain a `.docx`
+  was to convert HTML. This path takes content from **data** rather than markup, so there is no
+  HTML to escape and a value containing `<` cannot corrupt the document's structure.
+
+  ```csharp
+  byte[] docx = DocxEditor.Create(new[]
+  {
+      DocxBlock.Heading("Quarterly Report", 1),
+      DocxBlock.Paragraph("Revenue rose 12% against a flat cost base."),
+      DocxBlock.Table(new[] { "Region", "Revenue" },
+                      new[] { new object[] { "EMEA", 1200 } }),
+      DocxBlock.Image(logoBytes, widthPoints: 120, altText: "Contoso logo"),
+  });
+  ```
+
+  ([5c30c52](https://github.com/Ank-KhoaHo/DocToolkit/commit/5c30c52ce3991b3def51402334d959750a6c034e),
+  [0c785b0](https://github.com/Ank-KhoaHo/DocToolkit/commit/0c785b04524bab49da012d4a188bded722915b31),
+  [60b484e](https://github.com/Ank-KhoaHo/DocToolkit/commit/60b484e0d8deb468b4f5f1f160ae4c330a710ea1),
+  [b8efc54](https://github.com/Ank-KhoaHo/DocToolkit/commit/b8efc54a3f7d07cf7c6c44b1c58ea45aaa2ad2dd),
+  [5353d20](https://github.com/Ank-KhoaHo/DocToolkit/commit/5353d20536b6d41660c9731ef8285a28fc46ec83),
+  [57a8add](https://github.com/Ank-KhoaHo/DocToolkit/commit/57a8add09514bfd7b6ad11af44cfa00a0e2f595d),
+  [20a1602](https://github.com/Ank-KhoaHo/DocToolkit/commit/20a1602c277ad0b702cc81b43b32839d7091442d))
 
 
 ### Fixed
 
-* **core:** clear the two actionable CodeQL findings from PR [#92](https://github.com/Ank-KhoaHo/DocToolkit/issues/92) ([f2b4b78](https://github.com/Ank-KhoaHo/DocToolkit/commit/f2b4b78ecf5ba2e13a414a45fc1fd63399363dcd))
-* **core:** reject an image size the validator cannot represent ([030e321](https://github.com/Ank-KhoaHo/DocToolkit/commit/030e3217ccced3963678ae8469922cf8b173685b))
+* **Core:** an oversized image produced a **corrupt document instead of an error**. The drawing
+  extent overflowed to a negative value, giving a file with four schema violations and no exception
+  thrown. Image dimensions are now bounded at 2,147,483,647 EMU per side (about 2,348 inches).
+
+  **This also changes `DocxEditor.ReplaceImage`**, which shares the same size arithmetic: a call
+  with an out-of-range `widthPoints`/`heightPoints` that returned a document in 0.9.0 now throws
+  `ArgumentOutOfRangeException`. The bound applies to a dimension derived from the aspect ratio as
+  well as to one you supply.
+  ([030e321](https://github.com/Ank-KhoaHo/DocToolkit/commit/030e3217ccced3963678ae8469922cf8b173685b))
 
 
 ### Changed
 
-* bump OfficeIMO.Word.Pdf to 3.1.0 ([fe2ad4a](https://github.com/Ank-KhoaHo/DocToolkit/commit/fe2ad4ab81bee52c21f69b0260e0139f51d2d580))
+* **Core:** `OfficeIMO.Word.Pdf` updated to 3.1.0. Generated PDFs now **embed a subset of the font
+  they use** rather than relying on the viewer to substitute one, so text renders consistently
+  wherever the file is opened, and remains selectable and searchable. The cost is file size: a
+  short document grows by roughly 130 KB, because the font travels with it. The resolved dependency
+  closure shrank from 18 packages to 16.
+  ([fe2ad4a](https://github.com/Ank-KhoaHo/DocToolkit/commit/fe2ad4ab81bee52c21f69b0260e0139f51d2d580))
+
+* **Extensions:** `THIRD-PARTY-NOTICES.txt` omitted `Microsoft.Extensions.Primitives` entirely. It
+  reaches this package through `Microsoft.Extensions.Options` rather than through `Ank.DocToolkit`,
+  so the notices' pointer to the core package's file never covered it and it was attributed nowhere.
+  **If you have run an open-source attribution or licence-compliance review against an earlier
+  version, it was incomplete** — that package is MIT, as is the rest of the closure. Both packages'
+  notices are now generated from the resolved dependency graph and checked in CI, rather than
+  maintained by hand.
 
 ## [0.9.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.8.0...v0.9.0) (2026-08-06)
 
