@@ -241,7 +241,10 @@ public class HtmlToDocxConverterTests
         private static byte[] OnePixelBitmap()
         {
             var bmp = new byte[58];
-            var w = new BinaryWriter(new MemoryStream(bmp));
+
+            // Disposed, though BinaryWriter writes through per call rather than accumulating like
+            // StreamWriter, so nothing is lost without it today. Not worth depending on that.
+            using var w = new BinaryWriter(new MemoryStream(bmp));
             w.Write((byte)'B'); w.Write((byte)'M');
             w.Write(58);            // file size
             w.Write(0);             // reserved
