@@ -327,9 +327,11 @@ public class DocxEditorCreateTests
     /// <summary>
     /// Pins the rendered form of every type <c>Format</c> handles explicitly. All five were
     /// completely untested, and their output deliberately differs from what the same value renders
-    /// as through <see cref="WorkbookEditor"/> — measured against the pinned ClosedXML:
-    /// a DateTime reads <c>08/06/2026 13:05:30</c> there and <c>2026-08-06 13:05:30</c> here, and a
-    /// one-day TimeSpan reads <c>26:03:04</c> there and <c>1.02:03:04</c> here. Those differences
+    /// as through <see cref="WorkbookEditor"/> — measured against the pinned ClosedXML: a DateTime
+    /// reads there in a slashed, culture-dependent form (<c>08/06/2026 13:05:30</c> or
+    /// <c>06/08/2026 01:05:30 PM</c>, depending on the machine) and <c>2026-08-06 13:05:30</c> here,
+    /// and a one-day TimeSpan reads <c>26:03:04</c> there and <c>1.02:03:04</c> here. The DOCX side
+    /// is invariant, which is why only it is asserted below. Those differences
     /// are intentional (see the note on <see cref="DocxBlock.Table"/>), but without this test they
     /// are invisible and free to drift in either direction.
     /// </summary>
@@ -503,6 +505,42 @@ public class DocxEditorCreateTests
         // bytes, and collapsing them would be a different behaviour that happens to share this id
         // assertion.
         Assert.Equal(3, doc.MainDocumentPart.ImageParts.Count());
+    }
+
+    /// <summary>
+    /// The one place in the package where two INDEPENDENT drawing-id schemes meet: Create issues ids
+    /// from a monotonic counter starting at 1, because it builds an empty document; ReplaceImage
+    /// scans every part for the highest existing id, because it edits a template it did not write.
+    /// Feed one to the other and a collision would produce duplicate <c>wp:docPr/@id</c> values —
+    /// which makes Word declare the file corrupt and offer to repair it, while no schema check
+    /// flags it and every text assertion still passes.
+    ///
+    /// Neither scheme is wrong; nothing tested that they compose. The whole-branch review had to run
+    /// this by hand to be sure of it, which is the definition of a test that should exist.
+    /// </summary>
+    [Fact]
+    public void Create_ThenReplaceImage_KeepsEveryDrawingIdUnique()
+    {
+        var created = DocxEditor.Create(new[]
+        {
+            DocxBlock.Image(ImageFixtures.Png()),
+            DocxBlock.Paragraph("Signature: {{sig}}"),
+        });
+
+        var filled = DocxEditor.ReplaceImage(created, "{{sig}}", ImageFixtures.Jpeg());
+
+        AssertValid(filled);
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var ids = doc.MainDocumentPart!.Document!.Body!
+            .Descendants<DW.DocProperties>().Select(p => p.Id!.Value).ToList();
+
+        Assert.Equal(2, ids.Count);
+        Assert.Equal(2, ids.Distinct().Count());
+
+        // Both images survived as separate parts, so the ids belong to two real drawings.
+        Assert.Equal(2, doc.MainDocumentPart.ImageParts.Count());
     }
 
     /// <summary>

@@ -275,4 +275,28 @@ public class DocxEditorReplaceImageTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 0));
     }
+
+    /// <summary>
+    /// The upper size bound, which applies to THIS already-shipped method and not only to the newer
+    /// create path. Before the bound existed, an oversized value returned a document whose drawing
+    /// extent had overflowed to a negative number — schema-invalid, produced with no exception.
+    ///
+    /// This test exists because the bound was added in a commit whose tests all sat on the create
+    /// side: reverting the bound reddened three tests and not one of them was here, even though
+    /// ReplaceImage shares the same choke point and its observable behaviour changed.
+    /// </summary>
+    [Fact]
+    public void ReplaceImage_RejectsASizeTooLargeForADrawingExtent()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{logo}}")));
+        var png = ImageFixtures.Png();
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 1_000_000));
+        Assert.Equal("widthPoints", ex.ParamName);
+
+        // The derived side counts too: a legal width on a tall image overflows the height.
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 150_000));
+    }
 }
