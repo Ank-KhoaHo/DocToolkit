@@ -204,6 +204,64 @@ jobs:
       - name: Assert THIRD-PARTY-NOTICES.txt matches the resolved graph
         run: python3 scripts/gen-third-party-notices.py --check
 
+  # src/Directory.Build.props sets IsTrimmable, which tells consumers these assemblies survive
+  # trimming. That is a claim about the WHOLE reachable graph at publish time, and the trim
+  # analyzer running over our own source cannot make it - it never sees ClosedXML, OpenXML,
+  # HtmlToOpenXml or OfficeIMO. Checking our API and not our dependencies is precisely the mistake
+  # that let ShapeCrawler in.
+  #
+  # So this job publishes a real trimmed application over the real closure and RUNS it. Trim
+  # breakage does not surface as a build failure: the trimmer removes a type something looks up by
+  # name, and the app throws - or silently produces an empty document - at runtime only.
+  trim-guard:
+    name: trimmed app publishes and runs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Trim-publish the probe
+        run: |
+          dotnet publish tests/TrimProbe -c Release -r linux-x64 --nologo 2>&1 | tee trim.log
+          test "${PIPESTATUS[0]}" -eq 0
+
+      # Attribution matters more than the count. A warning from ClosedXML is a fact about a
+      # dependency we do not control and must not fail the build; a warning naming DocToolkit is
+      # ours and must.
+      #
+      # The sed is load-bearing: MSBuild appends " [/path/to/TrimProbe.csproj]" to every diagnostic,
+      # and that path contains the string "DocToolkit" - so grepping the raw line for our name
+      # matches EVERY warning, including the dependency ones. Verified by mutation: an
+      # Activator.CreateInstance added to PptxSlide.Titled is reported as
+      # "IL2072: DocToolkit.PptxSlide.Titled" and fails this step, while the ClosedXML warning
+      # alone passes it.
+      - name: Assert no trim warning belongs to DocToolkit
+        run: |
+          stripped=$(sed 's/ \[[^][]*\.csproj\]$//' trim.log)
+          ours=$(echo "$stripped" | grep -oE "IL[0-9]+: DocToolkit\.[A-Za-z0-9_.<>]*" || true)
+          others=$(echo "$stripped" | grep -oE "IL[0-9]+: [A-Za-z0-9_]+" | grep -v ': DocToolkit' | sort -u || true)
+
+          echo "::group::trim warnings from dependencies (reported, not fatal)"
+          echo "${others:-none}"
+          echo "::endgroup::"
+
+          if [ -n "$ours" ]; then
+            echo "::error::DocToolkit's own code produced trim warnings, so the IsTrimmable claim in src/Directory.Build.props is no longer true:"
+            echo "$ours"
+            exit 1
+          fi
+          echo "no trim warnings attributable to DocToolkit"
+
+      # The step that actually earns the claim. Every capability asserts on its result, so a
+      # trimmed-away type surfaces here rather than in a consumer's production logs.
+      - name: Run the trimmed application
+        run: ./tests/TrimProbe/bin/Release/net8.0/linux-x64/publish/TrimProbe
+
   # Enforces Conventional Commits so release-please's version-bump and changelog inference
   # (release-please-config.json) is never silently wrong. Checks every commit in the PR's
   # range, not just the PR title, because this repo true-merges - every individual commit

@@ -13,6 +13,7 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
+
   <!--
     Package identity shared by both packages. PackageId, Description and PackageTags stay in the
     individual projects - those differ per package. Version is the local dev default only: the

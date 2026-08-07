@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Deliberately NOT in DocToolkit.sln, and that is load-bearing rather than tidiness.
+
+    A trimmed publish is necessarily SelfContained, so its output contains the .NET runtime's own
+    native .so files. ci.yml's premise guard fails the build on any *.so under a bin/ directory
+    anywhere in the tree - the check that caught SkiaSharp and Magick.NET arriving via ShapeCrawler.
+    That guard runs in a separate job which builds only the solution, so it never sees this
+    project's output. Add TrimProbe to the solution and the no-native-binaries guard starts failing
+    on the .NET runtime itself, which reads exactly like a real premise breach.
+
+    (It is published, not built, so being outside the solution costs nothing: `dotnet build` on the
+    solution would compile it for no reason and make every local build pay for a RuntimeIdentifier
+    restore.)
+
+    ProjectReference, not PackageReference - unlike samples/, whose question is "does the PUBLISHED
+    artifact work". This one asks "is the code in THIS pull request trim-safe", which only a project
+    reference can answer.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      TrimmerSingleWarn=false is what makes this guard worth having. Left at its default the
+      trimmer collapses every warning in an assembly into one IL2104 "assembly produced trim
+      warnings", which cannot be attributed to a specific call site - so a new unsafe pattern in
+      DocToolkit would be indistinguishable from the ClosedXML warning we already know about.
+    -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <SelfContained>true</SelfContained>
+
+    <!--
+      The one project in the repository that opts out of the root's TreatWarningsAsErrors, and the
+      reason is specific: trimming reports warnings from the WHOLE dependency closure, and ClosedXML
+      currently emits IL2090 in DescribedEnumParser<T>. That is a real property of a dependency we
+      do not control, so failing this project's build on it would only mean carrying a NoWarn - and
+      a NoWarn for IL2090 would hide the same warning arriving from OUR code, which is the one thing
+      this project exists to catch.
+
+      The gate is elsewhere, in two places that are both precise:
+        1. src/DocToolkit sets IsTrimmable, so the trim analyzer runs over DocToolkit's own source
+           during its normal build, where TreatWarningsAsErrors DOES apply.
+        2. ci.yml's trim-guard job fails if any IL warning here names DocToolkit, while printing
+           the dependency ones rather than swallowing them.
+    -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DocToolkit\DocToolkit.csproj" />
+  </ItemGroup>
+
+</Project>
