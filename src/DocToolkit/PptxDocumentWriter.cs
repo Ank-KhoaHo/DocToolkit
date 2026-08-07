@@ -58,10 +58,24 @@ internal static class PptxDocumentWriter
                     new P.SlideSize { Cx = SlideWidthEmu, Cy = SlideHeightEmu },
                     new P.NotesSize { Cx = 6858000, Cy = 9144000 });
 
-                // The scaffold is complete and valid on its own: a deck with no slides is a legal
-                // deck. Slide creation is the only thing that consumes the layout, so it stays
-                // unused until there is a slide to attach it to.
-                _ = layoutPart;
+                var slideIdList = presentationPart.Presentation.GetFirstChild<P.SlideIdList>()!;
+                var nextSlideId = FirstSlideId;
+
+                foreach (var slide in slides)
+                {
+                    var slidePart = presentationPart.AddNewPart<SlidePart>();
+                    slidePart.Slide = BuildSlide(slide);
+                    slidePart.AddPart(layoutPart);
+                    slidePart.Slide.Save();
+
+                    slideIdList.Append(new P.SlideId
+                    {
+                        Id = nextSlideId,
+                        RelationshipId = presentationPart.GetIdOfPart(slidePart),
+                    });
+
+                    nextSlideId++;
+                }
 
                 presentationPart.Presentation.Save();
             }
@@ -202,5 +216,69 @@ internal static class PptxDocumentWriter
             new A.ObjectDefaults(),
             new A.ExtraColorSchemeList())
         { Name = "Office Theme" };
+    }
+
+    /// <summary>
+    /// One slide: a title shape and, when there are bullets, a body shape beneath it.
+    ///
+    /// Both are placed with explicit EMU boxes because a slide has no flow layout - every shape
+    /// carries its own position and size, unlike a paragraph in a document.
+    /// </summary>
+    private static P.Slide BuildSlide(PptxSlide slide)
+    {
+        var tree = new P.ShapeTree(
+            new P.NonVisualGroupShapeProperties(
+                new P.NonVisualDrawingProperties { Id = 1U, Name = string.Empty },
+                new P.NonVisualGroupShapeDrawingProperties(),
+                new P.ApplicationNonVisualDrawingProperties()),
+            new P.GroupShapeProperties());
+
+        tree.Append(TextShape(
+            id: 2U, name: "Title",
+            xEmu: 838200, yEmu: 365125, widthEmu: 10515600, heightEmu: 1325563,
+            fontSizeHundredths: 4400,
+            lines: new[] { slide.Title }));
+
+        if (slide.Bullets.Count > 0)
+        {
+            tree.Append(TextShape(
+                id: 3U, name: "Content",
+                xEmu: 838200, yEmu: 1825625, widthEmu: 10515600, heightEmu: 4351338,
+                fontSizeHundredths: 2000,
+                lines: slide.Bullets));
+        }
+
+        return new P.Slide(new P.CommonSlideData(tree), new P.ColorMapOverride(new A.MasterColorMapping()));
+    }
+
+    /// <summary>
+    /// A text box holding one paragraph per line. <paramref name="id"/> must be unique within the
+    /// slide's shape tree; 1 is taken by the group shape itself.
+    /// </summary>
+    private static P.Shape TextShape(
+        uint id, string name, long xEmu, long yEmu, long widthEmu, long heightEmu,
+        int fontSizeHundredths, IReadOnlyList<string> lines)
+    {
+        var body = new P.TextBody(new A.BodyProperties(), new A.ListStyle());
+
+        foreach (var line in lines)
+        {
+            body.Append(new A.Paragraph(
+                new A.Run(
+                    new A.RunProperties { Language = "en-US", FontSize = fontSizeHundredths },
+                    new A.Text(line))));
+        }
+
+        return new P.Shape(
+            new P.NonVisualShapeProperties(
+                new P.NonVisualDrawingProperties { Id = id, Name = name },
+                new P.NonVisualShapeDrawingProperties(new A.ShapeLocks { NoGrouping = true }),
+                new P.ApplicationNonVisualDrawingProperties()),
+            new P.ShapeProperties(
+                new A.Transform2D(
+                    new A.Offset { X = xEmu, Y = yEmu },
+                    new A.Extents { Cx = widthEmu, Cy = heightEmu }),
+                new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle }),
+            body);
     }
 }
