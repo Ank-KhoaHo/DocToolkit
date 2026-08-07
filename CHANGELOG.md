@@ -10,6 +10,30 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.10.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.9.0...v0.10.0) (2026-08-07)
+
+
+### Added
+
+* **core:** add alt text to inline images ([20a1602](https://github.com/Ank-KhoaHo/DocToolkit/commit/20a1602c277ad0b702cc81b43b32839d7091442d))
+* **core:** add stream and file overloads for creating a document ([57a8add](https://github.com/Ank-KhoaHo/DocToolkit/commit/57a8add09514bfd7b6ad11af44cfa00a0e2f595d))
+* **core:** add the DocxBlock content model ([5c30c52](https://github.com/Ank-KhoaHo/DocToolkit/commit/5c30c52ce3991b3def51402334d959750a6c034e))
+* **core:** create a DOCX from paragraph blocks ([0c785b0](https://github.com/Ank-KhoaHo/DocToolkit/commit/0c785b04524bab49da012d4a188bded722915b31))
+* **core:** embed inline images in created documents ([5353d20](https://github.com/Ank-KhoaHo/DocToolkit/commit/5353d20536b6d41660c9731ef8285a28fc46ec83))
+* **core:** write headings as real Word heading styles ([60b484e](https://github.com/Ank-KhoaHo/DocToolkit/commit/60b484e0d8deb468b4f5f1f160ae4c330a710ea1))
+* **core:** write tables with a grid and invariant cell formatting ([b8efc54](https://github.com/Ank-KhoaHo/DocToolkit/commit/b8efc54a3f7d07cf7c6c44b1c58ea45aaa2ad2dd))
+
+
+### Fixed
+
+* **core:** clear the two actionable CodeQL findings from PR [#92](https://github.com/Ank-KhoaHo/DocToolkit/issues/92) ([f2b4b78](https://github.com/Ank-KhoaHo/DocToolkit/commit/f2b4b78ecf5ba2e13a414a45fc1fd63399363dcd))
+* **core:** reject an image size the validator cannot represent ([030e321](https://github.com/Ank-KhoaHo/DocToolkit/commit/030e3217ccced3963678ae8469922cf8b173685b))
+
+
+### Changed
+
+* bump OfficeIMO.Word.Pdf to 3.1.0 ([fe2ad4a](https://github.com/Ank-KhoaHo/DocToolkit/commit/fe2ad4ab81bee52c21f69b0260e0139f51d2d580))
+
 ## [0.9.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.8.0...v0.9.0) (2026-08-06)
 
 
