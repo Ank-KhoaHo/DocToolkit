@@ -8,6 +8,105 @@ namespace DocToolkit;
 /// <summary>Opens and edits PowerPoint (.pptx) presentations.</summary>
 public static class PresentationEditor
 {
+    /// <summary>
+    /// Creates a deck from <paramref name="slides"/>, one slide each.
+    ///
+    /// This exists for content that comes from data rather than from an existing file: there is no
+    /// template to edit, so <see cref="ReplaceText"/> cannot help, and the same slides produce the
+    /// same CONTENT on every machine — nothing here consults the current culture. Not the same
+    /// BYTES: the OpenXml SDK mints fresh relationship ids per package, so two calls with identical
+    /// slides in the same process differ. Do not build a cache key, a content hash or a golden-file
+    /// test on the bytes.
+    ///
+    /// An empty sequence is valid and produces a valid deck with no slides.
+    /// </summary>
+    /// <param name="slides">The slides, in deck order.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="slides"/> is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="slides"/> is null.</exception>
+    /// <exception cref="DocumentConversionException">The deck could not be built.</exception>
+    public static byte[] Create(IEnumerable<PptxSlide> slides)
+    {
+        var materialised = ValidateSlides(slides);
+        using var ms = PptxDocumentWriter.Write(materialised);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Builds a deck from <paramref name="slides"/> and writes it to
+    /// <paramref name="destination"/>. See <see cref="Create"/> for the slide semantics.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought — it belongs to the caller, and may be write-only and
+    /// forward-only, such as an HTTP response body.
+    /// </summary>
+    /// <param name="slides">The slides, in deck order.</param>
+    /// <param name="destination">The stream the deck is written to.</param>
+    /// <param name="ct">Cancels the build and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="slides"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// An element of <paramref name="slides"/> is null, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The deck could not be built or written.</exception>
+    public static async Task CreateAsync(
+        IEnumerable<PptxSlide> slides, Stream destination, CancellationToken ct = default)
+    {
+        var materialised = ValidateSlides(slides);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = PptxDocumentWriter.Write(materialised);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to create PPTX.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds a deck from <paramref name="slides"/> and writes it to <paramref name="outputPath"/>.
+    /// See <see cref="Create"/> for the slide semantics.
+    ///
+    /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
+    /// <see cref="WorkbookEditor.CreateToFileAsync"/>: the distinct name keeps which kind of
+    /// destination a call writes to visible at the call site, rather than resting on the argument
+    /// type alone.
+    ///
+    /// The deck is built completely before the output is opened. That ordering is what stops a
+    /// failed build truncating a file that was already there, and it is pinned by
+    /// <c>FilePathOverloadTests</c> rather than left as a comment — it survives only as long as
+    /// nobody rewrites this into a streaming write.
+    /// </summary>
+    /// <param name="slides">The slides, in deck order.</param>
+    /// <param name="outputPath">Where to write the deck. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the write to <paramref name="outputPath"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="slides"/> or <paramref name="outputPath"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="outputPath"/> is blank, or an element of <paramref name="slides"/> is null.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The deck could not be built.</exception>
+    public static async Task CreateToFileAsync(
+        IEnumerable<PptxSlide> slides, string outputPath, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = Create(slides);
+        await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Materialises and null-checks up front, so a null slide surfaces as the
+    /// <see cref="ArgumentException"/> it is rather than as a <see cref="NullReferenceException"/>
+    /// wrapped in a conversion failure. Mirrors <c>DocxEditor.ValidateBlocks</c>.
+    /// </summary>
+    private static IReadOnlyList<PptxSlide> ValidateSlides(IEnumerable<PptxSlide> slides)
+    {
+        ArgumentNullException.ThrowIfNull(slides);
+
+        return slides
+            .Select((slide, index) => slide
+                ?? throw new ArgumentException($"Slide {index + 1} was null.", nameof(slides)))
+            .ToList();
+    }
+
     /// <summary>Number of slides in the deck, as counted from the deck's slide list.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>

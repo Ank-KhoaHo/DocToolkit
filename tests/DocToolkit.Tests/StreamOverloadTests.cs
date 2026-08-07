@@ -49,6 +49,12 @@ public class StreamOverloadTests
         DocxBlock.Paragraph("Revenue was up 12%."),
     };
 
+    /// <summary>Slides for PresentationEditor.CreateAsync, which takes no source.</summary>
+    private static readonly PptxSlide[] Slides =
+    {
+        PptxSlide.Titled("Quarterly Report", "Revenue was up 12%."),
+    };
+
     private static readonly IReadOnlyList<IReadOnlyDictionary<string, string>> FillRowsRecords =
         new[]
         {
@@ -98,6 +104,7 @@ public class StreamOverloadTests
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.CreateAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -136,6 +143,7 @@ public class StreamOverloadTests
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.CreateAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -605,6 +613,8 @@ public class StreamOverloadTests
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>
                 PresentationEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
+            "PresentationEditor.CreateAsync" =>
+                PresentationEditor.CreateAsync(Slides, destination!, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(api), api, "Unknown Stream overload."),
         };
 
@@ -625,6 +635,7 @@ public class StreamOverloadTests
         => api.StartsWith("HtmlTo", StringComparison.Ordinal)
             || api == "WorkbookEditor.CreateAsync"
             || api == "DocxEditor.CreateAsync"
+            || api == "PresentationEditor.CreateAsync"
             ? new MemoryStream()
             : StreamDoubles.Seekable(SourceBytesFor(api));
 

@@ -78,6 +78,13 @@ byte[] xlsx = WorkbookEditor.Create("Sales", new[] { new object?[] { "Region", "
 IReadOnlyList<string> sheets = WorkbookEditor.SheetNames(xlsx);
 IReadOnlyList<IReadOnlyList<string>> grid = WorkbookEditor.ReadSheet(xlsx, sheets[0]);
 IReadOnlyList<string> slideText = PresentationEditor.ExtractText(pptx);
+
+// Or build a deck from data - titles and bullets, no template needed
+byte[] deck = PresentationEditor.Create(new[]
+{
+    PptxSlide.Titled("Q3 Results", "Revenue up 12%", "Costs flat"),
+    PptxSlide.Titled("Outlook", "Hiring 3 engineers"),
+});
 ```
 
 Six static classes, each stateless and safe to call concurrently, with a `byte[]` overload, a
