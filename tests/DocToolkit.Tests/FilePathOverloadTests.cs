@@ -189,4 +189,61 @@ public class FilePathOverloadTests
 
         Assert.Equal("docx", ex.ParamName);
     }
+
+    [Fact]
+    public async Task CreateToFileAsync_AFailedBuild_LeavesAnExistingOutputFileUntouched()
+    {
+        var sentinel = "do not overwrite me"u8.ToArray();
+
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(output.Path, sentinel);
+
+        // A null slide fails ValidateSlides, before any byte of the deck is built.
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => PresentationEditor.CreateToFileAsync(new PptxSlide[] { null! }, output.Path));
+
+        Assert.Equal(sentinel, await File.ReadAllBytesAsync(output.Path));
+    }
+
+    [Fact]
+    public async Task CreateToFileAsync_WritesAValidDeck_OverwritingWhatWasThere()
+    {
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(output.Path, "stale"u8.ToArray());
+
+        await PresentationEditor.CreateToFileAsync(
+            new[] { PptxSlide.Titled("Written to disk.") }, output.Path);
+
+        var text = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Contains("Written to disk.", Assert.Single(text));
+    }
+
+    /// <summary>
+    /// The ParamName assertion is what makes this non-vacuous on Windows: deleting the
+    /// ThrowIfNullOrWhiteSpace guard still throws ArgumentException there, because
+    /// File.WriteAllBytesAsync rejects a blank path itself — but with ParamName "path", not
+    /// "outputPath". On Linux " " is a legal filename and the guard is the only thing rejecting it.
+    /// </summary>
+    [Fact]
+    public async Task PresentationEditor_CreateToFileAsync_RejectsABlankPath()
+    {
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => PresentationEditor.CreateToFileAsync(Array.Empty<PptxSlide>(), " "));
+
+        Assert.Equal("outputPath", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task PresentationEditor_CreateToFileAsync_AnAlreadyCancelledToken_PreventsAnyOutputBeingWritten()
+    {
+        using var output = new TempFile();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => PresentationEditor.CreateToFileAsync(
+                new[] { PptxSlide.Titled("x") }, output.Path, cts.Token));
+
+        Assert.False(File.Exists(output.Path), "a cancelled call wrote an output file");
+    }
 }

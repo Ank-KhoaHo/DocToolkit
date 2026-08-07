@@ -218,4 +218,31 @@ public class PresentationEditorCreateTests
         Assert.Equal(2, pres.SlideParts.Count());
         Assert.All(pres.SlideParts, slide => Assert.Same(layout, slide.SlideLayoutPart));
     }
+
+    /// <summary>
+    /// The Stream overload must produce the same deck as the byte[] one — same content, not same
+    /// bytes. An OOXML package is a ZIP whose entries carry timestamps, so byte-identity would be a
+    /// flaky test wearing the costume of a strict one.
+    ///
+    /// StreamOverloadTests covers the SHAPE of this overload across every overload at once; what it
+    /// does not check is that this particular one writes the right deck.
+    /// </summary>
+    [Fact]
+    public async Task CreateAsync_MatchesTheByteArrayOverload()
+    {
+        var slides = new[]
+        {
+            PptxSlide.Titled("Quarterly Report", "Revenue up 12%"),
+            PptxSlide.Titled("Outlook"),
+        };
+
+        using var destination = new MemoryStream();
+        await PresentationEditor.CreateAsync(slides, destination);
+
+        var written = destination.ToArray();
+        AssertValid(written);
+        Assert.Equal(
+            PresentationEditor.ExtractText(PresentationEditor.Create(slides)),
+            PresentationEditor.ExtractText(written));
+    }
 }
