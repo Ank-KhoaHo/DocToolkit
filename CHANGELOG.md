@@ -10,6 +10,26 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.13.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.12.0...v0.13.0) (2026-08-08)
+
+
+### Added
+
+* **core:** add PageSetup, the page size and margins a document is laid out on ([38df59d](https://github.com/Ank-KhoaHo/DocToolkit/commit/38df59df8ef48be853421301c37bead8525f665d))
+* **core:** convert DOCX to HTML and Markdown ([4a851ff](https://github.com/Ank-KhoaHo/DocToolkit/commit/4a851ff3485b6321515c7f33c1195f59e5e1e18a))
+* **core:** default every producer to A4 and document the change ([87b6c62](https://github.com/Ank-KhoaHo/DocToolkit/commit/87b6c6211aaaf6258c7b94321fb097751e9ca712))
+* **core:** give DocxEditor.Create a page setup, defaulting to A4 ([8c13aeb](https://github.com/Ank-KhoaHo/DocToolkit/commit/8c13aeb612bbd80e54d58dcd42d158f78d9cf86c))
+* **core:** give HtmlToDocxConverter a page setup, defaulting to A4 ([f447e33](https://github.com/Ank-KhoaHo/DocToolkit/commit/f447e33fb49c5088b40ae0030660abb0bedc91d4))
+* **core:** give HtmlToPdfConverter a page setup, defaulting to A4 ([c588f85](https://github.com/Ank-KhoaHo/DocToolkit/commit/c588f854a7d6430c9c84e6539436a0723d9fda30))
+* **core:** render XLSX and PPTX to PDF ([3521dc9](https://github.com/Ank-KhoaHo/DocToolkit/commit/3521dc9b4386d183134633b8a88b7633f53c2741))
+* **core:** report remote-image fetch outcomes as traces and metrics ([8427b7f](https://github.com/Ank-KhoaHo/DocToolkit/commit/8427b7f725d2f4027319fe233f1b1bdfb8d57e78))
+* **extensions:** mirror the XLSX writing methods on IWorkbookEditor ([f8529ba](https://github.com/Ank-KhoaHo/DocToolkit/commit/f8529baad23de02f892dd5e6aa2aac1838a022ee))
+
+
+### Changed
+
+* keep the csproj version in step with the release ([6795ce9](https://github.com/Ank-KhoaHo/DocToolkit/commit/6795ce943404e5ba084a8fdffa5fe4f636b5160a))
+
 ## [0.12.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.11.0...v0.12.0) (2026-08-08)
 
 
