@@ -41,7 +41,15 @@ jobs:
     name: collect and render
     runs-on: ubuntu-24.04
     permissions:
+      # Job-scoped rather than widening the workflow block, per ci.yml's rule.
+      # Both scopes are load-bearing and neither is inherited: a job-level
+      # permissions block REPLACES the workflow default, so anything unlisted
+      # is `none`. contents: write is for the push to nuget-stats; actions:
+      # read is what lets `gh run list` see this repository's own runs, and
+      # without it that step 403s on every single run. codeql.yml adds the
+      # same scope for the same reason.
       contents: write
+      actions: read
     steps:
       # The data branch, not main. It is an orphan - it shares no history with
       # main and is never merged into it.
@@ -64,31 +72,63 @@ jobs:
         run: |
           day=$(date -u -d yesterday +%Y-%m-%d)
           echo "DAY=$day" >> "$GITHUB_ENV"
-          gh run list --repo "$GITHUB_REPOSITORY" --limit 500 \
-            --created "$day" --json workflowName > runs.json
-          echo "runs recorded for $day: $(python3 -c 'import json;print(len(json.load(open("runs.json"))))')"
+          if gh run list --repo "$GITHUB_REPOSITORY" --limit 500 \
+               --created "$day" --json workflowName > runs.json; then
+            echo "RUNS_ARG=--runs-json runs.json" >> "$GITHUB_ENV"
+            echo "runs recorded for $day: $(python3 -c 'import json;print(len(json.load(open("runs.json"))))')"
+          else
+            # Deliberately record NOTHING rather than an empty list. A missing
+            # date means "not recorded" to the renderer; an empty list would
+            # mean "zero CI runs", which makes that day's downloads count as
+            # `quiet` - the exact signal that means a real external user. A
+            # failed API call must not manufacture evidence of adoption.
+            echo "::warning::gh run list failed for $day; recording no CI data for that day"
+            echo "RUNS_ARG=" >> "$GITHUB_ENV"
+          fi
 
       - name: Collect
+        id: collect
+        continue-on-error: true
         run: |
           python3 main/scripts/nuget-stats.py collect \
-            --data-dir data --runs-json runs.json --date "$DAY"
+            --data-dir data --date "$DAY" $RUNS_ARG
 
       - name: Render
+        continue-on-error: true
         run: python3 main/scripts/nuget-stats.py render --data-dir data
 
       - name: Job summary
-        run: cat data/report.md >> "$GITHUB_STEP_SUMMARY"
+        if: always()
+        run: |
+          if [ -f data/report.md ]; then
+            cat data/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No report was rendered for $DAY." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
+      # Runs even when Collect failed, because Collect still writes runs.csv on a
+      # total download outage and that data is worth keeping. `!cancelled()`
+      # rather than `always()` so a cancelled run does not push a half-written
+      # tree.
       - name: Commit
-        if: ${{ !inputs.dry-run }}
+        if: ${{ !cancelled() && !inputs.dry-run }}
         working-directory: data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads.csv runs.csv report.md report.html
+          git add downloads.csv runs.csv report.md report.html 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "nothing changed"
             exit 0
           fi
           git commit -m "chore: nuget stats for $DAY"
           git push
+
+      # Last, deliberately: the job must go red so a bad day is noticed, but not
+      # before whatever was collected has been committed. Reporting the failure
+      # and discarding the data are two different things and only one is wanted.
+      - name: Report collection failure
+        if: steps.collect.outcome == 'failure'
+        run: |
+          echo "::error::collect exited non-zero - see the Collect step. Any partial data was still committed."
+          exit 1
