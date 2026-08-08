@@ -1,13 +1,33 @@
 # Verifies the whole stack really is Linux-safe with no native dependencies.
-# Build context is implementation/dotnet-doc-libs/
-# SDK 10 is required: the projects multi-target net8.0;net10.0, and the 8.0 SDK
-# cannot build a net10.0 target (fails restore with NETSDK1045). The 10.0 SDK
-# builds both, so this image covers the full matrix.
-# Pinned to the exact SDK global.json requires, not the floating 10.0 tag. rollForward is
-# latestPatch, which does NOT cross feature bands - so a floating tag that moves from 10.0.3xx to
-# 10.0.4xx would start failing here with "a compatible .NET SDK was not found". Bump this and
-# global.json together.
+#
+# TWO images, and both are needed. The projects multi-target net8.0;net10.0. The 8.0 SDK cannot
+# BUILD a net10.0 target (NETSDK1045), and the 10.0 SDK image cannot RUN the net8.0 half of the
+# suite, because it ships no .NET 8 runtime:
+#
+#   Testhost process for source(s) '.../net8.0/DocToolkit.Tests.dll' exited with error:
+#   You must install or update .NET to run this application.
+#
+# An earlier version of this comment claimed the 10.0 SDK "covers the full matrix". It does not -
+# building and running are different questions, and nothing caught the difference because nothing
+# ran this file. The first CI run of ci.yml's `linux container build & test` job found it
+# immediately.
+#
+# Copying the shared framework out of the official runtime image is the documented way to get
+# side-by-side runtimes: it needs no second install step and no network fetch during the build, and
+# the two directories merge because each runtime lives in its own version-named subdirectory.
+FROM mcr.microsoft.com/dotnet/runtime:8.0 AS dotnet8
+
+# The SDK is pinned to the exact version global.json requires, not the floating 10.0 tag.
+# rollForward is latestPatch, which does NOT cross feature bands - so a floating tag that moved from
+# 10.0.3xx to 10.0.4xx would start failing here with "a compatible .NET SDK was not found". Bump
+# this and global.json together.
+#
+# The runtime above is deliberately NOT pinned that way. Any 8.0.x runs a net8.0 assembly, and
+# ci.yml installs `8.0.x` for the same reason - pinning it would add a version to keep in step for
+# no determinism this repository actually needs.
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302
+
+COPY --from=dotnet8 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
 
 WORKDIR /src
 
