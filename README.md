@@ -118,6 +118,31 @@ read — but a third-party reader that only reads cached values, such as openpyx
 cannot be evaluated reads back as its Excel error string (`#DIV/0!`, `#NAME?`, `#REF!`) rather than
 throwing.
 
+### Page setup
+
+Generated documents are **A4 with one-inch margins**. Pass a `PageSetup` for anything else:
+
+```csharp
+byte[] pdf = await HtmlToPdfConverter.ConvertAsync(
+    html,
+    PageSetup.A4.Landscape().WithMargins(36));
+
+byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
+```
+
+`PageSetup` is immutable, measured in points, and offers `A4`, `Letter` and
+`Custom(widthPoints, heightPoints)`, plus `Landscape()` and `WithMargins(…)`. Every producer —
+`HtmlToDocxConverter`, `HtmlToPdfConverter` and `DocxEditor.Create` — takes one.
+
+> **Changed in this release.** Documents produced before this stated **no page size at all**, so
+> Word applied its Normal template — US Letter on a US install, A4 on most others — and the
+> generated PDF was always US Letter regardless. The same content therefore printed on different
+> paper depending on who opened it. Every producer now states its page setup explicitly, defaulting
+> to A4. If you want the old PDF behaviour, pass `PageSetup.Letter`.
+
+`DocxToPdfConverter` takes no `PageSetup`: it renders a document that already carries its own page
+setup, and honours it.
+
 Six static classes, each stateless and safe to call concurrently, with a `byte[]` overload, a
 `Stream` overload and a file-path overload for every capability, wrapping failures in
 `DocumentConversionException`. Full surface:

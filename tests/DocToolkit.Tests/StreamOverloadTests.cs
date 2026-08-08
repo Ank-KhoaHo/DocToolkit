@@ -99,14 +99,17 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync",
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
         "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)",
+        "HtmlToDocxConverter.ConvertAsync(PageSetup)",
         "HtmlToPdfConverter.ConvertAsync",
         "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)",
         "HtmlToPdfConverter.ConvertAsync(RemoteImageOptions)",
+        "HtmlToPdfConverter.ConvertAsync(PageSetup)",
         "DocxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
+        "DocxEditor.CreateAsync(PageSetup)",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
@@ -145,10 +148,12 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync",
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
         "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)",
+        "HtmlToDocxConverter.ConvertAsync(PageSetup)",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
+        "DocxEditor.CreateAsync(PageSetup)",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
@@ -600,12 +605,16 @@ public class StreamOverloadTests
                 HtmlToDocxConverter.ConvertAsync(Html, false, destination!, ct),
             "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)" =>
                 HtmlToDocxConverter.ConvertAsync(Html, new RemoteImageOptions(), destination!, ct),
+            "HtmlToDocxConverter.ConvertAsync(PageSetup)" =>
+                HtmlToDocxConverter.ConvertAsync(Html, PageSetup.Letter, destination!, ct),
             "HtmlToPdfConverter.ConvertAsync" =>
                 HtmlToPdfConverter.ConvertAsync(Html, destination!, ct),
             "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)" =>
                 HtmlToPdfConverter.ConvertAsync(Html, false, destination!, ct),
             "HtmlToPdfConverter.ConvertAsync(RemoteImageOptions)" =>
                 HtmlToPdfConverter.ConvertAsync(Html, new RemoteImageOptions(), destination!, ct),
+            "HtmlToPdfConverter.ConvertAsync(PageSetup)" =>
+                HtmlToPdfConverter.ConvertAsync(Html, PageSetup.Letter, destination!, ct),
             "DocxToPdfConverter.ConvertAsync" =>
                 DocxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "DocxEditor.ReplaceTextAsync" =>
@@ -620,6 +629,10 @@ public class StreamOverloadTests
                 DocxEditor.ExtractTextAsync(source!, true, ct),
             "DocxEditor.CreateAsync" =>
                 DocxEditor.CreateAsync(Blocks, destination!, ct),
+            // PageSetup.Letter rather than A4: A4 is the default, so an arm passing it
+            // would still pass if the parameter were ignored entirely.
+            "DocxEditor.CreateAsync(PageSetup)" =>
+                DocxEditor.CreateAsync(Blocks, PageSetup.Letter, destination!, ct),
             "WorkbookEditor.CreateAsync" =>
                 WorkbookEditor.CreateAsync("Sales", Rows, destination!, ct),
             "WorkbookEditor.CreateAsync(sheets)" =>

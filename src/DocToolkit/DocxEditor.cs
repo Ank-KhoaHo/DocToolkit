@@ -25,16 +25,34 @@ public static class DocxEditor
     /// <exception cref="ArgumentNullException"><paramref name="blocks"/> is null.</exception>
     /// <exception cref="ArgumentException">An element of <paramref name="blocks"/> is null.</exception>
     /// <exception cref="DocumentConversionException">The document could not be built.</exception>
-    public static byte[] Create(IEnumerable<DocxBlock> blocks)
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="Create(IEnumerable{DocxBlock}, PageSetup)"/> for anything else.
+    /// </remarks>
+    public static byte[] Create(IEnumerable<DocxBlock> blocks) => Create(blocks, PageSetup.A4);
+
+    /// <summary>
+    /// Builds a document from <paramref name="blocks"/>, laid out on <paramref name="page"/>. See
+    /// <see cref="Create(IEnumerable{DocxBlock})"/> for the block semantics — this overload applies
+    /// identical logic and differs only in the paper.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="blocks"/> or <paramref name="page"/> is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="blocks"/> is null.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be built.</exception>
+    public static byte[] Create(IEnumerable<DocxBlock> blocks, PageSetup page)
     {
+        ArgumentNullException.ThrowIfNull(page);
+
         var materialised = ValidateBlocks(blocks);
-        using var ms = DocxDocumentWriter.Write(materialised);
+        using var ms = DocxDocumentWriter.Write(materialised, page);
         return ms.ToArray();
     }
 
     /// <summary>
     /// Builds a document from <paramref name="blocks"/> and writes it to
-    /// <paramref name="destination"/>. See <see cref="Create"/> for the block semantics — this
+    /// <paramref name="destination"/>. See <see cref="Create(IEnumerable{DocxBlock})"/> for the block semantics — this
     /// overload applies identical logic, writing to <paramref name="destination"/> instead of
     /// returning an array.
     ///
@@ -51,20 +69,51 @@ public static class DocxEditor
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The document could not be built or written.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="CreateAsync(IEnumerable{DocxBlock}, PageSetup, Stream, CancellationToken)"/> for
+    /// anything else.
+    /// </remarks>
+    public static Task CreateAsync(
+        IEnumerable<DocxBlock> blocks, Stream destination, CancellationToken ct = default) =>
+        CreateAsync(blocks, PageSetup.A4, destination, ct);
+
+    /// <summary>
+    /// Builds a document from <paramref name="blocks"/>, laid out on <paramref name="page"/>, and
+    /// writes it to <paramref name="destination"/>. See
+    /// <see cref="Create(IEnumerable{DocxBlock}, PageSetup)"/> for the semantics.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought — it belongs to the caller, and may be write-only and
+    /// forward-only, such as an HTTP response body.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="destination">The stream the document is written to.</param>
+    /// <param name="ct">Cancels the build and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// An element of <paramref name="blocks"/> is null, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be built or written.</exception>
     public static async Task CreateAsync(
-        IEnumerable<DocxBlock> blocks, Stream destination, CancellationToken ct = default)
+        IEnumerable<DocxBlock> blocks, PageSetup page, Stream destination,
+        CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(page);
+
         var materialised = ValidateBlocks(blocks);
         StreamPipeline.RequireWritable(destination, nameof(destination));
         ct.ThrowIfCancellationRequested();
 
-        using var ms = DocxDocumentWriter.Write(materialised);
+        using var ms = DocxDocumentWriter.Write(materialised, page);
         await StreamPipeline.EmitAsync(ms, destination, "Failed to create DOCX.", ct).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Builds a document from <paramref name="blocks"/> and writes it to
-    /// <paramref name="outputPath"/>. See <see cref="Create"/> for the block semantics.
+    /// <paramref name="outputPath"/>. See <see cref="Create(IEnumerable{DocxBlock})"/> for the block semantics.
     ///
     /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
     /// <see cref="WorkbookEditor.CreateToFileAsync(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}}, string, System.Threading.CancellationToken)"/>:
@@ -86,12 +135,41 @@ public static class DocxEditor
     /// <exception cref="DirectoryNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The document could not be built.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="CreateToFileAsync(IEnumerable{DocxBlock}, PageSetup, string, CancellationToken)"/>
+    /// for anything else.
+    /// </remarks>
+    public static Task CreateToFileAsync(
+        IEnumerable<DocxBlock> blocks, string outputPath, CancellationToken ct = default) =>
+        CreateToFileAsync(blocks, PageSetup.A4, outputPath, ct);
+
+    /// <summary>
+    /// Builds a document from <paramref name="blocks"/>, laid out on <paramref name="page"/>, and
+    /// writes it to <paramref name="outputPath"/>. See
+    /// <see cref="Create(IEnumerable{DocxBlock}, PageSetup)"/> for the semantics.
+    ///
+    /// The document is built completely before the output is opened, so a failed build cannot
+    /// truncate a file that was already there.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="outputPath">Where to write the document. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the write to <paramref name="outputPath"/>.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="outputPath"/> is blank, or an element of <paramref name="blocks"/> is null.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be built.</exception>
     public static async Task CreateToFileAsync(
-        IEnumerable<DocxBlock> blocks, string outputPath, CancellationToken ct = default)
+        IEnumerable<DocxBlock> blocks, PageSetup page, string outputPath,
+        CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var bytes = Create(blocks);
+        var bytes = Create(blocks, page);
         await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
     }
 

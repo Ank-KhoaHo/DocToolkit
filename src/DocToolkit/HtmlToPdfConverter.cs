@@ -19,8 +19,33 @@ public static class HtmlToPdfConverter
     /// <exception cref="ArgumentNullException"><paramref name="html"/> is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="ConvertAsync(string, PageSetup, CancellationToken)"/> for anything else.
+    /// </remarks>
     public static Task<byte[]> ConvertAsync(string html, CancellationToken ct = default)
         => ConvertAsync(html, allowRemoteImageDownload: false, ct);
+
+    /// <summary>
+    /// Converts <paramref name="html"/> to PDF bytes, laid out on <paramref name="page"/>.
+    /// Remote images are not downloaded.
+    ///
+    /// Page setup reaches the PDF because this pivots through DOCX and OfficeIMO honours the
+    /// document's <c>w:sectPr</c> - measured, and pinned by <c>PageSetupOutputTests</c> rather
+    /// than assumed, since an OfficeIMO upgrade could revert it with every DOCX test still green.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="ct">Cancels the conversion.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="page"/> is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task<byte[]> ConvertAsync(
+        string html, PageSetup page, CancellationToken ct = default)
+    {
+        byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, page, ct).ConfigureAwait(false);
+        return DocxToPdfConverter.Convert(docx);
+    }
 
     /// <summary>
     /// Converts <paramref name="html"/> straight to PDF bytes, optionally downloading and
@@ -97,8 +122,43 @@ public static class HtmlToPdfConverter
     /// <exception cref="ArgumentException"><paramref name="destination"/> is not writable.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The HTML could not be converted or written.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="ConvertAsync(string, PageSetup, Stream, CancellationToken)"/> for anything else.
+    /// </remarks>
     public static Task ConvertAsync(string html, Stream destination, CancellationToken ct = default)
         => ConvertAsync(html, allowRemoteImageDownload: false, destination, ct);
+
+    /// <summary>
+    /// Converts <paramref name="html"/> and writes the PDF, laid out on <paramref name="page"/>,
+    /// to <paramref name="destination"/>. Remote images are not downloaded.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought. As with the other PDF paths it is handed to
+    /// OfficeIMO's own writer rather than buffered whole.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="destination">The stream the PDF is written to.</param>
+    /// <param name="ct">Cancels the conversion and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted or written.</exception>
+    public static async Task ConvertAsync(
+        string html, PageSetup page, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await HtmlToDocxConverter
+            .BuildPackageAsync(html, null, page, ct)
+            .ConfigureAwait(false);
+
+        ct.ThrowIfCancellationRequested();
+        await DocxToPdfConverter.RenderAsync(docx, destination, ct).ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Converts <paramref name="html"/> and writes the PDF to <paramref name="destination"/>,
@@ -136,7 +196,7 @@ public static class HtmlToPdfConverter
         // that the package is handed over as the buffer it already is, so the intermediate .docx is
         // never serialised to an array and read back, and the PDF is never buffered at all.
         using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, allowRemoteImageDownload ? new RemoteImageOptions() : null, ct)
+            .BuildPackageAsync(html, allowRemoteImageDownload ? new RemoteImageOptions() : null, PageSetup.A4, ct)
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
@@ -188,7 +248,7 @@ public static class HtmlToPdfConverter
         ct.ThrowIfCancellationRequested();
 
         using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, options, ct)
+            .BuildPackageAsync(html, options, PageSetup.A4, ct)
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
@@ -200,10 +260,35 @@ public static class HtmlToPdfConverter
     /// <exception cref="ArgumentException"><paramref name="outputPath"/> is blank.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="ConvertToFileAsync(string, PageSetup, string, CancellationToken)"/> for anything else.
+    /// </remarks>
     public static async Task ConvertToFileAsync(string html, string outputPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         var pdf = await ConvertAsync(html, ct);
         await File.WriteAllBytesAsync(outputPath, pdf, ct);
+    }
+
+    /// <summary>
+    /// Converts <paramref name="html"/> and writes the PDF, laid out on <paramref name="page"/>,
+    /// to <paramref name="outputPath"/>.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="outputPath">Where to write the PDF. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the conversion and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="page"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="outputPath"/> is blank.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task ConvertToFileAsync(
+        string html, PageSetup page, string outputPath, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var pdf = await ConvertAsync(html, page, ct).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(outputPath, pdf, ct).ConfigureAwait(false);
     }
 }

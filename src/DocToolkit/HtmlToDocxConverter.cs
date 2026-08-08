@@ -22,8 +22,30 @@ public static class HtmlToDocxConverter
     /// <exception cref="ArgumentNullException"><paramref name="html"/> is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="ConvertAsync(string, PageSetup, CancellationToken)"/> for anything else.
+    /// </remarks>
     public static Task<byte[]> ConvertAsync(string html, CancellationToken ct = default)
         => ConvertAsync(html, allowRemoteImageDownload: false, ct);
+
+    /// <summary>
+    /// Converts <paramref name="html"/> to the bytes of a .docx package laid out on
+    /// <paramref name="page"/>. Remote images are not downloaded; see
+    /// <see cref="ConvertAsync(string, RemoteImageOptions, CancellationToken)"/> to opt in.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="ct">Cancels the conversion.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="page"/> is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task<byte[]> ConvertAsync(
+        string html, PageSetup page, CancellationToken ct = default)
+    {
+        using var package = await BuildPackageAsync(html, null, page, ct).ConfigureAwait(false);
+        return package.ToArray();
+    }
 
     /// <summary>
     /// Converts <paramref name="html"/> to the bytes of a .docx package, optionally downloading
@@ -65,7 +87,7 @@ public static class HtmlToDocxConverter
         // MemoryStream keeps its buffer. It does, however, allocate a second full copy of the
         // package, which is what ConvertAsync(html, destination, ct) exists to avoid.
         using var package = await BuildPackageAsync(
-            html, allowRemoteImageDownload ? new RemoteImageOptions() : null, ct).ConfigureAwait(false);
+            html, allowRemoteImageDownload ? new RemoteImageOptions() : null, PageSetup.A4, ct).ConfigureAwait(false);
         return package.ToArray();
     }
 
@@ -108,7 +130,7 @@ public static class HtmlToDocxConverter
         options.Validate();
         ct.ThrowIfCancellationRequested();
 
-        using var package = await BuildPackageAsync(html, options, ct).ConfigureAwait(false);
+        using var package = await BuildPackageAsync(html, options, PageSetup.A4, ct).ConfigureAwait(false);
         return package.ToArray();
     }
 
@@ -130,8 +152,39 @@ public static class HtmlToDocxConverter
     /// <exception cref="ArgumentException"><paramref name="destination"/> is not writable.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The HTML could not be converted or written.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="ConvertAsync(string, PageSetup, Stream, CancellationToken)"/> for anything else.
+    /// </remarks>
     public static Task ConvertAsync(string html, Stream destination, CancellationToken ct = default)
         => ConvertAsync(html, allowRemoteImageDownload: false, destination, ct);
+
+    /// <summary>
+    /// Converts <paramref name="html"/> and writes the .docx, laid out on <paramref name="page"/>,
+    /// to <paramref name="destination"/>. Remote images are not downloaded.
+    ///
+    /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought — it belongs to the caller, and may be write-only and
+    /// forward-only, such as an HTTP response body.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="destination">The stream the .docx package is written to.</param>
+    /// <param name="ct">Cancels the conversion and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted or written.</exception>
+    public static async Task ConvertAsync(
+        string html, PageSetup page, Stream destination, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        using var package = await BuildPackageAsync(html, null, page, ct).ConfigureAwait(false);
+        await StreamPipeline
+            .EmitAsync(package, destination, "Failed to convert HTML to DOCX.", ct)
+            .ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Converts <paramref name="html"/> and writes the .docx to <paramref name="destination"/>,
@@ -163,7 +216,7 @@ public static class HtmlToDocxConverter
         ct.ThrowIfCancellationRequested();
 
         using var package = await BuildPackageAsync(
-            html, allowRemoteImageDownload ? new RemoteImageOptions() : null, ct).ConfigureAwait(false);
+            html, allowRemoteImageDownload ? new RemoteImageOptions() : null, PageSetup.A4, ct).ConfigureAwait(false);
         await StreamPipeline
             .EmitAsync(package, destination, "Failed to convert HTML to DOCX.", ct)
             .ConfigureAwait(false);
@@ -209,7 +262,7 @@ public static class HtmlToDocxConverter
         StreamPipeline.RequireWritable(destination, nameof(destination));
         ct.ThrowIfCancellationRequested();
 
-        using var package = await BuildPackageAsync(html, options, ct).ConfigureAwait(false);
+        using var package = await BuildPackageAsync(html, options, PageSetup.A4, ct).ConfigureAwait(false);
         await StreamPipeline
             .EmitAsync(package, destination, "Failed to convert HTML to DOCX.", ct)
             .ConfigureAwait(false);
@@ -228,8 +281,12 @@ public static class HtmlToDocxConverter
     /// the package cannot be built directly onto a caller's forward-only destination.
     /// </summary>
     internal static async Task<MemoryStream> BuildPackageAsync(
-        string html, RemoteImageOptions? options, CancellationToken ct)
+        string html, RemoteImageOptions? options, PageSetup page, CancellationToken ct)
     {
+        // Outside the try below on purpose: its catch-all wraps everything in
+        // DocumentConversionException, and an argument fault must surface unwrapped.
+        ArgumentNullException.ThrowIfNull(page);
+
         var ms = new MemoryStream();
         try
         {
@@ -266,6 +323,14 @@ public static class HtmlToDocxConverter
                 };
 
                 await converter.ParseBody(html, ct);
+
+                // HtmlToOpenXml emits no w:sectPr of its own - measured, and the reason this
+                // exists: a document that states no page setup renders on whatever paper the
+                // reader's Word template happens to name, so the same HTML lands on Letter in
+                // the US and A4 elsewhere. Appended after ParseBody so it is the body's last
+                // child, which is the only position Word accepts.
+                mainPart.Document.Body!.AppendChild(SectionPropertiesFactory.Build(page));
+
                 mainPart.Document.Save();
             }
         }
@@ -292,11 +357,36 @@ public static class HtmlToDocxConverter
     /// <exception cref="ArgumentException"><paramref name="outputPath"/> is blank.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    /// <remarks>
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="ConvertToFileAsync(string, PageSetup, string, CancellationToken)"/> for anything else.
+    /// </remarks>
     public static async Task ConvertToFileAsync(string html, string outputPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         var bytes = await ConvertAsync(html, ct);
         await File.WriteAllBytesAsync(outputPath, bytes, ct);
+    }
+
+    /// <summary>
+    /// Converts <paramref name="html"/> and writes the .docx, laid out on <paramref name="page"/>,
+    /// to <paramref name="outputPath"/>. Remote images are not downloaded.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="outputPath">Where to write the document. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the conversion and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="page"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="outputPath"/> is blank.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task ConvertToFileAsync(
+        string html, PageSetup page, string outputPath, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await ConvertAsync(html, page, ct).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
     }
 
     /// <summary>
