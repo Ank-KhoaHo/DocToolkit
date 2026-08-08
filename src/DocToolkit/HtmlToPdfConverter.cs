@@ -136,7 +136,7 @@ public static class HtmlToPdfConverter
         // that the package is handed over as the buffer it already is, so the intermediate .docx is
         // never serialised to an array and read back, and the PDF is never buffered at all.
         using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, allowRemoteImageDownload ? new RemoteImageOptions() : null, ct)
+            .BuildPackageAsync(html, allowRemoteImageDownload ? new RemoteImageOptions() : null, PageSetup.A4, ct)
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
@@ -188,7 +188,7 @@ public static class HtmlToPdfConverter
         ct.ThrowIfCancellationRequested();
 
         using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, options, ct)
+            .BuildPackageAsync(html, options, PageSetup.A4, ct)
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();

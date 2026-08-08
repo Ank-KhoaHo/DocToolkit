@@ -157,4 +157,79 @@ public class PageSetupOutputTests
 
         Assert.Equal(2001U, size!.Width!.Value);
     }
+
+    private const string Html = "<h1>Report</h1><p>Body text.</p>";
+
+    [Fact]
+    public async Task HtmlToDocx_WithNoPageSetup_EmitsA4()
+    {
+        var sectPr = SectionPropertiesOf(await HtmlToDocxConverter.ConvertAsync(Html));
+
+        Assert.NotNull(sectPr);
+        Assert.Equal(11906U, sectPr!.GetFirstChild<PageSize>()!.Width!.Value);
+    }
+
+    [Fact]
+    public async Task HtmlToDocx_WithLetter_EmitsLetter()
+    {
+        var sectPr = SectionPropertiesOf(
+            await HtmlToDocxConverter.ConvertAsync(Html, PageSetup.Letter));
+
+        Assert.Equal(12240U, sectPr!.GetFirstChild<PageSize>()!.Width!.Value);
+    }
+
+    [Fact]
+    public async Task HtmlToDocx_PutsSectionPropertiesLastInTheBody()
+    {
+        byte[] docx = await HtmlToDocxConverter.ConvertAsync(Html);
+
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+
+        Assert.IsType<SectionProperties>(doc.MainDocumentPart!.Document!.Body!.LastChild);
+    }
+
+    [Fact]
+    public async Task HtmlToDocxAsync_ToStream_HonoursThePageSetup()
+    {
+        using var destination = new MemoryStream();
+
+        await HtmlToDocxConverter.ConvertAsync(Html, PageSetup.Letter, destination);
+
+        Assert.Equal(
+            12240U,
+            SectionPropertiesOf(destination.ToArray())!.GetFirstChild<PageSize>()!.Width!.Value);
+    }
+
+    [Fact]
+    public async Task HtmlToDocx_ToFile_HonoursThePageSetup()
+    {
+        string path = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid():N}.docx");
+        try
+        {
+            await HtmlToDocxConverter.ConvertToFileAsync(Html, PageSetup.Letter, path);
+
+            Assert.Equal(
+                12240U,
+                SectionPropertiesOf(await File.ReadAllBytesAsync(path))!
+                    .GetFirstChild<PageSize>()!.Width!.Value);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task HtmlToDocx_WithNullPageSetup_ThrowsArgumentNullException()
+    {
+        // Typed rather than a bare null!: three two-argument overloads now take a reference
+        // type in that position, so `null!` alone cannot pick one.
+        PageSetup nullPage = null!;
+
+        var ex = await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToDocxConverter.ConvertAsync(Html, nullPage));
+
+        Assert.Equal("page", ex.ParamName);
+    }
 }
