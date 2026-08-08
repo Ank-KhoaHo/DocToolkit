@@ -70,6 +70,30 @@ rather than trusted, and invalid options are rejected by the converter itself.
 the full dependency closure with resolved versions, so it can be mirrored onto an internal feed;
 every entry is a plain managed assembly with no native payload and no post-restore download.
 
+## Memory, and why there is no size limit
+
+This library will not refuse a large document. It edits and converts documents; rejecting a big one
+would be a defect, not a safeguard. What it will do is use memory proportional to the document's
+*expanded* form, which is far larger than the file.
+
+Measured 2026-08-08 on a 1.9 MB `.xlsx` of 40,000 rows x 8 columns:
+
+| operation | peak managed heap held | relative to the file |
+|---|---|---|
+| `ReadSheet` | 120 MB | 64x |
+| `SetCell` | 233 MB | 124x |
+| `SetCellAsync` (`Stream`) | 238 MB | 127x |
+
+The multiplier comes from the OOXML object model, not from copying bytes around: a spreadsheet cell
+that occupies a few bytes compressed becomes a live object with a type, a style reference and a
+parent chain. So **size a container from the expanded cost, not from the file size** — roughly two
+orders of magnitude for a dense spreadsheet, less for text-heavy documents.
+
+**The `Stream` overloads are not a memory optimisation**, and the table shows it: 238 MB against
+233 MB for the same edit. They exist so a caller can hand over a source that is forward-only and
+non-seekable, such as an HTTP request body, without materialising a `byte[]` first. If you need to
+bound memory, bound concurrency — the per-call cost is what it is.
+
 ## Install
 
 ```bash
