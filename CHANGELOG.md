@@ -15,28 +15,98 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** add XlsxSheet, the typed model for a named sheet ([8af39c8](https://github.com/Ank-KhoaHo/DocToolkit/commit/8af39c8e3a68c9a945e1c9f05d9dc8645ee92543))
-* **core:** append rows to an existing sheet ([5d8b2fe](https://github.com/Ank-KhoaHo/DocToolkit/commit/5d8b2fe0a8db19fd531344a0851668866559e9b4))
-* **core:** create a workbook with more than one sheet ([f426aaa](https://github.com/Ank-KhoaHo/DocToolkit/commit/f426aaa4b6b09bbb85fb296edb64b45be039638b))
-* **core:** let any cell hold a formula via XlsxFormula ([49982ad](https://github.com/Ank-KhoaHo/DocToolkit/commit/49982ad14f29be6ce845845e29d1d20ea496bf19))
-* **extensions:** mirror PresentationEditor.Create on IPresentationEditor ([7578053](https://github.com/Ank-KhoaHo/DocToolkit/commit/7578053f9509c85930c4f3bc98860d013a310936))
-* mark both packages IsTrimmable, and guard the claim in CI ([83f182f](https://github.com/Ank-KhoaHo/DocToolkit/commit/83f182f593a0ed382600fe0d45b9f8177e9bfc5a))
+* **Core: the XLSX writing surface, which was previously read-mostly.** A workbook could only ever
+  be created with **one sheet**, rows could not be added to an existing one, and a cell could not
+  hold a formula. All three are now possible.
+
+  ```csharp
+  byte[] workbook = WorkbookEditor.Create(new[]
+  {
+      XlsxSheet.Named("Sales",   new[] { new object?[] { "Region", "Total" },
+                                         new object?[] { "EMEA", 1200 } }),
+      XlsxSheet.Named("Summary", new[] { new object?[] { "Grand total",
+                                         XlsxFormula.From("SUM(Sales!B2:B2)") } }),
+  });
+
+  workbook = WorkbookEditor.AppendRows(workbook, "Sales", moreRows);
+  ```
+
+  `XlsxSheet` completes the typed-creation trio alongside `DocxBlock` and `PptxSlide`.
+  `Create(IEnumerable<XlsxSheet>)` and `AppendRows` each have the usual `Stream` and file-path
+  forms. The single-sheet `Create` is unchanged.
+
+  **`XlsxFormula` is a cell value, not a method** — it works anywhere a cell value is accepted,
+  including as the `value` argument to the existing `SetCell`.
+
+  **Formulas carry no cached value.** The cell holds the formula and nothing else. Excel
+  recalculates when it opens the file, and `ReadCell`/`ReadSheet` compute the value on read — but a
+  third-party reader that only reads cached values, such as openpyxl with `data_only=True`, sees an
+  empty cell until Excel has opened and saved the file. A formula that cannot be evaluated reads
+  back as its Excel error string (`#DIV/0!`, `#NAME?`, `#REF!`) rather than throwing.
+  ([49982ad](https://github.com/Ank-KhoaHo/DocToolkit/commit/49982ad14f29be6ce845845e29d1d20ea496bf19),
+  [8af39c8](https://github.com/Ank-KhoaHo/DocToolkit/commit/8af39c8e3a68c9a945e1c9f05d9dc8645ee92543),
+  [f426aaa](https://github.com/Ank-KhoaHo/DocToolkit/commit/f426aaa4b6b09bbb85fb296edb64b45be039638b),
+  [5d8b2fe](https://github.com/Ank-KhoaHo/DocToolkit/commit/5d8b2fe0a8db19fd531344a0851668866559e9b4))
+
+* **Both packages are marked trimmable.** Assemblies carry the `IsTrimmable` metadata, so an app
+  published with `PublishTrimmed` keeps only the parts of DocToolkit it uses. CI checks the claim
+  rather than asserting it: it trim-publishes an application over the real dependency graph and
+  **runs it**, verifying every capability still works.
+
+  Two limits worth knowing. **ClosedXML emits a trim warning** (`IL2090`, in
+  `DescribedEnumParser<T>`); spreadsheet reading and writing work correctly in the trimmed app CI
+  runs, but the warning will appear in your publish output, and it is a dependency's rather than
+  ours. And **Native AOT is not claimed** — `IsAotCompatible` is a strictly stronger promise that
+  has not been verified end to end here, and an unverified compatibility claim is worse than an
+  absent one.
+  ([83f182f](https://github.com/Ank-KhoaHo/DocToolkit/commit/83f182f593a0ed382600fe0d45b9f8177e9bfc5a),
+  [46adf28](https://github.com/Ank-KhoaHo/DocToolkit/commit/46adf28c7962a412dddaabfdd82a89fde46137c2))
+
+* **Extensions: `IPresentationEditor` gains `Create` and `CreateAsync`.** The deck-building methods
+  added to `PresentationEditor` in 0.11.0 are now reachable through dependency injection, restoring
+  the 1:1 mirror between the interface and the static class. The extensions package builds against
+  the *published* core package, so a new core method can only be mirrored one release later; this
+  closes that gap for 0.11.0's addition.
+  ([7578053](https://github.com/Ank-KhoaHo/DocToolkit/commit/7578053f9509c85930c4f3bc98860d013a310936))
 
 
 ### Fixed
 
-* claim trimmability by attribute, not by the IsTrimmable property ([46adf28](https://github.com/Ank-KhoaHo/DocToolkit/commit/46adf28c7962a412dddaabfdd82a89fde46137c2))
-* **core:** make created slides real title and body placeholders ([a8dcc36](https://github.com/Ank-KhoaHo/DocToolkit/commit/a8dcc3646fc677e585849b546af4d4abc89b1d52))
-* **core:** reject an invalid sheet name with ArgumentException, not a wrapped failure ([aa806aa](https://github.com/Ank-KhoaHo/DocToolkit/commit/aa806aa29109c32225ea5219cdf9351fa24bf8f0))
-* give the Linux container image the .NET 8 runtime it needs ([fb8c00e](https://github.com/Ank-KhoaHo/DocToolkit/commit/fb8c00e89f523d622a5116441336f3687e68b2b8))
-* **samples:** use Path.Join rather than Path.Combine for the output path ([929b1b7](https://github.com/Ank-KhoaHo/DocToolkit/commit/929b1b702d89996385d1abed08fc2b9410de396e))
+* **Core: slides built by `PresentationEditor.Create` are now real title and body placeholders.**
+  They were previously loose text boxes. Decks rendered correctly and passed schema validation, but
+  PowerPoint had no way to tell which shape was the title — so **Outline View listed every slide
+  with no title**, "Reset Slide" had no placeholder to restore geometry to, and the layout gallery
+  showed the internal part name "SlideLayout2". Measured in PowerPoint 16.0, `Shapes.HasTitle` went
+  from `False` to `True` and the layout is now labelled "Title and Content". Decks produced by
+  earlier versions are unaffected on disk; rebuild them with 0.12.0 to pick this up.
+  ([a8dcc36](https://github.com/Ank-KhoaHo/DocToolkit/commit/a8dcc3646fc677e585849b546af4d4abc89b1d52))
+
+* **Core: an invalid sheet name now fails fast, and the exception type changed.**
+  `WorkbookEditor.Create` accepted a sheet name Excel cannot use — longer than 31 characters, or
+  containing any of `: \ / ? * [ ]` — and let it reach ClosedXML, surfacing as a
+  `DocumentConversionException` wrapping a third-party message. It now throws `ArgumentException`
+  naming the `sheetName` parameter and stating the rule.
+
+  **If you catch `DocumentConversionException` around workbook creation to handle a bad sheet
+  name, that handler no longer fires.** Excel's rules are now applied by every path that names a
+  sheet, so the two cannot disagree.
+  ([aa806aa](https://github.com/Ank-KhoaHo/DocToolkit/commit/aa806aa29109c32225ea5219cdf9351fa24bf8f0))
 
 
 ### Changed
 
-* pin the SDK to 10.0.302 in global.json ([f8c8e6d](https://github.com/Ank-KhoaHo/DocToolkit/commit/f8c8e6d83e0874645a439e942621c4b4c9c7bf78))
-* share MSBuild properties and hold the warning line locally ([52e4c9a](https://github.com/Ank-KhoaHo/DocToolkit/commit/52e4c9a67ecdfcb03fcce77721d660c8f1170a4d))
-* update OfficeIMO.Word.Pdf to 3.2.0 ([3061462](https://github.com/Ank-KhoaHo/DocToolkit/commit/3061462d4c137921ea5565ae9e41266fbed1838e))
+* **Published builds are now reproducible, and stepping into the library works.** `Deterministic`
+  alone does not normalize source paths, so every previously published assembly and PDB carried the
+  absolute paths of the machine that built it — meaning builds from two machines differed, and
+  SourceLink could not reliably map a frame back to a file. CI builds now set
+  `ContinuousIntegrationBuild`, which normalizes them.
+  ([52e4c9a](https://github.com/Ank-KhoaHo/DocToolkit/commit/52e4c9a67ecdfcb03fcce77721d660c8f1170a4d))
+
+* **Core:** `OfficeIMO.Word.Pdf` updated to 3.2.0. Measured before shipping, because 3.1.0 changed
+  PDF font embedding: the same document through `HtmlToDocx` then `DocxToPdf` produces a
+  **byte-identical** PDF on 3.1.0 and 3.2.0, and text still extracts correctly. No package was
+  added or removed; the dependency closure stays at 16.
+  ([3061462](https://github.com/Ank-KhoaHo/DocToolkit/commit/3061462d4c137921ea5565ae9e41266fbed1838e))
 
 ## [0.11.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.10.0...v0.11.0) (2026-08-07)
 
