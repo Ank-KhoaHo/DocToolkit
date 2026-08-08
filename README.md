@@ -56,6 +56,23 @@ trimmed app CI runs, but the warning will appear in your publish output.
 and it has not been verified end to end here. An unverified compatibility claim is worse than an
 absent one, so it is absent until a CI job compiles *and* runs an AOT build.
 
+### Verifying what you downloaded
+
+Every published `.nupkg` carries a signed **build provenance attestation** naming the workflow, the
+commit and the runner that produced it. To check a package really came from this repository's CI
+rather than someone's laptop:
+
+```bash
+gh attestation verify Ank.DocToolkit.<version>.nupkg --repo Ank-KhoaHo/DocToolkit
+```
+
+Attestation is produced immediately before the push, so the bytes that are verified are the bytes
+that were published.
+
+**The packages are not code-signed.** Authenticode signing needs a code-signing certificate this
+project does not hold; provenance attestation answers "did this come from that source" without one,
+which is the question a consumer of an open-source package usually has.
+
 ## Usage
 
 ```csharp
