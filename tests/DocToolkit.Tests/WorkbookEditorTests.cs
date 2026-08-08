@@ -866,11 +866,15 @@ public class WorkbookEditorTests
 
         var appended = WorkbookEditor.AppendRows(xlsx, "Data", new[]
         {
-            new object?[] { 30, 40, XlsxFormula.From("=A1+B1") },
+            new object?[] { 30, 40, XlsxFormula.From("=A2+B2") },
         });
 
+        // The formula references the appended row's own cells (30 + 40 = 70), a value that
+        // matches no literal in the row. A formula written as the literal 30 - or any other
+        // literal already present - would read back as that literal, not "70", so this can only
+        // pass if C2 is a real, evaluated formula.
         Assert.Equal("30", WorkbookEditor.ReadCell(appended, "Data", "A2"));
-        Assert.Equal("30", WorkbookEditor.ReadCell(appended, "Data", "C2"));
+        Assert.Equal("70", WorkbookEditor.ReadCell(appended, "Data", "C2"));
     }
 
     [Fact]
@@ -903,6 +907,34 @@ public class WorkbookEditorTests
     }
 
     [Fact]
+    public void AppendRows_RejectsAnEmptyWorkbook()
+    {
+        // Same guard, and now the same wording, as every other byte[] overload's empty-xlsx check
+        // (ValidateWorkbook) - this used to say "Workbook was empty.", diverging from the rest.
+        var rows = new[] { new object?[] { 1 } };
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AppendRows(Array.Empty<byte>(), "Log", rows));
+
+        Assert.Equal("xlsx", ex.ParamName);
+        Assert.Contains("Workbook content was empty.", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppendRows_ToASheetWithNoUsedRows_StartsAtRowOne()
+    {
+        // The ?? 0 branch: LastRowUsed() is null for a sheet with no used rows at all, so the
+        // append must start at row 1, not row 0 or throw.
+        var xlsx = WorkbookEditor.Create("Log", Array.Empty<IEnumerable<object?>>());
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", new[] { new object?[] { "first" } });
+
+        var sheet = WorkbookEditor.ReadSheet(appended, "Log");
+        Assert.Single(sheet);
+        Assert.Equal(new[] { "first" }, sheet[0]);
+    }
+
+    [Fact]
     public async Task AppendRowsAsync_MatchesTheByteArrayOverload()
     {
         var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "a" } });
@@ -917,5 +949,22 @@ public class WorkbookEditorTests
         Assert.Equal(
             WorkbookEditor.ReadSheet(expected, "Log"),
             WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
+    }
+
+    [Fact]
+    public async Task AppendRowsAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "a" } });
+        var rows = new[] { new object?[] { "b" } };
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        await WorkbookEditor.AppendRowsAsync(input.Path, output.Path, "Log", rows);
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(WorkbookEditor.AppendRows(xlsx, "Log", rows), "Log"),
+            WorkbookEditor.ReadSheet(await File.ReadAllBytesAsync(output.Path), "Log"));
     }
 }

@@ -578,6 +578,12 @@ public static class WorkbookEditor
     /// its last used row, and returns the updated workbook. Every other sheet, and all existing
     /// formatting, is left as it was.
     ///
+    /// <para>"Last used row" comes from ClosedXML's <c>LastRowUsed()</c>, which — like
+    /// <c>LastCellUsed()</c> in <see cref="ReadSheet"/> — ignores formatting but counts a cell
+    /// comment as used even with no value. A comment on an otherwise-blank row far below the real
+    /// data therefore pushes the append down to start after that row, leaving a gap rather than
+    /// continuing immediately after the last row a caller would see as holding data.</para>
+    ///
     /// <para>Cell typing and culture rules are identical to
     /// <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>. A cell holding an
     /// <see cref="XlsxFormula"/> is written as a formula. An empty <paramref name="rows"/> is a
@@ -588,10 +594,8 @@ public static class WorkbookEditor
     /// <exception cref="DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
     public static byte[] AppendRows(byte[] xlsx, string sheetName, IEnumerable<IEnumerable<object?>> rows)
     {
-        ArgumentNullException.ThrowIfNull(xlsx);
+        ValidateWorkbook(xlsx);
         var materialised = ValidateRows(sheetName, rows);
-        if (xlsx.Length == 0)
-            throw new ArgumentException("Workbook was empty.", nameof(xlsx));
 
         using var source = new MemoryStream(xlsx, writable: false);
         using var ms = AppendRowsCore(source, sheetName, materialised);
@@ -600,9 +604,9 @@ public static class WorkbookEditor
 
     /// <summary>
     /// Reads a workbook from <paramref name="source"/>, appends <paramref name="rows"/> to
-    /// <paramref name="sheetName"/> after its last used row, and writes the result to
-    /// <paramref name="destination"/>. See <see cref="AppendRows(byte[], string, IEnumerable{IEnumerable{object}})"/>
-    /// for the semantics.
+    /// <paramref name="sheetName"/>, and writes the result to <paramref name="destination"/>. See
+    /// <see cref="AppendRows(byte[], string, IEnumerable{IEnumerable{object}})"/> for the
+    /// semantics, including exactly what "last used row" means.
     ///
     /// <para><paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/>
     /// is <b>written</b>; neither is disposed, closed or sought.</para>
@@ -637,7 +641,8 @@ public static class WorkbookEditor
     /// Reads a workbook from <paramref name="inputPath"/>, appends <paramref name="rows"/> to
     /// <paramref name="sheetName"/>, and writes the result to <paramref name="outputPath"/>,
     /// overwriting any existing file. See
-    /// <see cref="AppendRows(byte[], string, IEnumerable{IEnumerable{object}})"/> for the semantics.
+    /// <see cref="AppendRows(byte[], string, IEnumerable{IEnumerable{object}})"/> for the
+    /// semantics, including exactly what "last used row" means.
     /// </summary>
     /// <param name="inputPath">The workbook to read.</param>
     /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
