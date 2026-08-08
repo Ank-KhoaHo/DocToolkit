@@ -498,6 +498,11 @@ public static class WorkbookEditor
         switch (value)
         {
             case null: cell.Clear(XLClearOptions.Contents); break;
+
+            // Placed in the ONE shared cell-writing path so Create, AppendRows and SetCell cannot
+            // disagree about what an XlsxFormula means - the same reason every capability has a
+            // single *Core method behind its overloads.
+            case XlsxFormula f: cell.FormulaA1 = f.Formula; break;
             case string s: cell.Value = s; break;
             case bool b: cell.Value = b; break;
             case DateTime d: cell.Value = d; break;

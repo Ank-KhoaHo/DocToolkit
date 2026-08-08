@@ -597,4 +597,70 @@ public class WorkbookEditorTests
             WorkbookEditor.SheetNames(xlsx),
             await WorkbookEditor.SheetNamesAsync(input.Path));
     }
+
+    [Fact]
+    public void SetCell_WithAnXlsxFormula_WritesAFormulaThatReadsBackComputed()
+    {
+        var xlsx = WorkbookEditor.Create("Sheet1", new[]
+        {
+            new object?[] { 1 },
+            new object?[] { 2 },
+        });
+
+        var edited = WorkbookEditor.SetCell(xlsx, "Sheet1", "B1", XlsxFormula.From("=A1+A2"));
+
+        // ClosedXML evaluates on demand, so this package's own reader returns the computed value.
+        // Measured 2026-08-08; see docs/2026-08-08-xlsx-multisheet-design.md.
+        Assert.Equal("3", WorkbookEditor.ReadCell(edited, "Sheet1", "B1"));
+    }
+
+    [Theory]
+    [InlineData("=1/0", "#DIV/0!")]
+    [InlineData("=TOTALLYNOTAFUNCTION(A1)", "#NAME?")]
+    [InlineData("=Sheet2!A1", "#REF!")]
+    public void SetCell_WithABrokenFormula_ReadsBackAsTheExcelErrorString(string formula, string expected)
+    {
+        // The error contract: a broken formula surfaces exactly as Excel shows it, and nothing
+        // throws. Pinned because it is what a consumer actually hits.
+        var xlsx = WorkbookEditor.Create("Sheet1", new[] { new object?[] { 5 } });
+
+        var edited = WorkbookEditor.SetCell(xlsx, "Sheet1", "B1", XlsxFormula.From(formula));
+
+        Assert.Equal(expected, WorkbookEditor.ReadCell(edited, "Sheet1", "B1"));
+    }
+
+    [Fact]
+    public void SetCell_WithAFormula_WritesNoCachedValue()
+    {
+        // The documented limit, asserted against the raw XML so a ClosedXML upgrade that starts
+        // caching values cannot change the promise silently.
+        var xlsx = WorkbookEditor.Create("Sheet1", new[] { new object?[] { 1 }, new object?[] { 2 } });
+        var edited = WorkbookEditor.SetCell(xlsx, "Sheet1", "B1", XlsxFormula.From("=A1+A2"));
+
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(edited));
+        var entry = zip.Entries.Single(e => e.FullName.EndsWith("sheet1.xml", StringComparison.Ordinal));
+        using var reader = new StreamReader(entry.Open());
+        var xml = reader.ReadToEnd();
+
+        var cell = xml[xml.IndexOf("r=\"B1\"", StringComparison.Ordinal)..];
+        cell = cell[..cell.IndexOf("</x:c>", StringComparison.Ordinal)];
+
+        Assert.Contains(":f>A1+A2<", cell, StringComparison.Ordinal);
+        Assert.DoesNotContain(":v>", cell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void XlsxFormula_StripsALeadingEquals_SoBothSpellingsAgree()
+    {
+        Assert.Equal("SUM(A1:A2)", XlsxFormula.From("=SUM(A1:A2)").Formula);
+        Assert.Equal("SUM(A1:A2)", XlsxFormula.From("SUM(A1:A2)").Formula);
+    }
+
+    [Fact]
+    public void XlsxFormula_RejectsNullAndEmpty()
+    {
+        Assert.Throws<ArgumentNullException>(() => XlsxFormula.From(null!));
+        Assert.Equal("formula", Assert.Throws<ArgumentException>(() => XlsxFormula.From("   ")).ParamName);
+        Assert.Equal("formula", Assert.Throws<ArgumentException>(() => XlsxFormula.From("=")).ParamName);
+    }
 }

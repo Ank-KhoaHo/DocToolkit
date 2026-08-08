@@ -106,4 +106,9 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> SheetNamesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> SheetNamesAsync(string path, System.Threading.CancellationToken ct = default) { }
     }
+    public sealed class XlsxFormula
+    {
+        public string Formula { get; }
+        public static DocToolkit.XlsxFormula From(string formula) { }
+    }
 }
