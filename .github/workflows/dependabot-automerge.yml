@@ -1,0 +1,81 @@
+name: Dependabot auto-merge
+
+# Arms auto-merge on Dependabot pull requests that are safe to take unattended.
+# It does NOT merge anything itself: `gh pr merge --auto` queues the merge, and
+# GitHub performs it only once every required check has passed. A red PR sits
+# there exactly as it does today.
+#
+# WHAT COUNTS AS SAFE is decided by scripts/automerge-eligible.py, and the
+# interesting half of that rule is about GitHub Actions rather than NuGet: six of
+# the ten actions this repo uses are never run by ci.yml - the publish path, the
+# provenance attestation and the docs deploy - so a green check on a PR bumping
+# one of them is evidence about a workflow that did not execute. The script
+# derives that set from the workflow files on every run rather than keeping a
+# list, so it cannot go stale when someone adds an action to release.yml.
+#
+# ONE CONSEQUENCE WORTH KNOWING. The merge is performed with GITHUB_TOKEN, and a
+# push made by that token does not trigger other workflows - the same rule that
+# forces release-please.yml to use a PAT. So an auto-merged bump does not
+# immediately update the Release PR. Nothing is lost: release-please computes its
+# entry from commit history, not from events, so the next run sweeps the commit
+# in. It is a delay, not a gap, and it is the price of not handing a PAT to
+# routine merges.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  automerge:
+    name: arm auto-merge if eligible
+    runs-on: ubuntu-24.04
+    # github.actor is the account that opened the PR. Checking it here rather than
+    # relying on the token's own limits keeps a forked PR from reaching the steps
+    # below at all.
+    if: github.actor == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read the update metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Split out from the merge step so the decision and its reasoning appear in
+      # the log whichever way it goes - a held PR should say why it was held.
+      - name: Decide eligibility
+        id: decide
+        run: |
+          set +e
+          output=$(python3 scripts/automerge-eligible.py \
+            "${{ steps.meta.outputs.update-type }}" \
+            "${{ steps.meta.outputs.dependency-names }}")
+          status=$?
+          set -e
+          echo "$output"
+          echo "$output" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -eq 0 ]; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Arm auto-merge
+        if: steps.decide.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # --merge, not --squash: this repository true-merges so that every commit
+        # subject reaches main and counts toward release-please's bump
+        # calculation. Squashing is disabled repository-wide for that reason.
+        run: gh pr merge --auto --merge "${{ github.event.pull_request.html_url }}"
