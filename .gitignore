@@ -33,3 +33,7 @@ docfx/api/
 docs/
 spike/
 CLAUDE.md
+
+# Mutation-testing reports. Regenerated on every run; the score is the artefact
+# that matters and CI uploads it.
+StrykerOutput/
