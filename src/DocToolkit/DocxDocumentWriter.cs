@@ -17,7 +17,13 @@ internal static class DocxDocumentWriter
     /// Builds the package into a fresh <see cref="MemoryStream"/>, positioned at 0. The caller owns
     /// and disposes it.
     /// </summary>
-    public static MemoryStream Write(IReadOnlyList<DocxBlock> blocks)
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="page">
+    /// The paper. Required rather than defaulted: a producer that forgets it writes a document
+    /// which states no page setup at all, and so renders on whatever paper the reader's Word
+    /// template happens to name. That was the defect this parameter exists to close.
+    /// </param>
+    public static MemoryStream Write(IReadOnlyList<DocxBlock> blocks, PageSetup page)
     {
         var ms = new MemoryStream();
 
@@ -38,6 +44,11 @@ internal static class DocxDocumentWriter
                     AppendBlock(main, body, block, ref nextDrawingId);
 
                 AddHeadingStyles(main, blocks);
+
+                // Last child of w:body, after every paragraph and table. Anywhere else and Word
+                // declares the file corrupt - and the document is schema-valid either way, so
+                // nothing but PageSetupOutputTests catches it.
+                body.AppendChild(SectionPropertiesFactory.Build(page));
 
                 main.Document.Save();
             }

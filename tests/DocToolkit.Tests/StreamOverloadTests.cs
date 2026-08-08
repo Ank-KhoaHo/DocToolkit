@@ -107,6 +107,7 @@ public class StreamOverloadTests
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
+        "DocxEditor.CreateAsync(PageSetup)",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
@@ -149,6 +150,7 @@ public class StreamOverloadTests
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
+        "DocxEditor.CreateAsync(PageSetup)",
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
@@ -620,6 +622,10 @@ public class StreamOverloadTests
                 DocxEditor.ExtractTextAsync(source!, true, ct),
             "DocxEditor.CreateAsync" =>
                 DocxEditor.CreateAsync(Blocks, destination!, ct),
+            // PageSetup.Letter rather than A4: A4 is the default, so an arm passing it
+            // would still pass if the parameter were ignored entirely.
+            "DocxEditor.CreateAsync(PageSetup)" =>
+                DocxEditor.CreateAsync(Blocks, PageSetup.Letter, destination!, ct),
             "WorkbookEditor.CreateAsync" =>
                 WorkbookEditor.CreateAsync("Sales", Rows, destination!, ct),
             "WorkbookEditor.CreateAsync(sheets)" =>
