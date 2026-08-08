@@ -216,6 +216,8 @@ No default code path performs network I/O — enforced, not merely intended. 37 
 sixteen ways (`<img src>`, `srcset`, `<link rel=stylesheet>`, `@import`, `background-image`,
 `<iframe>`, `<object>`, `<script>`). The guard is proved by mutation: enabling downloads turns nine
 of those tests red with real request lines, so it discriminates rather than passing vacuously.
+**That proof is re-earned weekly rather than asserted** — Stryker.NET mutates the guard-critical
+files in CI and fails if the mutation score drops (74.3% when the gate was added).
 
 The one exception is explicit and opt-in, and **is silently image-less in an air-gapped
 environment** — an unreachable host is skipped, not fatal:

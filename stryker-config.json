@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/Schemas/stryker-config.schema.json",
+  "stryker-config": {
+    "project": "DocToolkit.csproj",
+    "solution": "DocToolkit.sln",
+    "test-projects": [
+      "tests/DocToolkit.Tests/DocToolkit.Tests.csproj"
+    ],
+    "target-framework": "net8.0",
+    "coverage-analysis": "perTest",
+    "reporters": [
+      "progress",
+      "html",
+      "json"
+    ],
+    "mutate": [
+      "**/GuardedResourceLoader.cs",
+      "**/OfflineResourceLoader.cs",
+      "**/PdfRenderPolicy.cs",
+      "**/TextExportOptions.cs",
+      "**/SectionPropertiesFactory.cs",
+      "**/PageSetup.cs",
+      "**/ImageInspector.cs",
+      "**/RunTextSplicer.cs",
+      "**/TableRowFinder.cs"
+    ],
+    "thresholds": {
+      "high": 85,
+      "low": 75,
+      "break": 70
+    }
+  }
+}

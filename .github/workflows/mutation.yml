@@ -1,0 +1,72 @@
+name: Mutation testing
+
+# Keeps "the guard is proved by mutation" true as the code changes.
+#
+# That claim was earned by hand, once, at authoring time - somebody flipped the
+# offline switch and watched nine tests go red. It stayed in README.md
+# afterwards with nothing re-checking it, which is exactly the shape of every
+# other stale claim this repository has had to correct. Stryker re-earns it.
+#
+# WHY THIS IS NOT A PULL-REQUEST CHECK. Measured 2026-08-08 on the scoped file
+# set: 3m52s locally for 409 mutants, and 11 of them timed out - mutation
+# testing deliberately runs code that loops forever, so timeouts are normal
+# rather than a fault. Adding four-plus minutes and a class of inherently
+# timing-sensitive results to every pull request buys little: a mutation score
+# moves when TESTS change, and it moves slowly. Weekly, plus on demand, catches
+# the drift it exists to catch. `dotnet test` remains the per-PR gate.
+#
+# SCOPE IS DELIBERATE. stryker-config.json mutates the files where a silently
+# weak test is most expensive - the resource loaders, the page-setup and
+# section-properties factories, the run splicer and the table-row finder. Those
+# are the places CLAUDE.md's traps live, and mutating the whole library instead
+# would trade a focused signal for a much longer run.
+
+on:
+  schedule:
+    # Mondays, 04:17 UTC. Off the hour on purpose: scheduled workflows queue
+    # heavily on the hour across GitHub.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation
+  cancel-in-progress: false
+
+jobs:
+  mutation:
+    name: mutation score
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.302
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      # Fails the job when the score falls under the `break` threshold in
+      # stryker-config.json. Measured 74.30% on 2026-08-08; break sits at 70, so
+      # the gate catches regression without failing on the day it landed - the
+      # same reasoning as scripts/check-coverage.py's floors.
+      - name: Run Stryker
+        run: dotnet stryker
+
+      # Uploaded even on failure: when the score drops, the HTML report naming
+      # the surviving mutants IS the diagnosis, and re-running locally to get it
+      # costs another four minutes.
+      - name: Upload the mutation report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mutation-report
+          path: StrykerOutput/*/reports/
+          if-no-files-found: warn
