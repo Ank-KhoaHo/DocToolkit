@@ -201,4 +201,78 @@ public class WorkbookEditorServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => sut.ReadSheetAsync(source, "Sales", cts.Token));
     }
+
+    [Fact]
+    public void Create_WithSheets_MatchesTheStaticMethod()
+    {
+        var sheets = new[]
+        {
+            XlsxSheet.Named("Sales", new[]
+            {
+                new object?[] { "Region", "Total" },
+                new object?[] { "EMEA", 1200 },
+            }),
+            XlsxSheet.Named("Summary", new[]
+            {
+                new object?[] { "Grand total", XlsxFormula.From("SUM(Sales!B2:B2)") },
+            }),
+        };
+        var sut = new WorkbookEditorService();
+
+        var expected = WorkbookEditor.Create(sheets);
+        var actual = sut.Create(sheets);
+
+        // Semantic agreement, not byte equality: a freshly built workbook carries zip entry
+        // timestamps, so two Create calls a second apart legitimately differ byte-for-byte.
+        Assert.Equal(WorkbookEditor.SheetNames(expected), WorkbookEditor.SheetNames(actual));
+        Assert.Equal(
+            WorkbookEditor.ReadCell(expected, "Summary", "B1"),
+            WorkbookEditor.ReadCell(actual, "Summary", "B1"));
+        Assert.Equal("1200", WorkbookEditor.ReadCell(actual, "Sales", "B2"));
+    }
+
+    [Fact]
+    public void AppendRows_MatchesTheStaticMethod()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "start" } });
+        var rows = new[] { new object?[] { "a" }, new object?[] { "b" } };
+        var sut = new WorkbookEditorService();
+
+        var expected = WorkbookEditor.AppendRows(xlsx, "Log", rows);
+        var actual = sut.AppendRows(xlsx, "Log", rows);
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(expected, "Log"),
+            WorkbookEditor.ReadSheet(actual, "Log"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithSheets_WritesTheSameWorkbook()
+    {
+        var sheets = new[] { XlsxSheet.Named("S", new[] { new object?[] { "only" } }) };
+        var sut = new WorkbookEditorService();
+
+        using var destination = new MemoryStream();
+        await sut.CreateAsync(sheets, destination);
+
+        Assert.Equal("only", WorkbookEditor.ReadCell(destination.ToArray(), "S", "A1"));
+    }
+
+    [Fact]
+    public async Task AppendRowsAsync_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "start" } });
+        var rows = new[] { new object?[] { "next" } };
+        var sut = new WorkbookEditorService();
+
+        var expected = WorkbookEditor.AppendRows(xlsx, "Log", rows);
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        await sut.AppendRowsAsync(source, "Log", rows, destination);
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(expected, "Log"),
+            WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
+    }
 }

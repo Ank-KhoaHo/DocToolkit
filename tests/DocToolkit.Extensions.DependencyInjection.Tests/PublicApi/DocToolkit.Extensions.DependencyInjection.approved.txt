@@ -49,7 +49,11 @@ namespace DocToolkit.Extensions.DependencyInjection
     }
     public interface IWorkbookEditor
     {
+        byte[] AppendRows(byte[] xlsx, string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows);
+        System.Threading.Tasks.Task AppendRowsAsync(System.IO.Stream source, string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+        byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.XlsxSheet> sheets);
         byte[] Create(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows);
+        System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.XlsxSheet> sheets, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         System.Threading.Tasks.Task CreateAsync(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         string ReadCell(byte[] xlsx, string sheetName, string cellRef);
         System.Threading.Tasks.Task<string> ReadCellAsync(System.IO.Stream source, string sheetName, string cellRef, System.Threading.CancellationToken ct = default);

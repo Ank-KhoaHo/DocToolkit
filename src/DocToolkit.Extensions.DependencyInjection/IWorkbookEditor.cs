@@ -9,6 +9,31 @@ public interface IWorkbookEditor
     /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be built.</exception>
     byte[] Create(string sheetName, IEnumerable<IEnumerable<object?>> rows);
 
+    /// <summary>
+    /// Builds a workbook from <paramref name="sheets"/>, one worksheet each, in sequence order.
+    /// Content comes from data rather than a template, so there is no source file to edit.
+    ///
+    /// <para>A cell holding a <see cref="DocToolkit.XlsxFormula"/> is written as a formula. No
+    /// cached result is stored, so a reader that only reads cached values sees an empty cell until
+    /// Excel has opened and saved the file; this package's own readers compute on read.</para>
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="sheets"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="sheets"/> is empty, contains a null element, or names the same sheet twice.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be built.</exception>
+    byte[] Create(IEnumerable<DocToolkit.XlsxSheet> sheets);
+
+    /// <summary>
+    /// Appends <paramref name="rows"/> to <paramref name="sheetName"/>, after its last used row,
+    /// leaving every other sheet and all existing formatting as it was.
+    ///
+    /// <para>"Last used" counts a cell comment or a merged range even where the cell has no value,
+    /// so a stray comment far below the data pushes the append below it.</para>
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, <paramref name="sheetName"/> is blank, longer than 31 characters or contains one of <c>: \ / ? * [ ]</c>, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
+    byte[] AppendRows(byte[] xlsx, string sheetName, IEnumerable<IEnumerable<object?>> rows);
+
     /// <summary>Reads a cell as a string. <paramref name="cellRef"/> is an A1-style reference.</summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or a name is blank.</exception>
@@ -38,7 +63,7 @@ public interface IWorkbookEditor
     /// library evaluates formulas.
     ///
     /// Text follows the calling thread's <see cref="System.Globalization.CultureInfo.CurrentCulture"/>
-    /// — the same rule <see cref="ReadCell"/> uses, and asymmetric with <see cref="Create"/>, which
+    /// — the same rule <see cref="ReadCell"/> uses, and asymmetric with <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>, which
     /// deliberately writes with <see cref="System.Globalization.CultureInfo.InvariantCulture"/> so
     /// the same code produces the same file everywhere. A number such as <c>1234.5</c> reads back
     /// as <c>"1234.5"</c> under an invariant or en-US culture but <c>"1234,5"</c> under de-DE;
@@ -78,7 +103,7 @@ public interface IWorkbookEditor
 
     /// <summary>
     /// Builds a workbook with one sheet populated from <paramref name="rows"/> and writes it to
-    /// <paramref name="destination"/>. See <see cref="Create"/> for the exact typing and culture
+    /// <paramref name="destination"/>. See <see cref="Create(string, IEnumerable{IEnumerable{object}})"/> for the exact typing and culture
     /// rules applied to each cell. <paramref name="destination"/> is <b>written</b> and is not
     /// disposed, closed or sought.
     /// </summary>
@@ -123,6 +148,37 @@ public interface IWorkbookEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be opened.</exception>
     Task<IReadOnlyList<string>> SheetNamesAsync(Stream source, CancellationToken ct = default);
+
+    /// <summary>
+    /// Builds a workbook from <paramref name="sheets"/> and writes it to
+    /// <paramref name="destination"/>. See <see cref="Create(IEnumerable{DocToolkit.XlsxSheet})"/>
+    /// for the semantics.
+    ///
+    /// <para><paramref name="destination"/> is <b>written</b> and is neither disposed, closed nor
+    /// sought, so an HTTP response body is a valid destination.</para>
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="sheets"/> is invalid as above, or <paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be built or written.</exception>
+    Task CreateAsync(
+        IEnumerable<DocToolkit.XlsxSheet> sheets, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, appends <paramref name="rows"/> to
+    /// <paramref name="sheetName"/>, and writes the result to <paramref name="destination"/>. See
+    /// <see cref="AppendRows"/> for the semantics.
+    ///
+    /// <para><paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/>
+    /// is <b>written</b>; neither is disposed, closed nor sought.</para>
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/> is not writable, <paramref name="sheetName"/> is invalid as above, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
+    Task AppendRowsAsync(
+        Stream source, string sheetName, IEnumerable<IEnumerable<object?>> rows, Stream destination,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Reads a workbook from <paramref name="source"/> and returns a whole sheet as strings. See
