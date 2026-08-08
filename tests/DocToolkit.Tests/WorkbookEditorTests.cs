@@ -90,6 +90,32 @@ public class WorkbookEditorTests
         => Assert.Throws<ArgumentException>(
             () => WorkbookEditor.Create("S", new IEnumerable<object?>[] { null! }));
 
+    [Fact]
+    public void Create_WithASheetNameExcelRejects_FailsFastWithArgumentException()
+    {
+        // Previously these reached ClosedXML and came back as DocumentConversionException wrapping
+        // someone else's message. Failing fast names the parameter and says what is wrong.
+        var rows = new[] { new object?[] { 1 } };
+
+        var tooLong = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.Create(new string('a', 32), rows));
+        Assert.Equal("sheetName", tooLong.ParamName);
+        Assert.Contains("32 characters", tooLong.Message, StringComparison.Ordinal);
+
+        var badChar = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.Create("Q1/Q2", rows));
+        Assert.Equal("sheetName", badChar.ParamName);
+        Assert.Contains("'/'", badChar.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Create_WithASheetNameOfExactlyThirtyOneCharacters_IsAccepted()
+    {
+        // The boundary is inclusive; 31 is legal, 32 is not.
+        var xlsx = WorkbookEditor.Create(new string('a', 31), new[] { new object?[] { 1 } });
+        Assert.Equal(new string('a', 31), Assert.Single(WorkbookEditor.SheetNames(xlsx)));
+    }
+
     // ---------------------------------------------------------------------------------------
     // Error handling (I-6): raw FileFormatException/ArgumentException used to escape.
     // ---------------------------------------------------------------------------------------

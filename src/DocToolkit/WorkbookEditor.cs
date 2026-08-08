@@ -58,9 +58,32 @@ public static class WorkbookEditor
         await StreamPipeline.EmitAsync(ms, destination, "Failed to create XLSX.", ct).ConfigureAwait(false);
     }
 
+    // Excel's own rules. Enforced here rather than left to ClosedXML so an invalid name fails fast,
+    // naming the parameter, instead of surfacing as a DocumentConversionException wrapping someone
+    // else's message. One helper, used by every path that names a sheet, so the rules cannot drift.
+    private static readonly char[] InvalidSheetNameChars = [':', '\\', '/', '?', '*', '[', ']'];
+
+    internal static string ValidateSheetName(string sheetName, string paramName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName, paramName);
+
+        if (sheetName.Length > 31)
+            throw new ArgumentException(
+                $"Sheet name '{sheetName}' is {sheetName.Length} characters; Excel allows at most 31.",
+                paramName);
+
+        var bad = sheetName.IndexOfAny(InvalidSheetNameChars);
+        if (bad >= 0)
+            throw new ArgumentException(
+                $"Sheet name '{sheetName}' contains '{sheetName[bad]}'. Excel does not allow : \\ / ? * [ ] in a sheet name.",
+                paramName);
+
+        return sheetName;
+    }
+
     private static List<IEnumerable<object?>> ValidateRows(string sheetName, IEnumerable<IEnumerable<object?>> rows)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ValidateSheetName(sheetName, nameof(sheetName));
         ArgumentNullException.ThrowIfNull(rows);
 
         // Validated up front so a null row surfaces as the ArgumentException it is rather than as
