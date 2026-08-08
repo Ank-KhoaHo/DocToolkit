@@ -44,6 +44,7 @@ import argparse
 import collections
 import csv
 import datetime
+import html
 import json
 import os
 import sys
@@ -315,12 +316,23 @@ CRAWLER_FLOOR_PER_DAY = 2
 
 
 def sparkline(values):
+    """Unicode bars for a series of daily deltas.
+
+    Negative values are floored to zero rather than passed through: Python's
+    negative indexing would select SPARK[-1], the TALLEST bar, so a decrease
+    would render as a spike. `collect` clamps cumulative counts so this should
+    be unreachable, but a chart that lies when its invariant breaks is worse
+    than one that flatlines.
+    """
     if not values:
         return ""
     top = max(values)
     if top <= 0:
         return SPARK[0] * len(values)
-    return "".join(SPARK[min(len(SPARK) - 1, v * (len(SPARK) - 1) // top)] for v in values)
+    return "".join(
+        SPARK[min(len(SPARK) - 1, max(0, v) * (len(SPARK) - 1) // top)]
+        for v in values
+    )
 
 
 def series(rows):
@@ -347,8 +359,17 @@ def cell(value):
     return "—" if value is None else str(value)
 
 
+def span_days(dates):
+    """Calendar days between the first and last of a sorted date list."""
+    if len(dates) < 2:
+        return None
+    first = datetime.date.fromisoformat(dates[0])
+    last = datetime.date.fromisoformat(dates[-1])
+    return (last - first).days
+
+
 def summarise(downloads_rows, runs_rows):
-    """One record per (package, version), newest measurement first."""
+    """One record per (package, version), highest total first within a package."""
     by_key = series(downloads_rows)
     per_day = runs_by_date(runs_rows)
 
@@ -364,10 +385,16 @@ def summarise(downloads_rows, runs_rows):
     for (package, version), points in by_key.items():
         dates = sorted(points)
         latest = points[dates[-1]]
-        window = [points[d] for d in dates if d in recent]
-        delta7 = window[-1] - window[0] if len(window) > 1 else None
+
+        window_dates = [d for d in dates if d in recent]
+        window = [points[d] for d in window_dates]
+        delta = window[-1] - window[0] if len(window) > 1 else None
+        # The window is whichever of THIS version's dates fall in the last seven
+        # seen anywhere, so it is not always seven days. Report the span rather
+        # than labelling a three-day figure "7d".
+        span = span_days(window_dates)
         daily = [window[i + 1] - window[i] for i in range(len(window) - 1)]
-        runs7 = sum(per_day.get(d, 0) for d in recent)
+        runs_recent = sum(per_day.get(d, 0) for d in recent)
 
         # Downloads accumulated on days our own CI ran nothing cannot be ours:
         # the pipeline only ever asks for the lockfile version or `*`-latest,
@@ -378,18 +405,22 @@ def summarise(downloads_rows, runs_rows):
             day = dates[i + 1]
             if day in measured_days and per_day.get(day, 0) == 0:
                 quiet += points[day] - points[dates[i]]
-                quiet_days += 1
+                # CALENDAR days, not one per observed interval. A gap in this
+                # version's rows would otherwise weigh a multi-day accumulation
+                # against a single day of crawler floor - which flags noise as a
+                # real user, the one mistake this column must not make.
+                quiet_days += span_days([dates[i], day]) or 1
 
         summary.append({
             "package": package,
             "version": version,
             "latest": latest,
-            "delta7": delta7,
-            "runs7": runs7,
+            "delta": delta,
+            "span": span,
+            "runs_recent": runs_recent,
             "quiet": quiet if quiet_days else None,
+            "quiet_days": quiet_days,
             "spark": sparkline(daily),
-            # Compared against the floor over the SAME window quiet was summed
-            # over, not over a fixed seven days.
             "interesting": quiet > CRAWLER_FLOOR_PER_DAY * quiet_days,
         })
     summary.sort(key=lambda r: (r["package"], -r["latest"]))
@@ -407,7 +438,11 @@ What this cannot tell you, so that the numbers are not over-read:
 - **The index lags one to two days.** Read week-over-week trends, not daily spikes.
 - **`quiet` is the column that matters:** downloads accumulated on days our own CI
   ran nothing. Our pipeline only ever requests the lockfile version or `*`-latest,
-  so it cannot produce those.
+  so it cannot produce those. `/Nd` is the calendar span those downloads span, and
+  a row is flagged only when it exceeds the crawler floor across that whole span.
+- **`recent Δ` covers up to the last seven sample dates**, and `/Nd` is how many
+  calendar days the version's own rows actually span within them - a sparse version
+  reports over fewer days than a dense one.
 """
 
 
@@ -418,16 +453,22 @@ def render_markdown(summary, dates):
         f"Generated from {len(dates)} day(s) of samples"
         + (f", {dates[0]} to {dates[-1]}." if dates else "."),
         "",
-        "| package | version | total | 7d | CI runs 7d | quiet | trend |",
+        "| package | version | total | recent Δ | CI runs | quiet | trend |",
         "|---|---|---:|---:|---:|---:|---|",
     ]
     for row in summary:
         short = row["package"].replace("Ank.DocToolkit", "core").replace(
             "core.Extensions.DependencyInjection", "extensions")
         mark = " **←**" if row["interesting"] else ""
+        delta = cell(row["delta"])
+        if row["span"]:
+            delta += f" /{row['span']}d"
+        quiet = cell(row["quiet"])
+        if row["quiet_days"]:
+            quiet += f" /{row['quiet_days']}d"
         lines.append(
-            f"| {short} | {row['version']} | {row['latest']} | {cell(row['delta7'])} | "
-            f"{row['runs7']} | {cell(row['quiet'])}{mark} | `{row['spark']}` |"
+            f"| {short} | {row['version']} | {row['latest']} | {delta} | "
+            f"{row['runs_recent']} | {quiet}{mark} | `{row['spark']}` |"
         )
     lines += ["", LIMITS]
     return "\n".join(lines) + "\n"
@@ -438,10 +479,17 @@ def render_html(summary, dates):
     body = []
     for row in summary:
         cls = ' class="hit"' if row["interesting"] else ""
+        delta = cell(row["delta"])
+        if row["span"]:
+            delta += f" /{row['span']}d"
+        quiet = cell(row["quiet"])
+        if row["quiet_days"]:
+            quiet += f" /{row['quiet_days']}d"
         body.append(
-            f"<tr{cls}><td>{row['package']}</td><td>{row['version']}</td>"
-            f"<td class=n>{row['latest']}</td><td class=n>{cell(row['delta7'])}</td>"
-            f"<td class=n>{row['runs7']}</td><td class=n>{cell(row['quiet'])}</td>"
+            f"<tr{cls}><td>{html.escape(row['package'])}</td>"
+            f"<td>{html.escape(row['version'])}</td>"
+            f"<td class=n>{row['latest']}</td><td class=n>{delta}</td>"
+            f"<td class=n>{row['runs_recent']}</td><td class=n>{quiet}</td>"
             f"<td class=s>{row['spark']}</td></tr>"
         )
     return f"""<!doctype html>
@@ -466,8 +514,8 @@ def render_html(summary, dates):
 <h1>nuget.org usage</h1>
 <p>{len(dates)} day(s) of samples, {span}.</p>
 <div class="wrap"><table>
-<thead><tr><th>package</th><th>version</th><th class=n>total</th><th class=n>7d</th>
-<th class=n>CI runs 7d</th><th class=n>quiet</th><th>trend</th></tr></thead>
+<thead><tr><th>package</th><th>version</th><th class=n>total</th><th class=n>recent Δ</th>
+<th class=n>CI runs</th><th class=n>quiet</th><th>trend</th></tr></thead>
 <tbody>
 {chr(10).join(body)}
 </tbody></table></div>
