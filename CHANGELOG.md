@@ -10,6 +10,34 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.12.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.11.0...v0.12.0) (2026-08-08)
+
+
+### Added
+
+* **core:** add XlsxSheet, the typed model for a named sheet ([8af39c8](https://github.com/Ank-KhoaHo/DocToolkit/commit/8af39c8e3a68c9a945e1c9f05d9dc8645ee92543))
+* **core:** append rows to an existing sheet ([5d8b2fe](https://github.com/Ank-KhoaHo/DocToolkit/commit/5d8b2fe0a8db19fd531344a0851668866559e9b4))
+* **core:** create a workbook with more than one sheet ([f426aaa](https://github.com/Ank-KhoaHo/DocToolkit/commit/f426aaa4b6b09bbb85fb296edb64b45be039638b))
+* **core:** let any cell hold a formula via XlsxFormula ([49982ad](https://github.com/Ank-KhoaHo/DocToolkit/commit/49982ad14f29be6ce845845e29d1d20ea496bf19))
+* **extensions:** mirror PresentationEditor.Create on IPresentationEditor ([7578053](https://github.com/Ank-KhoaHo/DocToolkit/commit/7578053f9509c85930c4f3bc98860d013a310936))
+* mark both packages IsTrimmable, and guard the claim in CI ([83f182f](https://github.com/Ank-KhoaHo/DocToolkit/commit/83f182f593a0ed382600fe0d45b9f8177e9bfc5a))
+
+
+### Fixed
+
+* claim trimmability by attribute, not by the IsTrimmable property ([46adf28](https://github.com/Ank-KhoaHo/DocToolkit/commit/46adf28c7962a412dddaabfdd82a89fde46137c2))
+* **core:** make created slides real title and body placeholders ([a8dcc36](https://github.com/Ank-KhoaHo/DocToolkit/commit/a8dcc3646fc677e585849b546af4d4abc89b1d52))
+* **core:** reject an invalid sheet name with ArgumentException, not a wrapped failure ([aa806aa](https://github.com/Ank-KhoaHo/DocToolkit/commit/aa806aa29109c32225ea5219cdf9351fa24bf8f0))
+* give the Linux container image the .NET 8 runtime it needs ([fb8c00e](https://github.com/Ank-KhoaHo/DocToolkit/commit/fb8c00e89f523d622a5116441336f3687e68b2b8))
+* **samples:** use Path.Join rather than Path.Combine for the output path ([929b1b7](https://github.com/Ank-KhoaHo/DocToolkit/commit/929b1b702d89996385d1abed08fc2b9410de396e))
+
+
+### Changed
+
+* pin the SDK to 10.0.302 in global.json ([f8c8e6d](https://github.com/Ank-KhoaHo/DocToolkit/commit/f8c8e6d83e0874645a439e942621c4b4c9c7bf78))
+* share MSBuild properties and hold the warning line locally ([52e4c9a](https://github.com/Ank-KhoaHo/DocToolkit/commit/52e4c9a67ecdfcb03fcce77721d660c8f1170a4d))
+* update OfficeIMO.Word.Pdf to 3.2.0 ([3061462](https://github.com/Ank-KhoaHo/DocToolkit/commit/3061462d4c137921ea5565ae9e41266fbed1838e))
+
 ## [0.11.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.10.0...v0.11.0) (2026-08-07)
 
 
