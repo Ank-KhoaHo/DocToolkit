@@ -127,42 +127,98 @@ def upsert(rows, new_rows, key_fields):
 
 
 def highest_recorded(rows, package, version):
-    """The largest cumulative ever recorded for this version, or None."""
+    """The largest cumulative ever recorded for this version, or None.
+
+    Cumulative counts only grow, so the maximum over history is the floor any
+    new reading must not fall below.
+    """
     best = None
     for row in rows:
-        if row["package"] == package and row["version"] == version:
+        if row.get("package") != package or row.get("version") != version:
+            continue
+        try:
             value = int(row["cumulative"])
-            if best is None or value > best:
-                best = value
+        except (TypeError, ValueError, KeyError):
+            print(f"warning: unreadable cumulative for {package} {version} "
+                  f"on {row.get('date', '?')}; ignoring that row", file=sys.stderr)
+            continue
+        if best is None or value > best:
+            best = value
     return best
 
 
 def gather_downloads(fixture):
-    """{package: {version: downloads}}, from a fixture or from the live API."""
+    """{package: (counts, complete)} where counts is {version: downloads}.
+
+    `complete` is False when a region we expected to hear from ERRORED, which
+    is a different thing from a region answering "I have not indexed this yet".
+    The first means our number may be missing data; the second is a normal
+    state for a version published minutes ago. Fix 4 depends on the difference.
+
+    A malformed payload degrades that region only. Anything else takes down the
+    healthy package alongside the broken one, and this job runs unattended.
+    """
+    readable = (AttributeError, TypeError, ValueError, KeyError)
     gathered = {}
     for package in PACKAGES:
+        per_region = []
+        failures = 0
         if fixture is not None:
-            per_region = [parse_payload(p) for p in fixture.get(package, [])]
+            for payload in fixture.get(package, []):
+                try:
+                    per_region.append(parse_payload(payload))
+                except readable as error:
+                    failures += 1
+                    print(f"warning: {package} fixture payload unreadable: {error}",
+                          file=sys.stderr)
         else:
-            per_region = []
             for region in REGIONS:
                 try:
                     per_region.append(fetch_region(package, region))
-                except (urllib.error.URLError, ValueError, KeyError, OSError) as error:
+                except (urllib.error.URLError, OSError, *readable) as error:
+                    failures += 1
                     print(f"warning: {package} via {region}: {error}", file=sys.stderr)
         if not per_region:
             # Every region failed. Skip the package rather than writing a zero,
             # which would look like every user vanishing overnight.
             print(f"warning: no region answered for {package}; skipping", file=sys.stderr)
             continue
-        gathered[package] = reconcile(per_region)
+        gathered[package] = (reconcile(per_region), failures == 0)
     return gathered
 
 
 def collect(args):
     today = args.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    try:
+        datetime.date.fromisoformat(today)
+    except ValueError:
+        print(f"error: --date must be YYYY-MM-DD, got {today!r}", file=sys.stderr)
+        return 2
+
+    os.makedirs(args.data_dir, exist_ok=True)
     downloads_path = os.path.join(args.data_dir, "downloads.csv")
     runs_path = os.path.join(args.data_dir, "runs.csv")
+
+    # The CI half first, and deliberately independent of the download fetch.
+    # These are unrelated signals and a nuget.org outage must not also cost us
+    # the day's CI record. The asymmetry is not arbitrary: run counts can be
+    # rebuilt at any time with `gh run list --created <date>`, while download
+    # counts cannot - the search API serves only the current cumulative total,
+    # so a lost day is lost permanently.
+    if args.runs_json:
+        with open(args.runs_json, encoding="utf-8") as handle:
+            runs = json.load(handle)
+        counts = collections.Counter(run["workflowName"] for run in runs)
+        run_rows = [
+            {"date": today, "workflow": name, "runs": str(count)}
+            for name, count in sorted(counts.items())
+        ]
+        write_rows(
+            runs_path,
+            RUNS_HEADER,
+            upsert(read_rows(runs_path), run_rows, ("date", "workflow")),
+        )
+        print(f"runs: {len(run_rows)} workflows for {today}")
 
     fixture = None
     if args.api_fixture:
@@ -176,9 +232,21 @@ def collect(args):
         return 1
 
     fresh = []
-    for package, counts in gathered.items():
+    for package, (counts, complete) in gathered.items():
         for version, downloads in sorted(counts.items()):
             floor = highest_recorded(existing, package, version)
+
+            if floor is None and not complete:
+                # First ever sighting of this version, from an incomplete read.
+                # With no floor there is nothing to clamp against, so a stale
+                # region alone would write a too-low number as fact - and the
+                # correction would arrive later as a false SPIKE, on a day that
+                # may have had no CI activity, which the report would then flag
+                # as external usage. Skipping costs one day and cannot mislead.
+                print(f"warning: {package} {version} seen only in an incomplete "
+                      f"read with no prior value; not recording", file=sys.stderr)
+                continue
+
             clamped = floor is not None and downloads < floor
             if clamped:
                 print(
@@ -200,22 +268,6 @@ def collect(args):
         upsert(existing, fresh, ("date", "package", "version")),
     )
     print(f"downloads: {len(fresh)} rows for {today}")
-
-    if args.runs_json:
-        with open(args.runs_json, encoding="utf-8") as handle:
-            runs = json.load(handle)
-        counts = collections.Counter(run["workflowName"] for run in runs)
-        run_rows = [
-            {"date": today, "workflow": name, "runs": str(count)}
-            for name, count in sorted(counts.items())
-        ]
-        write_rows(
-            runs_path,
-            RUNS_HEADER,
-            upsert(read_rows(runs_path), run_rows, ("date", "workflow")),
-        )
-        print(f"runs: {len(run_rows)} workflows for {today}")
-
     return 0
 
 
@@ -223,7 +275,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
 
-    collect_parser = sub.add_parser("collect", help="fetch counts and append to the CSVs")
+    collect_parser = sub.add_parser(
+        "collect", help="fetch counts and upsert them into the CSVs")
     collect_parser.add_argument("--data-dir", required=True)
     collect_parser.add_argument("--runs-json", help="gh run list --json output")
     collect_parser.add_argument("--api-fixture", help="offline payloads instead of the API")
