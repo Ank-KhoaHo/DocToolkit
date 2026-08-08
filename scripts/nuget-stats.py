@@ -304,6 +304,195 @@ def collect(args):
     return 0
 
 
+SPARK = "▁▂▃▄▅▆▇█"
+
+# Measured 2026-08-08: okhttp, Python-urllib, Python aiohttp, Go-http-client and
+# JFrog Artifactory each appear at a near-identical count on EVERY version
+# regardless of its age or popularity - the fingerprint of scheduled crawlers
+# sweeping the whole version list. Roughly 16 per version per six weeks. A delta
+# at or under this is noise, not a user.
+CRAWLER_FLOOR_PER_DAY = 2
+
+
+def sparkline(values):
+    if not values:
+        return ""
+    top = max(values)
+    if top <= 0:
+        return SPARK[0] * len(values)
+    return "".join(SPARK[min(len(SPARK) - 1, v * (len(SPARK) - 1) // top)] for v in values)
+
+
+def series(rows):
+    """{(package, version): {date: cumulative}} from downloads.csv rows."""
+    out = collections.defaultdict(dict)
+    for row in rows:
+        out[(row["package"], row["version"])][row["date"]] = int(row["cumulative"])
+    return out
+
+
+def runs_by_date(rows):
+    out = collections.Counter()
+    for row in rows:
+        out[row["date"]] += int(row["runs"])
+    return out
+
+
+def cell(value):
+    """Blank, not zero, for a figure that is not yet measurable.
+
+    "We measured no change" and "we do not have enough samples" are different
+    answers, and printing 0 for both hides which one you are looking at.
+    """
+    return "—" if value is None else str(value)
+
+
+def summarise(downloads_rows, runs_rows):
+    """One record per (package, version), newest measurement first."""
+    by_key = series(downloads_rows)
+    per_day = runs_by_date(runs_rows)
+
+    # Dates we actually hold a CI record for. A date MISSING from runs.csv means
+    # "not recorded", NOT "zero runs" - and conflating the two would mark every
+    # early day as quiet and flag the entire table as external usage on day one.
+    measured_days = {row["date"] for row in runs_rows}
+
+    all_dates = sorted({row["date"] for row in downloads_rows})
+    recent = all_dates[-7:]
+
+    summary = []
+    for (package, version), points in by_key.items():
+        dates = sorted(points)
+        latest = points[dates[-1]]
+        window = [points[d] for d in dates if d in recent]
+        delta7 = window[-1] - window[0] if len(window) > 1 else None
+        daily = [window[i + 1] - window[i] for i in range(len(window) - 1)]
+        runs7 = sum(per_day.get(d, 0) for d in recent)
+
+        # Downloads accumulated on days our own CI ran nothing cannot be ours:
+        # the pipeline only ever asks for the lockfile version or `*`-latest,
+        # never an arbitrary old version.
+        quiet = 0
+        quiet_days = 0
+        for i in range(len(dates) - 1):
+            day = dates[i + 1]
+            if day in measured_days and per_day.get(day, 0) == 0:
+                quiet += points[day] - points[dates[i]]
+                quiet_days += 1
+
+        summary.append({
+            "package": package,
+            "version": version,
+            "latest": latest,
+            "delta7": delta7,
+            "runs7": runs7,
+            "quiet": quiet if quiet_days else None,
+            "spark": sparkline(daily),
+            # Compared against the floor over the SAME window quiet was summed
+            # over, not over a fixed seven days.
+            "interesting": quiet > CRAWLER_FLOOR_PER_DAY * quiet_days,
+        })
+    summary.sort(key=lambda r: (r["package"], -r["latest"]))
+    return summary, all_dates
+
+
+LIMITS = """\
+What this cannot tell you, so that the numbers are not over-read:
+
+- **No client split.** A crawler and a developer are indistinguishable here; the
+  per-client breakdown on nuget.org is rendered client-side and cannot be fetched.
+- **One person downloading ten times looks like ten people.**
+- **Proxy consumers are invisible.** One JFrog Artifactory fetch may serve a whole
+  company, so this under-counts in a direction it cannot measure.
+- **The index lags one to two days.** Read week-over-week trends, not daily spikes.
+- **`quiet` is the column that matters:** downloads accumulated on days our own CI
+  ran nothing. Our pipeline only ever requests the lockfile version or `*`-latest,
+  so it cannot produce those.
+"""
+
+
+def render_markdown(summary, dates):
+    lines = [
+        "# nuget.org usage",
+        "",
+        f"Generated from {len(dates)} day(s) of samples"
+        + (f", {dates[0]} to {dates[-1]}." if dates else "."),
+        "",
+        "| package | version | total | 7d | CI runs 7d | quiet | trend |",
+        "|---|---|---:|---:|---:|---:|---|",
+    ]
+    for row in summary:
+        short = row["package"].replace("Ank.DocToolkit", "core").replace(
+            "core.Extensions.DependencyInjection", "extensions")
+        mark = " **←**" if row["interesting"] else ""
+        lines.append(
+            f"| {short} | {row['version']} | {row['latest']} | {cell(row['delta7'])} | "
+            f"{row['runs7']} | {cell(row['quiet'])}{mark} | `{row['spark']}` |"
+        )
+    lines += ["", LIMITS]
+    return "\n".join(lines) + "\n"
+
+
+def render_html(summary, dates):
+    span = f"{dates[0]} to {dates[-1]}" if dates else "no samples yet"
+    body = []
+    for row in summary:
+        cls = ' class="hit"' if row["interesting"] else ""
+        body.append(
+            f"<tr{cls}><td>{row['package']}</td><td>{row['version']}</td>"
+            f"<td class=n>{row['latest']}</td><td class=n>{cell(row['delta7'])}</td>"
+            f"<td class=n>{row['runs7']}</td><td class=n>{cell(row['quiet'])}</td>"
+            f"<td class=s>{row['spark']}</td></tr>"
+        )
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>nuget.org usage</title>
+<style>
+  :root {{ color-scheme: light dark; --fg:#111; --bg:#fff; --line:#d0d7de; --hit:#fff8c5; }}
+  @media (prefers-color-scheme: dark) {{
+    :root {{ --fg:#e6edf3; --bg:#0d1117; --line:#30363d; --hit:#2d2a1f; }}
+  }}
+  body {{ font:15px/1.5 system-ui,sans-serif; color:var(--fg); background:var(--bg);
+         margin:0; padding:2rem 1rem; }}
+  main {{ max-width:60rem; margin:0 auto; }}
+  table {{ border-collapse:collapse; width:100%; }}
+  th,td {{ padding:.4rem .6rem; border-bottom:1px solid var(--line); text-align:left; }}
+  .n {{ text-align:right; font-variant-numeric:tabular-nums; }}
+  .s {{ font-family:ui-monospace,monospace; letter-spacing:1px; }}
+  tr.hit {{ background:var(--hit); }}
+  .wrap {{ overflow-x:auto; }}
+</style></head><body><main>
+<h1>nuget.org usage</h1>
+<p>{len(dates)} day(s) of samples, {span}.</p>
+<div class="wrap"><table>
+<thead><tr><th>package</th><th>version</th><th class=n>total</th><th class=n>7d</th>
+<th class=n>CI runs 7d</th><th class=n>quiet</th><th>trend</th></tr></thead>
+<tbody>
+{chr(10).join(body)}
+</tbody></table></div>
+<p><strong>quiet</strong> counts downloads accumulated on days our own CI ran nothing.
+Our pipeline only ever requests the lockfile version or <code>*</code>-latest, so it
+cannot produce those. Highlighted rows exceed the measured crawler floor.</p>
+</main></body></html>
+"""
+
+
+def render(args):
+    downloads_rows = read_rows(os.path.join(args.data_dir, "downloads.csv"))
+    runs_rows = read_rows(os.path.join(args.data_dir, "runs.csv"))
+    if not downloads_rows:
+        print("error: no downloads.csv rows to render", file=sys.stderr)
+        return 1
+    summary, dates = summarise(downloads_rows, runs_rows)
+    with open(os.path.join(args.data_dir, "report.md"), "w", encoding="utf-8") as handle:
+        handle.write(render_markdown(summary, dates))
+    with open(os.path.join(args.data_dir, "report.html"), "w", encoding="utf-8") as handle:
+        handle.write(render_html(summary, dates))
+    print(f"rendered {len(summary)} rows over {len(dates)} day(s)")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -315,6 +504,10 @@ def main():
     collect_parser.add_argument("--api-fixture", help="offline payloads instead of the API")
     collect_parser.add_argument("--date", help="override the date, for testing")
     collect_parser.set_defaults(func=collect)
+
+    render_parser = sub.add_parser("render", help="write report.md and report.html")
+    render_parser.add_argument("--data-dir", required=True)
+    render_parser.set_defaults(func=render)
 
     args = parser.parse_args()
     return args.func(args)
