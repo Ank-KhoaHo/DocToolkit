@@ -34,6 +34,12 @@ jobs:
     name: install from nuget.org and run
     runs-on: ubuntu-24.04
     steps:
+      # NuGet caching is deliberately NOT enabled here, and could not be: this job never
+      # checks out the repository - see the header comment for why that is the point - so
+      # cache-dependency-path would match no packages.lock.json and setup-dotnet's cache
+      # step would fail outright. The "Use an empty NuGet cache" step below would bypass a
+      # restored cache in any case, by pointing NUGET_PACKAGES at an empty directory. An
+      # empty package folder IS this workflow's test.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |

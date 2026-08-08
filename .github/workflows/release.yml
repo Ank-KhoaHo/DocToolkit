@@ -99,6 +99,16 @@ jobs:
         with:
           fetch-depth: 0 # full history so release notes can be generated
 
+      # NuGet caching is deliberately NOT enabled here, unlike ci.yml, codeql.yml,
+      # docs.yml and mutation.yml. This job's cold restore is a second, independent proof
+      # that the dependency graph resolves from nothing - ci.yml's linux-container job
+      # already proves that on every push and PR, from a bare SDK image - but this is the
+      # run that cannot be undone. A nuget.org version can be unlisted, never deleted or
+      # reused.
+      #
+      # Keeping it cold also costs nothing measurable. Caching made the whole CI run
+      # SLOWER when measured on 2026-08-08 (175s -> 187s), because downloading the 222 MB
+      # cache outweighs the restore it saves. Do not "finish the job" by adding it here.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |

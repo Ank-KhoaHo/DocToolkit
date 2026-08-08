@@ -60,6 +60,9 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Same cache as ci.yml; see the build & test block there.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
