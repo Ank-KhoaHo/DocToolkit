@@ -73,6 +73,7 @@ permissions:
   contents: write # needed to create the GitHub Release
   id-token: write # REQUIRED for Trusted Publishing - without it the OIDC token
   # request fails silently and NuGet/login returns no key
+  attestations: write # lets the build sign a provenance statement for each .nupkg
 
 env:
   DOTNET_NOLOGO: true
@@ -318,6 +319,25 @@ jobs:
             exit 1
           fi
           echo "Trusted Publishing OK - short-lived key obtained (valid 1 hour)"
+
+      # Signs a provenance statement for each .nupkg: which workflow, which commit, which runner
+      # built it. Anyone can then verify a downloaded package came from this repository and this
+      # source, with `gh attestation verify <file> --repo ${{ github.repository }}`.
+      #
+      # Placed immediately BEFORE the push so the attested bytes are the published bytes. Attesting
+      # after would leave a window where what was verified and what shipped are not provably the
+      # same artifact.
+      #
+      # Gated on a real publish, unlike the OIDC exchange above which deliberately runs on dry runs
+      # too. The reasoning differs because the artefacts differ: an OIDC exchange proves a policy
+      # works and leaves nothing behind, whereas an attestation is a permanent, publicly visible
+      # claim. Attesting on a dry run would assert provenance for a package that was never
+      # released.
+      - name: Attest build provenance for both packages
+        if: steps.v.outputs.publish == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: artifacts/*.nupkg
 
       - name: Push to nuget.org
         if: steps.v.outputs.publish == 'true'
