@@ -91,6 +91,13 @@ await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", new() { ["{{cu
 
 byte[] xlsx = WorkbookEditor.Create("Sales", new[] { new object?[] { "Region", "Total" } });
 
+// Or build a multi-sheet workbook from data, with a formula cell computing across sheets
+byte[] workbook = WorkbookEditor.Create(new[]
+{
+    XlsxSheet.Named("Sales", new[] { new object?[] { "Region", "Total" }, new object?[] { "EMEA", 1200 } }),
+    XlsxSheet.Named("Summary", new[] { new object?[] { "Grand total", XlsxFormula.From("SUM(Sales!B2:B2)") } }),
+});
+
 // Read one back without knowing its shape in advance
 IReadOnlyList<string> sheets = WorkbookEditor.SheetNames(xlsx);
 IReadOnlyList<IReadOnlyList<string>> grid = WorkbookEditor.ReadSheet(xlsx, sheets[0]);
@@ -103,6 +110,13 @@ byte[] deck = PresentationEditor.Create(new[]
     PptxSlide.Titled("Outlook", "Hiring 3 engineers"),
 });
 ```
+
+**Formulas carry no cached value.** A cell written with `XlsxFormula` holds the formula and nothing
+else. Excel recalculates when it opens the file, and `ReadCell`/`ReadSheet` compute the value on
+read — but a third-party reader that only reads cached values, such as openpyxl with
+`data_only=True`, sees an empty cell until Excel has opened and saved the file. A formula that
+cannot be evaluated reads back as its Excel error string (`#DIV/0!`, `#NAME?`, `#REF!`) rather than
+throwing.
 
 Six static classes, each stateless and safe to call concurrently, with a `byte[]` overload, a
 `Stream` overload and a file-path overload for every capability, wrapping failures in
