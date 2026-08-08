@@ -232,4 +232,75 @@ public class PageSetupOutputTests
 
         Assert.Equal("page", ex.ParamName);
     }
+
+    // The MediaBox is compared at whole-point precision: A4's 595.2756 pt lands as 595.3 in the
+    // sectPr and OfficeIMO may write 595 or 595.25 into the PDF. What matters is that it is A4
+    // rather than Letter, and 1 pt says exactly that.
+    private static void AssertPageSize(byte[] pdf, double expectedWidth, double expectedHeight)
+    {
+        var boxes = PdfProbe.MediaBoxes(pdf);
+
+        Assert.NotEmpty(boxes);
+        Assert.All(boxes, box =>
+        {
+            Assert.Equal(expectedWidth, box.Width, 0);
+            Assert.Equal(expectedHeight, box.Height, 0);
+        });
+    }
+
+    [Fact]
+    public async Task HtmlToPdf_WithNoPageSetup_RendersA4()
+    {
+        AssertPageSize(await HtmlToPdfConverter.ConvertAsync(Html), 595, 842);
+    }
+
+    [Fact]
+    public async Task HtmlToPdf_WithLetter_RendersLetter()
+    {
+        AssertPageSize(await HtmlToPdfConverter.ConvertAsync(Html, PageSetup.Letter), 612, 792);
+    }
+
+    [Fact]
+    public async Task HtmlToPdf_WithLandscape_RendersTheSwappedDimensions()
+    {
+        AssertPageSize(
+            await HtmlToPdfConverter.ConvertAsync(Html, PageSetup.A4.Landscape()), 842, 595);
+    }
+
+    [Fact]
+    public async Task HtmlToPdfAsync_ToStream_HonoursThePageSetup()
+    {
+        using var destination = new MemoryStream();
+
+        await HtmlToPdfConverter.ConvertAsync(Html, PageSetup.Letter, destination);
+
+        AssertPageSize(destination.ToArray(), 612, 792);
+    }
+
+    [Fact]
+    public async Task HtmlToPdf_ToFile_HonoursThePageSetup()
+    {
+        string path = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid():N}.pdf");
+        try
+        {
+            await HtmlToPdfConverter.ConvertToFileAsync(Html, PageSetup.Letter, path);
+
+            AssertPageSize(await File.ReadAllBytesAsync(path), 612, 792);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    // DocxToPdfConverter takes a document that already states its own paper, so it gets no
+    // PageSetup overload. This asserts it honours what it is handed - which is what makes the
+    // absent overload correct rather than an omission.
+    [Fact]
+    public void DocxToPdf_HonoursTheSectionPropertiesItIsHanded()
+    {
+        byte[] docx = DocxEditor.Create(Blocks, PageSetup.Letter);
+
+        AssertPageSize(DocxToPdfConverter.Convert(docx), 612, 792);
+    }
 }

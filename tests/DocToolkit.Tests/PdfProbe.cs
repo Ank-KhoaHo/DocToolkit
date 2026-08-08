@@ -246,4 +246,31 @@ public static class PdfProbe
         TextMatrix.Matches(Raw(pdf))
                   .Select(m => double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
                   .ToList();
+
+    // One /MediaBox [x0 y0 x1 y1] per page object. A regex rather than a real PDF parse for the
+    // same reason the rest of this file is one: OfficeIMO writes uncompressed, so the array is
+    // present in the bytes as text, and a general parser here would be more code for no more
+    // certainty.
+    private static readonly Regex MediaBox = new(
+        @"/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Every page's <c>/MediaBox</c>, as (width, height) in points, in document order.
+    ///
+    /// This is the only assertion that proves page setup survives the DOCX → PDF render. Every
+    /// other page-setup test reads the .docx, which OfficeIMO could stop honouring without any of
+    /// them noticing.
+    /// </summary>
+    public static IReadOnlyList<(double Width, double Height)> MediaBoxes(byte[] pdf)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+
+        static double N(Group g) => double.Parse(g.Value, CultureInfo.InvariantCulture);
+
+        return MediaBox.Matches(Raw(pdf))
+                       .Select(m => (Width: N(m.Groups[3]) - N(m.Groups[1]),
+                                     Height: N(m.Groups[4]) - N(m.Groups[2])))
+                       .ToList();
+    }
 }
