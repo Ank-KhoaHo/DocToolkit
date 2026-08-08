@@ -163,6 +163,14 @@ public class RemoteImageGuardTests
     // per-test timeout.
     // =========================================================================================
 
+    /// <summary>
+    /// Attempts a timing assertion in this class gets before a failure is believed, of which the
+    /// <b>smallest</b> is kept. See the comment inside
+    /// <see cref="SlowResponse_TimesOut_RatherThanHangingTheConversion"/> for why taking the
+    /// minimum is valid rather than a way of wishing a real failure away.
+    /// </summary>
+    private const int TimingAttempts = 3;
+
     [Fact]
     public async Task SlowResponse_TimesOut_RatherThanHangingTheConversion()
     {
@@ -174,32 +182,56 @@ public class RemoteImageGuardTests
         };
 
         byte[] docx = Array.Empty<byte>();
+        var ceiling = TimeSpan.FromSeconds(5);
+        var best = TimeSpan.MaxValue;
 
-        // The stopwatch starts INSIDE the gate, and that is the whole point of this shape.
+        // Two separate noise sources have made this assertion flap, and it needs a defence against
+        // each. Neither is a tight race that occasionally loses; both are unbounded in principle.
         //
-        // RemoteDownloadGate is a process-wide SemaphoreSlim(1, 1) that serialises all ten opt-in
-        // download tests, several of which deliberately spend a full Timeout waiting on a host that
-        // never answers. Timing the RunAsync call from outside therefore measures "queued behind
-        // other tests" plus "converted", and charges the total to a threshold that only the second
-        // half is about. That is not a tight race that occasionally loses - the lock wait is
-        // unbounded in principle, and on a loaded runner it is seconds.
+        //  1. LOCK WAIT, excluded by starting the stopwatch INSIDE the gate. RemoteDownloadGate is
+        //     a process-wide SemaphoreSlim(1, 1) serialising all ten opt-in download tests, several
+        //     of which deliberately spend a full Timeout on a host that never answers. Timing
+        //     RunAsync from outside charges "queued behind other tests" to a threshold that only
+        //     "converted" is about. Measured 2026-08-07: commit 191d8f3a produced a PASS and a FAIL
+        //     on Windows from the SAME sha, the failure reporting 5.99 s.
         //
-        // Measured 2026-08-07: commit 191d8f3a produced a PASS and a FAIL on Windows from the SAME
-        // sha, on its push-triggered and pull_request-triggered runs. The failing one reported
-        // 5.99 s against a 5 s bound, for a conversion whose fetch is capped at 300 ms.
-        var elapsed = TimeSpan.Zero;
-        await RemoteDownloadGate.RunAsync(async () =>
+        //  2. CPU CONTENTION, which the fix for (1) does not touch, because it inflates the timed
+        //     region itself. Measured 2026-08-08 on a Windows runner: 5.57 s, on a pull request
+        //     that changed only README.md. xunit runs collections in parallel, and this suite has
+        //     PDF renders running beside this conversion on a 2-4 core machine.
+        //
+        // Hence best-of-N, taking the SMALLEST elapsed. Valid for the same reason it is valid in
+        // AirGapGuardTests.MeasureStallAsync: the noise is one-sided. Contention can only make the
+        // conversion slower, never faster, while an unbounded read - the defect being detected -
+        // costs the drip responder's full ~10 s on EVERY attempt and so survives the minimum.
+        //
+        // Do NOT "fix" a future failure here by raising the ceiling. 5 s is already 16x the 300 ms
+        // Timeout being asserted; the headroom is not the problem.
+        for (var attempt = 1; attempt <= TimingAttempts; attempt++)
         {
-            var stopwatch = Stopwatch.StartNew();
-            docx = await HtmlToDocxConverter.ConvertAsync(
-                $"""<p><img src="{probe.BaseUrl}/slow.bin" alt="slow" /></p>""", options);
-            elapsed = stopwatch.Elapsed;
-        });
+            var elapsed = TimeSpan.Zero;
+            await RemoteDownloadGate.RunAsync(async () =>
+            {
+                var stopwatch = Stopwatch.StartNew();
+                docx = await HtmlToDocxConverter.ConvertAsync(
+                    $"""<p><img src="{probe.BaseUrl}/slow.bin" alt="slow" /></p>""", options);
+                elapsed = stopwatch.Elapsed;
+            });
+
+            if (elapsed < best) best = elapsed;
+            _output.WriteLine(
+                $"attempt {attempt}/{TimingAttempts}: {elapsed.TotalSeconds:0.00} s "
+                + $"(best {best.TotalSeconds:0.00} s, ceiling {ceiling.TotalSeconds:0.#} s)");
+
+            // A first attempt under the ceiling has answered the question; retrying would triple
+            // the cost of the common case for nothing.
+            if (best < ceiling) break;
+        }
 
         Assert.NotEmpty(docx);
-        Assert.True(elapsed < TimeSpan.FromSeconds(5),
-            $"Took {elapsed.TotalSeconds:0.00} s against a slow-drip body with a " +
-            "300 ms Timeout - Timeout is not bounding the conversion.");
+        Assert.True(best < ceiling,
+            $"Best of {TimingAttempts} attempts was {best.TotalSeconds:0.00} s against a slow-drip "
+            + "body with a 300 ms Timeout - Timeout is not bounding the conversion.");
     }
 
     // =========================================================================================
