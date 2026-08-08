@@ -167,6 +167,36 @@ Six static classes, each stateless and safe to call concurrently, with a `byte[]
 `DocumentConversionException`. Full surface:
 **[package README](src/DocToolkit/README.md)** · [API docs](https://ank-khoaho.github.io/DocToolkit/).
 
+## Telemetry
+
+One `ActivitySource` and one `Meter`, both named `Ank.DocToolkit`:
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(t => t.AddSource(DocToolkitTelemetry.ActivitySourceName))
+    .WithMetrics(m => m.AddMeter(DocToolkitTelemetry.MeterName));
+```
+
+**Only the opt-in remote-image fetch is instrumented**, deliberately. Every other call is one
+synchronous, in-process, stateless operation that throws a typed exception on failure — you can
+time and log around it and learn everything a span would tell you.
+
+The fetch path is different: it is the only place this library touches the network, the
+allow/refuse decision happens deep inside HtmlToOpenXml's pipeline, and **a refused fetch is
+silent** — the image is skipped and your document still succeeds. On an air-gapped host every
+remote image lands there. Without telemetry there was nothing to tell you an image never arrived,
+or why.
+
+`doctoolkit.remote_image.fetches` counts attempts by outcome — `ok`, `scheme_refused`,
+`host_not_allowed`, `blocked_address`, `http_error`, `too_large`, `failed` —
+and `doctoolkit.remote_image.bytes` records the size of images that arrived.
+
+**Only the host is ever recorded, never the URL.** A query string routinely carries a signed
+token, and telemetry leaves the machine and is retained.
+
+It costs nothing when nobody subscribes, and adds **no packages** — `ActivitySource` and `Meter`
+are in the shared framework on both target frameworks.
+
 ## Known limitations
 
 Things this package deliberately does not do, or does only partly. Listed because the

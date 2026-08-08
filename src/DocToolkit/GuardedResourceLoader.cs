@@ -202,10 +202,24 @@ internal sealed class GuardedResourceLoader : IWebRequest
 
     public async Task<Resource?> FetchAsync(Uri requestUri, CancellationToken cancellationToken = default)
     {
-        if (!SupportsProtocol(requestUri.Scheme)) return null;
+        // Host, never the URL: a query string routinely carries a signed token, and telemetry
+        // leaves the machine. See the Telemetry class remarks.
+        var host = requestUri.Host;
+        using var activity = Telemetry.Source.StartActivity("RemoteImage.Fetch");
+        activity?.SetTag("server.address", host);
+        activity?.SetTag("url.scheme", requestUri.Scheme);
+
+        if (!SupportsProtocol(requestUri.Scheme))
+        {
+            Telemetry.RecordOutcome(activity, Telemetry.Outcomes.SchemeRefused, host);
+            return null;
+        }
 
         if (_allowedHosts.Count > 0 && !_allowedHosts.Contains(requestUri.Host))
+        {
+            Telemetry.RecordOutcome(activity, Telemetry.Outcomes.HostNotAllowed, host);
             return null;
+        }
 
         // Created before the DNS lookup, not after, so Timeout bounds resolution too: an attacker
         // black-holing their own authoritative nameserver would otherwise stall every fetch for the
@@ -220,6 +234,7 @@ internal sealed class GuardedResourceLoader : IWebRequest
                 await IsBlockedHostAsync(requestUri.Host, cancellationToken, timeout.Token)
                     .ConfigureAwait(false))
             {
+                Telemetry.RecordOutcome(activity, Telemetry.Outcomes.BlockedAddress, host);
                 return null;
             }
 
@@ -228,10 +243,26 @@ internal sealed class GuardedResourceLoader : IWebRequest
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
                 .ConfigureAwait(false);
 
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+            {
+                activity?.SetTag("http.response.status_code", (int)response.StatusCode);
+                Telemetry.RecordOutcome(activity, Telemetry.Outcomes.HttpError, host);
+                return null;
+            }
 
             var body = await ReadCappedAsync(response, timeout.Token).ConfigureAwait(false);
-            if (body is null) return null;
+            if (body is null)
+            {
+                // ReadCappedAsync returns null for exactly one reason: the body went past
+                // MaxBytesPerImage and was abandoned.
+                Telemetry.RecordOutcome(activity, Telemetry.Outcomes.TooLarge, host);
+                return null;
+            }
+
+            activity?.SetTag("doctoolkit.remote_image.bytes", body.Length);
+            Telemetry.RemoteImageBytes.Record(
+                body.Length, new KeyValuePair<string, object?>("server.address", host));
+            Telemetry.RecordOutcome(activity, Telemetry.Outcomes.Ok, host);
 
             return new Resource
             {
@@ -239,10 +270,16 @@ internal sealed class GuardedResourceLoader : IWebRequest
                 StatusCode = response.StatusCode,
             };
         }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             // A refused, timed-out or failed fetch skips the image; it never costs the caller
             // their document. The caller's own cancellation is not swallowed.
+            //
+            // This is the case telemetry exists for: on an air-gapped host EVERY remote image lands
+            // here, silently, and the document still succeeds. Without a span or a counter there is
+            // nothing at all to tell a consumer their images never arrived.
+            activity?.SetTag("exception.type", ex.GetType().FullName);
+            Telemetry.RecordOutcome(activity, Telemetry.Outcomes.Failed, host);
             return null;
         }
     }

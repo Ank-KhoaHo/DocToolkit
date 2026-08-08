@@ -1,5 +1,10 @@
 namespace DocToolkit
 {
+    public static class DocToolkitTelemetry
+    {
+        public const string ActivitySourceName = "Ank.DocToolkit";
+        public const string MeterName = "Ank.DocToolkit";
+    }
     public sealed class DocumentConversionException : System.Exception
     {
         public DocumentConversionException(string message) { }
