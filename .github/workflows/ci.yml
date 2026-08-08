@@ -213,6 +213,33 @@ jobs:
   # So this job publishes a real trimmed application over the real closure and RUNS it. Trim
   # breakage does not surface as a build failure: the trimmer removes a type something looks up by
   # name, and the app throws - or silently produces an empty document - at runtime only.
+  # Dockerfile.linux-test is documented as *the* Linux check, and until now nothing ran it - so it
+  # was broken more often than it was correct, silently. Measured twice: PR #107 moved properties
+  # into a root Directory.Build.props without adding it to the image's COPY list, breaking the
+  # container build for a day, and the SDK pin needed that COPY list changed again. Both were found
+  # by reading the file, which is not a process.
+  #
+  # This is NOT a duplicate of `build & test (linux)`. That job runs on a GitHub runner with the SDK
+  # preinstalled and the repository's whole working tree present. This one builds a clean image from
+  # mcr.microsoft.com/dotnet/sdk and copies in only what the Dockerfile lists, so it is the only
+  # thing that proves the container story a consumer actually deploys into - including that the COPY
+  # list is complete.
+  linux-container:
+    name: linux container build & test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The image pins the same SDK as global.json. If those drift, this build fails with
+      # "a compatible .NET SDK was not found" - which is the point, not a nuisance.
+      - name: Build the image
+        run: docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
+
+      # The Dockerfile's CMD runs the full suite. Building the image only proves it restores; a
+      # container that builds and then fails every test would pass a build-only check.
+      - name: Run the suite inside the container
+        run: docker run --rm doctoolkit-linux-test
+
   trim-guard:
     name: trimmed app publishes and runs
     runs-on: ubuntu-24.04
