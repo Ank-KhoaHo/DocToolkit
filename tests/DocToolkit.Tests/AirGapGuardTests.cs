@@ -85,6 +85,23 @@ public class AirGapGuardTests
     private static readonly TimeSpan UnroutableCeiling = TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// Attempts allowed before a stall is believed, of which <see cref="MeasureStallAsync"/> keeps
+    /// the <b>smallest</b>. Taking the minimum is valid because the noise here is one-sided:
+    /// contention on a shared runner can only make a conversion slower, never faster, while a
+    /// genuine connect timeout inflates <b>every</b> attempt and so survives the minimum intact.
+    ///
+    /// This exists because the delta alone was not enough. Measured on a macOS runner: a baseline
+    /// of 5.55 s against 13.47 s for the unroutable host — 7.92 s of apparent stall — on a test
+    /// that had already passed twice on the same code, and whose absolute cost across runs ranged
+    /// from under 5 s to 13.5 s. A fixed dial-out would be a constant; that spread is a 3-core
+    /// runner with the rest of the suite running beside it. Note also that the SECOND call was the
+    /// slower one, which is backwards from warm-up and so cannot be explained by it.
+    ///
+    /// Only paid when an attempt looks bad — a first attempt under the ceiling ends the loop.
+    /// </summary>
+    private const int StallAttempts = 3;
+
+    /// <summary>
     /// Bound on the whole timed call, so a regression that reintroduces a network fetch shows up
     /// as a failed assertion rather than as a test suite that never finishes.
     /// </summary>
@@ -549,19 +566,32 @@ public class AirGapGuardTests
     /// </summary>
     private async Task<TimeSpan> MeasureStallAsync(Func<string, Task> convert, string what)
     {
-        var baseline = await TimeBoundedAsync(
-            () => convert($"http://{RefusedBaselineHost}"), $"{what} [baseline]", RefusedBaselineHost);
+        var best = TimeSpan.MaxValue;
 
-        var elapsed = await TimeBoundedAsync(
-            () => convert($"http://{UnroutableHost}"), what, UnroutableHost);
+        for (var attempt = 1; attempt <= StallAttempts; attempt++)
+        {
+            var baseline = await TimeBoundedAsync(
+                () => convert($"http://{RefusedBaselineHost}"),
+                $"{what} [baseline]", RefusedBaselineHost);
 
-        _output.WriteLine(
-            $"{what}: {elapsed.TotalMilliseconds:0.0} ms against {UnroutableHost} minus " +
-            $"{baseline.TotalMilliseconds:0.0} ms baseline = " +
-            $"{(elapsed - baseline).TotalMilliseconds:0.0} ms of stall " +
-            $"(ceiling {UnroutableCeiling.TotalSeconds:0.#} s).");
+            var elapsed = await TimeBoundedAsync(
+                () => convert($"http://{UnroutableHost}"), what, UnroutableHost);
 
-        return elapsed - baseline;
+            var stall = elapsed - baseline;
+            if (stall < best) best = stall;
+
+            _output.WriteLine(
+                $"{what} attempt {attempt}/{StallAttempts}: {elapsed.TotalMilliseconds:0.0} ms " +
+                $"against {UnroutableHost} minus {baseline.TotalMilliseconds:0.0} ms baseline = " +
+                $"{stall.TotalMilliseconds:0.0} ms of stall (best so far " +
+                $"{best.TotalMilliseconds:0.0} ms, ceiling {UnroutableCeiling.TotalSeconds:0.#} s).");
+
+            // Retry only to disprove a suspected stall. A first attempt already under the ceiling
+            // has answered the question, and repeating it would triple the cost of the common case.
+            if (best < UnroutableCeiling) break;
+        }
+
+        return best;
     }
 
     /// <summary>

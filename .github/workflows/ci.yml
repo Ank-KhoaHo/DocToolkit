@@ -109,6 +109,18 @@ jobs:
           --logger "trx;LogFileName=${{ matrix.os }}.trx"
           --results-directory ${{ github.workspace }}/TestResults
 
+      # The gate, and deliberately not Codecov's. Codecov's own statuses would put a
+      # third-party service in the merge path of a repository that pins its SDK, pins
+      # every action by SHA and restores with --locked-mode; codecov.yml keeps that
+      # signal arriving but marks it informational. This step is what can go red.
+      #
+      # Linux only, for the same reason the Codecov upload is: the other three runners
+      # exist to catch platform-specific assumptions, not to re-measure identical
+      # coverage numbers three more times.
+      - name: Assert coverage has not regressed
+        if: matrix.label == 'linux'
+        run: python3 scripts/check-coverage.py "${{ github.workspace }}/TestResults"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
