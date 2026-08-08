@@ -64,9 +64,9 @@ public static class PresentationEditor
     /// See <see cref="Create"/> for the slide semantics.
     ///
     /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
-    /// <see cref="WorkbookEditor.CreateToFileAsync"/>: the distinct name keeps which kind of
-    /// destination a call writes to visible at the call site, rather than resting on the argument
-    /// type alone.
+    /// <see cref="WorkbookEditor.CreateToFileAsync(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}}, string, System.Threading.CancellationToken)"/>:
+    /// the distinct name keeps which kind of destination a call writes to visible at the call site,
+    /// rather than resting on the argument type alone.
     ///
     /// The deck is built completely before the output is opened. That ordering is what stops a
     /// failed build truncating a file that was already there, and it is pinned by

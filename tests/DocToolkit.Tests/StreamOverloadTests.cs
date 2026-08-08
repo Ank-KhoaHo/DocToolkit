@@ -420,6 +420,18 @@ public class StreamOverloadTests
     }
 
     [Fact]
+    public async Task WorkbookEditor_CreateAsync_WithSheets_DoesNotDisposeTheDestination()
+    {
+        var sheets = new[] { XlsxSheet.Named("Sales", new[] { new object?[] { "a", 1 } }) };
+
+        using var destination = new ForwardOnlySink();
+        await WorkbookEditor.CreateAsync(sheets, destination);
+
+        Assert.False(destination.IsDisposed);
+        Assert.True(destination.ToArray().Length > 0);
+    }
+
+    [Fact]
     public async Task WorkbookEditor_ReadCellAsync_MatchesTheByteArrayOverload()
     {
         using var source = StreamDoubles.Seekable(Xlsx);

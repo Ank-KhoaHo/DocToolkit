@@ -30,9 +30,9 @@ public static class WorkbookEditor
 
     /// <summary>
     /// Builds a workbook with one sheet populated from <paramref name="rows"/> and writes it to
-    /// <paramref name="destination"/>. See <see cref="Create"/> for the exact typing and culture
-    /// rules applied to each cell — this overload applies the identical logic, writing to
-    /// <paramref name="destination"/> instead of returning an array.
+    /// <paramref name="destination"/>. See <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>
+    /// for the exact typing and culture rules applied to each cell — this overload applies the
+    /// identical logic, writing to <paramref name="destination"/> instead of returning an array.
     ///
     /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
     /// <b>not</b> disposed, closed or sought — it belongs to the caller, and may be write-only and
@@ -82,6 +82,61 @@ public static class WorkbookEditor
                 paramName);
 
         return sheetName;
+    }
+
+    private static List<XlsxSheet> ValidateSheets(IEnumerable<XlsxSheet> sheets)
+    {
+        ArgumentNullException.ThrowIfNull(sheets);
+
+        var materialised = sheets
+            .Select((sheet, index) => sheet
+                ?? throw new ArgumentException($"Sheet {index + 1} was null.", nameof(sheets)))
+            .ToList();
+
+        if (materialised.Count == 0)
+            throw new ArgumentException(
+                "At least one sheet is required; a workbook with no worksheets is not a valid .xlsx.",
+                nameof(sheets));
+
+        // Excel compares sheet names case-insensitively, so "Data" and "data" collide.
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sheet in materialised)
+            if (!seen.Add(sheet.Name))
+                throw new ArgumentException(
+                    $"Sheet name '{sheet.Name}' appears more than once; Excel requires unique sheet names.",
+                    nameof(sheets));
+
+        return materialised;
+    }
+
+    private static MemoryStream CreateCore(List<XlsxSheet> sheets)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook();
+
+            foreach (var sheet in sheets)
+            {
+                var worksheet = workbook.Worksheets.Add(sheet.Name);
+
+                var r = 1;
+                foreach (var row in sheet.Rows)
+                {
+                    var c = 1;
+                    foreach (var value in row)
+                        SetCellValue(worksheet.Cell(r, c++), value);
+                    r++;
+                }
+            }
+
+            var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to create XLSX.", ex);
+        }
     }
 
     private static List<IEnumerable<object?>> ValidateRows(string sheetName, IEnumerable<IEnumerable<object?>> rows)
@@ -199,7 +254,8 @@ public static class WorkbookEditor
     /// library evaluates formulas.
     ///
     /// Text follows the calling thread's <see cref="System.Globalization.CultureInfo.CurrentCulture"/>
-    /// — the same rule <see cref="ReadCell"/> uses, and asymmetric with <see cref="Create"/>, which
+    /// — the same rule <see cref="ReadCell"/> uses, and asymmetric with
+    /// <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>, which
     /// deliberately writes with <see cref="System.Globalization.CultureInfo.InvariantCulture"/> so
     /// the same code produces the same file everywhere. A number such as <c>1234.5</c> reads back
     /// as <c>"1234.5"</c> under an invariant or en-US culture but <c>"1234,5"</c> under de-DE;
@@ -550,12 +606,13 @@ public static class WorkbookEditor
 
     /// <summary>
     /// Builds a workbook with one sheet populated from <paramref name="rows"/> and writes it to
-    /// <paramref name="outputPath"/>. See <see cref="Create"/> for the exact typing and culture
-    /// rules applied to each cell — this overload applies the identical logic, writing to
-    /// <paramref name="outputPath"/> instead of returning an array.
+    /// <paramref name="outputPath"/>. See <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>
+    /// for the exact typing and culture rules applied to each cell — this overload applies the
+    /// identical logic, writing to <paramref name="outputPath"/> instead of returning an array.
     ///
     /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload: <paramref
-    /// name="sheetName"/> and <paramref name="rows"/> come first, same as <see cref="CreateAsync"/>,
+    /// name="sheetName"/> and <paramref name="rows"/> come first, same as
+    /// <see cref="CreateAsync(string, IEnumerable{IEnumerable{object}}, Stream, CancellationToken)"/>,
     /// but the destination is a <c>string</c> path instead of a <c>Stream</c> — the distinct name
     /// keeps which kind of destination a call writes to visible at the call site, rather than
     /// resting on the argument type alone.
@@ -581,6 +638,70 @@ public static class WorkbookEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         var bytes = Create(sheetName, rows);
+        await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds a workbook from <paramref name="sheets"/>, one worksheet each, in sequence order.
+    /// Content comes from data rather than a template, so there is no source file to edit.
+    ///
+    /// <para>Cell typing and culture rules are identical to
+    /// <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>. A cell holding an
+    /// <see cref="XlsxFormula"/> is written as a formula — see that type for the one limit worth
+    /// knowing about cached values.</para>
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="sheets"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sheets"/> is empty, contains a null element, or names the same sheet twice.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be built.</exception>
+    public static byte[] Create(IEnumerable<XlsxSheet> sheets)
+    {
+        var materialised = ValidateSheets(sheets);
+        using var ms = CreateCore(materialised);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Builds a workbook from <paramref name="sheets"/> and writes it to
+    /// <paramref name="destination"/>. See <see cref="Create(IEnumerable{XlsxSheet})"/> for the
+    /// semantics — this overload applies identical logic.
+    ///
+    /// <para><paramref name="destination"/> is <b>written</b>, from its current position, and is
+    /// <b>not</b> disposed, closed or sought.</para>
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sheets"/> is invalid as above, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be built or written.</exception>
+    public static async Task CreateAsync(
+        IEnumerable<XlsxSheet> sheets, Stream destination, CancellationToken ct = default)
+    {
+        var materialised = ValidateSheets(sheets);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = CreateCore(materialised);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to create XLSX.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds a workbook from <paramref name="sheets"/> and writes it to
+    /// <paramref name="outputPath"/>, overwriting any existing file. See
+    /// <see cref="Create(IEnumerable{XlsxSheet})"/> for the semantics.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="sheets"/> or <paramref name="outputPath"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="sheets"/> is invalid as above, or <paramref name="outputPath"/> is empty.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be built or written.</exception>
+    public static async Task CreateToFileAsync(
+        IEnumerable<XlsxSheet> sheets, string outputPath, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = Create(sheets);
         await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
     }
 

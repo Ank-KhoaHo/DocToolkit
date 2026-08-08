@@ -279,7 +279,8 @@ internal static class DocxDocumentWriter
     }
 
     /// <summary>
-    /// Formats a cell value, handling the same types BY NAME as <see cref="WorkbookEditor.Create"/>
+    /// Formats a cell value, handling the same types BY NAME as
+    /// <see cref="WorkbookEditor.Create(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}})"/>
     /// but NOT always to the same text. See <see cref="DocxBlock.Table"/> for the measured
     /// divergences and why they are deliberate.
     ///

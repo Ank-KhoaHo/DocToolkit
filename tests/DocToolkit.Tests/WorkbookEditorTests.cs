@@ -117,6 +117,99 @@ public class WorkbookEditorTests
     }
 
     // ---------------------------------------------------------------------------------------
+    // Create(IEnumerable<XlsxSheet>) and its overloads
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Create_WithSeveralSheets_KeepsSequenceOrderAndContent()
+    {
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Summary", new[] { new object?[] { "Region", "Total" } }),
+            XlsxSheet.Named("Detail",  new[] { new object?[] { "EMEA", 1200 } }),
+            XlsxSheet.Named("Notes",   new[] { new object?[] { "n/a" } }),
+        });
+
+        // Order is asserted through SheetNames, which reads tab order - not through part order,
+        // which can disagree.
+        Assert.Equal(new[] { "Summary", "Detail", "Notes" }, WorkbookEditor.SheetNames(xlsx));
+        Assert.Equal("Region", WorkbookEditor.ReadCell(xlsx, "Summary", "A1"));
+        Assert.Equal("1200", WorkbookEditor.ReadCell(xlsx, "Detail", "B1"));
+    }
+
+    [Fact]
+    public void Create_WithSheets_WritesFormulasFoundInRows()
+    {
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Summary", new[]
+            {
+                new object?[] { 1200, 1400, XlsxFormula.From("=A1+B1") },
+            }),
+        });
+
+        Assert.Equal("2600", WorkbookEditor.ReadCell(xlsx, "Summary", "C1"));
+    }
+
+    [Fact]
+    public void Create_WithSheets_RejectsEmptyNullAndDuplicates()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.Create((IEnumerable<XlsxSheet>)null!));
+
+        // A workbook with no worksheets is not a valid .xlsx - measured, ClosedXML throws
+        // "Workbooks need at least one worksheet." Rejecting eagerly names the parameter.
+        var empty = Assert.Throws<ArgumentException>(() => WorkbookEditor.Create(Array.Empty<XlsxSheet>()));
+        Assert.Equal("sheets", empty.ParamName);
+
+        var nullElement = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.Create(new XlsxSheet[] { null! }));
+        Assert.Equal("sheets", nullElement.ParamName);
+        Assert.Contains("Sheet 1 was null.", nullElement.Message, StringComparison.Ordinal);
+
+        var rows = new[] { new object?[] { 1 } };
+        var duplicate = Assert.Throws<ArgumentException>(() => WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Data", rows),
+            XlsxSheet.Named("data", rows),   // Excel treats sheet names case-insensitively
+        }));
+        Assert.Equal("sheets", duplicate.ParamName);
+        Assert.Contains("more than once", duplicate.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithSheets_MatchesTheByteArrayOverload()
+    {
+        var sheets = new[]
+        {
+            XlsxSheet.Named("Summary", new[] { new object?[] { "Region", 1 } }),
+            XlsxSheet.Named("Detail",  new[] { new object?[] { "EMEA", 2 } }),
+        };
+
+        var expected = WorkbookEditor.Create(sheets);
+
+        using var destination = new MemoryStream();
+        await WorkbookEditor.CreateAsync(sheets, destination);
+
+        var streamed = destination.ToArray();
+        Assert.Equal(WorkbookEditor.SheetNames(expected), WorkbookEditor.SheetNames(streamed));
+        Assert.Equal(
+            WorkbookEditor.ReadCell(expected, "Detail", "A1"),
+            WorkbookEditor.ReadCell(streamed, "Detail", "A1"));
+    }
+
+    [Fact]
+    public async Task CreateToFileAsync_WithSheets_WritesAReadableWorkbook()
+    {
+        using var temp = new TempFile();
+
+        await WorkbookEditor.CreateToFileAsync(
+            new[] { XlsxSheet.Named("Summary", new[] { new object?[] { "hi" } }) },
+            temp.Path);
+
+        Assert.Equal("hi", WorkbookEditor.ReadCell(await File.ReadAllBytesAsync(temp.Path), "Summary", "A1"));
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Error handling (I-6): raw FileFormatException/ArgumentException used to escape.
     // ---------------------------------------------------------------------------------------
 
