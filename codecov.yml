@@ -1,0 +1,41 @@
+# Codecov reports; it does not gate.
+#
+# The gate is scripts/check-coverage.py, run by ci.yml's `Assert coverage has not
+# regressed` step. That choice is deliberate: this repository pins its SDK, pins every
+# action by SHA and restores with --locked-mode, so letting an external service decide
+# whether a pull request can merge would be out of character - and Codecov is only
+# half-configured here anyway, posting a "please install the app" comment rather than
+# any status check.
+#
+# Without this file Codecov applies its defaults, which include a `codecov/project`
+# status that CAN block a merge. `informational: true` is what keeps the patch-coverage
+# signal - which the local gate cannot produce, since it knows nothing about the diff -
+# arriving on pull requests without ever turning a check red.
+#
+# So: if coverage drops, `build & test (linux)` goes red. If it drops on the lines this
+# PR touched specifically, Codecov says so and nothing blocks. The floors themselves
+# live in scripts/check-coverage.py, next to the measurement that justifies them.
+
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: "condensed_header, diff, files"
+  require_changes: true
+
+# Coverage of test code is not a meaningful number, and coverlet already excludes the
+# test assemblies. Listed anyway so a future collector change cannot quietly start
+# reporting them and move the totals for reasons nobody intended.
+ignore:
+  - "tests/**"
+  - "samples/**"
+  - "spike/**"
