@@ -105,6 +105,8 @@ public class StreamOverloadTests
         "HtmlToPdfConverter.ConvertAsync(RemoteImageOptions)",
         "HtmlToPdfConverter.ConvertAsync(PageSetup)",
         "DocxToPdfConverter.ConvertAsync",
+        "XlsxToPdfConverter.ConvertAsync",
+        "PptxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
@@ -617,6 +619,10 @@ public class StreamOverloadTests
                 HtmlToPdfConverter.ConvertAsync(Html, PageSetup.Letter, destination!, ct),
             "DocxToPdfConverter.ConvertAsync" =>
                 DocxToPdfConverter.ConvertAsync(source!, destination!, ct),
+            "XlsxToPdfConverter.ConvertAsync" =>
+                XlsxToPdfConverter.ConvertAsync(source!, destination!, ct),
+            "PptxToPdfConverter.ConvertAsync" =>
+                PptxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "DocxEditor.ReplaceTextAsync" =>
                 DocxEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
             "DocxEditor.FillRowsAsync" =>
@@ -665,6 +671,8 @@ public class StreamOverloadTests
         // share the plain Docx fixture the other DocxEditor overloads use.
         "DocxEditor.FillRowsAsync" => TableDocx,
         "DocxEditor.ReplaceImageAsync" => ImageDocx,
+        "XlsxToPdfConverter.ConvertAsync" => Xlsx,
+        "PptxToPdfConverter.ConvertAsync" => Pptx,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PresentationEditor", StringComparison.Ordinal) => Pptx,
         _ => Docx,

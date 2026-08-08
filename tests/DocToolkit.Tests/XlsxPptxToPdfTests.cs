@@ -1,0 +1,206 @@
+using Xunit;
+
+namespace DocToolkit.Tests;
+
+/// <summary>
+/// XLSX → PDF and PPTX → PDF.
+///
+/// Every input here is produced by <b>DocToolkit's own writers</b> — `WorkbookEditor` writes XLSX
+/// through ClosedXML and `PptxDocumentWriter` writes PPTX itself, neither of which is OfficeIMO. A
+/// renderer that only handled documents its own library produced would be useless in this package,
+/// and nothing but this would notice.
+///
+/// Assertions go through <see cref="PdfProbe.MediaBoxes"/> rather than stopping at "the bytes start
+/// with %PDF-". A renderer that emitted one blank page would pass the weaker check, which is exactly
+/// the silent-success shape this repository keeps finding.
+/// </summary>
+public class XlsxPptxToPdfTests
+{
+    private static byte[] Workbook() => WorkbookEditor.Create("Sales", new object?[][]
+    {
+        new object?[] { "Region", "Total" },
+        new object?[] { "North", 1200 },
+        new object?[] { "South", 950 },
+    });
+
+    private static byte[] Deck(int slides) => PresentationEditor.Create(
+        Enumerable.Range(1, slides).Select(i => PptxSlide.Titled($"Slide {i}", $"Body {i}")));
+
+    // =====================================================================================
+    // XLSX
+    // =====================================================================================
+
+    [Fact]
+    public void XlsxConvert_ProducesARealPdfAtThePrintSize()
+    {
+        byte[] pdf = XlsxToPdfConverter.Convert(Workbook());
+
+        Assert.True(PdfProbe.IsPdf(pdf));
+        var boxes = PdfProbe.MediaBoxes(pdf);
+        Assert.NotEmpty(boxes);
+        Assert.All(boxes, box =>
+        {
+            Assert.Equal(612, box.Width, 0);
+            Assert.Equal(792, box.Height, 0);
+        });
+    }
+
+    [Fact]
+    public void XlsxConvert_CarriesTheCellText()
+    {
+        string text = PdfProbe.ExtractText(XlsxToPdfConverter.Convert(Workbook()));
+
+        Assert.Contains("Region", text, StringComparison.Ordinal);
+        Assert.Contains("North", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void XlsxConvert_RejectsNullAndEmptyUnwrapped()
+    {
+        Assert.Throws<ArgumentNullException>(() => XlsxToPdfConverter.Convert(null!));
+        Assert.Throws<ArgumentException>(() => XlsxToPdfConverter.Convert(Array.Empty<byte>()));
+    }
+
+    [Fact]
+    public void XlsxConvert_WrapsAFailureInDocumentConversionException()
+    {
+        Assert.Throws<DocumentConversionException>(
+            () => XlsxToPdfConverter.Convert(new byte[] { 1, 2, 3, 4 }));
+    }
+
+    [Fact]
+    public async Task XlsxConvertAsync_WritesTheSamePdfToADestination()
+    {
+        using var source = new MemoryStream(Workbook());
+        using var destination = new MemoryStream();
+
+        await XlsxToPdfConverter.ConvertAsync(source, destination);
+
+        Assert.True(PdfProbe.IsPdf(destination.ToArray()));
+        Assert.NotEmpty(PdfProbe.MediaBoxes(destination.ToArray()));
+    }
+
+    [Fact]
+    public void XlsxConvertFile_WritesThePdf()
+    {
+        string input = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid():N}.xlsx");
+        string output = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid():N}.pdf");
+        try
+        {
+            File.WriteAllBytes(input, Workbook());
+
+            XlsxToPdfConverter.ConvertFile(input, output);
+
+            Assert.True(PdfProbe.IsPdf(File.ReadAllBytes(output)));
+        }
+        finally
+        {
+            File.Delete(input);
+            File.Delete(output);
+        }
+    }
+
+    // =====================================================================================
+    // PPTX
+    // =====================================================================================
+
+    // The page count is the assertion that catches a renderer returning success after emitting one
+    // blank page. Three slides must be three pages.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void PptxConvert_ProducesOnePagePerSlide(int slides)
+    {
+        byte[] pdf = PptxToPdfConverter.Convert(Deck(slides));
+
+        Assert.True(PdfProbe.IsPdf(pdf));
+        Assert.Equal(slides, PdfProbe.MediaBoxes(pdf).Count);
+    }
+
+    // 960 x 540 is the 16:9 slide geometry PptxDocumentWriter fixes, NOT a paper size. A PDF that
+    // came back at 612 x 792 would mean the deck had been letterboxed onto US Letter.
+    [Fact]
+    public void PptxConvert_RendersAtTheSlideGeometryNotAPaperSize()
+    {
+        var boxes = PdfProbe.MediaBoxes(PptxToPdfConverter.Convert(Deck(2)));
+
+        Assert.All(boxes, box =>
+        {
+            Assert.Equal(960, box.Width, 0);
+            Assert.Equal(540, box.Height, 0);
+        });
+    }
+
+    [Fact]
+    public void PptxConvert_CarriesTheSlideText()
+    {
+        string text = PdfProbe.ExtractText(PptxToPdfConverter.Convert(Deck(2)));
+
+        Assert.Contains("Slide 1", text, StringComparison.Ordinal);
+        Assert.Contains("Slide 2", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PptxConvert_RejectsNullAndEmptyUnwrapped()
+    {
+        Assert.Throws<ArgumentNullException>(() => PptxToPdfConverter.Convert(null!));
+        Assert.Throws<ArgumentException>(() => PptxToPdfConverter.Convert(Array.Empty<byte>()));
+    }
+
+    [Fact]
+    public void PptxConvert_WrapsAFailureInDocumentConversionException()
+    {
+        Assert.Throws<DocumentConversionException>(
+            () => PptxToPdfConverter.Convert(new byte[] { 1, 2, 3, 4 }));
+    }
+
+    [Fact]
+    public async Task PptxConvertAsync_WritesThePdfToADestination()
+    {
+        using var source = new MemoryStream(Deck(2));
+        using var destination = new MemoryStream();
+
+        await PptxToPdfConverter.ConvertAsync(source, destination);
+
+        Assert.Equal(2, PdfProbe.MediaBoxes(destination.ToArray()).Count);
+    }
+
+    [Fact]
+    public void PptxConvertFile_WritesThePdf()
+    {
+        string input = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid():N}.pptx");
+        string output = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid():N}.pdf");
+        try
+        {
+            File.WriteAllBytes(input, Deck(2));
+
+            PptxToPdfConverter.ConvertFile(input, output);
+
+            Assert.Equal(2, PdfProbe.MediaBoxes(File.ReadAllBytes(output)).Count);
+        }
+        finally
+        {
+            File.Delete(input);
+            File.Delete(output);
+        }
+    }
+
+    // =====================================================================================
+    // The offline guarantee, pinned at its source.
+    //
+    // AirGapGuardTests counts sockets, which is the behavioural proof. This asserts the POLICY
+    // OBJECT the converters hand the renderer, because the two say different things: a socket count
+    // of zero is also what you get from a document that happened to reference nothing, whereas this
+    // fails the moment somebody constructs the options without the flags.
+    // =====================================================================================
+
+    [Fact]
+    public void ResourcePolicy_RefusesRemoteAndLocalResources()
+    {
+        var (remote, local) = PdfRenderPolicy.DescribeForTests();
+
+        Assert.False(remote, "AllowRemoteResourceResolution must be false - this package never fetches.");
+        Assert.False(local, "AllowLocalFileAccess must be false - a document must not read the host's disk.");
+    }
+}
