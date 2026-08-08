@@ -107,10 +107,34 @@ def read_rows(path):
 
 
 def write_rows(path, header, rows):
-    with open(path, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(header))
-        writer.writeheader()
-        writer.writerows(rows)
+    """Write via a temp file and an atomic replace.
+
+    `open(path, "w")` truncates before a single row is written, so a
+    DictWriter that raises partway - a row carrying a field the header does
+    not declare, say - leaves the file empty. Measured: a runs.csv holding a
+    legitimate prior row was reduced to its header alone, and because the
+    caller catches that exception it was reported as "continuing" while the
+    history was already gone.
+
+    This matters most for downloads.csv. Run counts can be rebuilt any time
+    with `gh run list --created <date>`; download counts cannot, because the
+    search API serves only the current cumulative total. A truncated
+    downloads.csv is history nothing can reconstruct.
+
+    os.replace is atomic on both POSIX and Windows, so the original file
+    survives untouched unless the whole new file was written successfully.
+    """
+    tmp = f"{path}.tmp"
+    try:
+        with open(tmp, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(header))
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
 
 
 def upsert(rows, new_rows, key_fields):
