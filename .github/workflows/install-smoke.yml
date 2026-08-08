@@ -1,0 +1,154 @@
+name: Install smoke test
+
+# Proves a consumer can actually install and run the PUBLISHED packages.
+#
+# Nothing else here does that. `build & test` compiles the working tree; the samples reference the
+# published package but build on a runner that may already have it cached, so they prove the API
+# still compiles rather than that a fresh `dotnet add package` works. The gap this closes is real:
+# a package can be published, indexed, and still unusable — a broken .nuspec dependency range, a
+# missing lib/ folder for one target framework, an icon or readme path that fails validation.
+#
+# Deliberately does NOT check out the repository. A clean-machine test that uses repo files is not
+# a clean-machine test: it would pick up global.json, Directory.Build.props and NuGet.config, none
+# of which a consumer has. Everything below is created from nothing.
+
+on:
+  # After a release, because that is when this can newly break.
+  release:
+    types: [published]
+  # Weekly, because it can also break without us doing anything — a delisted transitive dependency,
+  # or a package validation change at nuget.org.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: install from nuget.org and run
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.302
+
+      # A fresh package folder, so a runner-cached copy cannot make this pass. This is the exact
+      # weakness that stops the samples from covering it.
+      - name: Use an empty NuGet cache
+        run: echo "NUGET_PACKAGES=${{ runner.temp }}/empty-nuget-cache" >> "$GITHUB_ENV"
+
+      # On `release: published` the tag exists but nuget.org may not have indexed the package yet -
+      # measured on 0.12.0, indexing lagged the workflow by minutes. Waiting is not flakiness
+      # tolerance; the alternative is a job that fails for a reason that resolves itself.
+      - name: Wait for the package to be indexed
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -sf https://api.nuget.org/v3-flatcontainer/ank.doctoolkit/index.json | grep -q '"[0-9]'; then
+              echo "index reachable after $attempt attempt(s)"
+              curl -sf https://api.nuget.org/v3-flatcontainer/ank.doctoolkit/index.json | tail -c 200
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::ank.doctoolkit is not on nuget.org after 10 minutes."
+          exit 1
+
+      # `dotnet new console` in a temp directory, outside any checkout, is what a consumer starting
+      # from nothing actually does.
+      - name: Create an empty project and install the DI package alone
+        run: |
+          mkdir -p "${{ runner.temp }}/consumer" && cd "${{ runner.temp }}/consumer"
+          dotnet new console -o app
+          cd app
+          # Added ALONE, deliberately: the core package must arrive transitively. Adding both at
+          # once would hide a broken dependency range in the .nuspec.
+          dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
+
+      # Two different claims, and only the first is about transitivity.
+      #
+      # The extensions package declares a FLOOR on the core package, and NuGet resolves a floor to
+      # the LOWEST satisfying version - so a consumer who installs only the DI package gets the
+      # oldest core it still supports, not the newest. Measured 2026-08-08 with extensions 0.12.0:
+      # they get core 0.11.0. That is the documented, deliberate consequence of floors (raising one
+      # narrows who can consume the package), but it means a DI-only consumer does NOT automatically
+      # get the newest API - which is worth failing loudly on if core ever stops arriving at all.
+      - name: Assert the core package arrives transitively
+        run: |
+          cd "${{ runner.temp }}/consumer/app"
+          dotnet list package --include-transitive > graph.txt
+          cat graph.txt
+          if ! grep -qE '^\s*>\s*Ank\.DocToolkit\s' graph.txt; then
+            echo "::error::Ank.DocToolkit did not arrive transitively through the extensions package. Its .nuspec dependency on the core package is broken."
+            exit 1
+          fi
+          echo "core arrives transitively as: $(grep -oE 'Ank\.DocToolkit\s+[0-9.]+' graph.txt | head -1)"
+
+      # Now add the core package explicitly, so the program below can exercise the CURRENT API.
+      # Without this it would compile against whatever the floor resolved to, and a test of the
+      # newest release would silently be testing an older one.
+      - name: Add the core package explicitly, at its newest published version
+        run: |
+          cd "${{ runner.temp }}/consumer/app"
+          dotnet add package Ank.DocToolkit
+          dotnet add package Microsoft.Extensions.DependencyInjection
+          dotnet list package
+
+      - name: Write a program that uses every capability
+        run: |
+          cat > "${{ runner.temp }}/consumer/app/Program.cs" <<'PROGRAM'
+          using DocToolkit;
+          using DocToolkit.Extensions.DependencyInjection;
+          using Microsoft.Extensions.DependencyInjection;
+
+          static void Check(bool ok, string what)
+          {
+              Console.WriteLine($"{(ok ? "ok  " : "FAIL")} {what}");
+              if (!ok) Environment.Exit(1);
+          }
+
+          // Static API, straight from the transitively-arrived core package.
+          byte[] docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("Hello from a fresh install.") });
+          Check(DocxEditor.ExtractText(docx).Contains("fresh install"), "DocxEditor.Create + ExtractText");
+
+          byte[] xlsx = WorkbookEditor.Create(new[]
+          {
+              XlsxSheet.Named("S", new[] { new object?[] { "n", 41 } }),
+          });
+          Check(WorkbookEditor.ReadCell(xlsx, "S", "B1") == "41", "WorkbookEditor.Create(sheets)");
+
+          byte[] pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Title", "bullet") });
+          Check(PresentationEditor.SlideCount(pptx) == 1, "PresentationEditor.Create");
+
+          byte[] pdf = DocxToPdfConverter.Convert(docx);
+          Check(pdf.Length > 1000 && pdf[0] == (byte)'%', "DocxToPdfConverter.Convert");
+
+          // The DI package, through a real container.
+          var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+          var editor = provider.GetRequiredService<IWorkbookEditor>();
+          Check(editor.ReadCell(xlsx, "S", "B1") == "41", "IWorkbookEditor resolved from the container");
+
+          Console.WriteLine("A fresh install of both packages works.");
+          PROGRAM
+          cd "${{ runner.temp }}/consumer/app" && dotnet run -c Release
+
+      # The premise a consumer is buying. Checked here rather than only in the repo's own build,
+      # because this is the graph THEY get.
+      - name: Assert the consumer's output has no native binaries
+        run: |
+          cd "${{ runner.temp }}/consumer/app"
+          mapfile -t native < <(find . -path '*/bin/*' \
+            \( -name '*.so' -o -name '*.so.*' -o -name '*.dylib' \) -print)
+          printf 'native binaries in a consumer build: %d\n' "${#native[@]}"
+          if [ "${#native[@]}" -ne 0 ]; then
+            printf '  %s\n' "${native[@]}"
+            echo "::error::The published packages put native binaries into a consumer's output."
+            exit 1
+          fi
