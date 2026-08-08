@@ -250,8 +250,11 @@ public static class WorkbookEditor
     /// strings rather than being dropped, which keeps <c>rows[r][c]</c> positionally meaningful.
     ///
     /// Values are produced exactly as <see cref="ReadCell"/> produces them, so the two can never
-    /// disagree about what a cell says. A formula cell yields its cached value: nothing in this
-    /// library evaluates formulas.
+    /// disagree about what a cell says. A formula cell's value comes from ClosedXML evaluating
+    /// the formula on read, not from a cache: this library writes a formula with no cached value
+    /// (see <see cref="XlsxFormula"/>), so e.g. a cell holding <c>=A1+A2</c> over 1 and 2 reads
+    /// back as <c>"3"</c>, and a formula that cannot be evaluated reads back as its Excel error
+    /// string (<c>#DIV/0!</c>, <c>#NAME?</c>, <c>#REF!</c>) rather than throwing.
     ///
     /// Text follows the calling thread's <see cref="System.Globalization.CultureInfo.CurrentCulture"/>
     /// — the same rule <see cref="ReadCell"/> uses, and asymmetric with
@@ -460,7 +463,11 @@ public static class WorkbookEditor
         }
     }
 
-    /// <summary>Sets a cell and returns the updated workbook bytes.</summary>
+    /// <summary>
+    /// Sets a cell and returns the updated workbook bytes. A cell holding an
+    /// <see cref="XlsxFormula"/> is written as a formula instead of a literal value — see that
+    /// type for the one limit worth knowing about cached values.
+    /// </summary>
     /// <exception cref="ArgumentNullException">Any argument other than <paramref name="value"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or a name is blank.</exception>
     /// <exception cref="DocumentConversionException">
@@ -487,7 +494,9 @@ public static class WorkbookEditor
 
     /// <summary>
     /// Reads a workbook from <paramref name="source"/>, sets one cell, and writes the result to
-    /// <paramref name="destination"/>. <paramref name="cellRef"/> is an A1-style reference.
+    /// <paramref name="destination"/>. <paramref name="cellRef"/> is an A1-style reference. A cell
+    /// holding an <see cref="XlsxFormula"/> is written as a formula instead of a literal value —
+    /// see that type for the one limit worth knowing about cached values.
     ///
     /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
     /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
@@ -495,7 +504,10 @@ public static class WorkbookEditor
     /// <param name="source">The stream the workbook is read from.</param>
     /// <param name="sheetName">The sheet containing the cell.</param>
     /// <param name="cellRef">An A1-style cell reference, e.g. <c>"B2"</c>.</param>
-    /// <param name="value">The value to write. <c>null</c> clears the cell.</param>
+    /// <param name="value">
+    /// The value to write. <c>null</c> clears the cell; an <see cref="XlsxFormula"/> writes a
+    /// formula.
+    /// </param>
     /// <param name="destination">The stream the updated workbook is written to.</param>
     /// <param name="ct">Cancels the read, the edit and the write.</param>
     /// <exception cref="ArgumentNullException">
@@ -590,7 +602,11 @@ public static class WorkbookEditor
     /// no-op that still returns a valid workbook.</para>
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="rows"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, <paramref name="sheetName"/> is empty, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty; <paramref name="sheetName"/> is blank, is longer than 31
+    /// characters, or contains one of <c>: \ / ? * [ ]</c>; or an element of <paramref name="rows"/>
+    /// is null.
+    /// </exception>
     /// <exception cref="DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
     public static byte[] AppendRows(byte[] xlsx, string sheetName, IEnumerable<IEnumerable<object?>> rows)
     {
@@ -617,7 +633,11 @@ public static class WorkbookEditor
     /// <param name="destination">The stream the updated workbook is written to.</param>
     /// <param name="ct">Cancels the read, the edit and the write.</param>
     /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/> is not writable, <paramref name="sheetName"/> is empty, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes; <paramref name="destination"/>
+    /// is not writable; <paramref name="sheetName"/> is blank, is longer than 31 characters, or
+    /// contains one of <c>: \ / ? * [ ]</c>; or an element of <paramref name="rows"/> is null.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
     public static async Task AppendRowsAsync(
@@ -650,7 +670,15 @@ public static class WorkbookEditor
     /// <param name="rows">The rows to append.</param>
     /// <param name="ct">Cancels the read and the write.</param>
     /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="inputPath"/>, <paramref name="outputPath"/> or <paramref name="sheetName"/> is empty, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="inputPath"/> or <paramref name="outputPath"/> is blank; <paramref name="sheetName"/>
+    /// is blank, is longer than 31 characters, or contains one of <c>: \ / ? * [ ]</c>; or an
+    /// element of <paramref name="rows"/> is null.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
     public static async Task AppendRowsAsync(
@@ -794,9 +822,12 @@ public static class WorkbookEditor
     /// <param name="sheets">The sheets to build the workbook from, one worksheet each.</param>
     /// <param name="destination">The stream the workbook is written to.</param>
     /// <param name="ct">Cancels the build and the write to <paramref name="destination"/>.</param>
-    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="sheets"/> or <paramref name="destination"/> is null.
+    /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="sheets"/> is invalid as above, or <paramref name="destination"/> is not writable.
+    /// <paramref name="sheets"/> is empty, contains a null element, or names the same sheet
+    /// twice; or <paramref name="destination"/> is not writable.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be built or written.</exception>
@@ -820,7 +851,11 @@ public static class WorkbookEditor
     /// <param name="outputPath">Where to write the workbook. Overwritten if it exists.</param>
     /// <param name="ct">Cancels the write to <paramref name="outputPath"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="sheets"/> or <paramref name="outputPath"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="sheets"/> is invalid as above, or <paramref name="outputPath"/> is empty.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sheets"/> is empty, contains a null element, or names the same sheet
+    /// twice; or <paramref name="outputPath"/> is blank.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be built or written.</exception>
     public static async Task CreateToFileAsync(
@@ -834,8 +869,10 @@ public static class WorkbookEditor
 
     /// <summary>
     /// Reads a workbook from <paramref name="inputPath"/>, sets one cell, and writes the result to
-    /// <paramref name="outputPath"/>. <paramref name="cellRef"/> is an A1-style reference. The two
-    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/>. <paramref name="cellRef"/> is an A1-style reference. A cell
+    /// holding an <see cref="XlsxFormula"/> is written as a formula instead of a literal value —
+    /// see that type for the one limit worth knowing about cached values. The two paths may be
+    /// the same file: the updated bytes are computed in full before
     /// <paramref name="outputPath"/> is opened, so a workbook that fails to process — cannot be
     /// read, or cannot be edited — leaves <paramref name="outputPath"/> untouched. That guarantee
     /// does not extend to a failure during the write itself: a full disk, a cancellation, or the
@@ -846,7 +883,10 @@ public static class WorkbookEditor
     /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
     /// <param name="sheetName">The sheet containing the cell.</param>
     /// <param name="cellRef">An A1-style cell reference, e.g. <c>"B2"</c>.</param>
-    /// <param name="value">The value to write. <c>null</c> clears the cell.</param>
+    /// <param name="value">
+    /// The value to write. <c>null</c> clears the cell; an <see cref="XlsxFormula"/> writes a
+    /// formula.
+    /// </param>
     /// <param name="ct">Cancels the read and the write.</param>
     /// <exception cref="ArgumentNullException">A path or a name is null.</exception>
     /// <exception cref="ArgumentException">

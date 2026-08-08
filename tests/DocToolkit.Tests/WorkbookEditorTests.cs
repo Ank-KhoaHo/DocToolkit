@@ -784,13 +784,24 @@ public class WorkbookEditorTests
     }
 
     [Fact]
-    public void XlsxSheet_Named_MaterialisesRowsEagerly()
+    public void XlsxSheet_Named_DeepCopiesRowsSoLaterMutationDoesNotAffectTheSheet()
     {
-        var sheet = XlsxSheet.Named("Summary", new[]
+        var row1 = new object?[] { "EMEA", 1200 };
+        var rows = new List<IEnumerable<object?>>
         {
             new object?[] { "Region", "Total" },
-            new object?[] { "EMEA", 1200 },
-        });
+            row1,
+        };
+
+        var sheet = XlsxSheet.Named("Summary", rows);
+
+        // Mutate the caller's data after construction - the outer sequence (replace an element
+        // wholesale) and a row's own array (mutate an element inside it). If either mutation were
+        // visible in sheet.Rows, this proves materialisation was shallow rather than deep; a test
+        // that never mutates after construction cannot tell eager-but-shallow apart from deep.
+        rows[1] = new object?[] { "REPLACED", -1 };
+        row1[0] = "MUTATED";
+        row1[1] = -999;
 
         Assert.Equal("Summary", sheet.Name);
         Assert.Equal(2, sheet.Rows.Count);

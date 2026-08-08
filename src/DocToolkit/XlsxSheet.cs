@@ -28,7 +28,8 @@ public sealed class XlsxSheet
 
     /// <summary>
     /// Creates a sheet. <paramref name="rows"/> is materialised immediately, so a lazy or
-    /// single-pass sequence is safe to pass.
+    /// single-pass sequence is safe to pass. Both the sequence and each row are deep-copied here;
+    /// mutating the caller's collection, or a row within it, afterwards does not change the sheet.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="rows"/> is null.</exception>
     /// <exception cref="ArgumentException">
