@@ -328,6 +328,33 @@ jobs:
   # Proves the docs site actually builds before it can reach docs.yml, which only
   # runs after an irreversible nuget publish - a bad docfx.json edit or doc-comment
   # regression should fail here, not surface after release.
+  # Keeps the tree matching .editorconfig. Cheap: measured 2026-08-08, the whole solution had
+  # exactly three whitespace deviations, all in one file, and one was a genuinely misaligned comment
+  # continuation rather than a stylistic quibble.
+  #
+  # `dotnet format` is NOT the same lever as AnalysisMode, and conflating them would be expensive.
+  # Raising AnalysisMode to Recommended is 1622 warnings on this tree - 1400 of them CA1707 against
+  # the deliberate Method_Behaviour test names (see CLAUDE.md). This job is whitespace and the
+  # .editorconfig rules only.
+  format:
+    name: formatting
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.302
+
+      - name: Assert the tree matches .editorconfig
+        run: |
+          if ! dotnet format ${{ env.SOLUTION }} --verify-no-changes; then
+            echo "::error::Formatting does not match .editorconfig. Run 'dotnet format ${{ env.SOLUTION }}' and commit the result."
+            exit 1
+          fi
+
   docs-build:
     name: build docs site
     runs-on: ubuntu-24.04
