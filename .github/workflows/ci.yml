@@ -92,6 +92,18 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
+          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
+          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
+          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
+          # on every job of every run.
+          #
+          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
+          # version with no lockfile pinning it, so NuGet still queries the feed to
+          # resolve what `*` means; a genuinely new release is not in the cache and is
+          # still fetched. The cache suppresses re-downloads, not resolution.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION }}
@@ -153,6 +165,18 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
+          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
+          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
+          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
+          # on every job of every run.
+          #
+          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
+          # version with no lockfile pinning it, so NuGet still queries the feed to
+          # resolve what `*` means; a genuinely new release is not in the cache and is
+          # still fetched. The cache suppresses re-downloads, not resolution.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       # The other premise guards check WHAT the resolved graph contains. This one
       # checks it is the graph we agreed to. --locked-mode fails rather than
@@ -281,6 +305,18 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
+          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
+          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
+          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
+          # on every job of every run.
+          #
+          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
+          # version with no lockfile pinning it, so NuGet still queries the feed to
+          # resolve what `*` means; a genuinely new release is not in the cache and is
+          # still fetched. The cache suppresses re-downloads, not resolution.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Trim-publish the probe
         run: |
@@ -404,6 +440,18 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
+          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
+          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
+          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
+          # on every job of every run.
+          #
+          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
+          # version with no lockfile pinning it, so NuGet still queries the feed to
+          # resolve what `*` means; a genuinely new release is not in the cache and is
+          # still fetched. The cache suppresses re-downloads, not resolution.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Assert the tree matches .editorconfig
         run: |
@@ -423,6 +471,18 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
+          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
+          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
+          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
+          # on every job of every run.
+          #
+          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
+          # version with no lockfile pinning it, so NuGet still queries the feed to
+          # resolve what `*` means; a genuinely new release is not in the cache and is
+          # still fetched. The cache suppresses re-downloads, not resolution.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       # The version lives in .config/dotnet-tools.json, not here. It used to be written
       # in this file AND in the other workflow, with nothing keeping the two in step.
@@ -458,6 +518,18 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
+          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
+          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
+          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
+          # on every job of every run.
+          #
+          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
+          # version with no lockfile pinning it, so NuGet still queries the feed to
+          # resolve what `*` means; a genuinely new release is not in the cache and is
+          # still fetched. The cache suppresses re-downloads, not resolution.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Pack
         run: dotnet pack ${{ matrix.project }} -c Release
