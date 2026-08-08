@@ -250,11 +250,22 @@ public static class WorkbookEditor
     /// strings rather than being dropped, which keeps <c>rows[r][c]</c> positionally meaningful.
     ///
     /// Values are produced exactly as <see cref="ReadCell"/> produces them, so the two can never
-    /// disagree about what a cell says. A formula cell's value comes from ClosedXML evaluating
-    /// the formula on read, not from a cache: this library writes a formula with no cached value
-    /// (see <see cref="XlsxFormula"/>), so e.g. a cell holding <c>=A1+A2</c> over 1 and 2 reads
-    /// back as <c>"3"</c>, and a formula that cannot be evaluated reads back as its Excel error
-    /// string (<c>#DIV/0!</c>, <c>#NAME?</c>, <c>#REF!</c>) rather than throwing.
+    /// disagree about what a cell says. A formula cell reads back one of two ways, and which one
+    /// depends on the file rather than on this library:
+    ///
+    /// <list type="bullet">
+    /// <item><description>
+    /// <b>If the file carries a cached value</b>, as one Excel has saved does, that cached value is
+    /// returned and the formula is <b>not</b> evaluated. It can therefore be stale — a workbook
+    /// whose inputs were edited by something that did not recalculate reports the old result.
+    /// </description></item>
+    /// <item><description>
+    /// <b>If it does not</b> — which is what this library writes, see <see cref="XlsxFormula"/> —
+    /// ClosedXML evaluates the formula on read, so a cell holding <c>=A1+A2</c> over 1 and 2 reads
+    /// back as <c>"3"</c>, and one that cannot be evaluated reads back as its Excel error string
+    /// (<c>#DIV/0!</c>, <c>#NAME?</c>, <c>#REF!</c>) rather than throwing.
+    /// </description></item>
+    /// </list>
     ///
     /// Text follows the calling thread's <see cref="System.Globalization.CultureInfo.CurrentCulture"/>
     /// — the same rule <see cref="ReadCell"/> uses, and asymmetric with
