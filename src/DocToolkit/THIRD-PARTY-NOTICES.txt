@@ -60,7 +60,11 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - HtmlToOpenXml.dll 3.5.0 - MIT (direct) - https://github.com/onizet/html2openxml
 - Microsoft.Extensions.Logging.Abstractions 6.0.0 - MIT (transitive) - https://github.com/dotnet/runtime
 - OfficeIMO.Core 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Excel 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Excel.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Pdf 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.PowerPoint 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.PowerPoint.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - RBush.Signed 4.0.0 - MIT (transitive) - https://github.com/viceroypenguin/RBush
@@ -68,7 +72,7 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - System.IO.Packaging 10.0.2 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 
-Totals: 16 packages (5 direct, 11 transitive) - 1 Apache-2.0, 15 MIT.
+Totals: 20 packages (7 direct, 13 transitive) - 1 Apache-2.0, 19 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---

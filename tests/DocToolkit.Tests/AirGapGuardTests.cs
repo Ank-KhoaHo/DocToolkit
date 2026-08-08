@@ -443,6 +443,54 @@ public class AirGapGuardTests
         await probe.AssertSilentAsync("DocxEditor.ReplaceImage / ReplaceImageAsync");
     }
 
+    // The two PDF renderers added for A6-BUILD. These reuse the SAME external-reference
+    // fixtures the editors above are driven with - a workbook carrying a real external
+    // hyperlink relationship and a formula referencing another workbook over http, and a deck
+    // carrying external relationships - because the question is identical: given a document
+    // that asks to be told what is on another machine, does anything dial out.
+    //
+    // MEASURED LIMIT OF THESE TWO, recorded so nobody credits them with more than they prove:
+    // flipping BOTH policy flags to true and re-running leaves them passing. Nothing dials out
+    // either way, because an Excel external-link relationship and a PPTX external relationship
+    // are not resources this renderer resolves - it renders cells and shapes, not link targets.
+    //
+    // So these assert that nothing dials TODAY, and would catch a future renderer that started
+    // fetching. They are NOT evidence that PdfRenderPolicy is what prevents it. The flag is
+    // pinned separately and mutation-verified by
+    // XlsxPptxToPdfTests.ResourcePolicy_RefusesRemoteAndLocalResources, which DOES fail when a
+    // flag is flipped. Two tests, two different claims; neither substitutes for the other.
+    [Fact]
+    public async Task XlsxToPdfConverter_ContactsNothing()
+    {
+        using var probe = new LoopbackProbe(_output);
+
+        byte[] pdf = XlsxToPdfConverter.Convert(WorkbookWithExternalReferences(probe.BaseUrl));
+        Assert.True(PdfProbe.IsPdf(pdf));
+
+        using var source = new MemoryStream(WorkbookWithExternalReferences(probe.BaseUrl));
+        using var destination = new MemoryStream();
+        await XlsxToPdfConverter.ConvertAsync(source, destination);
+        Assert.NotEmpty(destination.ToArray());
+
+        await probe.AssertSilentAsync("XlsxToPdfConverter.Convert / ConvertAsync");
+    }
+
+    [Fact]
+    public async Task PptxToPdfConverter_ContactsNothing()
+    {
+        using var probe = new LoopbackProbe(_output);
+
+        byte[] pdf = PptxToPdfConverter.Convert(PptxWithExternalReferences(probe.BaseUrl));
+        Assert.True(PdfProbe.IsPdf(pdf));
+
+        using var source = new MemoryStream(PptxWithExternalReferences(probe.BaseUrl));
+        using var destination = new MemoryStream();
+        await PptxToPdfConverter.ConvertAsync(source, destination);
+        Assert.NotEmpty(destination.ToArray());
+
+        await probe.AssertSilentAsync("PptxToPdfConverter.Convert / ConvertAsync");
+    }
+
     [Fact]
     public async Task WorkbookEditor_ContactsNothing()
     {

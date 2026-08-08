@@ -90,6 +90,12 @@ namespace DocToolkit
         public string Title { get; }
         public static DocToolkit.PptxSlide Titled(string title, params string[] bullets) { }
     }
+    public static class PptxToPdfConverter
+    {
+        public static byte[] Convert(byte[] pptx) { }
+        public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static void ConvertFile(string inputPath, string outputPath) { }
+    }
     public static class PresentationEditor
     {
         public static byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.PptxSlide> slides) { }
@@ -147,5 +153,11 @@ namespace DocToolkit
         public string Name { get; }
         public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<object?>> Rows { get; }
         public static DocToolkit.XlsxSheet Named(string name, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
+    }
+    public static class XlsxToPdfConverter
+    {
+        public static byte[] Convert(byte[] xlsx) { }
+        public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static void ConvertFile(string inputPath, string outputPath) { }
     }
 }
