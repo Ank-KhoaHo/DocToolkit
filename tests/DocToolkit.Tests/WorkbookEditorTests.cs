@@ -816,4 +816,106 @@ public class WorkbookEditorTests
         Assert.Equal("rows", nullRow.ParamName);
         Assert.Contains("Row 1 was null.", nullRow.Message, StringComparison.Ordinal);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // AppendRows and its overloads
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AppendRows_AddsAfterTheLastUsedRow()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[]
+        {
+            new object?[] { "when", "what" },
+            new object?[] { "09:00", "started" },
+        });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", new[]
+        {
+            new object?[] { "09:05", "continued" },
+            new object?[] { "09:10", "finished" },
+        });
+
+        var sheet = WorkbookEditor.ReadSheet(appended, "Log");
+        Assert.Equal(4, sheet.Count);
+        Assert.Equal(new[] { "09:05", "continued" }, sheet[2]);
+        Assert.Equal(new[] { "09:10", "finished" }, sheet[3]);
+    }
+
+    [Fact]
+    public void AppendRows_LeavesOtherSheetsAlone()
+    {
+        // "The appended rows are right" would pass while a second sheet silently vanished, so the
+        // other sheet is asserted directly.
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Log",   new[] { new object?[] { "start" } }),
+            XlsxSheet.Named("Notes", new[] { new object?[] { "keep me" } }),
+        });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", new[] { new object?[] { "more" } });
+
+        Assert.Equal(new[] { "Log", "Notes" }, WorkbookEditor.SheetNames(appended));
+        Assert.Equal("keep me", WorkbookEditor.ReadCell(appended, "Notes", "A1"));
+    }
+
+    [Fact]
+    public void AppendRows_WithFormulas_WritesThemAsFormulas()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new[] { new object?[] { 10, 20 } });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Data", new[]
+        {
+            new object?[] { 30, 40, XlsxFormula.From("=A1+B1") },
+        });
+
+        Assert.Equal("30", WorkbookEditor.ReadCell(appended, "Data", "A2"));
+        Assert.Equal("30", WorkbookEditor.ReadCell(appended, "Data", "C2"));
+    }
+
+    [Fact]
+    public void AppendRows_WithNoRows_IsANoOpThatStillReturnsAValidWorkbook()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "only" } });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", Array.Empty<IEnumerable<object?>>());
+
+        Assert.Single(WorkbookEditor.ReadSheet(appended, "Log"));
+        Assert.Equal("only", WorkbookEditor.ReadCell(appended, "Log", "A1"));
+    }
+
+    [Fact]
+    public void AppendRows_RejectsBadInput()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { 1 } });
+        var rows = new[] { new object?[] { 2 } };
+
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.AppendRows(null!, "Log", rows));
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.AppendRows(xlsx, "Log", null!));
+        Assert.Equal("sheetName", Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AppendRows(xlsx, "  ", rows)).ParamName);
+
+        // A missing sheet is a DocumentConversionException, matching the existing Sheet() helper
+        // that ReadSheet, ReadCell and SetCell all use. One convention for one mistake.
+        var missing = Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AppendRows(xlsx, "Nope", rows));
+        Assert.Contains("'Nope'", missing.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AppendRowsAsync_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "a" } });
+        var rows = new[] { new object?[] { "b" } };
+
+        var expected = WorkbookEditor.AppendRows(xlsx, "Log", rows);
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        await WorkbookEditor.AppendRowsAsync(source, "Log", rows, destination);
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(expected, "Log"),
+            WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
+    }
 }

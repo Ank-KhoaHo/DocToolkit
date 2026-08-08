@@ -3,7 +3,8 @@ namespace DocToolkit;
 /// <summary>
 /// A cell value meaning "this cell holds a formula". Use it anywhere a cell value is accepted —
 /// inside <see cref="XlsxSheet"/> rows, inside rows passed to
-/// <c>WorkbookEditor.AppendRows</c>, or as the value argument to
+/// <see cref="WorkbookEditor.AppendRows(byte[], string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}})"/>,
+/// or as the value argument to
 /// <see cref="WorkbookEditor.SetCell(byte[], string, string, object?)"/>.
 ///
 /// <para><b>No cached result is written.</b> The file carries the formula and nothing else.

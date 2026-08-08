@@ -544,6 +544,122 @@ public static class WorkbookEditor
         }
     }
 
+    private static MemoryStream AppendRowsCore(
+        Stream xlsx, string sheetName, List<IEnumerable<object?>> rows)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook(xlsx);
+            var sheet = Sheet(workbook, sheetName);
+
+            // LastRowUsed() is null for an empty sheet, in which case appending starts at row 1.
+            var r = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+            foreach (var row in rows)
+            {
+                r++;
+                var c = 1;
+                foreach (var value in row)
+                    SetCellValue(sheet.Cell(r, c++), value);
+            }
+
+            var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to edit XLSX.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Appends <paramref name="rows"/> to <paramref name="sheetName"/>, starting immediately after
+    /// its last used row, and returns the updated workbook. Every other sheet, and all existing
+    /// formatting, is left as it was.
+    ///
+    /// <para>Cell typing and culture rules are identical to
+    /// <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>. A cell holding an
+    /// <see cref="XlsxFormula"/> is written as a formula. An empty <paramref name="rows"/> is a
+    /// no-op that still returns a valid workbook.</para>
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, <paramref name="sheetName"/> is empty, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
+    public static byte[] AppendRows(byte[] xlsx, string sheetName, IEnumerable<IEnumerable<object?>> rows)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        var materialised = ValidateRows(sheetName, rows);
+        if (xlsx.Length == 0)
+            throw new ArgumentException("Workbook was empty.", nameof(xlsx));
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var ms = AppendRowsCore(source, sheetName, materialised);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, appends <paramref name="rows"/> to
+    /// <paramref name="sheetName"/> after its last used row, and writes the result to
+    /// <paramref name="destination"/>. See <see cref="AppendRows(byte[], string, IEnumerable{IEnumerable{object}})"/>
+    /// for the semantics.
+    ///
+    /// <para><paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/>
+    /// is <b>written</b>; neither is disposed, closed or sought.</para>
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to append to.</param>
+    /// <param name="rows">The rows to append.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/> is not writable, <paramref name="sheetName"/> is empty, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
+    public static async Task AppendRowsAsync(
+        Stream source, string sheetName, IEnumerable<IEnumerable<object?>> rows, Stream destination,
+        CancellationToken ct = default)
+    {
+        var materialised = ValidateRows(sheetName, rows);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = AppendRowsCore(xlsx, sheetName, materialised);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="inputPath"/>, appends <paramref name="rows"/> to
+    /// <paramref name="sheetName"/>, and writes the result to <paramref name="outputPath"/>,
+    /// overwriting any existing file. See
+    /// <see cref="AppendRows(byte[], string, IEnumerable{IEnumerable{object}})"/> for the semantics.
+    /// </summary>
+    /// <param name="inputPath">The workbook to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="sheetName">The sheet to append to.</param>
+    /// <param name="rows">The rows to append.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="inputPath"/>, <paramref name="outputPath"/> or <paramref name="sheetName"/> is empty, or an element of <paramref name="rows"/> is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The sheet was not found, or the package could not be opened or edited.</exception>
+    public static async Task AppendRowsAsync(
+        string inputPath, string outputPath, string sheetName, IEnumerable<IEnumerable<object?>> rows,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var result = AppendRows(bytes, sheetName, rows);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
     private static void ValidateArguments(byte[] xlsx, string sheetName, string cellRef)
     {
         ArgumentNullException.ThrowIfNull(xlsx);

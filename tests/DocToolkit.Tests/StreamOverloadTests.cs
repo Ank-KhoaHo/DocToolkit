@@ -110,6 +110,7 @@ public class StreamOverloadTests
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
+        "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.CreateAsync",
     };
@@ -127,6 +128,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SheetNamesAsync",
         "WorkbookEditor.ReadSheetAsync",
         "WorkbookEditor.SetCellAsync",
+        "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -150,6 +152,7 @@ public class StreamOverloadTests
         "WorkbookEditor.CreateAsync",
         "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
+        "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.CreateAsync",
     };
@@ -629,6 +632,8 @@ public class StreamOverloadTests
                 WorkbookEditor.ReadSheetAsync(source!, "Sales", ct),
             "WorkbookEditor.SetCellAsync" =>
                 WorkbookEditor.SetCellAsync(source!, "Sales", "B2", 1500, destination!, ct),
+            "WorkbookEditor.AppendRowsAsync" =>
+                WorkbookEditor.AppendRowsAsync(source!, "Sales", Rows, destination!, ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ExtractTextAsync" =>
