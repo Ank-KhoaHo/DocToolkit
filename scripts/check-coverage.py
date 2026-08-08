@@ -19,10 +19,19 @@ Why a script here rather than the two obvious alternatives:
     thirty lines of XML reading.
 
 MERGING THE REPORTS IS THE POINT, and is what neither alternative does properly.
-`dotnet test` on this solution emits FOUR cobertura files - two test projects x
-two target frameworks - and net8.0 and net10.0 execute the same tests over the
-same source. Treating those as separate samples understates coverage, so a line
-hit by ANY report counts as covered here.
+`dotnet test` on this solution emits four distinct cobertura files - two test
+projects x two target frameworks - and net8.0 and net10.0 execute the same tests
+over the same source. Treating those as separate samples understates coverage,
+so a line hit by ANY report counts as covered here.
+
+MAX-PER-LINE, not a sum, and that is load-bearing rather than a stylistic
+choice. Measured on the runner: CI yields EIGHT files, not four, because vstest
+stages a second identical copy of each report under
+`_<machine>_<timestamp>/In/<machine>/`. Verified identical by checksum. Taking
+the max per line makes duplicate reports a no-op; summing valid-line counts
+would have been skewed by staging directories nobody controls, and the local
+run - which produces four - would have disagreed with CI for a reason that has
+nothing to do with coverage.
 
 Usage:
     python scripts/check-coverage.py <results-dir>
