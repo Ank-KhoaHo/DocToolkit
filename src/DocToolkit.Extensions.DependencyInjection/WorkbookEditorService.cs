@@ -37,4 +37,19 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
         Stream source, string sheetName, string cellRef, object? value, Stream destination,
         CancellationToken ct = default)
         => DocToolkit.WorkbookEditor.SetCellAsync(source, sheetName, cellRef, value, destination, ct);
+
+    public byte[] Create(IEnumerable<DocToolkit.XlsxSheet> sheets)
+        => DocToolkit.WorkbookEditor.Create(sheets);
+
+    public byte[] AppendRows(byte[] xlsx, string sheetName, IEnumerable<IEnumerable<object?>> rows)
+        => DocToolkit.WorkbookEditor.AppendRows(xlsx, sheetName, rows);
+
+    public Task CreateAsync(
+        IEnumerable<DocToolkit.XlsxSheet> sheets, Stream destination, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.CreateAsync(sheets, destination, ct);
+
+    public Task AppendRowsAsync(
+        Stream source, string sheetName, IEnumerable<IEnumerable<object?>> rows, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.AppendRowsAsync(source, sheetName, rows, destination, ct);
 }
