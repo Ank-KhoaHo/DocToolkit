@@ -2,14 +2,9 @@ namespace DocToolkit;
 
 /// <summary>
 /// A cell value meaning "this cell holds a formula". Use it anywhere a cell value is accepted —
-/// inside <c>XlsxSheet</c> rows, inside rows passed to
+/// inside <see cref="XlsxSheet"/> rows, inside rows passed to
 /// <c>WorkbookEditor.AppendRows</c>, or as the value argument to
 /// <see cref="WorkbookEditor.SetCell(byte[], string, string, object?)"/>.
-/// (<c>XlsxSheet</c> and <c>AppendRows</c> are not yet defined in this codebase as of this type's
-/// introduction — they land in follow-up tasks that consume <see cref="XlsxFormula"/> the same
-/// way <see cref="WorkbookEditor.SetCell(byte[], string, string, object?)"/> does. Left as plain
-/// text rather than <c>&lt;see cref&gt;</c> so an unresolved cref does not fail the build, which
-/// runs with <c>TreatWarningsAsErrors</c>.)
 ///
 /// <para><b>No cached result is written.</b> The file carries the formula and nothing else.
 /// Excel recalculates when it opens the file, and this package's own readers

@@ -689,4 +689,38 @@ public class WorkbookEditorTests
         Assert.Equal("formula", Assert.Throws<ArgumentException>(() => XlsxFormula.From("   ")).ParamName);
         Assert.Equal("formula", Assert.Throws<ArgumentException>(() => XlsxFormula.From("=")).ParamName);
     }
+
+    [Fact]
+    public void XlsxSheet_Named_MaterialisesRowsEagerly()
+    {
+        var sheet = XlsxSheet.Named("Summary", new[]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "EMEA", 1200 },
+        });
+
+        Assert.Equal("Summary", sheet.Name);
+        Assert.Equal(2, sheet.Rows.Count);
+        Assert.Equal(new object?[] { "EMEA", 1200 }, sheet.Rows[1]);
+    }
+
+    [Fact]
+    public void XlsxSheet_Named_RejectsBadInput()
+    {
+        var rows = new[] { new object?[] { 1 } };
+
+        Assert.Throws<ArgumentNullException>(() => XlsxSheet.Named(null!, rows));
+        Assert.Throws<ArgumentNullException>(() => XlsxSheet.Named("Sheet1", null!));
+
+        // Reuses the same rules as WorkbookEditor.Create - one helper, so they cannot drift.
+        Assert.Equal("name", Assert.Throws<ArgumentException>(
+            () => XlsxSheet.Named(new string('a', 32), rows)).ParamName);
+        Assert.Equal("name", Assert.Throws<ArgumentException>(
+            () => XlsxSheet.Named("Q1/Q2", rows)).ParamName);
+
+        var nullRow = Assert.Throws<ArgumentException>(
+            () => XlsxSheet.Named("Sheet1", new IEnumerable<object?>[] { null! }));
+        Assert.Equal("rows", nullRow.ParamName);
+        Assert.Contains("Row 1 was null.", nullRow.Message, StringComparison.Ordinal);
+    }
 }

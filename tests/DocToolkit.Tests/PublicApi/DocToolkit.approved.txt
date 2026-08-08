@@ -111,4 +111,10 @@ namespace DocToolkit
         public string Formula { get; }
         public static DocToolkit.XlsxFormula From(string formula) { }
     }
+    public sealed class XlsxSheet
+    {
+        public string Name { get; }
+        public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<object?>> Rows { get; }
+        public static DocToolkit.XlsxSheet Named(string name, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
+    }
 }
