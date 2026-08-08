@@ -8,17 +8,59 @@
       "bump-minor-pre-major": true,
       "changelog-path": "CHANGELOG.md",
       "changelog-sections": [
-        { "type": "feat", "section": "Added" },
-        { "type": "fix", "section": "Fixed" },
-        { "type": "build", "section": "Changed" },
-        { "type": "perf", "section": "Changed" },
-        { "type": "docs", "section": "Changed", "hidden": true },
-        { "type": "ci", "section": "Changed", "hidden": true },
-        { "type": "refactor", "section": "Changed", "hidden": true },
-        { "type": "revert", "section": "Changed" },
-        { "type": "style", "section": "Changed", "hidden": true },
-        { "type": "chore", "section": "Changed", "hidden": true },
-        { "type": "test", "section": "Changed", "hidden": true }
+        {
+          "type": "feat",
+          "section": "Added"
+        },
+        {
+          "type": "fix",
+          "section": "Fixed"
+        },
+        {
+          "type": "build",
+          "section": "Changed"
+        },
+        {
+          "type": "perf",
+          "section": "Changed"
+        },
+        {
+          "type": "docs",
+          "section": "Changed",
+          "hidden": true
+        },
+        {
+          "type": "ci",
+          "section": "Changed",
+          "hidden": true
+        },
+        {
+          "type": "refactor",
+          "section": "Changed",
+          "hidden": true
+        },
+        {
+          "type": "revert",
+          "section": "Changed"
+        },
+        {
+          "type": "style",
+          "section": "Changed",
+          "hidden": true
+        },
+        {
+          "type": "chore",
+          "section": "Changed",
+          "hidden": true
+        },
+        {
+          "type": "test",
+          "section": "Changed",
+          "hidden": true
+        }
+      ],
+      "extra-files": [
+        "src/Directory.Build.props"
       ]
     }
   }
