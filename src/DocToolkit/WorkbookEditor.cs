@@ -299,6 +299,9 @@ public static class WorkbookEditor
     /// The workbook could not be opened, the sheet does not exist, or the sheet's used range
     /// exceeds the 2,000,000-cell limit <see cref="ReadSheet"/> will materialise.
     /// </exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="WorkbookReadSheet"/>
+    /// </example>
     public static IReadOnlyList<IReadOnlyList<string>> ReadSheet(byte[] xlsx, string sheetName)
     {
         ValidateWorkbook(xlsx);
@@ -815,6 +818,9 @@ public static class WorkbookEditor
     /// <paramref name="sheets"/> is empty, contains a null element, or names the same sheet twice.
     /// </exception>
     /// <exception cref="DocumentConversionException">The workbook could not be built.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="WorkbookCreate"/>
+    /// </example>
     public static byte[] Create(IEnumerable<XlsxSheet> sheets)
     {
         var materialised = ValidateSheets(sheets);

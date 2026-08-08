@@ -26,6 +26,9 @@ public static class HtmlToDocxConverter
     /// The document is laid out on <see cref="PageSetup.A4"/>. Use
     /// <see cref="ConvertAsync(string, PageSetup, CancellationToken)"/> for anything else.
     /// </remarks>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="HtmlToDocx"/>
+    /// </example>
     public static Task<byte[]> ConvertAsync(string html, CancellationToken ct = default)
         => ConvertAsync(html, allowRemoteImageDownload: false, ct);
 

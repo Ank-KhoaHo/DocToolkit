@@ -33,6 +33,9 @@ public static class XlsxToPdfConverter
     /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be rendered.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="XlsxToPdf"/>
+    /// </example>
     public static byte[] Convert(byte[] xlsx)
     {
         ArgumentNullException.ThrowIfNull(xlsx);

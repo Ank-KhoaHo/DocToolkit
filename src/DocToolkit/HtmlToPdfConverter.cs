@@ -40,6 +40,9 @@ public static class HtmlToPdfConverter
     /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="page"/> is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="HtmlToPdf"/>
+    /// </example>
     public static async Task<byte[]> ConvertAsync(
         string html, PageSetup page, CancellationToken ct = default)
     {

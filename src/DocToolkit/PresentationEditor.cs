@@ -24,6 +24,9 @@ public static class PresentationEditor
     /// <exception cref="ArgumentNullException"><paramref name="slides"/> is null.</exception>
     /// <exception cref="ArgumentException">An element of <paramref name="slides"/> is null.</exception>
     /// <exception cref="DocumentConversionException">The deck could not be built.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="PresentationCreate"/>
+    /// </example>
     public static byte[] Create(IEnumerable<PptxSlide> slides)
     {
         var materialised = ValidateSlides(slides);
