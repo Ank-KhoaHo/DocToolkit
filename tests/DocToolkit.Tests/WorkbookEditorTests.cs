@@ -154,7 +154,9 @@ public class WorkbookEditorTests
     [Fact]
     public void Create_WithSheets_RejectsEmptyNullAndDuplicates()
     {
-        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.Create((IEnumerable<XlsxSheet>)null!));
+        // Named argument, not a cast: Create is overloaded, and naming the parameter pins which
+        // overload this asserts against without the redundant upcast CodeQL flags (cs/useless-upcast).
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.Create(sheets: null!));
 
         // A workbook with no worksheets is not a valid .xlsx - measured, ClosedXML throws
         // "Workbooks need at least one worksheet." Rejecting eagerly names the parameter.
