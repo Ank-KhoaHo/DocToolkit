@@ -16,7 +16,10 @@ public static class WorkbookEditor
     /// on every machine.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="sheetName"/> is blank, or a row is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sheetName"/> is blank, is longer than 31 characters, or contains one of
+    /// <c>: \ / ? * [ ]</c>; or a row is null.
+    /// </exception>
     /// <exception cref="DocumentConversionException">The workbook could not be built.</exception>
     public static byte[] Create(string sheetName, IEnumerable<IEnumerable<object?>> rows)
     {
@@ -41,8 +44,8 @@ public static class WorkbookEditor
     /// <param name="ct">Cancels the build and the write to <paramref name="destination"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="rows"/> or <paramref name="destination"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="sheetName"/> is blank, a row is null, or <paramref name="destination"/> is
-    /// not writable.
+    /// <paramref name="sheetName"/> is blank, is longer than 31 characters, or contains one of
+    /// <c>: \ / ? * [ ]</c>; a row is null; or <paramref name="destination"/> is not writable.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be built or written.</exception>
@@ -565,7 +568,8 @@ public static class WorkbookEditor
     /// <paramref name="outputPath"/>, <paramref name="sheetName"/> or <paramref name="rows"/> is null.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="outputPath"/> or <paramref name="sheetName"/> is blank, or a row is null.
+    /// <paramref name="outputPath"/> is blank; <paramref name="sheetName"/> is blank, is longer
+    /// than 31 characters, or contains one of <c>: \ / ? * [ ]</c>; or a row is null.
     /// </exception>
     /// <exception cref="DirectoryNotFoundException"><paramref name="outputPath"/>'s directory does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
