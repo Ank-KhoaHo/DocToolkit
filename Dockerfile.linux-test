@@ -20,8 +20,10 @@ WORKDIR /src
 # to remove.
 #
 # This is not hypothetical. The props file arrived and this COPY list was not updated, so the
-# documented Linux check was broken for a day and nothing said so - because nothing runs it. That
-# is backlog C6, and this is the second time it has cost something.
+# documented Linux check was broken for a day and nothing said so - because, at the time, nothing
+# ran it. ci.yml's `linux container build & test` job now does, on every push and pull request, so
+# an incomplete COPY list fails a check instead of waiting to be noticed. Keep it that way: this
+# file is only worth having if something runs it.
 COPY global.json Directory.Build.props DocToolkit.sln ./
 COPY src/ ./src/
 COPY tests/ ./tests/
