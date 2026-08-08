@@ -1,0 +1,30 @@
+# Deliberately minimal. This exists so `dotnet format --verify-no-changes` has something to verify
+# against in CI, not to legislate style.
+#
+# What is NOT here matters more than what is:
+#
+#   end_of_line is unset, on purpose. .gitattributes uses `text=auto`, so files are stored LF and
+#   checked out CRLF on Windows. Setting `lf` would make `dotnet format` want to rewrite every file
+#   on a Windows machine; setting `crlf` would do the same on the Linux CI runner. Either value
+#   makes the check disagree with itself across platforms. Line endings are git's job here.
+#
+#   No IDE#### style rules - no var preference, no expression-bodied-member policy, no brace or
+#   using-placement rules. Those are taste, they would rewrite files nobody is otherwise touching,
+#   and a formatter that produces churn gets turned off. The rules below are the ones whose
+#   violation is a defect rather than a preference.
+
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+# Two trailing spaces is a hard line break in Markdown, so trimming them changes rendering.
+trim_trailing_whitespace = false

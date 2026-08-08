@@ -17,7 +17,7 @@ public class GuardedResourceLoaderTests
     [InlineData("127.0.0.1")]        // loopback
     [InlineData("::1")]              // loopback, v6
     [InlineData("::")]               // unspecified - Socket.ConnectAsync refuses it anyway, but
-                                      // defence in depth should not depend on that
+                                     // defence in depth should not depend on that
     [InlineData("10.0.0.5")]         // RFC1918
     [InlineData("10.0.0.0")]         // RFC1918, exact low edge - a narrowed range must fail here
     [InlineData("10.255.255.255")]   // RFC1918, exact high edge
