@@ -36,6 +36,16 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ReplaceTextAsync(System.IO.Stream source, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ReplaceTextAsync(string inputPath, string outputPath, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements, System.Threading.CancellationToken ct = default) { }
     }
+    public static class DocxToHtmlConverter
+    {
+        public static string Convert(byte[] docx) { }
+        public static System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+    }
+    public static class DocxToMarkdownConverter
+    {
+        public static string Convert(byte[] docx) { }
+        public static System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+    }
     public static class DocxToPdfConverter
     {
         public static byte[] Convert(byte[] docx) { }

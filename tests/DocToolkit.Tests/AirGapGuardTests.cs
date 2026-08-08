@@ -459,6 +459,27 @@ public class AirGapGuardTests
     // pinned separately and mutation-verified by
     // XlsxPptxToPdfTests.ResourcePolicy_RefusesRemoteAndLocalResources, which DOES fail when a
     // flag is flipped. Two tests, two different claims; neither substitutes for the other.
+    // DOCX -> text formats. This direction reads a package and writes a string, and
+    // WordToHtmlOptions carries no HttpClient at all - unlike its HtmlToWordOptions counterpart.
+    // Covered anyway: this suite's value is that it does not depend on that reasoning staying
+    // true across an upstream version.
+    [Fact]
+    public async Task DocxToTextFormatConverters_ContactNothing()
+    {
+        using var probe = new LoopbackProbe(_output);
+        byte[] docx = DocxWithExternalReferences(probe.BaseUrl);
+
+        Assert.NotEmpty(DocxToHtmlConverter.Convert(docx));
+        Assert.NotEmpty(DocxToMarkdownConverter.Convert(docx));
+
+        using (var source = new MemoryStream(docx))
+            Assert.NotEmpty(await DocxToHtmlConverter.ConvertAsync(source));
+        using (var source = new MemoryStream(docx))
+            Assert.NotEmpty(await DocxToMarkdownConverter.ConvertAsync(source));
+
+        await probe.AssertSilentAsync("DocxToHtmlConverter / DocxToMarkdownConverter");
+    }
+
     [Fact]
     public async Task XlsxToPdfConverter_ContactsNothing()
     {

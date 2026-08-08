@@ -51,7 +51,8 @@ transitive arrival through OfficeIMO.Word - and claimed nineteen packages where 
 eighteen. Everything outside the markers is hand-written and stays that way.
 
 --- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---
-- AngleSharp 1.5.0 - MIT (transitive) - https://github.com/AngleSharp/AngleSharp
+- AngleSharp 1.5.2 - MIT (transitive) - https://github.com/AngleSharp/AngleSharp
+- AngleSharp.Css 1.0.0-beta.216 - MIT (transitive) - https://github.com/AngleSharp/AngleSharp.Css
 - ClosedXML 0.105.1 - MIT (direct) - https://github.com/ClosedXML/ClosedXML
 - ClosedXML.Parser 2.0.0 - MIT (transitive) - https://github.com/ClosedXML/ClosedXML.Parser
 - DocumentFormat.OpenXml 3.5.1 - MIT (direct) - https://github.com/dotnet/Open-XML-SDK
@@ -62,17 +63,22 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - OfficeIMO.Core 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Excel 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Excel.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Html 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Markdown 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Markdown.Html 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Pdf 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.PowerPoint 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.PowerPoint.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Word.Html 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Word.Markdown 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - RBush.Signed 4.0.0 - MIT (transitive) - https://github.com/viceroypenguin/RBush
 - SixLabors.Fonts 1.0.1 - Apache-2.0 (direct) - https://github.com/SixLabors/Fonts
 - System.IO.Packaging 10.0.2 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 
-Totals: 20 packages (7 direct, 13 transitive) - 1 Apache-2.0, 19 MIT.
+Totals: 26 packages (9 direct, 17 transitive) - 1 Apache-2.0, 25 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---
