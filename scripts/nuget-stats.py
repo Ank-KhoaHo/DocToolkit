@@ -360,11 +360,22 @@ def cell(value):
 
 
 def span_days(dates):
-    """Calendar days between the first and last of a sorted date list."""
+    """Calendar days between the first and last of a sorted date list.
+
+    Returns None rather than raising when a date will not parse. One
+    hand-edited row, merge artifact or legacy row must not take down the whole
+    report - the same tolerance highest_recorded applies to a malformed
+    cumulative. Callers that need a number fall back to 1.
+    """
     if len(dates) < 2:
         return None
-    first = datetime.date.fromisoformat(dates[0])
-    last = datetime.date.fromisoformat(dates[-1])
+    try:
+        first = datetime.date.fromisoformat(dates[0])
+        last = datetime.date.fromisoformat(dates[-1])
+    except (TypeError, ValueError):
+        print(f"warning: unparseable date near {dates[0]!r}; span not computed",
+              file=sys.stderr)
+        return None
     return (last - first).days
 
 
@@ -408,7 +419,9 @@ def summarise(downloads_rows, runs_rows):
                 # CALENDAR days, not one per observed interval. A gap in this
                 # version's rows would otherwise weigh a multi-day accumulation
                 # against a single day of crawler floor - which flags noise as a
-                # real user, the one mistake this column must not make.
+                # real user, the one mistake this column must not make. The
+                # `or 1` catches an unparseable date: falling back to one day
+                # raises the bar for flagging, which is the safe direction.
                 quiet_days += span_days([dates[i], day]) or 1
 
         summary.append({
@@ -438,8 +451,9 @@ What this cannot tell you, so that the numbers are not over-read:
 - **The index lags one to two days.** Read week-over-week trends, not daily spikes.
 - **`quiet` is the column that matters:** downloads accumulated on days our own CI
   ran nothing. Our pipeline only ever requests the lockfile version or `*`-latest,
-  so it cannot produce those. `/Nd` is the calendar span those downloads span, and
-  a row is flagged only when it exceeds the crawler floor across that whole span.
+  so it cannot produce those. `/Nd` is the total number of calendar days those
+  quiet stretches cover - a sum of gaps, not one contiguous range - and a row is
+  flagged only when it exceeds the crawler floor across all of them.
 - **`recent Δ` covers up to the last seven sample dates**, and `/Nd` is how many
   calendar days the version's own rows actually span within them - a sparse version
   reports over fewer days than a dense one.
@@ -447,13 +461,16 @@ What this cannot tell you, so that the numbers are not over-read:
 
 
 def render_markdown(summary, dates):
+    recent = dates[-7:]
+    recent_span = span_days(recent)
+    window_label = f" /{recent_span}d" if recent_span else ""
     lines = [
         "# nuget.org usage",
         "",
         f"Generated from {len(dates)} day(s) of samples"
         + (f", {dates[0]} to {dates[-1]}." if dates else "."),
         "",
-        "| package | version | total | recent Δ | CI runs | quiet | trend |",
+        f"| package | version | total | recent Δ | CI runs{window_label} | quiet | trend |",
         "|---|---|---:|---:|---:|---:|---|",
     ]
     for row in summary:
@@ -476,6 +493,9 @@ def render_markdown(summary, dates):
 
 def render_html(summary, dates):
     span = f"{dates[0]} to {dates[-1]}" if dates else "no samples yet"
+    recent = dates[-7:]
+    recent_span = span_days(recent)
+    window_label = f" /{recent_span}d" if recent_span else ""
     body = []
     for row in summary:
         cls = ' class="hit"' if row["interesting"] else ""
@@ -515,13 +535,17 @@ def render_html(summary, dates):
 <p>{len(dates)} day(s) of samples, {span}.</p>
 <div class="wrap"><table>
 <thead><tr><th>package</th><th>version</th><th class=n>total</th><th class=n>recent Δ</th>
-<th class=n>CI runs</th><th class=n>quiet</th><th>trend</th></tr></thead>
+<th class=n>CI runs{window_label}</th><th class=n>quiet</th><th>trend</th></tr></thead>
 <tbody>
 {chr(10).join(body)}
 </tbody></table></div>
 <p><strong>quiet</strong> counts downloads accumulated on days our own CI ran nothing.
 Our pipeline only ever requests the lockfile version or <code>*</code>-latest, so it
-cannot produce those. Highlighted rows exceed the measured crawler floor.</p>
+cannot produce those. Highlighted rows exceed the measured crawler floor of roughly two
+downloads per version per day. <code>/Nd</code> is the number of calendar days a figure
+covers: for <strong>recent &Delta;</strong> the span of that version's own rows inside the
+window, for <strong>quiet</strong> the summed length of its quiet stretches. A dash means
+not enough samples yet - which is different from zero.</p>
 </main></body></html>
 """
 
