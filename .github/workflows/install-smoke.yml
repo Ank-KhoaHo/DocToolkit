@@ -34,6 +34,10 @@ jobs:
     name: install from nuget.org and run
     runs-on: ubuntu-24.04
     steps:
+      # NuGet caching is deliberately NOT enabled here. An empty package folder IS this
+      # workflow's test - see the "Use an empty NuGet cache" step below, which exists
+      # precisely so a runner-cached copy cannot make a broken package pass. Caching
+      # here would not merely weaken the job, it would invert it.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |

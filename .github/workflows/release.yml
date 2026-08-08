@@ -99,6 +99,12 @@ jobs:
         with:
           fetch-depth: 0 # full history so release notes can be generated
 
+      # NuGet caching is deliberately NOT enabled here, unlike ci.yml, codeql.yml and
+      # docs.yml. This job's cold restore is the only proof that the dependency graph
+      # resolves from nothing, and publishing is irreversible - a nuget.org version can
+      # be unlisted but never deleted or reused. A warm cache would remove that proof on
+      # the one run that cannot be undone, in exchange for saving a few seconds on ~52
+      # runs per six weeks. Do not "finish the job" by adding it here.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: |
