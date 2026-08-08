@@ -29,6 +29,9 @@ public static class DocxEditor
     /// The document is laid out on <see cref="PageSetup.A4"/>. Use
     /// <see cref="Create(IEnumerable{DocxBlock}, PageSetup)"/> for anything else.
     /// </remarks>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxCreate"/>
+    /// </example>
     public static byte[] Create(IEnumerable<DocxBlock> blocks) => Create(blocks, PageSetup.A4);
 
     /// <summary>
@@ -211,6 +214,9 @@ public static class DocxEditor
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
     /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxReplaceText"/>
+    /// </example>
     public static byte[] ReplaceText(byte[] docx, IReadOnlyDictionary<string, string> replacements)
     {
         ArgumentNullException.ThrowIfNull(docx);

@@ -7,6 +7,9 @@ namespace DocToolkit;
 public static class DocxToPdfConverter
 {
     /// <summary>Renders the .docx in <paramref name="docx"/> and returns PDF bytes.</summary>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxToPdf"/>
+    /// </example>
     public static byte[] Convert(byte[] docx)
     {
         ArgumentNullException.ThrowIfNull(docx);

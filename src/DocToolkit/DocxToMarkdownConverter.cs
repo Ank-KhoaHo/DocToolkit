@@ -21,6 +21,9 @@ public static class DocxToMarkdownConverter
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
     /// <exception cref="DocumentConversionException">The document could not be converted.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxToMarkdown"/>
+    /// </example>
     public static string Convert(byte[] docx)
     {
         ArgumentNullException.ThrowIfNull(docx);

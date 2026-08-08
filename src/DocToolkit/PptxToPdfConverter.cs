@@ -33,6 +33,9 @@ public static class PptxToPdfConverter
     /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
     /// <exception cref="DocumentConversionException">The presentation could not be rendered.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="PptxToPdf"/>
+    /// </example>
     public static byte[] Convert(byte[] pptx)
     {
         ArgumentNullException.ThrowIfNull(pptx);
