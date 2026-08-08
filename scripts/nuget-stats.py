@@ -206,19 +206,28 @@ def collect(args):
     # counts cannot - the search API serves only the current cumulative total,
     # so a lost day is lost permanently.
     if args.runs_json:
-        with open(args.runs_json, encoding="utf-8") as handle:
-            runs = json.load(handle)
-        counts = collections.Counter(run["workflowName"] for run in runs)
-        run_rows = [
-            {"date": today, "workflow": name, "runs": str(count)}
-            for name, count in sorted(counts.items())
-        ]
-        write_rows(
-            runs_path,
-            RUNS_HEADER,
-            upsert(read_rows(runs_path), run_rows, ("date", "workflow")),
-        )
-        print(f"runs: {len(run_rows)} workflows for {today}")
+        try:
+            with open(args.runs_json, encoding="utf-8") as handle:
+                runs = json.load(handle)
+            counts = collections.Counter(run["workflowName"] for run in runs)
+            run_rows = [
+                {"date": today, "workflow": name, "runs": str(count)}
+                for name, count in sorted(counts.items())
+            ]
+            write_rows(
+                runs_path,
+                RUNS_HEADER,
+                upsert(read_rows(runs_path), run_rows, ("date", "workflow")),
+            )
+            print(f"runs: {len(run_rows)} workflows for {today}")
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            # The rebuildable signal must never block the irrecoverable one.
+            # Run counts can be recovered any time with `gh run list --created`;
+            # download counts cannot, because the search API serves only the
+            # current cumulative total. So a bad runs.json costs a warning and
+            # nothing more - it must not stop downloads.csv being written.
+            print(f"warning: runs not recorded ({error}); continuing",
+                  file=sys.stderr)
 
     fixture = None
     if args.api_fixture:
