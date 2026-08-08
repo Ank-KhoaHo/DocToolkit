@@ -166,6 +166,23 @@ Six static classes, each stateless and safe to call concurrently, with a `byte[]
 `DocumentConversionException`. Full surface:
 **[package README](src/DocToolkit/README.md)** · [API docs](https://ank-khoaho.github.io/DocToolkit/).
 
+## Known limitations
+
+Things this package deliberately does not do, or does only partly. Listed because the
+alternative is that you find out by reading the source.
+
+| Limitation | Detail |
+|---|---|
+| **PDF output is DOCX-only** | `DocxToPdfConverter` and `HtmlToPdfConverter` are the only PDF producers. There is no XLSX → PDF or PPTX → PDF. This is a gap rather than a policy — it is feasible within the constraints above and is planned; it has simply not been built. |
+| **HTML → PDF goes through DOCX** | So PDF fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |
+| **No external stylesheets** | `<link rel="stylesheet">` is not fetched, by design: nothing here opens a socket by default. Inline `<style>` and `style=` attributes are honoured. |
+| **No headers or footers on generated documents** | `DocxEditor.Create` and `HtmlToDocxConverter` produce a body. `ReplaceText` *does* reach into the headers and footers of a document you supply. |
+| **One page setup per document** | `PageSetup` applies to the whole document. Multiple sections with different paper is a real Word feature and is not supported. |
+| **Formulas carry no cached value** | A cell written with `XlsxFormula` holds the formula only. Excel recalculates on open, and `ReadCell`/`ReadSheet` evaluate on read — but a reader that only reads cached values (openpyxl with `data_only=True`, say) sees an empty cell until Excel has opened and saved the file. |
+| **Memory scales with the document, not the file** | Peak memory is dominated by the OOXML object model. Measured on a 1.9 MB `.xlsx` of 40,000 rows: ~120 MB for `ReadSheet`, ~233 MB for `SetCell`. The `Stream` overloads are **not** cheaper — they exist for forward-only sources, not to save memory. There is no input size limit; sizing the host is the caller's decision. |
+| **Remote images are bounded per image, not per document** | With the opt-in enabled, `RemoteImageOptions` caps each fetch by time and bytes. A document naming many images has no aggregate ceiling; your own `CancellationToken` is the backstop. |
+| **Below 1.0.0, permanently** | Anything may change in a minor version. See [CONTRIBUTING.md](CONTRIBUTING.md). |
+
 ## Dependency injection
 
 `Ank.DocToolkit` needs no container. For ASP.NET Core or worker services, a thin companion package
