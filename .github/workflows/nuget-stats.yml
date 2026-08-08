@@ -1,0 +1,94 @@
+name: nuget stats
+
+# Records this package's nuget.org download counts daily, so real adoption is
+# visible against the noise our own CI generates. See
+# docs/2026-08-08-nuget-usage-tracking-design.md.
+#
+# 13:17 rather than 13:00 deliberately: GitHub queues scheduled workflows
+# globally and the round hours are heavily oversubscribed, so :00 jobs routinely
+# fire 10-30 minutes late or are dropped under load. The exact hour does not
+# matter - the search index lags a day or two regardless - but CONSISTENCY does,
+# because every figure this produces is the difference between two samples.
+#
+# Two GitHub behaviours worth knowing before trusting this:
+#   - scheduled workflows are disabled automatically after 60 days without
+#     repository activity, silently;
+#   - `schedule` only fires on the default branch, which is why this file lives
+#     on main while its output lives on the nuget-stats branch.
+"on":
+  schedule:
+    - cron: "17 13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Collect and render, but do not commit"
+        type: boolean
+        default: false
+
+# Least privilege at the workflow level, matching ci.yml, codeql.yml and
+# release.yml. The single job below widens it to contents: write for itself,
+# which is the rule ci.yml already sets: give the scope to the job that needs it
+# rather than widening the workflow.
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-stats
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    name: collect and render
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # The data branch, not main. It is an orphan - it shares no history with
+      # main and is never merged into it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: nuget-stats
+          path: data
+
+      # main, for the script itself. Checked out separately so the data branch
+      # never carries a copy of the tooling that writes to it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: main
+
+      # Yesterday in UTC, because the schedule fires at 13:17 UTC and a full day
+      # is the only window that can be compared against another full day.
+      - name: Count yesterday's workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          day=$(date -u -d yesterday +%Y-%m-%d)
+          echo "DAY=$day" >> "$GITHUB_ENV"
+          gh run list --repo "$GITHUB_REPOSITORY" --limit 500 \
+            --created "$day" --json workflowName > runs.json
+          echo "runs recorded for $day: $(python3 -c 'import json;print(len(json.load(open("runs.json"))))')"
+
+      - name: Collect
+        run: |
+          python3 main/scripts/nuget-stats.py collect \
+            --data-dir data --runs-json runs.json --date "$DAY"
+
+      - name: Render
+        run: python3 main/scripts/nuget-stats.py render --data-dir data
+
+      - name: Job summary
+        run: cat data/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit
+        if: ${{ !inputs.dry-run }}
+        working-directory: data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads.csv runs.csv report.md report.html
+          if git diff --cached --quiet; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git commit -m "chore: nuget stats for $DAY"
+          git push
