@@ -9,7 +9,8 @@
 Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
 
 **Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
-Works after `dotnet restore` alone, runs on Linux, and makes **no network calls at runtime**.
+Works after `dotnet restore` alone, runs on Linux, macOS, Windows and arm64, and makes
+**no network calls at runtime**.
 
 ```bash
 dotnet add package Ank.DocToolkit
@@ -32,7 +33,7 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 |---|---|
 | **Free for commercial use** | 16 dependencies: 15 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
 | **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
-| **Runs on Linux** | Verified in CI on `ubuntu-24.04`, not inferred. |
+| **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** (`ubuntu-24.04` x64, `windows-latest`, `macos-latest` Apple Silicon, `ubuntu-24.04-arm`). Not inferred from "pure managed" - measured on each. |
 | **Works offline** | No runtime network I/O. Proven by 37 air-gap tests. |
 
 All four are properties of the *resolved dependency graph*, so a single upstream bump can break

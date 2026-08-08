@@ -59,11 +59,29 @@ jobs:
         # resolve to 24.04 the two agree, so the day it moves to 26.04 the claim
         # would go quietly false with nothing failing. Naming the version is what
         # makes the README a checkable statement rather than a hopeful one.
+        #
+        # macos and linux-arm64 exist because "pure managed, no native binaries"
+        # implies every platform .NET runs on, and until they were added nothing
+        # proved it on any CPU but x64 or any OS but Linux and Windows. The two
+        # cover different halves of that claim and neither substitutes for the
+        # other: macos-latest is Apple Silicon, so it proves arm64 AND macOS at
+        # once, while ubuntu-24.04-arm proves the architecture consumers actually
+        # deploy to - Linux arm64 containers on Graviton and Ampere.
+        #
+        # macos-latest is deliberately NOT pinned, and that is consistent with the
+        # paragraph above rather than an exception to it: the ubuntu pin exists to
+        # keep a README sentence naming a version honest. No claim here names a
+        # macOS version, so `latest` proves exactly what is claimed and needs no
+        # maintenance when GitHub retires an image.
         include:
           - label: linux
             os: ubuntu-24.04
           - label: windows
             os: windows-latest
+          - label: macos
+            os: macos-latest
+          - label: linux-arm64
+            os: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

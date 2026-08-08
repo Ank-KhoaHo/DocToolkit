@@ -41,10 +41,14 @@ skipped project emits no diagnostics — so on an already-built tree the command
 `0 Warning(s)` while warnings exist. You will pass locally and fail CI, twice, before you work out
 why. CI is unaffected because a fresh runner has nothing to skip.
 
-### Checking Linux support
+### Checking cross-platform support
 
-Linux support is verified, not assumed. CI runs the suite on Ubuntu; you can run the same check
-locally:
+Platform support is verified, not assumed. CI runs the whole suite four times - Linux x64,
+Windows, macOS (Apple Silicon) and Linux arm64 - because "pure managed" is a claim about every
+platform .NET runs on, and a claim nothing exercises is a hope.
+
+Linux is the one you can reproduce locally, and the container check is stricter than the CI
+runner: it starts from a bare image, so it also proves the image's `COPY` list is complete.
 
 ```bash
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
@@ -152,7 +156,8 @@ one of them makes the package pointless, so all four are enforced by tests rathe
    "free under $1M" tiers.
 2. **NuGet only** — no browser download, no LibreOffice, no Office interop, and **no native
    binaries**. `dotnet restore` must be the only setup step.
-3. **Runs on Linux** — verified on Ubuntu in CI.
+3. **Runs everywhere .NET does** — the suite runs on Linux, Windows, macOS and arm64 in CI.
+   "Pure managed" implies all of them, so all of them are measured rather than inferred.
 4. **No runtime network I/O** — the library is used on air-gapped machines. No default code path
    may open a socket.
 
@@ -207,7 +212,7 @@ dotnet restore src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensio
 
 | Check | What it means |
 |---|---|
-| `build & test (ubuntu-24.04)` / `(windows-latest)` | Both must pass. Linux is a supported platform, not a nice-to-have. The Ubuntu runner names its version rather than using `ubuntu-latest`, so the README's "verified on `ubuntu-24.04`" stays a checkable claim. |
+| `build & test (linux)` / `(windows)` / `(macos)` / `(linux-arm64)` | All four must pass. These are supported platforms, not nice-to-haves. **The check name carries the platform, not the runner image** - branch protection requires checks by name, so naming the image would make a required check a function of the image version, and repinning it would rename that check to one protection had never heard of, blocking every PR forever. The images themselves are pinned where a doc names a version (`ubuntu-24.04`, so the README stays checkable) and left as `latest` where none does (`macos-latest`). |
 | `no native binaries / no banned packages` | This job runs several checks in order, so the failing step tells you the cause. If it fails on the **first** step (`dotnet restore --locked-mode`), `packages.lock.json` is just stale — run `dotnet restore <project> --force-evaluate` and commit the regenerated lockfile; nothing is banned. If it fails **later** — a native binary in build output, a banned package in the resolved graph, or `SixLabors.Fonts` drifting off the `1.x` line (2.x moves to a revenue-gated licence) — a dependency actually broke one of the four constraints. **Remove or re-pin it. Never relax the test.** If it fails on the **last** step (`THIRD-PARTY-NOTICES.txt matches the resolved graph`), nothing is wrong with the dependency — the attribution files just need regenerating: run `python scripts/gen-third-party-notices.py` and commit the result. |
 | `commit message format` | A commit in your branch is not Conventional Commits. Amend or rebase. |
 | `pack & verify .nupkg (core)` / `(extensions)` | The NuGet package no longer builds or verifies. |

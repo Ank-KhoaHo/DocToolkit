@@ -47,9 +47,40 @@ public class AirGapGuardTests
     private const string UnroutableHost = "203.0.113.1";
 
     /// <summary>
-    /// Hard ceiling for a default-path conversion that references an unroutable host. Windows
-    /// retransmits a SYN for roughly 21 s before giving up, so anything that actually dials out
-    /// lands far above this; the observed cost of the no-network path is well under a second.
+    /// A closed port on loopback — the baseline for <see cref="UnroutableCeiling"/>.
+    ///
+    /// On the default path nothing dials at all, so a conversion pointed here costs exactly what
+    /// the conversion costs. What makes it the right baseline is the worst case: <b>even if the
+    /// offline guarantee broke</b>, a closed loopback port refuses rather than hanging, so this
+    /// measurement can never itself contain a stall.
+    ///
+    /// "Refuses rather than hanging" is not the same as "instantly", which is what an earlier
+    /// version of this comment claimed. Measured 2026-08-08 on Windows: a connect to
+    /// <c>127.0.0.1:1</c> takes <b>2.07 s</b> — Windows retries a refused connection — against
+    /// <b>21.03 s</b> for <see cref="UnroutableHost"/>. The margin is 18.9 s, which is what the
+    /// 5 s ceiling is spending. POSIX platforms return <c>ECONNREFUSED</c> faster still, so
+    /// Windows is the worst case and the one worth quoting.
+    /// </summary>
+    private const string RefusedBaselineHost = "127.0.0.1:1";
+
+    /// <summary>
+    /// Ceiling on how much SLOWER a default-path conversion is against an unroutable host than the
+    /// same conversion against <see cref="RefusedBaselineHost"/>. A delta, not an absolute time,
+    /// and that distinction is load-bearing rather than fussy.
+    ///
+    /// It was an absolute 5 s ceiling until 2026-08-08, when adding macOS to the CI matrix made it
+    /// fail: `HtmlToPdf_Default_DoesNotStallOnAnUnroutableHost` took 11.1 s on a macOS runner —
+    /// while its DOCX-only sibling passed, and all 37 zero-connection assertions passed. Nothing
+    /// had dialled out. The whole 11 s was DOCX → PDF render on a cold runner, and the absolute
+    /// ceiling could not tell that apart from a connect timeout, which is precisely the thing it
+    /// exists to detect.
+    ///
+    /// Raising the number would have been the wrong repair: it degrades the signal without
+    /// understanding the failure, and the headroom needed for a slow runner starts to overlap
+    /// Windows' ~21 s connect timeout. Measuring the delta removes runner speed from the question
+    /// entirely, and the margin it spends is measured rather than guessed: 21.03 s to connect to
+    /// an unrouted address against 2.07 s to a refused loopback port, both on Windows — 18.9 s
+    /// of headroom against render costs that differ between runners by a couple of seconds.
     /// </summary>
     private static readonly TimeSpan UnroutableCeiling = TimeSpan.FromSeconds(5);
 
@@ -465,52 +496,79 @@ public class AirGapGuardTests
     [Fact]
     public async Task HtmlToDocx_Default_DoesNotStallOnAnUnroutableHost()
     {
-        var elapsed = await TimeBoundedAsync(
-            () => HtmlToDocxConverter.ConvertAsync(SubresourceMarkup($"http://{UnroutableHost}")),
+        var stall = await MeasureStallAsync(
+            baseUrl => HtmlToDocxConverter.ConvertAsync(SubresourceMarkup(baseUrl)),
             "HtmlToDocxConverter.ConvertAsync");
 
-        Assert.True(elapsed < UnroutableCeiling,
-            $"Took {elapsed.TotalSeconds:0.000} s against {UnroutableHost}, over the " +
-            $"{UnroutableCeiling.TotalSeconds:0.#} s ceiling - that is the shape of a connect " +
-            "timeout, i.e. something tried to dial out.");
+        Assert.True(stall < UnroutableCeiling,
+            $"Was {stall.TotalSeconds:0.000} s slower against {UnroutableHost} than against " +
+            $"{RefusedBaselineHost}, over the {UnroutableCeiling.TotalSeconds:0.#} s ceiling - " +
+            "that is the shape of a connect timeout, i.e. something tried to dial out.");
     }
 
     [Fact]
     public async Task HtmlToPdf_Default_DoesNotStallOnAnUnroutableHost()
     {
-        var elapsed = await TimeBoundedAsync(
-            () => HtmlToPdfConverter.ConvertAsync(SubresourceMarkup($"http://{UnroutableHost}")),
+        var stall = await MeasureStallAsync(
+            baseUrl => HtmlToPdfConverter.ConvertAsync(SubresourceMarkup(baseUrl)),
             "HtmlToPdfConverter.ConvertAsync");
 
-        Assert.True(elapsed < UnroutableCeiling,
-            $"Took {elapsed.TotalSeconds:0.000} s against {UnroutableHost}, over the " +
-            $"{UnroutableCeiling.TotalSeconds:0.#} s ceiling.");
+        Assert.True(stall < UnroutableCeiling,
+            $"Was {stall.TotalSeconds:0.000} s slower against {UnroutableHost} than against " +
+            $"{RefusedBaselineHost}, over the {UnroutableCeiling.TotalSeconds:0.#} s ceiling.");
     }
 
     [Fact]
     public async Task DocxToPdf_Default_DoesNotStallOnAnUnroutableHost()
     {
-        var docx = DocxWithExternalReferences($"http://{UnroutableHost}");
-
-        var elapsed = await TimeBoundedAsync(
-            () =>
+        var stall = await MeasureStallAsync(
+            baseUrl =>
             {
+                var docx = DocxWithExternalReferences(baseUrl);
                 try { DocxToPdfConverter.Convert(docx); }
                 catch (DocumentConversionException) { /* refusing to render is fine; stalling is not */ }
                 return Task.CompletedTask;
             },
             "DocxToPdfConverter.Convert");
 
-        Assert.True(elapsed < UnroutableCeiling,
-            $"Took {elapsed.TotalSeconds:0.000} s against {UnroutableHost}, over the " +
-            $"{UnroutableCeiling.TotalSeconds:0.#} s ceiling.");
+        Assert.True(stall < UnroutableCeiling,
+            $"Was {stall.TotalSeconds:0.000} s slower against {UnroutableHost} than against " +
+            $"{RefusedBaselineHost}, over the {UnroutableCeiling.TotalSeconds:0.#} s ceiling.");
+    }
+
+    /// <summary>
+    /// How much slower <paramref name="convert"/> is against <see cref="UnroutableHost"/> than
+    /// against <see cref="RefusedBaselineHost"/> — the stall, with the conversion's own cost
+    /// subtracted out.
+    ///
+    /// The baseline runs first deliberately, so it absorbs JIT and font warm-up. That biases the
+    /// delta DOWNWARDS, which is the safe direction to be wrong in only because the failure being
+    /// detected is enormous: a connect timeout is ~21 s on Windows and over a minute on Linux,
+    /// against a warm-up of a second or two. A tighter ceiling than that gap would need a warm-up
+    /// call before the baseline; this one does not.
+    /// </summary>
+    private async Task<TimeSpan> MeasureStallAsync(Func<string, Task> convert, string what)
+    {
+        var baseline = await TimeBoundedAsync(
+            () => convert($"http://{RefusedBaselineHost}"), $"{what} [baseline]", RefusedBaselineHost);
+
+        var elapsed = await TimeBoundedAsync(
+            () => convert($"http://{UnroutableHost}"), what, UnroutableHost);
+
+        _output.WriteLine(
+            $"{what}: {elapsed.TotalMilliseconds:0.0} ms against {UnroutableHost} minus " +
+            $"{baseline.TotalMilliseconds:0.0} ms baseline = " +
+            $"{(elapsed - baseline).TotalMilliseconds:0.0} ms of stall " +
+            $"(ceiling {UnroutableCeiling.TotalSeconds:0.#} s).");
+
+        return elapsed - baseline;
     }
 
     /// <summary>
     /// Runs <paramref name="action"/> with a hard wall-clock bound, so a regression that
     /// reintroduces a blocking network call fails this test instead of wedging the suite.
     /// </summary>
-    private async Task<TimeSpan> TimeBoundedAsync(Func<Task> action, string what)
+    private async Task<TimeSpan> TimeBoundedAsync(Func<Task> action, string what, string host)
     {
         var stopwatch = Stopwatch.StartNew();
         var work = Task.Run(action);
@@ -522,17 +580,15 @@ public class AirGapGuardTests
             _ = work.ContinueWith(static t => _ = t.Exception, TaskScheduler.Default);
             Assert.Fail(
                 $"{what} was still running after {HangGuard.TotalSeconds:0} s against " +
-                $"{UnroutableHost}. It is waiting on a TCP connect that will never complete.");
+                $"{host}. It is waiting on a TCP connect that will never complete.");
         }
 
         await work;
         stopwatch.Stop();
 
         _output.WriteLine(
-            $"{what} against http://{UnroutableHost} completed in " +
-            $"{stopwatch.Elapsed.TotalMilliseconds:0.0} ms " +
-            $"(ceiling {UnroutableCeiling.TotalSeconds:0.#} s; a single TCP connect attempt to an " +
-            "unrouted address costs ~21 s on Windows).");
+            $"{what} against http://{host} completed in " +
+            $"{stopwatch.Elapsed.TotalMilliseconds:0.0} ms.");
 
         return stopwatch.Elapsed;
     }
