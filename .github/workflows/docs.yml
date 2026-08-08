@@ -47,6 +47,10 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
+          # Same cache as ci.yml. DocFX restores each project itself while generating
+          # metadata, so this job pulls the full closure even though it runs no build.
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       # DocFX restores each project itself while generating metadata - no separate
       # solution-wide restore needed, and this way a nuget hiccup resolving a sample
