@@ -90,6 +90,127 @@ public class WorkbookEditorTests
         => Assert.Throws<ArgumentException>(
             () => WorkbookEditor.Create("S", new IEnumerable<object?>[] { null! }));
 
+    [Fact]
+    public void Create_WithASheetNameExcelRejects_FailsFastWithArgumentException()
+    {
+        // Previously these reached ClosedXML and came back as DocumentConversionException wrapping
+        // someone else's message. Failing fast names the parameter and says what is wrong.
+        var rows = new[] { new object?[] { 1 } };
+
+        var tooLong = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.Create(new string('a', 32), rows));
+        Assert.Equal("sheetName", tooLong.ParamName);
+        Assert.Contains("32 characters", tooLong.Message, StringComparison.Ordinal);
+
+        var badChar = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.Create("Q1/Q2", rows));
+        Assert.Equal("sheetName", badChar.ParamName);
+        Assert.Contains("'/'", badChar.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Create_WithASheetNameOfExactlyThirtyOneCharacters_IsAccepted()
+    {
+        // The boundary is inclusive; 31 is legal, 32 is not.
+        var xlsx = WorkbookEditor.Create(new string('a', 31), new[] { new object?[] { 1 } });
+        Assert.Equal(new string('a', 31), Assert.Single(WorkbookEditor.SheetNames(xlsx)));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Create(IEnumerable<XlsxSheet>) and its overloads
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Create_WithSeveralSheets_KeepsSequenceOrderAndContent()
+    {
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Summary", new[] { new object?[] { "Region", "Total" } }),
+            XlsxSheet.Named("Detail",  new[] { new object?[] { "EMEA", 1200 } }),
+            XlsxSheet.Named("Notes",   new[] { new object?[] { "n/a" } }),
+        });
+
+        // Order is asserted through SheetNames, which reads tab order - not through part order,
+        // which can disagree.
+        Assert.Equal(new[] { "Summary", "Detail", "Notes" }, WorkbookEditor.SheetNames(xlsx));
+        Assert.Equal("Region", WorkbookEditor.ReadCell(xlsx, "Summary", "A1"));
+        Assert.Equal("1200", WorkbookEditor.ReadCell(xlsx, "Detail", "B1"));
+    }
+
+    [Fact]
+    public void Create_WithSheets_WritesFormulasFoundInRows()
+    {
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Summary", new[]
+            {
+                new object?[] { 1200, 1400, XlsxFormula.From("=A1+B1") },
+            }),
+        });
+
+        Assert.Equal("2600", WorkbookEditor.ReadCell(xlsx, "Summary", "C1"));
+    }
+
+    [Fact]
+    public void Create_WithSheets_RejectsEmptyNullAndDuplicates()
+    {
+        // Named argument, not a cast: Create is overloaded, and naming the parameter pins which
+        // overload this asserts against without the redundant upcast CodeQL flags (cs/useless-upcast).
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.Create(sheets: null!));
+
+        // A workbook with no worksheets is not a valid .xlsx - measured, ClosedXML throws
+        // "Workbooks need at least one worksheet." Rejecting eagerly names the parameter.
+        var empty = Assert.Throws<ArgumentException>(() => WorkbookEditor.Create(Array.Empty<XlsxSheet>()));
+        Assert.Equal("sheets", empty.ParamName);
+
+        var nullElement = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.Create(new XlsxSheet[] { null! }));
+        Assert.Equal("sheets", nullElement.ParamName);
+        Assert.Contains("Sheet 1 was null.", nullElement.Message, StringComparison.Ordinal);
+
+        var rows = new[] { new object?[] { 1 } };
+        var duplicate = Assert.Throws<ArgumentException>(() => WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Data", rows),
+            XlsxSheet.Named("data", rows),   // Excel treats sheet names case-insensitively
+        }));
+        Assert.Equal("sheets", duplicate.ParamName);
+        Assert.Contains("more than once", duplicate.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithSheets_MatchesTheByteArrayOverload()
+    {
+        var sheets = new[]
+        {
+            XlsxSheet.Named("Summary", new[] { new object?[] { "Region", 1 } }),
+            XlsxSheet.Named("Detail",  new[] { new object?[] { "EMEA", 2 } }),
+        };
+
+        var expected = WorkbookEditor.Create(sheets);
+
+        using var destination = new MemoryStream();
+        await WorkbookEditor.CreateAsync(sheets, destination);
+
+        var streamed = destination.ToArray();
+        Assert.Equal(WorkbookEditor.SheetNames(expected), WorkbookEditor.SheetNames(streamed));
+        Assert.Equal(
+            WorkbookEditor.ReadCell(expected, "Detail", "A1"),
+            WorkbookEditor.ReadCell(streamed, "Detail", "A1"));
+    }
+
+    [Fact]
+    public async Task CreateToFileAsync_WithSheets_WritesAReadableWorkbook()
+    {
+        using var temp = new TempFile();
+
+        await WorkbookEditor.CreateToFileAsync(
+            new[] { XlsxSheet.Named("Summary", new[] { new object?[] { "hi" } }) },
+            temp.Path);
+
+        Assert.Equal("hi", WorkbookEditor.ReadCell(await File.ReadAllBytesAsync(temp.Path), "Summary", "A1"));
+    }
+
     // ---------------------------------------------------------------------------------------
     // Error handling (I-6): raw FileFormatException/ArgumentException used to escape.
     // ---------------------------------------------------------------------------------------
@@ -596,5 +717,267 @@ public class WorkbookEditorTests
         Assert.Equal(
             WorkbookEditor.SheetNames(xlsx),
             await WorkbookEditor.SheetNamesAsync(input.Path));
+    }
+
+    [Fact]
+    public void SetCell_WithAnXlsxFormula_WritesAFormulaThatReadsBackComputed()
+    {
+        var xlsx = WorkbookEditor.Create("Sheet1", new[]
+        {
+            new object?[] { 1 },
+            new object?[] { 2 },
+        });
+
+        var edited = WorkbookEditor.SetCell(xlsx, "Sheet1", "B1", XlsxFormula.From("=A1+A2"));
+
+        // ClosedXML evaluates on demand, so this package's own reader returns the computed value.
+        // Measured 2026-08-08; see docs/2026-08-08-xlsx-multisheet-design.md.
+        Assert.Equal("3", WorkbookEditor.ReadCell(edited, "Sheet1", "B1"));
+    }
+
+    [Theory]
+    [InlineData("=1/0", "#DIV/0!")]
+    [InlineData("=TOTALLYNOTAFUNCTION(A1)", "#NAME?")]
+    [InlineData("=Sheet2!A1", "#REF!")]
+    public void SetCell_WithABrokenFormula_ReadsBackAsTheExcelErrorString(string formula, string expected)
+    {
+        // The error contract: a broken formula surfaces exactly as Excel shows it, and nothing
+        // throws. Pinned because it is what a consumer actually hits.
+        var xlsx = WorkbookEditor.Create("Sheet1", new[] { new object?[] { 5 } });
+
+        var edited = WorkbookEditor.SetCell(xlsx, "Sheet1", "B1", XlsxFormula.From(formula));
+
+        Assert.Equal(expected, WorkbookEditor.ReadCell(edited, "Sheet1", "B1"));
+    }
+
+    [Fact]
+    public void SetCell_WithAFormula_WritesNoCachedValue()
+    {
+        // The documented limit, asserted against the raw XML so a ClosedXML upgrade that starts
+        // caching values cannot change the promise silently.
+        var xlsx = WorkbookEditor.Create("Sheet1", new[] { new object?[] { 1 }, new object?[] { 2 } });
+        var edited = WorkbookEditor.SetCell(xlsx, "Sheet1", "B1", XlsxFormula.From("=A1+A2"));
+
+        using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(edited));
+        var entry = zip.Entries.Single(e => e.FullName.EndsWith("sheet1.xml", StringComparison.Ordinal));
+        using var reader = new StreamReader(entry.Open());
+        var xml = reader.ReadToEnd();
+
+        var cell = xml[xml.IndexOf("r=\"B1\"", StringComparison.Ordinal)..];
+        cell = cell[..cell.IndexOf("</x:c>", StringComparison.Ordinal)];
+
+        Assert.Contains(":f>A1+A2<", cell, StringComparison.Ordinal);
+        Assert.DoesNotContain(":v>", cell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void XlsxFormula_StripsALeadingEquals_SoBothSpellingsAgree()
+    {
+        Assert.Equal("SUM(A1:A2)", XlsxFormula.From("=SUM(A1:A2)").Formula);
+        Assert.Equal("SUM(A1:A2)", XlsxFormula.From("SUM(A1:A2)").Formula);
+    }
+
+    [Fact]
+    public void XlsxFormula_RejectsNullAndEmpty()
+    {
+        Assert.Throws<ArgumentNullException>(() => XlsxFormula.From(null!));
+        Assert.Equal("formula", Assert.Throws<ArgumentException>(() => XlsxFormula.From("   ")).ParamName);
+        Assert.Equal("formula", Assert.Throws<ArgumentException>(() => XlsxFormula.From("=")).ParamName);
+    }
+
+    [Fact]
+    public void XlsxSheet_Named_DeepCopiesRowsSoLaterMutationDoesNotAffectTheSheet()
+    {
+        var row1 = new object?[] { "EMEA", 1200 };
+        var rows = new List<IEnumerable<object?>>
+        {
+            new object?[] { "Region", "Total" },
+            row1,
+        };
+
+        var sheet = XlsxSheet.Named("Summary", rows);
+
+        // Mutate the caller's data after construction - the outer sequence (replace an element
+        // wholesale) and a row's own array (mutate an element inside it). If either mutation were
+        // visible in sheet.Rows, this proves materialisation was shallow rather than deep; a test
+        // that never mutates after construction cannot tell eager-but-shallow apart from deep.
+        rows[1] = new object?[] { "REPLACED", -1 };
+        row1[0] = "MUTATED";
+        row1[1] = -999;
+
+        Assert.Equal("Summary", sheet.Name);
+        Assert.Equal(2, sheet.Rows.Count);
+        Assert.Equal(new object?[] { "EMEA", 1200 }, sheet.Rows[1]);
+    }
+
+    [Fact]
+    public void XlsxSheet_Named_RejectsBadInput()
+    {
+        var rows = new[] { new object?[] { 1 } };
+
+        Assert.Throws<ArgumentNullException>(() => XlsxSheet.Named(null!, rows));
+        Assert.Throws<ArgumentNullException>(() => XlsxSheet.Named("Sheet1", null!));
+
+        // Reuses the same rules as WorkbookEditor.Create - one helper, so they cannot drift.
+        Assert.Equal("name", Assert.Throws<ArgumentException>(
+            () => XlsxSheet.Named(new string('a', 32), rows)).ParamName);
+        Assert.Equal("name", Assert.Throws<ArgumentException>(
+            () => XlsxSheet.Named("Q1/Q2", rows)).ParamName);
+
+        var nullRow = Assert.Throws<ArgumentException>(
+            () => XlsxSheet.Named("Sheet1", new IEnumerable<object?>[] { null! }));
+        Assert.Equal("rows", nullRow.ParamName);
+        Assert.Contains("Row 1 was null.", nullRow.Message, StringComparison.Ordinal);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // AppendRows and its overloads
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AppendRows_AddsAfterTheLastUsedRow()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[]
+        {
+            new object?[] { "when", "what" },
+            new object?[] { "09:00", "started" },
+        });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", new[]
+        {
+            new object?[] { "09:05", "continued" },
+            new object?[] { "09:10", "finished" },
+        });
+
+        var sheet = WorkbookEditor.ReadSheet(appended, "Log");
+        Assert.Equal(4, sheet.Count);
+        Assert.Equal(new[] { "09:05", "continued" }, sheet[2]);
+        Assert.Equal(new[] { "09:10", "finished" }, sheet[3]);
+    }
+
+    [Fact]
+    public void AppendRows_LeavesOtherSheetsAlone()
+    {
+        // "The appended rows are right" would pass while a second sheet silently vanished, so the
+        // other sheet is asserted directly.
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Log",   new[] { new object?[] { "start" } }),
+            XlsxSheet.Named("Notes", new[] { new object?[] { "keep me" } }),
+        });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", new[] { new object?[] { "more" } });
+
+        Assert.Equal(new[] { "Log", "Notes" }, WorkbookEditor.SheetNames(appended));
+        Assert.Equal("keep me", WorkbookEditor.ReadCell(appended, "Notes", "A1"));
+    }
+
+    [Fact]
+    public void AppendRows_WithFormulas_WritesThemAsFormulas()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new[] { new object?[] { 10, 20 } });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Data", new[]
+        {
+            new object?[] { 30, 40, XlsxFormula.From("=A2+B2") },
+        });
+
+        // The formula references the appended row's own cells (30 + 40 = 70), a value that
+        // matches no literal in the row. A formula written as the literal 30 - or any other
+        // literal already present - would read back as that literal, not "70", so this can only
+        // pass if C2 is a real, evaluated formula.
+        Assert.Equal("30", WorkbookEditor.ReadCell(appended, "Data", "A2"));
+        Assert.Equal("70", WorkbookEditor.ReadCell(appended, "Data", "C2"));
+    }
+
+    [Fact]
+    public void AppendRows_WithNoRows_IsANoOpThatStillReturnsAValidWorkbook()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "only" } });
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", Array.Empty<IEnumerable<object?>>());
+
+        Assert.Single(WorkbookEditor.ReadSheet(appended, "Log"));
+        Assert.Equal("only", WorkbookEditor.ReadCell(appended, "Log", "A1"));
+    }
+
+    [Fact]
+    public void AppendRows_RejectsBadInput()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { 1 } });
+        var rows = new[] { new object?[] { 2 } };
+
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.AppendRows(null!, "Log", rows));
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.AppendRows(xlsx, "Log", null!));
+        Assert.Equal("sheetName", Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AppendRows(xlsx, "  ", rows)).ParamName);
+
+        // A missing sheet is a DocumentConversionException, matching the existing Sheet() helper
+        // that ReadSheet, ReadCell and SetCell all use. One convention for one mistake.
+        var missing = Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AppendRows(xlsx, "Nope", rows));
+        Assert.Contains("'Nope'", missing.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppendRows_RejectsAnEmptyWorkbook()
+    {
+        // Same guard, and now the same wording, as every other byte[] overload's empty-xlsx check
+        // (ValidateWorkbook) - this used to say "Workbook was empty.", diverging from the rest.
+        var rows = new[] { new object?[] { 1 } };
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AppendRows(Array.Empty<byte>(), "Log", rows));
+
+        Assert.Equal("xlsx", ex.ParamName);
+        Assert.Contains("Workbook content was empty.", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppendRows_ToASheetWithNoUsedRows_StartsAtRowOne()
+    {
+        // The ?? 0 branch: LastRowUsed() is null for a sheet with no used rows at all, so the
+        // append must start at row 1, not row 0 or throw.
+        var xlsx = WorkbookEditor.Create("Log", Array.Empty<IEnumerable<object?>>());
+
+        var appended = WorkbookEditor.AppendRows(xlsx, "Log", new[] { new object?[] { "first" } });
+
+        var sheet = WorkbookEditor.ReadSheet(appended, "Log");
+        Assert.Single(sheet);
+        Assert.Equal(new[] { "first" }, sheet[0]);
+    }
+
+    [Fact]
+    public async Task AppendRowsAsync_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "a" } });
+        var rows = new[] { new object?[] { "b" } };
+
+        var expected = WorkbookEditor.AppendRows(xlsx, "Log", rows);
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        await WorkbookEditor.AppendRowsAsync(source, "Log", rows, destination);
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(expected, "Log"),
+            WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
+    }
+
+    [Fact]
+    public async Task AppendRowsAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Log", new[] { new object?[] { "a" } });
+        var rows = new[] { new object?[] { "b" } };
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        await WorkbookEditor.AppendRowsAsync(input.Path, output.Path, "Log", rows);
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(WorkbookEditor.AppendRows(xlsx, "Log", rows), "Log"),
+            WorkbookEditor.ReadSheet(await File.ReadAllBytesAsync(output.Path), "Log"));
     }
 }

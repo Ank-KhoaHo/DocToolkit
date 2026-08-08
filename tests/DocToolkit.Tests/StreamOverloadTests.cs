@@ -83,6 +83,12 @@ public class StreamOverloadTests
         new object?[] { "North", 1200 },
     };
 
+    /// <summary>Sheets for WorkbookEditor.CreateAsync(sheets), which takes no source.</summary>
+    private static readonly XlsxSheet[] Sheets =
+    {
+        XlsxSheet.Named("Sales", Rows),
+    };
+
     // =====================================================================================
     // The surface, by name. Every Stream overload appears in at least one of these lists.
     // =====================================================================================
@@ -102,7 +108,9 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
         "WorkbookEditor.CreateAsync",
+        "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
+        "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.CreateAsync",
     };
@@ -120,6 +128,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SheetNamesAsync",
         "WorkbookEditor.ReadSheetAsync",
         "WorkbookEditor.SetCellAsync",
+        "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
@@ -141,7 +150,9 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
         "WorkbookEditor.CreateAsync",
+        "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
+        "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.CreateAsync",
     };
@@ -420,6 +431,18 @@ public class StreamOverloadTests
     }
 
     [Fact]
+    public async Task WorkbookEditor_CreateAsync_WithSheets_DoesNotDisposeTheDestination()
+    {
+        var sheets = new[] { XlsxSheet.Named("Sales", new[] { new object?[] { "a", 1 } }) };
+
+        using var destination = new ForwardOnlySink();
+        await WorkbookEditor.CreateAsync(sheets, destination);
+
+        Assert.False(destination.IsDisposed);
+        Assert.True(destination.ToArray().Length > 0);
+    }
+
+    [Fact]
     public async Task WorkbookEditor_ReadCellAsync_MatchesTheByteArrayOverload()
     {
         using var source = StreamDoubles.Seekable(Xlsx);
@@ -599,6 +622,8 @@ public class StreamOverloadTests
                 DocxEditor.CreateAsync(Blocks, destination!, ct),
             "WorkbookEditor.CreateAsync" =>
                 WorkbookEditor.CreateAsync("Sales", Rows, destination!, ct),
+            "WorkbookEditor.CreateAsync(sheets)" =>
+                WorkbookEditor.CreateAsync(Sheets, destination!, ct),
             "WorkbookEditor.ReadCellAsync" =>
                 WorkbookEditor.ReadCellAsync(source!, "Sales", "A1", ct),
             "WorkbookEditor.SheetNamesAsync" =>
@@ -607,6 +632,8 @@ public class StreamOverloadTests
                 WorkbookEditor.ReadSheetAsync(source!, "Sales", ct),
             "WorkbookEditor.SetCellAsync" =>
                 WorkbookEditor.SetCellAsync(source!, "Sales", "B2", 1500, destination!, ct),
+            "WorkbookEditor.AppendRowsAsync" =>
+                WorkbookEditor.AppendRowsAsync(source!, "Sales", Rows, destination!, ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ExtractTextAsync" =>
@@ -634,6 +661,7 @@ public class StreamOverloadTests
     private static MemoryStream NewSource(string api)
         => api.StartsWith("HtmlTo", StringComparison.Ordinal)
             || api == "WorkbookEditor.CreateAsync"
+            || api == "WorkbookEditor.CreateAsync(sheets)"
             || api == "DocxEditor.CreateAsync"
             || api == "PresentationEditor.CreateAsync"
             ? new MemoryStream()

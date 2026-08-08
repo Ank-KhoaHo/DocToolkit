@@ -279,9 +279,15 @@ internal static class DocxDocumentWriter
     }
 
     /// <summary>
-    /// Formats a cell value, handling the same types BY NAME as <see cref="WorkbookEditor.Create"/>
+    /// Formats a cell value, handling the same types BY NAME as
+    /// <see cref="WorkbookEditor.Create(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}})"/>
     /// but NOT always to the same text. See <see cref="DocxBlock.Table"/> for the measured
     /// divergences and why they are deliberate.
+    ///
+    /// One exception is not by-name at all: <see cref="XlsxFormula"/> is deliberately not one of
+    /// the types handled below. A formula is meaningful only in a spreadsheet cell, so a value of
+    /// that type falls to the default arm and renders as the literal text
+    /// <c>DocToolkit.XlsxFormula</c> rather than the formula text.
     ///
     /// A Word table cell has no type of its own, unlike a spreadsheet cell, so every value ends up
     /// as text, and choosing that text is this library's call rather than a renderer's. What the two

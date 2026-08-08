@@ -136,6 +136,28 @@ IReadOnlyList<string> sheets = WorkbookEditor.SheetNames(xlsx);              // 
 IReadOnlyList<IReadOnlyList<string>> grid = WorkbookEditor.ReadSheet(xlsx, "Sales");
 string topLeft = grid[0][0];    // anchored at A1, padded rectangular, blanks are ""
 
+// Or build a workbook with several sheets, from data, one worksheet each - XlsxFormula is a
+// cell value, usable here, in AppendRows rows below, and as SetCell's value argument
+byte[] workbook = WorkbookEditor.Create(new[]
+{
+    XlsxSheet.Named("Sales",   new[] { new object?[] { "Region", "Total" }, new object?[] { "EMEA", 1200 } }),
+    XlsxSheet.Named("Summary", new[] { new object?[] { "Grand total", XlsxFormula.From("SUM(Sales!B2:B2)") } }),
+});
+
+// Straight to a stream or a file, without materialising the byte[]
+using var workbookStream = new MemoryStream();
+await WorkbookEditor.CreateAsync(new[] { XlsxSheet.Named("Sales", rows) }, workbookStream);
+await WorkbookEditor.CreateToFileAsync(new[] { XlsxSheet.Named("Sales", rows) }, "workbook.xlsx");
+
+// Append rows after a sheet's last used row - every other sheet, and all existing formatting,
+// is left as it was
+byte[] appended = WorkbookEditor.AppendRows(xlsx, "Sales", new[] { new object?[] { "APAC", 980 } });
+
+// Straight to a stream or a file, without materialising the byte[]
+using var appendedStream = new MemoryStream();
+await WorkbookEditor.AppendRowsAsync(xlsxStream, "Sales", new[] { new object?[] { "APAC", 980 } }, appendedStream);
+await WorkbookEditor.AppendRowsAsync("workbook.xlsx", "workbook.xlsx", "Sales", new[] { new object?[] { "APAC", 980 } });
+
 // Presentations
 byte[] pptx = File.ReadAllBytes("deck.pptx");
 int slides = PresentationEditor.SlideCount(pptx);
@@ -166,6 +188,13 @@ string invoiceText = await DocxEditor.ExtractTextAsync("invoice.docx");
 // Input and output may be the same file
 await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", customer);
 ```
+
+**Formulas carry no cached value.** A cell written with `XlsxFormula` holds the formula and nothing
+else. Excel recalculates when it opens the file, and `ReadCell`/`ReadSheet` compute the value on
+read — but a third-party reader that only reads cached values, such as openpyxl with
+`data_only=True`, sees an empty cell until Excel has opened and saved the file. A formula that
+cannot be evaluated reads back as its Excel error string (`#DIV/0!`, `#NAME?`, `#REF!`) rather than
+throwing.
 
 ## Repeating table rows
 

@@ -67,9 +67,9 @@ public static class DocxEditor
     /// <paramref name="outputPath"/>. See <see cref="Create"/> for the block semantics.
     ///
     /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
-    /// <see cref="WorkbookEditor.CreateToFileAsync"/>: the distinct name keeps which kind of
-    /// destination a call writes to visible at the call site, rather than resting on the argument
-    /// type alone.
+    /// <see cref="WorkbookEditor.CreateToFileAsync(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}}, string, System.Threading.CancellationToken)"/>:
+    /// the distinct name keeps which kind of destination a call writes to visible at the call site,
+    /// rather than resting on the argument type alone.
     ///
     /// The document is built completely before the output is opened. That ordering is the reason a
     /// failed build cannot truncate a file that was already there, and it is pinned by
