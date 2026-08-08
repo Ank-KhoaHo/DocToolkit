@@ -83,6 +83,12 @@ public class StreamOverloadTests
         new object?[] { "North", 1200 },
     };
 
+    /// <summary>Sheets for WorkbookEditor.CreateAsync(sheets), which takes no source.</summary>
+    private static readonly XlsxSheet[] Sheets =
+    {
+        XlsxSheet.Named("Sales", Rows),
+    };
+
     // =====================================================================================
     // The surface, by name. Every Stream overload appears in at least one of these lists.
     // =====================================================================================
@@ -102,6 +108,7 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
         "WorkbookEditor.CreateAsync",
+        "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.CreateAsync",
@@ -141,6 +148,7 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.CreateAsync",
         "WorkbookEditor.CreateAsync",
+        "WorkbookEditor.CreateAsync(sheets)",
         "WorkbookEditor.SetCellAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.CreateAsync",
@@ -611,6 +619,8 @@ public class StreamOverloadTests
                 DocxEditor.CreateAsync(Blocks, destination!, ct),
             "WorkbookEditor.CreateAsync" =>
                 WorkbookEditor.CreateAsync("Sales", Rows, destination!, ct),
+            "WorkbookEditor.CreateAsync(sheets)" =>
+                WorkbookEditor.CreateAsync(Sheets, destination!, ct),
             "WorkbookEditor.ReadCellAsync" =>
                 WorkbookEditor.ReadCellAsync(source!, "Sales", "A1", ct),
             "WorkbookEditor.SheetNamesAsync" =>
@@ -646,6 +656,7 @@ public class StreamOverloadTests
     private static MemoryStream NewSource(string api)
         => api.StartsWith("HtmlTo", StringComparison.Ordinal)
             || api == "WorkbookEditor.CreateAsync"
+            || api == "WorkbookEditor.CreateAsync(sheets)"
             || api == "DocxEditor.CreateAsync"
             || api == "PresentationEditor.CreateAsync"
             ? new MemoryStream()

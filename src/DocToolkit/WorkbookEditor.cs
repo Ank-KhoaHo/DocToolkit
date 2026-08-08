@@ -670,6 +670,9 @@ public static class WorkbookEditor
     /// <para><paramref name="destination"/> is <b>written</b>, from its current position, and is
     /// <b>not</b> disposed, closed or sought.</para>
     /// </summary>
+    /// <param name="sheets">The sheets to build the workbook from, one worksheet each.</param>
+    /// <param name="destination">The stream the workbook is written to.</param>
+    /// <param name="ct">Cancels the build and the write to <paramref name="destination"/>.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="sheets"/> is invalid as above, or <paramref name="destination"/> is not writable.
@@ -692,6 +695,9 @@ public static class WorkbookEditor
     /// <paramref name="outputPath"/>, overwriting any existing file. See
     /// <see cref="Create(IEnumerable{XlsxSheet})"/> for the semantics.
     /// </summary>
+    /// <param name="sheets">The sheets to build the workbook from, one worksheet each.</param>
+    /// <param name="outputPath">Where to write the workbook. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the write to <paramref name="outputPath"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="sheets"/> or <paramref name="outputPath"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="sheets"/> is invalid as above, or <paramref name="outputPath"/> is empty.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
