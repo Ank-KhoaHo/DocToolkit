@@ -31,7 +31,7 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 
 | Constraint | How |
 |---|---|
-| **Free for commercial use** | 20 dependencies: 19 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
+| **Free for commercial use** | 26 dependencies: 25 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
 | **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
 | **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** (`ubuntu-24.04` x64, `windows-latest`, `macos-latest` Apple Silicon, `ubuntu-24.04-arm`). Not inferred from "pure managed" - measured on each. |
 | **Works offline** | No runtime network I/O. Proven by 37 air-gap tests. |
@@ -173,6 +173,7 @@ alternative is that you find out by reading the source.
 
 | Limitation | Detail |
 |---|---|
+| **DOCX → HTML returns a full document, not a fragment** | `DocxToHtmlConverter.Convert` emits `<html><head>…<body>`. There is no fragment mode: producing one would mean re-serialising the renderer's output, so if you are embedding the result, extract the body with an HTML parser. Both text converters embed images as `data:` URIs, so the output is self-contained. |
 | **PDF fidelity is bounded, and unsupported features are dropped silently** | All four converters (`DocxToPdfConverter`, `HtmlToPdfConverter`, `XlsxToPdfConverter`, `PptxToPdfConverter`) render what the underlying engine can represent. Features it cannot — charts, conditional formatting, some shape effects — are omitted rather than reported: there is no warning channel on the public API. The output is a valid PDF either way. |
 | **HTML → PDF goes through DOCX** | So PDF fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |
 | **No external stylesheets** | `<link rel="stylesheet">` is not fetched, by design: nothing here opens a socket by default. Inline `<style>` and `style=` attributes are honoured. |
@@ -253,7 +254,7 @@ fails restore loudly rather than silently relicensing you.
 ## Dependencies
 
 Direct: `DocumentFormat.OpenXml` · `HtmlToOpenXml.dll` · `OfficeIMO.Word.Pdf` · `ClosedXML` ·
-`SixLabors.Fonts [1.0.1]`. Full closure is 20 packages — 19 MIT, 1 Apache-2.0; see
+`SixLabors.Fonts [1.0.1]`. Full closure is 26 packages — 25 MIT, 1 Apache-2.0; see
 [`THIRD-PARTY-NOTICES.txt`](src/DocToolkit/THIRD-PARTY-NOTICES.txt).
 
 **Mirroring to a private feed?** Four things catch people out: `System.IO.Packaging` resolves to

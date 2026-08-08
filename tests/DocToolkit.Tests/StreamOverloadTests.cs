@@ -128,6 +128,8 @@ public class StreamOverloadTests
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.ExtractTextAsync",
+        "DocxToHtmlConverter.ConvertAsync",
+        "DocxToMarkdownConverter.ConvertAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
         "WorkbookEditor.ReadCellAsync",
         "WorkbookEditor.SheetNamesAsync",
@@ -631,6 +633,10 @@ public class StreamOverloadTests
                 DocxEditor.ReplaceImageAsync(source!, "{{logo}}", ImageFixtures.Png(), destination!, ct: ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
+            "DocxToHtmlConverter.ConvertAsync" =>
+                DocxToHtmlConverter.ConvertAsync(source!, ct),
+            "DocxToMarkdownConverter.ConvertAsync" =>
+                DocxToMarkdownConverter.ConvertAsync(source!, ct),
             "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)" =>
                 DocxEditor.ExtractTextAsync(source!, true, ct),
             "DocxEditor.CreateAsync" =>
