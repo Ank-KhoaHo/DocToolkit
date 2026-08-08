@@ -59,6 +59,10 @@ docker run --rm doctoolkit-linux-test
 
 There is one branch: `main`. It cannot be pushed directly — every change arrives by pull request.
 
+One exception, and it is not a development branch: `nuget-stats` is an orphan data branch written
+once a day by `.github/workflows/nuget-stats.yml`. It shares no history with `main`, is never
+merged into it, and carries no source. Nothing is developed there and no pull request targets it.
+
 **If you have push access to this repository:**
 
 ```bash

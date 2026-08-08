@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""Record this package's nuget.org download counts daily, so that real adoption
-becomes visible against the noise our own CI generates.
+"""Record this package's nuget.org download counts daily.
+
+This RECORDS; it does not yet INTERPRET. An adoption signal was designed,
+built, and removed before shipping - see summarise()'s docstring for exactly
+how it failed. Collection ships anyway because the history cannot be rebuilt:
+the search API serves only current cumulative totals, so every uncollected day
+is lost permanently, while any analysis can be re-run over the whole history
+whenever a sound method exists.
 
 WHY THIS EXISTS. Measured 2026-08-08: 677 restoring workflow runs in six weeks,
 each re-downloading the full dependency closure, so roughly 880 of the four
@@ -38,6 +44,11 @@ day's delta, which reads exactly like the external usage this exists to detect.
 Usage:
     python scripts/nuget-stats.py collect --data-dir DIR --runs-json FILE
     python scripts/nuget-stats.py render  --data-dir DIR
+
+    # Offline, against the committed fixture - no network, deterministic:
+    python scripts/nuget-stats.py collect --data-dir /tmp/x \\
+        --api-fixture scripts/testdata/nuget-stats-fixture.json --date 2026-08-09
+    python scripts/nuget-stats.py render --data-dir /tmp/x
 """
 
 import argparse
@@ -45,6 +56,7 @@ import collections
 import csv
 import datetime
 import html
+import http.client
 import json
 import os
 import sys
@@ -200,7 +212,8 @@ def gather_downloads(fixture):
             for region in REGIONS:
                 try:
                     per_region.append(fetch_region(package, region))
-                except (urllib.error.URLError, OSError, *readable) as error:
+                except (urllib.error.URLError, OSError,
+                        http.client.HTTPException, *readable) as error:
                     failures += 1
                     print(f"warning: {package} via {region}: {error}", file=sys.stderr)
         if not per_region:
@@ -307,13 +320,6 @@ def collect(args):
 
 SPARK = "▁▂▃▄▅▆▇█"
 
-# Measured 2026-08-08: okhttp, Python-urllib, Python aiohttp, Go-http-client and
-# JFrog Artifactory each appear at a near-identical count on EVERY version
-# regardless of its age or popularity - the fingerprint of scheduled crawlers
-# sweeping the whole version list. Roughly 16 per version per six weeks. A delta
-# at or under this is noise, not a user.
-CRAWLER_FLOOR_PER_DAY = 2
-
 
 def sparkline(values):
     """Unicode bars for a series of daily deltas.
@@ -336,17 +342,29 @@ def sparkline(values):
 
 
 def series(rows):
-    """{(package, version): {date: cumulative}} from downloads.csv rows."""
+    """{(package, version): {date: cumulative}} from downloads.csv rows.
+
+    A row with an unreadable cumulative is skipped with a warning rather than
+    raising, matching highest_recorded. One hand-edited or legacy row must not
+    cost the whole report.
+    """
     out = collections.defaultdict(dict)
     for row in rows:
-        out[(row["package"], row["version"])][row["date"]] = int(row["cumulative"])
+        try:
+            out[(row["package"], row["version"])][row["date"]] = int(row["cumulative"])
+        except (TypeError, ValueError, KeyError):
+            print(f"warning: skipping unreadable downloads row {row!r}", file=sys.stderr)
     return out
 
 
 def runs_by_date(rows):
+    """{date: total runs} from runs.csv rows, skipping unreadable ones."""
     out = collections.Counter()
     for row in rows:
-        out[row["date"]] += int(row["runs"])
+        try:
+            out[row["date"]] += int(row["runs"])
+        except (TypeError, ValueError, KeyError):
+            print(f"warning: skipping unreadable runs row {row!r}", file=sys.stderr)
     return out
 
 
@@ -373,24 +391,44 @@ def span_days(dates):
         first = datetime.date.fromisoformat(dates[0])
         last = datetime.date.fromisoformat(dates[-1])
     except (TypeError, ValueError):
-        print(f"warning: unparseable date near {dates[0]!r}; span not computed",
-              file=sys.stderr)
+        print(f"warning: unparseable date in {dates[0]!r}..{dates[-1]!r}; "
+              f"span not computed", file=sys.stderr)
         return None
     return (last - first).days
 
 
 def summarise(downloads_rows, runs_rows):
-    """One record per (package, version), highest total first within a package."""
+    """One record per (package, version), highest total first within a package.
+
+    Deliberately computes no adoption signal. An earlier version carried a
+    `quiet` column - downloads accumulated on days our own CI ran nothing -
+    and it was removed rather than repaired, for two measured reasons.
+
+    It could never fire: the gate required a date present in runs.csv whose
+    run count was zero, but the only thing that writes runs.csv is a Counter,
+    which never yields zero, so a zero-run day produced no row at all and the
+    two halves of the condition were mutually exclusive.
+
+    And repairing that alone would have made it lie in the dangerous
+    direction: downloads accumulated across a multi-day gap were charged
+    entirely to the CI status of the gap's LAST day, so 60 downloads spread
+    over three days carrying 40 CI runs each rendered as external usage.
+
+    What remains is only what the data supports: totals, deltas, and our own
+    CI volume beside them. Answering "does anyone actually use this?" needs a
+    method this file does not yet have - but the history being recorded here
+    cannot be rebuilt later, so it is worth collecting while that is designed.
+    """
     by_key = series(downloads_rows)
     per_day = runs_by_date(runs_rows)
 
-    # Dates we actually hold a CI record for. A date MISSING from runs.csv means
-    # "not recorded", NOT "zero runs" - and conflating the two would mark every
-    # early day as quiet and flag the entire table as external usage on day one.
-    measured_days = {row["date"] for row in runs_rows}
-
     all_dates = sorted({row["date"] for row in downloads_rows})
     recent = all_dates[-7:]
+    clamped_keys = {
+        (row["package"], row["version"])
+        for row in downloads_rows
+        if row.get("clamped")
+    }
 
     summary = []
     for (package, version), points in by_key.items():
@@ -407,23 +445,6 @@ def summarise(downloads_rows, runs_rows):
         daily = [window[i + 1] - window[i] for i in range(len(window) - 1)]
         runs_recent = sum(per_day.get(d, 0) for d in recent)
 
-        # Downloads accumulated on days our own CI ran nothing cannot be ours:
-        # the pipeline only ever asks for the lockfile version or `*`-latest,
-        # never an arbitrary old version.
-        quiet = 0
-        quiet_days = 0
-        for i in range(len(dates) - 1):
-            day = dates[i + 1]
-            if day in measured_days and per_day.get(day, 0) == 0:
-                quiet += points[day] - points[dates[i]]
-                # CALENDAR days, not one per observed interval. A gap in this
-                # version's rows would otherwise weigh a multi-day accumulation
-                # against a single day of crawler floor - which flags noise as a
-                # real user, the one mistake this column must not make. The
-                # `or 1` catches an unparseable date: falling back to one day
-                # raises the bar for flagging, which is the safe direction.
-                quiet_days += span_days([dates[i], day]) or 1
-
         summary.append({
             "package": package,
             "version": version,
@@ -431,32 +452,34 @@ def summarise(downloads_rows, runs_rows):
             "delta": delta,
             "span": span,
             "runs_recent": runs_recent,
-            "quiet": quiet if quiet_days else None,
-            "quiet_days": quiet_days,
+            "clamped": (package, version) in clamped_keys,
             "spark": sparkline(daily),
-            "interesting": quiet > CRAWLER_FLOOR_PER_DAY * quiet_days,
         })
     summary.sort(key=lambda r: (r["package"], -r["latest"]))
     return summary, all_dates
 
 
 LIMITS = """\
-What this cannot tell you, so that the numbers are not over-read:
+**This does not yet tell you whether anyone outside our own CI uses the package.**
+It records the history needed to answer that once a sound method exists, because
+the nuget.org search API serves only current totals - a day not collected is lost
+permanently, while the analysis can be re-run over the whole history at any time.
+
+A `*` marks a version whose reading was clamped: a region reported a total below
+one already recorded, and cumulative counts cannot decrease, so the previous high
+was kept.
+
+What this can never tell you, however it is analysed later:
 
 - **No client split.** A crawler and a developer are indistinguishable here; the
-  per-client breakdown on nuget.org is rendered client-side and cannot be fetched.
+  per-client breakdown on nuget.org is rendered client-side and cannot be fetched
+  without a headless browser.
 - **One person downloading ten times looks like ten people.**
 - **Proxy consumers are invisible.** One JFrog Artifactory fetch may serve a whole
   company, so this under-counts in a direction it cannot measure.
-- **The index lags one to two days.** Read week-over-week trends, not daily spikes.
-- **`quiet` is the column that matters:** downloads accumulated on days our own CI
-  ran nothing. Our pipeline only ever requests the lockfile version or `*`-latest,
-  so it cannot produce those. `/Nd` is the total number of calendar days those
-  quiet stretches cover - a sum of gaps, not one contiguous range - and a row is
-  flagged only when it exceeds the crawler floor across all of them.
-- **`recent Δ` covers up to the last seven sample dates**, and `/Nd` is how many
-  calendar days the version's own rows actually span within them - a sparse version
-  reports over fewer days than a dense one.
+- **The index lags one to two days**, and the two search regions disagree - measured
+  2026-08-08, one reported 3642 where the other reported 5410. Both are queried and
+  the higher wins.
 """
 
 
@@ -465,27 +488,24 @@ def render_markdown(summary, dates):
     recent_span = span_days(recent)
     window_label = f" /{recent_span}d" if recent_span else ""
     lines = [
-        "# nuget.org usage",
+        "# nuget.org downloads",
         "",
         f"Generated from {len(dates)} day(s) of samples"
         + (f", {dates[0]} to {dates[-1]}." if dates else "."),
         "",
-        f"| package | version | total | recent Δ | CI runs{window_label} | quiet | trend |",
-        "|---|---|---:|---:|---:|---:|---|",
+        f"| package | version | total | recent Δ | CI runs{window_label} | trend |",
+        "|---|---|---:|---:|---:|---|",
     ]
     for row in summary:
         short = row["package"].replace("Ank.DocToolkit", "core").replace(
             "core.Extensions.DependencyInjection", "extensions")
-        mark = " **←**" if row["interesting"] else ""
         delta = cell(row["delta"])
         if row["span"]:
             delta += f" /{row['span']}d"
-        quiet = cell(row["quiet"])
-        if row["quiet_days"]:
-            quiet += f" /{row['quiet_days']}d"
+        version = row["version"] + ("*" if row["clamped"] else "")
         lines.append(
-            f"| {short} | {row['version']} | {row['latest']} | {delta} | "
-            f"{row['runs_recent']} | {quiet}{mark} | `{row['spark']}` |"
+            f"| {short} | {version} | {row['latest']} | {delta} | "
+            f"{row['runs_recent']} | `{row['spark']}` |"
         )
     lines += ["", LIMITS]
     return "\n".join(lines) + "\n"
@@ -498,18 +518,14 @@ def render_html(summary, dates):
     window_label = f" /{recent_span}d" if recent_span else ""
     body = []
     for row in summary:
-        cls = ' class="hit"' if row["interesting"] else ""
         delta = cell(row["delta"])
         if row["span"]:
             delta += f" /{row['span']}d"
-        quiet = cell(row["quiet"])
-        if row["quiet_days"]:
-            quiet += f" /{row['quiet_days']}d"
+        version = html.escape(row["version"]) + ("*" if row["clamped"] else "")
         body.append(
-            f"<tr{cls}><td>{html.escape(row['package'])}</td>"
-            f"<td>{html.escape(row['version'])}</td>"
+            f"<tr><td>{html.escape(row['package'])}</td><td>{version}</td>"
             f"<td class=n>{row['latest']}</td><td class=n>{delta}</td>"
-            f"<td class=n>{row['runs_recent']}</td><td class=n>{quiet}</td>"
+            f"<td class=n>{row['runs_recent']}</td>"
             f"<td class=s>{row['spark']}</td></tr>"
         )
     return f"""<!doctype html>
@@ -517,9 +533,9 @@ def render_html(summary, dates):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>nuget.org usage</title>
 <style>
-  :root {{ color-scheme: light dark; --fg:#111; --bg:#fff; --line:#d0d7de; --hit:#fff8c5; }}
+  :root {{ color-scheme: light dark; --fg:#111; --bg:#fff; --line:#d0d7de; }}
   @media (prefers-color-scheme: dark) {{
-    :root {{ --fg:#e6edf3; --bg:#0d1117; --line:#30363d; --hit:#2d2a1f; }}
+    :root {{ --fg:#e6edf3; --bg:#0d1117; --line:#30363d; }}
   }}
   body {{ font:15px/1.5 system-ui,sans-serif; color:var(--fg); background:var(--bg);
          margin:0; padding:2rem 1rem; }}
@@ -528,24 +544,23 @@ def render_html(summary, dates):
   th,td {{ padding:.4rem .6rem; border-bottom:1px solid var(--line); text-align:left; }}
   .n {{ text-align:right; font-variant-numeric:tabular-nums; }}
   .s {{ font-family:ui-monospace,monospace; letter-spacing:1px; }}
-  tr.hit {{ background:var(--hit); }}
   .wrap {{ overflow-x:auto; }}
 </style></head><body><main>
 <h1>nuget.org usage</h1>
 <p>{len(dates)} day(s) of samples, {span}.</p>
 <div class="wrap"><table>
 <thead><tr><th>package</th><th>version</th><th class=n>total</th><th class=n>recent Δ</th>
-<th class=n>CI runs{window_label}</th><th class=n>quiet</th><th>trend</th></tr></thead>
+<th class=n>CI runs{window_label}</th><th>trend</th></tr></thead>
 <tbody>
 {chr(10).join(body)}
 </tbody></table></div>
-<p><strong>quiet</strong> counts downloads accumulated on days our own CI ran nothing.
-Our pipeline only ever requests the lockfile version or <code>*</code>-latest, so it
-cannot produce those. Highlighted rows exceed the measured crawler floor of roughly two
-downloads per version per day. <code>/Nd</code> is the number of calendar days a figure
-covers: for <strong>recent &Delta;</strong> the span of that version's own rows inside the
-window, for <strong>quiet</strong> the summed length of its quiet stretches. A dash means
-not enough samples yet - which is different from zero.</p>
+<p><strong>This does not yet tell you whether anyone outside our own CI uses the
+package.</strong> It records the history needed to answer that once a sound method
+exists - nuget.org serves only current totals, so a day not collected is lost
+permanently, while the analysis can be re-run over the whole history at any time.
+<code>/Nd</code> is the number of calendar days a figure covers. A dash means not
+enough samples yet, which is different from zero. A <code>*</code> after a version
+marks a clamped reading: a region reported a total below one already recorded.</p>
 </main></body></html>
 """
 

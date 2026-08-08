@@ -94,6 +94,7 @@ jobs:
             --data-dir data --date "$DAY" $RUNS_ARG
 
       - name: Render
+        id: render
         continue-on-error: true
         run: python3 main/scripts/nuget-stats.py render --data-dir data
 
@@ -116,7 +117,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads.csv runs.csv report.md report.html 2>/dev/null || true
+          # One file at a time, and only if it exists: `git add a b c d` aborts
+          # on the first pathspec matching nothing and stages NONE of the rest.
+          # That fires exactly during the bootstrap window, when a download
+          # outage leaves runs.csv as the only file worth keeping.
+          for f in downloads.csv runs.csv report.md report.html; do
+            if [ -f "$f" ]; then git add "$f"; fi
+          done
           if git diff --cached --quiet; then
             echo "nothing changed"
             exit 0
@@ -127,8 +134,8 @@ jobs:
       # Last, deliberately: the job must go red so a bad day is noticed, but not
       # before whatever was collected has been committed. Reporting the failure
       # and discarding the data are two different things and only one is wanted.
-      - name: Report collection failure
-        if: steps.collect.outcome == 'failure'
+      - name: Report failure
+        if: steps.collect.outcome == 'failure' || steps.render.outcome == 'failure'
         run: |
-          echo "::error::collect exited non-zero - see the Collect step. Any partial data was still committed."
+          echo "::error::collect or render exited non-zero - see the step logs. Any partial data was still committed."
           exit 1
