@@ -98,10 +98,26 @@ jobs:
           # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
           # on every job of every run.
           #
-          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
-          # version with no lockfile pinning it, so NuGet still queries the feed to
-          # resolve what `*` means; a genuinely new release is not in the cache and is
-          # still fetched. The cache suppresses re-downloads, not resolution.
+          # This is NOT a build-speed optimisation, and do not defend it as one. Measured
+          # 2026-08-08, cold vs warm on the same commit: dotnet restore got faster
+          # (windows 18s->10s, macos 5s->2s, linux 9s->8s), but setup-dotnet got slower in
+          # all ten jobs because it now downloads a 222 MB archive, and the whole run went
+          # 175s -> 187s. The justification is traffic, not time - CI's own restores were
+          # dominating this package's nuget.org download statistics, which is what made
+          # "does anyone actually use this?" unanswerable.
+          #
+          # It does NOT disarm the samples' Version="*" canary. `*` is a floating version
+          # with no lockfile pinning it, so NuGet still queries the feed to resolve what
+          # `*` means; a genuinely new release is not in the cache and is still fetched.
+          # The cache suppresses re-downloads, not resolution.
+          #
+          # Known residual, same root cause: `*` is not part of the cache key, and
+          # actions/cache does not re-save when the key hits exactly - measured, ten
+          # restores and zero saves. So a newly published Ank.DocToolkit is re-fetched by
+          # every samples-restoring job until the key rotates. That window closes when the
+          # extensions floor is bumped to the new version, which puts it in
+          # packages.lock.json and therefore in the key. Between a release and that bump,
+          # expect our own package to keep appearing in the download statistics.
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
@@ -165,16 +181,8 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
-          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
-          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
-          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
-          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
-          # on every job of every run.
-          #
-          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
-          # version with no lockfile pinning it, so NuGet still queries the feed to
-          # resolve what `*` means; a genuinely new release is not in the cache and is
-          # still fetched. The cache suppresses re-downloads, not resolution.
+          # Same cache as the build & test job above; see that block for the measured
+          # effect and for why this does not disarm the samples' Version="*" canary.
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
@@ -305,16 +313,8 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
-          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
-          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
-          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
-          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
-          # on every job of every run.
-          #
-          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
-          # version with no lockfile pinning it, so NuGet still queries the feed to
-          # resolve what `*` means; a genuinely new release is not in the cache and is
-          # still fetched. The cache suppresses re-downloads, not resolution.
+          # Same cache as the build & test job above; see that block for the measured
+          # effect and for why this does not disarm the samples' Version="*" canary.
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
@@ -440,16 +440,8 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
-          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
-          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
-          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
-          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
-          # on every job of every run.
-          #
-          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
-          # version with no lockfile pinning it, so NuGet still queries the feed to
-          # resolve what `*` means; a genuinely new release is not in the cache and is
-          # still fetched. The cache suppresses re-downloads, not resolution.
+          # Same cache as the build & test job above; see that block for the measured
+          # effect and for why this does not disarm the samples' Version="*" canary.
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
@@ -471,16 +463,8 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
-          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
-          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
-          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
-          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
-          # on every job of every run.
-          #
-          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
-          # version with no lockfile pinning it, so NuGet still queries the feed to
-          # resolve what `*` means; a genuinely new release is not in the cache and is
-          # still fetched. The cache suppresses re-downloads, not resolution.
+          # Same cache as the build & test job above; see that block for the measured
+          # effect and for why this does not disarm the samples' Version="*" canary.
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
@@ -518,16 +502,8 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.302
-          # Keyed on the two src/ packages.lock.json files - the only lockfiles in the
-          # tree, because RestorePackagesWithLockFile is set in src/Directory.Build.props
-          # and tests/ and samples/ do not inherit it. Ephemeral runners otherwise
-          # re-download the whole closure (ClosedXML, OpenXml, OfficeIMO, HtmlToOpenXml)
-          # on every job of every run.
-          #
-          # This does NOT disarm the samples' Version="*" canary. `*` is a floating
-          # version with no lockfile pinning it, so NuGet still queries the feed to
-          # resolve what `*` means; a genuinely new release is not in the cache and is
-          # still fetched. The cache suppresses re-downloads, not resolution.
+          # Same cache as the build & test job above; see that block for the measured
+          # effect and for why this does not disarm the samples' Version="*" canary.
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
