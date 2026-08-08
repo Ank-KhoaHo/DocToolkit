@@ -53,6 +53,22 @@ on:
         type: boolean
         default: false
 
+# Serialises releases. Deliberately the OPPOSITE of ci.yml's settings on both counts, because this
+# workflow publishes to nuget.org and a published version can be unlisted but never deleted or
+# reused.
+#
+#   group is a CONSTANT, not ${{ github.ref }}. Each tag is its own ref, so a per-ref group would
+#   put two tags pushed a minute apart in different groups and let them run at once - exactly the
+#   race this exists to stop. It also covers the two triggers above racing each other for the same
+#   tag, since both map to this one group.
+#
+#   cancel-in-progress is FALSE. Cancelling a release mid-run is the worst available outcome: the
+#   push step does the two packages in sequence, so a cancellation between them leaves one
+#   published and the other not, at a version that can never be reused. Queue behind it instead.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
   contents: write # needed to create the GitHub Release
   id-token: write # REQUIRED for Trusted Publishing - without it the OIDC token
@@ -109,13 +125,38 @@ jobs:
                              *)   echo "prerelease=false" >> "$GITHUB_OUTPUT";; esac
           echo "Releasing version $VERSION for both packages (publish=$PUBLISH)"
 
-      - name: Guard - CHANGELOG.md has an entry for this version
+      - name: Guard - CHANGELOG.md has a non-empty entry for this version
         run: |
-          if ! grep -Eq "^## \[${{ steps.v.outputs.version }}\]" CHANGELOG.md; then
-            echo "::error::Refusing to publish - CHANGELOG.md has no '## [${{ steps.v.outputs.version }}]' entry. Add one before tagging."
+          VERSION="${{ steps.v.outputs.version }}"
+
+          if ! grep -Eq "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::Refusing to publish - CHANGELOG.md has no '## [$VERSION]' entry. Add one before tagging."
             exit 1
           fi
-          echo "CHANGELOG.md has an entry for ${{ steps.v.outputs.version }}"
+
+          # The heading existing is not the same as the entry saying anything. release-please
+          # proposes a version for any bump-computing commit, and the types that are hidden from
+          # the changelog still bump - so a Release PR can carry a heading with nothing under it,
+          # and merging it publishes a version that tells consumers nothing. A nuget.org version
+          # can be unlisted but never deleted or reused, so that is not recoverable.
+          #
+          # Matched by index, not regex, because the version is bracketed and would otherwise need
+          # escaping. Stops at the next '## ' heading; '### Added' does not match that, so section
+          # headings inside the entry are correctly treated as part of it.
+          BODY=$(awk -v hdr="## [$VERSION]" '
+            index($0, hdr) == 1 { inside = 1; next }
+            inside && /^## /    { exit }
+            inside              { print }
+          ' CHANGELOG.md)
+
+          # A real entry has at least one list item. A heading with only blank lines and '###'
+          # section headings under it is the empty release this guard exists to stop.
+          if ! printf '%s\n' "$BODY" | grep -Eq '^[[:space:]]*[*-] '; then
+            echo "::error::Refusing to publish - CHANGELOG.md's '## [$VERSION]' entry has no content. An empty entry means a version that tells consumers nothing, and a published version cannot be deleted or reused. Let more changes accumulate, or write the entry."
+            exit 1
+          fi
+
+          echo "CHANGELOG.md has an entry for $VERSION with $(printf '%s\n' "$BODY" | grep -Ec '^[[:space:]]*[*-] ') item(s)"
 
       - name: Fail early if the nuget.org username is missing
         if: steps.v.outputs.publish == 'true'
