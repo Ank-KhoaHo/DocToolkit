@@ -302,6 +302,16 @@ jobs:
       - name: Run the suite inside the container
         run: docker run --rm doctoolkit-linux-test
 
+      # samples/Container is the consumer-facing half of the same claim: a plain runtime image
+      # with no SDK, no LibreOffice, no browser and no fonts. Built AND RUN, with the network
+      # disabled, because a Dockerfile that has never been built is a claim rather than a sample -
+      # and this one already had a real bug found that way (it targeted runtime-deps, which ships
+      # no .NET runtime and cannot host a framework-dependent app).
+      - name: Build and run the container sample, offline
+        run: |
+          docker build -f samples/Container/Dockerfile -t doctoolkit-sample .
+          docker run --rm --network none doctoolkit-sample
+
   trim-guard:
     name: trimmed app publishes and runs
     runs-on: ubuntu-24.04

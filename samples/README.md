@@ -33,3 +33,28 @@ it ships. That is not a gap to work around — it is the guarantee working.
 Shared build settings live in `Directory.Build.props`. It deliberately declares no package
 reference: `MinimalApi` references only the extensions package, which proves the core package
 arrives transitively.
+
+## `LargeFileStreaming`
+
+What the `Stream` overloads are actually for, and what they are not.
+
+It reads a 50,000-row workbook through a stream that **refuses to seek** - no `Length`, no
+`Position`, `Seek` throws - which is what an HTTP request body or a socket gives you. A
+`MemoryStream` would have hidden the point by quietly allowing a rewind.
+
+It also prints the allocation total and says plainly that it is **not** lower than the `byte[]`
+overload's. Memory is dominated by the OOXML object model, not by how the bytes arrive.
+
+## `Container`
+
+Every capability, inside a plain `dotnet/runtime` image - no SDK, no LibreOffice, no browser, no
+fonts, and invariant globalization so not even ICU is present.
+
+```bash
+docker build -f samples/Container/Dockerfile -t doctoolkit-container .
+docker run --rm --network none doctoolkit-container
+```
+
+`--network none` is worth using: the offline guarantee is then something you watched happen
+rather than something you were told. CI builds and runs this image on every push, for the same
+reason - a Dockerfile nobody builds is a claim, not a sample.
