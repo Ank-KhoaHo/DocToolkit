@@ -40,3 +40,6 @@ StrykerOutput/
 
 # Benchmark output. Regenerated on every run; the uploaded artifact is the record.
 BenchmarkDotNet.Artifacts/
+
+# Architecture decision records. Kept on disk alongside CLAUDE.md and docs/, not published.
+adr/

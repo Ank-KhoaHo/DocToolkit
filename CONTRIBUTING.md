@@ -1,9 +1,5 @@
 # Contributing to DocToolkit
 
-Before proposing a change that touches dependencies, packaging or the release process, read
-[the architecture decision records](adr/). Several of this project's rules look arbitrary
-without the evidence behind them, and each record states what would change it.
-
 This project has a [Code of Conduct](CODE_OF_CONDUCT.md). By participating you are expected
 to uphold it; report unacceptable behaviour through the private channel it names.
 

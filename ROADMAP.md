@@ -10,7 +10,7 @@ Anything here may change. Nothing here is a commitment.
 
 All four constraints hold and are re-checked by CI on every push: permissive licences only, NuGet
 only with no native binaries, runs on Linux (x64 and arm64), Windows and macOS, and no runtime
-network I/O by default. See [the decision records](adr/).
+network I/O by default.
 
 Current capabilities: HTML → DOCX and PDF; DOCX → PDF, HTML and Markdown; XLSX → PDF; PPTX → PDF;
 create and edit DOCX, XLSX and PPTX; template filling with repeating rows and image placeholders;
@@ -41,13 +41,13 @@ This section is the useful one.
 
 | | |
 |---|---|
-| **1.0.0** | Never. `0.x` forever, enforced in configuration — see [ADR 5](adr/0005-below-one-point-oh.md). Under `0.x` semver already says anything may change, which is an honest description of this package. |
+| **1.0.0** | Never. `0.x` forever, enforced in configuration rather than intended. Under `0.x` semver already says anything may change, which is an honest description of this package. |
 | **`net9.0`** | Adds zero reach: a `net9.0` app already consumes the `net8.0` build. It would cost a matrix leg and is the only STS target on offer against two LTS. |
 | **`netstandard2.0`** | Not blocked by dependencies — all nine support it. Blocked because the bounded-fetch guarantee on remote images **cannot be expressed** there (no cancellable DNS or stream read), and `DateOnly`/`TimeOnly` would make the public API differ per target. A security guarantee that holds on one target and not another is worse than not offering the target. |
 | **Native AOT compatibility** | Not claimed until CI both compiles *and* runs an AOT build. An unverified compatibility claim is worse than an absent one. |
 | **An input size limit** | This library edits and converts documents; refusing a large one is a defect, not a safeguard. The memory profile is documented instead so you can size a host. |
 | **Keyed DI registrations** | Permanent registration surface for a multi-tenant scenario nobody has asked for. Revisit if someone does. |
-| **Anything needing a browser, LibreOffice, Office interop, or a native binary** | Out of scope by construction — it is the reason this package exists. See [ADR 1](adr/0001-four-constraints.md) and [ADR 2](adr/0002-no-native-binaries.md). |
+| **Anything needing a browser, LibreOffice, Office interop, or a native binary** | Out of scope by construction — it is the reason this package exists. |
 
 ## What moves an item
 
