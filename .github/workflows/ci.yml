@@ -484,6 +484,14 @@ jobs:
       # asserting that would be better than a comment. The required set is DERIVED from
       # what the src/ blocks declare, so a new pin becomes mandatory everywhere else on
       # its own.
+      # release.yml gained an SBOM step using a LOCAL tool and did not gain the
+      # `dotnet tool restore` that makes the command exist on a runner. Both v0.17.0
+      # release runs failed and that version never reached nuget.org. It passed review
+      # because the command was dry-run on a machine where the tool was already
+      # installed - the one environment CI is not.
+      - name: Assert every workflow using a local tool restores it
+        run: python3 scripts/check-workflow-tools.py
+
       - name: Assert Dependabot blocks repeat the rules protecting src/
         run: python3 scripts/check-dependabot-scoping.py
 

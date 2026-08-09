@@ -343,6 +343,21 @@ jobs:
       #
       # --exclude-dev keeps development-only dependencies out of a document describing what
       # a consumer actually receives.
+      # CycloneDX is a LOCAL tool, so the manifest has to be restored before the command
+      # exists. ci.yml, docs.yml and mutation.yml all carry this step; release.yml did not,
+      # because until the SBOM step it used no local tool.
+      #
+      # Its absence failed both v0.17.0 release runs with "Run 'dotnet tool restore' to make
+      # the 'dotnet-CycloneDX' command available", and 0.17.0 never reached nuget.org. It was
+      # not caught before merging because the command was dry-run on a machine where the tool
+      # was already installed - which is exactly the environment CI is not.
+      #
+      # Placed here rather than beside setup-dotnet so the step that needs it owns it. Failing
+      # at this point is safe: nothing has been pushed yet, and every step after it is
+      # idempotent to a re-run.
+      - name: Restore local tools
+        run: dotnet tool restore
+
       - name: Generate an SBOM for each package
         run: |
           for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
