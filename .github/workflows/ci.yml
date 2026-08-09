@@ -473,6 +473,20 @@ jobs:
       # Measured 2026-08-09: pointing a snippet at a region that does not exist produced exit
       # code 0, no warning, and an empty <code> block under prose describing its contents.
       # --warningsAsErrors catches a dead LINK but not a dead SNIPPET. This is that check.
+      # A Dependabot ignore rule is scoped to the block that declares it - nothing is
+      # inherited. On 2026-08-03 a grouped run from the /tests/ block proposed
+      # SixLabors.Fonts [1.0.0] -> [3.0.0], past the revenue-gated 2.x line the pin exists
+      # to prevent, plus three shipped floors ignored in their own blocks: the test
+      # projects reach src/ through ProjectReference and Dependabot edits those csproj
+      # files, where the other blocks' rules do not apply.
+      #
+      # The fix was to repeat the rules, and the backlog said the rest out loud - a test
+      # asserting that would be better than a comment. The required set is DERIVED from
+      # what the src/ blocks declare, so a new pin becomes mandatory everywhere else on
+      # its own.
+      - name: Assert Dependabot blocks repeat the rules protecting src/
+        run: python3 scripts/check-dependabot-scoping.py
+
       - name: Assert every guide snippet resolves to a real region
         run: python3 scripts/check-doc-snippets.py
 
