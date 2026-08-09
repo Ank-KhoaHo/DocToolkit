@@ -399,4 +399,75 @@ public class RunTextSplicerTests
 
         Assert.Equal("V", Merged(nodes));
     }
+
+
+    // =============================================================================================
+    // A match that ends exactly on a run boundary.
+    // =============================================================================================
+
+    /// <summary>
+    /// The splicer advances to the next match with <c>if (match.End &lt;= nodeEnd) matchIndex++</c>.
+    /// Mutation testing turned that into <c>&lt;</c> and nothing failed, because no test had a
+    /// placeholder ending exactly where a run ends - every existing case had the match finish
+    /// somewhere in the middle of a run, where &lt; and &lt;= agree.
+    ///
+    /// On the boundary they do not. With <c>&lt;</c> the consumed match is never retired, so the
+    /// next run re-enters it, <c>pos</c> stops advancing, and the loop cannot terminate. Word
+    /// splits runs at arbitrary points, so a placeholder occupying a whole run is not a contrived
+    /// input - it is what you get whenever someone types a placeholder and then formats it.
+    /// </summary>
+    [Fact]
+    public void APlaceholderEndingExactlyAtARunBoundaryIsConsumedOnce()
+    {
+        var nodes = Split("{{a}}", "tail");
+
+        Assert.True(Apply(nodes, new Dictionary<string, string> { ["{{a}}"] = "V" }));
+
+        Assert.Equal("Vtail", Merged(nodes));
+    }
+
+    /// <summary>
+    /// The same boundary, with the match ending on the last run - so the match end equals both the
+    /// run end and the end of the merged text.
+    /// </summary>
+    [Fact]
+    public void APlaceholderEndingAtTheLastRunBoundaryIsConsumedOnce()
+    {
+        var nodes = Split("head", "{{a}}");
+
+        Assert.True(Apply(nodes, new Dictionary<string, string> { ["{{a}}"] = "V" }));
+
+        Assert.Equal("headV", Merged(nodes));
+    }
+
+
+    // =============================================================================================
+    // Four survivors in RunTextSplicer are EQUIVALENT MUTANTS. Do not spend another pass on them.
+    // =============================================================================================
+    //
+    // Analysed 2026-08-09 at 95.71% overall. Each was traced by hand rather than assumed, because
+    // "probably equivalent" is how a real gap gets written off:
+    //
+    //   L72  `if (match.End <= nodeEnd) matchIndex++` -> `<`
+    //        Only DEFERS the increment. On the boundary the node exits immediately (pos has reached
+    //        nodeEnd), and the next node re-enters the same match with a larger nodeEnd, where
+    //        `<` holds and the increment happens. The two tests below pin the boundary behaviour
+    //        and are worth keeping, but they do not kill this - measured, after predicting they
+    //        would.
+    //
+    //   L113 `while (i < merged.Length)` -> `<=`
+    //        The extra iteration reads `merged.AsSpan(i)` on an empty span. No key is empty (they
+    //        are filtered above), so `key.Length <= merged.Length - i` is `n <= 0` for every key,
+    //        no key matches, `i++` runs and the loop ends. Same output, one wasted comparison.
+    //
+    //   L118 `key.Length <= merged.Length - i` -> `merged.Length + i`
+    //        A fast path, not a bound. `StartsWith` is already length-safe and returns false when
+    //        the remaining span is shorter than the key, so widening the guard changes nothing
+    //        except how often the span comparison is reached.
+    //
+    //   L103 `.ThenBy(k => k, Ordinal)` -> `ThenByDescending`
+    //        The tie-break only orders keys of EQUAL length. Two distinct keys of the same length
+    //        cannot both match at one offset, so which is tried first never changes which one hits.
+    //        Only `OrderByDescending(k => k.Length)` above it carries meaning, and that is pinned
+    //        by AtOneOffsetTheLongestKeyWins.
 }

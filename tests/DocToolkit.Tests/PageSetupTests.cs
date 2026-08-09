@@ -241,4 +241,37 @@ public class PageSetupTests
 
         Assert.Equal(Max / 4, page.RightPoints, 3);
     }
+
+
+    // =============================================================================================
+    // The margin ceiling, from ON the boundary.
+    // =============================================================================================
+
+    /// <summary>
+    /// <c>RequireMargin</c> rejects <c>value &gt; MaxPoints</c>. Mutation turned that into
+    /// <c>&gt;=</c> and nothing failed, because every margin any test passes is far below the
+    /// ceiling - and a boundary is only tested by something sitting exactly on it.
+    ///
+    /// A margin exactly on the ceiling cannot actually be accepted by anything, because
+    /// <c>RequireContentArea</c> runs next and two margins of <c>MaxPoints</c> leave no content
+    /// area on any page - the page itself is capped at <c>MaxPoints</c> too. So the assertion is
+    /// not "it is accepted" but "it is rejected for the RIGHT reason".
+    ///
+    /// That distinction is the test. On the boundary the original reaches
+    /// <c>RequireContentArea</c> and raises <c>ArgumentException</c>; the mutant stops one step
+    /// earlier at <c>RequireMargin</c> and raises <c>ArgumentOutOfRangeException</c>. xUnit's
+    /// <c>Assert.Throws&lt;T&gt;</c> matches the type exactly rather than by assignability, so the
+    /// derived type fails the assertion - which is what makes the two paths distinguishable at all.
+    /// </summary>
+    [Fact]
+    public void AMarginExactlyOnTheCeilingIsNotRejectedAsOutOfRange()
+    {
+        const double max = int.MaxValue / 20d;
+
+        var ex = Assert.Throws<ArgumentException>(
+            () => PageSetup.Custom(max, max).WithMargins(max));
+
+        Assert.Equal("left", ex.ParamName);
+        Assert.Contains("no content area", ex.Message, StringComparison.Ordinal);
+    }
 }

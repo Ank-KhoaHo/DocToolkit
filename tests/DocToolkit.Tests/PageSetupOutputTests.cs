@@ -317,4 +317,22 @@ public class PageSetupOutputTests
             PageOrientationValues.Portrait,
             sectPr!.GetFirstChild<PageSize>()!.Orient!.Value);
     }
+
+
+    /// <summary>
+    /// <c>SectionPropertiesFactory.Build</c> opens with <c>ArgumentNullException.ThrowIfNull</c>.
+    /// Mutation deleted that line and nothing failed - no test had ever passed null, because every
+    /// caller inside the library passes a PageSetup it just constructed.
+    ///
+    /// Deleting it is not harmless. Without the guard the next line dereferences the argument and
+    /// the caller gets a NullReferenceException from inside a factory they did not know existed,
+    /// instead of an exception naming the parameter they got wrong.
+    /// </summary>
+    [Fact]
+    public void BuildingSectionPropertiesFromANullPageIsRejectedByName()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(() => SectionPropertiesFactory.Build(null!));
+
+        Assert.Equal("page", ex.ParamName);
+    }
 }

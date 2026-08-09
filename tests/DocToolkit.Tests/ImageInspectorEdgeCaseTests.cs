@@ -336,4 +336,75 @@ public class ImageInspectorEdgeCaseTests
 
         Assert.Contains("BMP", ex.Message, StringComparison.Ordinal);
     }
+
+
+    // =============================================================================================
+    // A positive size that resolves to zero EMU.
+    // =============================================================================================
+    //
+    // Resolve checks the RESOLVED extents, not the arguments, and the check is `is <= 0 or > Max`.
+    // Mutation turned `<= 0` into `< 0` in three places and nothing failed: every existing test
+    // that reaches the guard does so with a value comfortably below zero or far above the ceiling,
+    // and none sits on zero itself.
+    //
+    // Landing exactly on zero is not hypothetical. The conversion truncates - 0.00001 pt is
+    // 0.127 EMU, which is 0 - so a caller passing a legitimately positive but tiny size produces a
+    // zero-extent image. Without the guard that is written into the document as a valid but
+    // invisible picture, and nothing downstream validates these numbers.
+
+    [Fact]
+    public void AWidthThatTruncatesToZeroEmuIsRejectedAndBlamedOnTheWidth()
+    {
+        var info = new ImageInfo(ImageFormat.Png, 100, 50);
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => ImageInspector.Resolve(info, widthPoints: 0.00001, heightPoints: 10));
+
+        // Not merely "it threw": with `<= 0` weakened to `< 0` on the width test alone, the height
+        // is in range and Resolve returns a zero-width image instead of throwing. And the guard
+        // that decides WHICH argument to name reads the same comparison, so a weakened one blames
+        // heightPoints - a value the caller can see is fine.
+        Assert.Equal("widthPoints", ex.ParamName);
+    }
+
+    [Fact]
+    public void AHeightThatTruncatesToZeroEmuIsRejectedAndBlamedOnTheHeight()
+    {
+        var info = new ImageInfo(ImageFormat.Png, 100, 50);
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => ImageInspector.Resolve(info, widthPoints: 10, heightPoints: 0.00001));
+
+        Assert.Equal("heightPoints", ex.ParamName);
+    }
+
+
+    // =============================================================================================
+    // A dimension of exactly zero, rejected as an ARGUMENT rather than as an overflow.
+    // =============================================================================================
+    //
+    // Resolve guards its arguments up front and the resolved extents afterwards, and both raise
+    // ArgumentOutOfRangeException naming the same parameter. So the type and the parameter name
+    // cannot tell the two apart - only the message can, which is why these assert on it.
+    //
+    // That distinction is worth holding. The argument guard says "Width must be positive", which
+    // names what the caller did; the overflow guard talks about what OOXML can represent, which
+    // for an input of 0 is a confusing thing to be told. Mutation deleted the first guard outright
+    // and nothing failed, because the second one caught the fallout and threw something close
+    // enough to pass every existing assertion.
+
+    [Theory]
+    [InlineData(0.0, null, "widthPoints", "Width")]
+    [InlineData(null, 0.0, "heightPoints", "Height")]
+    public void ADimensionOfExactlyZeroIsRejectedAsAnArgument(
+        double? widthPoints, double? heightPoints, string expectedParam, string expectedSubject)
+    {
+        var info = new ImageInfo(ImageFormat.Png, 100, 50);
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => ImageInspector.Resolve(info, widthPoints, heightPoints));
+
+        Assert.Equal(expectedParam, ex.ParamName);
+        Assert.Contains($"{expectedSubject} must be positive", ex.Message, StringComparison.Ordinal);
+    }
 }
