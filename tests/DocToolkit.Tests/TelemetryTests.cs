@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -274,5 +275,93 @@ public class TelemetryTests : IDisposable
 
         Assert.Null(resource);
         Assert.Equal("too_large", Outcome(SingleOnPort(probe.Port)));
+    }
+
+
+    // =============================================================================================
+    // The two recording calls themselves, rather than the outcome they record.
+    // =============================================================================================
+    //
+    // Mutation testing found four survivors here: deleting the url.scheme tag, blanking its key,
+    // deleting the RemoteImageBytes.Record call, and blanking the server.address key on it. Every
+    // existing test asserted the OUTCOME, which those mutants leave untouched - so the fetch could
+    // stop reporting its scheme, or stop recording a metric at all, and the suite stayed green.
+
+    /// <summary>
+    /// The scheme is on the span because "was this http or https" is the first question asked of a
+    /// fetch that misbehaved, and the URL itself is deliberately never recorded - so without this
+    /// tag there is nothing to answer it with.
+    /// </summary>
+    [Fact]
+    public async Task ASuccessfulFetchTagsTheSchemeItUsed()
+    {
+        using var probe = new LoopbackProbe(_output);
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true });
+
+        await loader.FetchAsync(new Uri($"{probe.BaseUrl}/logo.bmp"));
+
+        Assert.Equal("http", SingleOnPort(probe.Port).GetTagItem("url.scheme"));
+    }
+
+    // A body length no other test in this repository serves, so a measurement carrying it can only
+    // have come from this test - which matters because MeterListener, like ActivityListener, is
+    // PROCESS-WIDE and every loopback suite reports server.address=127.0.0.1.
+    private const int DistinctiveBodyLength = 4242;
+
+    private static async Task DistinctiveSizeResponder(
+        System.Net.Sockets.NetworkStream stream, string requestLine, CancellationToken ct)
+    {
+        var body = new byte[DistinctiveBodyLength];
+        await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(
+            "HTTP/1.1 200 OK\r\nContent-Type: image/bmp\r\n"
+            + $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n"), ct);
+        await stream.WriteAsync(body, ct);
+        await stream.FlushAsync(ct);
+    }
+
+    /// <summary>
+    /// The size histogram is a METRIC, not a span tag, so no ActivityListener can see it. Nothing
+    /// in this suite subscribed to the meter at all, which is why deleting the Record call survived.
+    /// </summary>
+    [Fact]
+    public async Task ASuccessfulFetchRecordsItsSizeAgainstTheHostOnTheMeter()
+    {
+        var measurements = new List<(long Value, string? Host)>();
+
+        using var meterListener = new MeterListener();
+        meterListener.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Meter.Name == DocToolkitTelemetry.MeterName
+                && instrument.Name == "doctoolkit.remote_image.bytes")
+            {
+                listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        meterListener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            string? host = null;
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "server.address") host = tag.Value as string;
+            }
+
+            lock (measurements) measurements.Add((value, host));
+        });
+        meterListener.Start();
+
+        using var probe = new LoopbackProbe(_output, DistinctiveSizeResponder);
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true });
+
+        var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/logo.bmp"));
+        Assert.NotNull(resource);
+
+        lock (measurements)
+        {
+            // Contains rather than Single: the listener is process-wide, so a concurrent suite may
+            // add its own measurements. It cannot add one of THIS length.
+            Assert.Contains(measurements, m => m.Value == DistinctiveBodyLength && m.Host == "127.0.0.1");
+        }
     }
 }
