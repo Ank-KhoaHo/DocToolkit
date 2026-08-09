@@ -79,6 +79,27 @@ takes effect on the next conversion, with no restart.
 
 The practical consequence: turning remote images off in a running service actually turns them off.
 
+## Background services
+
+A `BackgroundService` is registered as a singleton, and the standard advice is that a singleton
+cannot take a dependency on anything scoped — inject `IServiceScopeFactory`, open a scope per unit
+of work, resolve from that. That advice is correct, and it exists because `DbContext` and most
+repository types are scoped.
+
+It does not apply to these. They are stateless singletons, so they inject straight into the
+worker's constructor:
+
+[!code-csharp[](../../samples/WorkerService/ReportWorker.cs#worker)]
+
+Wrapping them in a scope would be ceremony implying a lifetime problem that is not there.
+
+`IOptionsMonitor` is the one that earns its keep in a long-running process: because the services
+read options per call, a configuration change reaches a worker that has been up for weeks without
+a restart.
+
+The [WorkerService sample](https://github.com/Ank-KhoaHo/DocToolkit/tree/main/samples/WorkerService)
+is the whole thing running.
+
 ## Testing
 
 The reason to inject rather than call statically. Substitute the interface:

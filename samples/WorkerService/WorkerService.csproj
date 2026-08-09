@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <!--
+    Like MinimalApi, this references ONLY the extensions package, so it keeps proving that
+    Ank.DocToolkit arrives transitively rather than because a sample asked for it. Version="*"
+    is explained in samples/README.md.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Ank.DocToolkit.Extensions.DependencyInjection" Version="*" />
+
+    <!--
+      PINNED, and deliberately not "*" like the reference above. Microsoft.NET.Sdk.Worker does not
+      carry the hosting types the way Sdk.Web does - BackgroundService and CreateApplicationBuilder
+      arrive from this package, not from the shared framework - so a worker project has to name it.
+
+      "*" is right for Ank.DocToolkit because floating it is what makes these projects a canary for
+      a breaking change in OUR package. It would be wrong here: floating someone else's package
+      turns an unrelated upstream release into a red build on a sample, which is noise rather than
+      signal. 8.0.x matches this project's net8.0 target.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>
