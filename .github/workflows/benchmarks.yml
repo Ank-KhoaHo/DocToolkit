@@ -1,0 +1,56 @@
+name: Benchmarks
+
+# A performance baseline, produced on demand.
+#
+# NOTHING GATES ON THESE NUMBERS, deliberately. Elapsed time on a shared runner is noisy: a short
+# run of one benchmark here reported a 227% confidence margin, and two wall-clock assertions in this
+# repository's test suite have already flapped and needed best-of-N defences. A CI gate on benchmark
+# timings would be the same mistake at greater cost and would be switched off within a month.
+#
+# The one performance claim that IS gated lives in the ordinary test suite:
+# StreamAllocationParityTests pins "the Stream overloads are not a memory optimisation", because
+# allocated bytes are close to deterministic for the same input where elapsed time is not.
+#
+# The benchmark project is deliberately outside DocToolkit.sln - see its csproj - so this workflow
+# names it explicitly.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monthly. A baseline is worth having and worth re-taking occasionally; it is not worth a
+    # weekly runner-hour on numbers nobody reads between releases.
+    - cron: "23 5 1 * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.302
+
+      - name: Run the benchmarks
+        run: dotnet run -c Release --project benchmarks/DocToolkit.Benchmarks -- --filter '*'
+
+      # The markdown summary is the readable artefact; the JSON is there for anyone diffing two runs.
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: benchmark-results
+          path: BenchmarkDotNet.Artifacts/results/
+          if-no-files-found: warn

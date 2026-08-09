@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Deliberately NOT in DocToolkit.sln, for the same reason tests/TrimProbe is not: the premise
+    guard fails on any *.so under any bin/, and a benchmark harness is free to pull whatever it
+    likes into its own output. Keeping it out of the solution means `dotnet build DocToolkit.sln`
+    never sees it, so the guard cannot be tripped by tooling that does not ship.
+
+    It also does not inherit src/Directory.Build.props - benchmarks are not packable, are not
+    multi-targeted, and must not be built with TreatWarningsAsErrors, since BenchmarkDotNet's
+    generated code is not ours to keep warning-free.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.4" />
+  </ItemGroup>
+
+  <!-- ProjectReference, not PackageReference: a baseline is only useful for the code in the tree. -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/DocToolkit/DocToolkit.csproj" />
+  </ItemGroup>
+
+</Project>

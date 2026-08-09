@@ -37,3 +37,6 @@ CLAUDE.md
 # Mutation-testing reports. Regenerated on every run; the score is the artefact
 # that matters and CI uploads it.
 StrykerOutput/
+
+# Benchmark output. Regenerated on every run; the uploaded artifact is the record.
+BenchmarkDotNet.Artifacts/
