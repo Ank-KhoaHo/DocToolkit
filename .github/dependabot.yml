@@ -32,6 +32,27 @@ updates:
       # the backstop if anything ever slips past.
       - dependency-name: "SixLabors.Fonts"
         update-types: ["version-update:semver-major"]
+      # Everything else here too, and not because these dependencies do not matter.
+      # Dependabot cannot write a correct lockfile for a MULTI-TARGETED project: measured
+      # twice on 2026-08-03, it rewrote this project's 256-line lockfile down to 6, deleting
+      # both the net8.0 and net10.0 sections, and every such PR then dies on NU1004.
+      #
+      # So a bump proposed here can never merge. The PR is not a risk - the locked-mode guard
+      # catches it every time - it is pure review cost for an artefact that is always broken.
+      # What was actually wanted is the INFORMATION, which dependency-report.yml now delivers
+      # as a read-only weekly summary instead. Bumps here stay a deliberate manual act.
+      #
+      # SECURITY UPDATES ARE AFFECTED TOO - an ignore condition suppresses Dependabot's
+      # security PRs for the named dependency, not only its version-update PRs. That is
+      # accepted here rather than overlooked, for one reason: a security PR for these
+      # projects would arrive with the same corrupted lockfile and be equally unmergeable,
+      # so no working automation is being given up.
+      #
+      # What is NOT suppressed is the Dependabot ALERT. Alerts come from the dependency
+      # graph and ignore this file entirely, so a vulnerability in a shipped dependency
+      # still surfaces in the Security tab. The bump is then made by hand - which it had
+      # to be anyway.
+      - dependency-name: "*"
 
   # ── The extensions package ──────────────────────────────────────────────────
   # Every reference here is a FLOOR, and raising a floor narrows who can consume
@@ -47,6 +68,8 @@ updates:
       - dependency-name: "Ank.DocToolkit"
       - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
       - dependency-name: "Microsoft.Extensions.Options"
+      # And the rest, for the lockfile reason given in the block above.
+      - dependency-name: "*"
 
   # ── Test projects ───────────────────────────────────────────────────────────
   # No lockfiles here (see the design doc), so dependabot-core#13950 cannot fire.

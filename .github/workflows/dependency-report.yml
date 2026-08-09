@@ -1,0 +1,124 @@
+name: Dependency report
+
+# What the shipped packages could be updated to, as a report rather than as pull
+# requests that cannot merge.
+#
+# WHY THIS EXISTS. Dependabot cannot write a correct lockfile for a multi-targeted
+# project. Measured twice on 2026-08-03: it rewrote src/DocToolkit's 256-line
+# packages.lock.json down to 6 lines, deleting both the net8.0 and net10.0
+# sections, and the PR then died on `NU1004: The project target frameworks are
+# different than the lock file's target frameworks`. This is NOT
+# dependabot-core#13950, which is about ProjectReference consumers - it is a
+# separate defect affecting any multi-target project.
+#
+# So every bump proposed for the two packable projects arrived broken. That was
+# never a RISK: ci.yml restores with --locked-mode and catches it every time. It
+# was pure review cost for an artefact guaranteed to be unmergeable. The two
+# /src/ blocks in dependabot.yml now ignore everything, and this reports the same
+# information in a form that is correct.
+#
+# WHY NOT RENOVATE, and why not a bot that fixes the lockfile. Renovate would
+# regenerate lockfiles properly, by running `dotnet restore` rather than modelling
+# the graph - but it is a third-party app needing WRITE access to a repository
+# that publishes via OIDC with no stored key. The point of OIDC here is that there
+# is no long-lived credential to steal, which makes the workflow itself the
+# realistic attack path; adding write access puts that surface straight back. A
+# self-hosted "fix the lockfile on Dependabot PRs" workflow fails the same test
+# for the same reason, only self-inflicted.
+#
+# This job is therefore READ-ONLY and cannot open, edit or merge anything.
+#
+# IT DOES NOT NOTIFY, deliberately. It never fails, because a scheduled workflow
+# that goes red the moment an update exists - and stays red for as long as you
+# decide not to take it - trains you to ignore it. Read it from the Actions tab,
+# or run it on demand with workflow_dispatch, which is the natural thing to do
+# before cutting a release.
+
+on:
+  schedule:
+    # Mondays, 05:23 UTC. Off the hour on purpose, like mutation.yml: scheduled
+    # workflows queue heavily on the hour across GitHub. After the mutation run,
+    # so the two do not contend for runners.
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: outdated shipped dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.302
+
+      # Direct references only. The transitive graph is reported by
+      # THIRD-PARTY-NOTICES.txt and guarded by --locked-mode; what a maintainer
+      # can act on is the handful of packages the csproj files actually name.
+      - name: Report
+        run: |
+          # The names src/ deliberately holds back, read from dependabot.yml rather
+          # than listed here. A second copy would rot the way the repeated ignore
+          # rules do, which is the failure check-dependabot-scoping.py exists for.
+          pinned=$(python3 scripts/check-dependabot-scoping.py --list-pinned)
+          echo "deliberately pinned: $(echo "$pinned" | tr '\n' ' ')"
+
+          {
+            echo "## Outdated direct dependencies"
+            echo
+            echo "Shipped packages only. A bump here is a manual act - see"
+            echo "\`.github/dependabot.yml\` for why Dependabot does not propose them."
+            echo
+            echo "**Deliberately held back**, and expected to appear below:"
+            echo "$pinned" | sed 's/^/- `/; s/$/`/'
+            echo
+            echo "Anything outdated that is NOT in that list is the part worth reading."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for project in \
+            src/DocToolkit/DocToolkit.csproj \
+            src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj
+          do
+            echo "::group::$project"
+            dotnet restore "$project"
+
+            # `list package --outdated` exits 0 whether or not anything is
+            # outdated, so the output is the signal, not the exit code.
+            report=$(dotnet list "$project" package --outdated)
+            echo "$report"
+            echo "::endgroup::"
+
+            {
+              echo "### \`$project\`"
+              echo
+              if echo "$report" | grep -q "has no updates"; then
+                echo "Up to date."
+              else
+                echo '```'
+                echo "$report"
+                echo '```'
+              fi
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          {
+            echo "---"
+            echo
+            echo "To take one: bump the version in the csproj, run"
+            echo "\`dotnet restore <project> --force-evaluate\` to regenerate the lockfile"
+            echo "correctly, then \`python scripts/gen-third-party-notices.py\`."
+          } >> "$GITHUB_STEP_SUMMARY"

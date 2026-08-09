@@ -82,11 +82,28 @@ def blocks(text):
         yield current
 
 
+def pinned_names(text):
+    """The dependency names the src/ blocks deliberately hold back, wildcard excluded."""
+    nuget = [b for b in blocks(text) if b[0] == "nuget"]
+    src = [b for b in nuget if b[1] and all(d.startswith("/src/") for d in b[1])]
+    names = set().union(*(b[2] for b in src)) if src else set()
+    names.discard("*")
+    return names
+
+
 def main():
     try:
         text = io.open(CONFIG, encoding="utf-8").read()
     except FileNotFoundError:
         sys.exit(f"::error::{CONFIG} not found; this check cannot run.")
+
+    # dependency-report.yml asks for this rather than keeping its own copy. A second
+    # list of pinned names would rot exactly the way the repeated ignore rules do -
+    # which is the failure this whole script exists to prevent.
+    if "--list-pinned" in sys.argv:
+        for name in sorted(pinned_names(text)):
+            print(name)
+        return 0
 
     nuget = [b for b in blocks(text) if b[0] == "nuget"]
     if not nuget:
@@ -97,6 +114,18 @@ def main():
     # The source of truth: whatever the src/ blocks protect.
     protects_src = [b for b in nuget if all(d.startswith("/src/") for d in b[1])]
     required = set().union(*(b[2] for b in protects_src)) if protects_src else set()
+
+    # A wildcard is not a rule that protects src/ from other blocks - it says "propose
+    # nothing for THIS project", which is a statement about that block's own update
+    # policy. The src/ blocks carry one because Dependabot cannot write a correct
+    # lockfile for a multi-targeted project (see the comment there), and requiring the
+    # tests block to repeat it would stop test dependencies updating at all, for a
+    # reason that has nothing to do with them.
+    #
+    # The NAMED rules still have to be repeated. A wildcard in src/ stops Dependabot
+    # proposing bumps rooted there; it does nothing about a bump proposed from the tests
+    # or root block that edits a src csproj on its way past.
+    required.discard("*")
 
     if not required:
         sys.exit("::error::No ignore rules found on any /src/ block, so this check "
