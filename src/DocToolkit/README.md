@@ -1,9 +1,27 @@
 # DocToolkit
 
-Convert HTML to DOCX and PDF, and open/edit DOCX, XLSX and PPTX from .NET.
+Generating Word, Excel, PowerPoint or PDF files from .NET usually means one of these:
 
-**Pure managed.** No native binaries, no browser, no LibreOffice, no Office interop.
-Works after `dotnet restore` alone, and runs on Linux.
+- `System.Drawing.Common` throwing **`PlatformNotSupportedException`** the first time your container
+  runs on Linux — it restored fine, it built fine, and it fails at runtime;
+- a library whose licence is not permissive for commercial use — **EPPlus** is Polyform
+  Noncommercial, **Syncfusion**'s community licence is revenue-gated, and **Spire** and
+  **IronPDF** are commercial products;
+- installing **LibreOffice** or a headless **Chromium** into your image to render a PDF, and owning
+  a few hundred MB and a CVE feed for the privilege;
+- or discovering the package downloads fonts or images at runtime, on a machine with no route out.
+
+**DocToolkit exists because all four are avoidable.** Convert HTML to DOCX and PDF, render XLSX and
+PPTX to PDF, turn DOCX into HTML or Markdown, and open/edit DOCX, XLSX and PPTX — from .NET, with:
+
+| | |
+|---|---|
+| **Permissive licences only** | MIT / Apache-2.0. No revenue thresholds, no per-seat fees, nothing to read twice. |
+| **No native binaries** | `dotnet restore` is the whole install. No browser, no LibreOffice, no Office interop. |
+| **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** — measured on each, not inferred. |
+| **No runtime network I/O** | Nothing opens a socket by default. Proven by 37 air-gap tests. |
+
+All four are properties of the *resolved dependency graph*, so CI re-checks every one on every push.
 
 ## Offline by default — safe in air-gapped environments
 
@@ -100,7 +118,9 @@ bound memory, bound concurrency — the per-call cost is what it is.
 dotnet add package Ank.DocToolkit
 ```
 
-Targets `net8.0` and `net10.0`.
+Targets `net8.0` and `net10.0` — two LTS releases, one public API surface.
+
+Verified in CI on Linux (x64 and **arm64**), Windows and macOS.
 
 ## Usage
 
@@ -115,6 +135,22 @@ byte[] pdf = await HtmlToPdfConverter.ConvertAsync("<h1>Invoice</h1><p>Total: 18
 
 // DOCX -> PDF
 byte[] rendered = DocxToPdfConverter.Convert(docx);
+
+// XLSX -> PDF and PPTX -> PDF. A deck renders one page per slide, at its own slide
+// geometry rather than being letterboxed onto a paper size.
+byte[] sheetPdf = XlsxToPdfConverter.Convert(xlsx);
+byte[] deckPdf  = PptxToPdfConverter.Convert(pptx);
+
+// DOCX -> HTML / Markdown, keeping the structure ExtractText throws away: a heading stays
+// a heading, a table stays a table. Images come back as data: URIs, so the output is
+// self-contained.
+string html     = DocxToHtmlConverter.Convert(docx);
+string markdown = DocxToMarkdownConverter.Convert(docx);
+
+// Page size, orientation and margins. Generated documents are A4 with one-inch margins
+// unless you say otherwise.
+byte[] landscape = await HtmlToPdfConverter.ConvertAsync(
+    html, PageSetup.A4.Landscape().WithMargins(36));
 
 // Build a DOCX from data rather than markup - headings, paragraphs, tables and images.
 // There is no HTML to escape here, so a value containing '<' cannot corrupt the
@@ -309,6 +345,43 @@ never go through the loader.
 The other converters and editors need no such handling — `DocumentFormat.OpenXml`, `ClosedXML`
 and `OfficeIMO` do not resolve external relationships, external workbook links or remote fonts.
 That is asserted, not assumed; see above.
+
+## Known limitations
+
+Things this package deliberately does not do, or does only partly — listed because the alternative
+is that you find out by reading the source.
+
+| Limitation | Detail |
+|---|---|
+| **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; there is no warning channel. The output is a valid PDF either way. |
+| **HTML → PDF goes through DOCX** | So fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |
+| **No external stylesheets** | `<link rel="stylesheet">` is not fetched, by design. Inline `<style>` and `style=` are honoured. |
+| **No headers or footers on generated documents** | `DocxEditor.Create` and `HtmlToDocxConverter` produce a body. `ReplaceText` *does* reach into the headers and footers of a document you supply. |
+| **One page setup per document** | `PageSetup` applies to the whole document; multiple sections with different paper is not supported. |
+| **DOCX → HTML returns a full document, not a fragment** | Extract the body with a parser if you are embedding it. |
+| **Formulas carry no cached value** | Excel recalculates on open and `ReadCell`/`ReadSheet` evaluate on read, but a reader that only reads cached values sees an empty cell until Excel has opened and saved the file. |
+| **Memory scales with the document, not the file** | Peak is dominated by the OOXML object model — measured ~120 MB for `ReadSheet` and ~233 MB for `SetCell` on a 1.9 MB, 40,000-row workbook. See above; the `Stream` overloads are not cheaper. |
+| **Below 1.0.0, permanently** | Anything may change in a minor version. |
+
+## Telemetry
+
+One `ActivitySource` and one `Meter`, both named `Ank.DocToolkit`:
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(t => t.AddSource(DocToolkitTelemetry.ActivitySourceName))
+    .WithMetrics(m => m.AddMeter(DocToolkitTelemetry.MeterName));
+```
+
+**Only the opt-in remote-image fetch is instrumented**, deliberately — it is the only place this
+library touches the network, and a refused fetch is otherwise *silent*: the image is skipped and
+your document still succeeds. On an air-gapped host that is every remote image, so without this
+there was nothing to tell you an image never arrived, or why.
+
+`doctoolkit.remote_image.fetches` counts attempts by outcome (`ok`, `scheme_refused`,
+`host_not_allowed`, `blocked_address`, `http_error`, `too_large`, `failed`). **Only the host is
+recorded, never the URL** — query strings carry tokens. It adds no packages and costs nothing when
+nobody subscribes.
 
 ## Errors
 
