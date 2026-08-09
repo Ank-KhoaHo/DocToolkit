@@ -1,10 +1,22 @@
+using Microsoft.Extensions.Options;
+
 namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>Default <see cref="IDocxEditor"/>, delegating to <see cref="DocToolkit.DocxEditor"/>.</summary>
 internal sealed class DocxEditorService : IDocxEditor
 {
+    private readonly IOptionsMonitor<DocToolkitOptions> _options;
+
+    // The only option this service reads is Page, and it reads it PER CALL for the same reason
+    // the converters do: these are singletons, so a captured IOptions<T>.Value would freeze
+    // whatever configuration existed at startup for the life of the process.
+    public DocxEditorService(IOptionsMonitor<DocToolkitOptions> options) => _options = options;
+
+    // Create is a producer, so DocToolkitOptions.Page applies to it as much as to the HTML
+    // converters. Leaving it out would make the option true of two producers out of three - the
+    // kind of inconsistency a consumer discovers one document at a time.
     public byte[] Create(IEnumerable<DocToolkit.DocxBlock> blocks)
-        => DocToolkit.DocxEditor.Create(blocks);
+        => DocToolkit.DocxEditor.Create(blocks, _options.CurrentValue.Page);
 
     public byte[] ReplaceText(byte[] docx, IReadOnlyDictionary<string, string> replacements)
         => DocToolkit.DocxEditor.ReplaceText(docx, replacements);
@@ -37,7 +49,7 @@ internal sealed class DocxEditorService : IDocxEditor
 
     public Task CreateAsync(
         IEnumerable<DocToolkit.DocxBlock> blocks, Stream destination, CancellationToken ct = default)
-        => DocToolkit.DocxEditor.CreateAsync(blocks, destination, ct);
+        => DocToolkit.DocxEditor.CreateAsync(blocks, _options.CurrentValue.Page, destination, ct);
 
     public Task FillRowsAsync(
         Stream source, string collection,

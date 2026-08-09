@@ -119,6 +119,26 @@ Two things on the static API deliberately do **not** appear on these interfaces:
   application may reach the network, and how far, is a property of how it is composed rather than a
   decision at each call site. It is `false` unless you opt in.
 
+## Setting the paper once
+
+`DocToolkitOptions.Page` is the page every producer lays out on when a call does not name
+one. It defaults to `PageSetup.A4`, which is what the static API already uses, so leaving it
+alone changes nothing.
+
+```csharp
+services.AddDocToolkit(o => o.Page = PageSetup.Letter);
+```
+
+It reaches all three producers - both HTML converters and `IDocxEditor.Create` - because an
+option true of two out of three is one a consumer discovers a document at a time.
+
+An explicit argument still wins: `ConvertAsync(html, PageSetup.A4)` produces A4 whatever the
+option says, since a call naming a page is answering a narrower question than configuration.
+
+> A null assigned to `Page` throws, but on **first use** rather than at registration - the
+> configure delegate runs when the options are first materialised, not when
+> `AddDocToolkit` is called.
+
 ## Migrating
 
 ### 0.15.0 to 0.16.0 - the extensions package needs a newer DI abstraction

@@ -556,4 +556,133 @@ public class ServiceCollectionExtensionsTests
 
         Assert.Equal(1, sut.PageCount(extracted.ToArray()));
     }
+
+    // =============================================================================================
+    // A default page setup, configured once.
+    // =============================================================================================
+
+    /// <summary>
+    /// The page width in twentieths of a point, read out of the package's document.xml.
+    ///
+    /// Deliberately not a byte comparison against a known-good document: two saves of the same
+    /// content are not guaranteed identical, and this repository has already had to delete one such
+    /// assertion. Matched on the attribute NAME only, so no quote has to survive being written into
+    /// a string literal - the digits start one character later, past the opening quote.
+    /// </summary>
+    private static string PageWidthOf(byte[] docx)
+    {
+        using var archive = new System.IO.Compression.ZipArchive(new MemoryStream(docx));
+        using var reader = new StreamReader(archive.GetEntry("word/document.xml")!.Open());
+        var xml = reader.ReadToEnd();
+
+        const string marker = "w:w=";
+        var at = xml.IndexOf(marker, StringComparison.Ordinal);
+        if (at < 0) return "(no w:w in document.xml)";
+
+        var digits = xml.AsSpan(at + marker.Length + 1);
+        var length = 0;
+        while (length < digits.Length && char.IsAsciiDigit(digits[length])) length++;
+
+        return digits[..length].ToString();
+    }
+
+    private const string A4Width = "11906";
+    private const string LetterWidth = "12240";
+
+    [Fact]
+    public async Task AddDocToolkit_WithNoPageConfigured_StillLaysOutOnA4()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+
+        var docx = await provider.GetRequiredService<IHtmlToDocxConverter>().ConvertAsync("<p>Hi</p>");
+
+        Assert.Equal(A4Width, PageWidthOf(docx));
+    }
+
+    [Fact]
+    public async Task AddDocToolkit_WithAPageConfigured_UsesItWithoutPassingItPerCall()
+    {
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o => o.Page = DocToolkit.PageSetup.Letter)
+            .BuildServiceProvider();
+
+        var docx = await provider.GetRequiredService<IHtmlToDocxConverter>().ConvertAsync("<p>Hi</p>");
+
+        Assert.Equal(LetterWidth, PageWidthOf(docx));
+    }
+
+    /// <summary>
+    /// The combination that used to lose one of the two settings. The service picks its core
+    /// overload from AllowRemoteImageDownload, and until the core grew a (page, options) overload
+    /// the remote-image path could only lay out on A4 - so enabling downloads silently threw away
+    /// the configured paper.
+    /// </summary>
+    [Fact]
+    public async Task AddDocToolkit_WithAPageAndRemoteImagesEnabled_KeepsBoth()
+    {
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o =>
+            {
+                o.Page = DocToolkit.PageSetup.Letter;
+                o.AllowRemoteImageDownload = true;
+                o.RemoteImage.AllowedHosts.Add("assets.example.invalid");
+            })
+            .BuildServiceProvider();
+
+        var docx = await provider.GetRequiredService<IHtmlToDocxConverter>().ConvertAsync("<p>Hi</p>");
+
+        Assert.Equal(LetterWidth, PageWidthOf(docx));
+    }
+
+    [Fact]
+    public async Task AddDocToolkit_APageArgumentBeatsTheConfiguredDefault()
+    {
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o => o.Page = DocToolkit.PageSetup.Letter)
+            .BuildServiceProvider();
+
+        var docx = await provider.GetRequiredService<IHtmlToDocxConverter>()
+            .ConvertAsync("<p>Hi</p>", DocToolkit.PageSetup.A4);
+
+        Assert.Equal(A4Width, PageWidthOf(docx));
+    }
+
+    // Create is a producer too, so the option has to reach it - otherwise it would be true of two
+    // producers out of three.
+    [Fact]
+    public void AddDocToolkit_TheConfiguredPageReachesDocxEditorCreate()
+    {
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o => o.Page = DocToolkit.PageSetup.Letter)
+            .BuildServiceProvider();
+
+        var docx = provider.GetRequiredService<IDocxEditor>()
+            .Create(new[] { DocToolkit.DocxBlock.Paragraph("Hi") });
+
+        Assert.Equal(LetterWidth, PageWidthOf(docx));
+    }
+
+    /// <summary>
+    /// A null Page is rejected - but on FIRST USE, not at registration.
+    ///
+    /// The configure delegate does not run when AddDocToolkit is called or when the service is
+    /// resolved; it runs when the options are first materialised, which for these singletons is the
+    /// first call that reads CurrentValue. So the setter's ArgumentNullException surfaces out of a
+    /// conversion, not out of startup.
+    ///
+    /// Asserted here rather than wished away, because the first version of this test expected it at
+    /// GetRequiredService and the XML doc on Page claimed the same thing. Both were wrong about
+    /// their own library.
+    /// </summary>
+    [Fact]
+    public async Task AddDocToolkit_ANullPageIsRejectedOnFirstUse()
+    {
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o => o.Page = null!)
+            .BuildServiceProvider();
+
+        var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(() => sut.ConvertAsync("<p>Hi</p>"));
+    }
 }
