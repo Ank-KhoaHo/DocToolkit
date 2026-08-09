@@ -39,6 +39,22 @@
     <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.2.0" />
     <PackageReference Include="OfficeIMO.Word.Html" Version="3.2.0" />
     <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.0" />
+    <!--
+      PDF utilities (page count, merge, page extraction, metadata). MIT, like this
+      package, so THIRD-PARTY-NOTICES stays a single licence class - PdfPig was the
+      alternative and is Apache-2.0, which adds a NOTICE reproduction obligation.
+    
+      Measured before taking it on, with a publish probe built as an APP rather than a
+      library (a library publish omits native assets and reports zero for everything):
+      no .so or .dylib, no banned package, and no SixLabors reference - so the
+      SixLabors.Fonts 1.x guard is untouched. Three transitive dependencies, all
+      Microsoft.
+    
+      OfficeIMO.Pdf, already here, cannot serve this: it WRITES PDFs and cannot read
+      one back - which is why the test suite carries a hand-rolled PdfProbe at all.
+    -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+
     <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.2.0" />
 
     <!--

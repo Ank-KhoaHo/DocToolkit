@@ -360,6 +360,43 @@ The result is spliced back into only the runs a match actually overlaps, so:
 Keys are matched in one left-to-right pass, longest key first at any given offset, so a
 substituted value is never rescanned for further placeholders.
 
+## PDF utilities
+
+Operations on a PDF that already exists — the only part of this library that **reads** one rather
+than writing it. Nothing here re-renders: pages move between documents as they are, so text, fonts
+and images arrive unchanged and the converters' fidelity caveats do not apply.
+
+```csharp
+int pages = PdfEditor.PageCount(pdf);
+
+// Join several into one, in the order given.
+byte[] bundle = PdfEditor.Merge([cover, invoice, terms]);
+
+// And take a range back out. firstPage is 1-based, the way a reader numbers pages.
+byte[] justTheInvoice = PdfEditor.ExtractPages(bundle, firstPage: 2, count: 1);
+```
+
+Document information — what a file manager shows in its properties panel, and what a search
+indexer reads — is a `PdfMetadata`:
+
+```csharp
+byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata
+{
+    Title = "Invoice INV-2026-0042",
+    Author = "Contoso Ltd",
+});
+
+PdfMetadata info = PdfEditor.ReadMetadata(stamped);
+```
+
+Every `PdfMetadata` property is nullable, and **`null` means absent rather than blank** in both
+directions. Reading, that lets you tell "no title" from "a title deliberately set to empty";
+writing, a `null` property leaves what the document already had alone, so stamping a title does not
+silently erase the author.
+
+`Stream` overloads exist for `PageCount`, `Merge` and `ExtractPages`. Unreadable input raises
+`DocumentConversionException`, like everything else here.
+
 ## How the no-network guarantee is built
 
 `HtmlToOpenXml`, the HTML parser underneath, defaults to downloading every image it sees, and its

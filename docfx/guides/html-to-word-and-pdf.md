@@ -97,6 +97,29 @@ default for a conversion pipeline, and it is also exactly the failure you will n
 production — which is why the fetch path is the one thing in this library that emits telemetry.
 See [Remote-image telemetry](production.md#telemetry).
 
+## Once you have a PDF
+
+@DocToolkit.PdfEditor works on a PDF that already exists — the only part of this library that reads
+one rather than writing it. Nothing here re-renders, so the fidelity limits above do not apply:
+pages move between documents as they are.
+
+```csharp
+int pages = PdfEditor.PageCount(pdf);
+
+byte[] bundle = PdfEditor.Merge([cover, invoice, terms]);
+byte[] justTheInvoice = PdfEditor.ExtractPages(bundle, firstPage: 2, count: 1);
+
+byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata { Title = "Invoice INV-2026-0042" });
+```
+
+Every @DocToolkit.PdfMetadata property is nullable, and `null` means **absent** rather than blank in
+both directions — so stamping a title does not silently erase the author.
+
+> [!NOTE]
+> Unlike every other block in these guides, this one is not pulled from a compiled sample. Samples
+> build against the **published** package, so they cannot use an API until it ships. A runnable
+> sample follows the release that carries this.
+
 ## Writing somewhere other than memory
 
 The `byte[]` overloads above are the common case. Both converters also take a destination

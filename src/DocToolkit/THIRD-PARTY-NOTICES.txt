@@ -59,7 +59,8 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - DocumentFormat.OpenXml.Framework 3.5.1 - MIT (transitive) - https://github.com/dotnet/Open-XML-SDK
 - ExcelNumberFormat 1.1.0 - MIT (transitive) - https://github.com/andersnm/ExcelNumberFormat
 - HtmlToOpenXml.dll 3.5.0 - MIT (direct) - https://github.com/onizet/html2openxml
-- Microsoft.Extensions.Logging.Abstractions 6.0.0 - MIT (transitive) - https://github.com/dotnet/runtime
+- Microsoft.Extensions.DependencyInjection.Abstractions 8.0.2 - MIT (transitive) - https://github.com/dotnet/runtime
+- Microsoft.Extensions.Logging.Abstractions 8.0.3 - MIT (transitive) - https://github.com/dotnet/runtime
 - OfficeIMO.Core 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Excel 3.2.0 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Excel.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
@@ -73,12 +74,14 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - OfficeIMO.Word.Html 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Markdown 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
+- PDFsharp 6.2.4 - MIT (direct) - https://github.com/empira/PDFsharp
 - RBush.Signed 4.0.0 - MIT (transitive) - https://github.com/viceroypenguin/RBush
 - SixLabors.Fonts 1.0.1 - Apache-2.0 (direct) - https://github.com/SixLabors/Fonts
 - System.IO.Packaging 10.0.2 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
+- System.Security.Cryptography.Pkcs 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 
-Totals: 26 packages (9 direct, 17 transitive) - 1 Apache-2.0, 25 MIT.
+Totals: 29 packages (10 direct, 19 transitive) - 1 Apache-2.0, 28 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---
