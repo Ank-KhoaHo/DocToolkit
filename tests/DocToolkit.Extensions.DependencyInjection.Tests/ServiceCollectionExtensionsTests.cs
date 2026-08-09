@@ -412,4 +412,88 @@ public class ServiceCollectionExtensionsTests
             Assert.NotEmpty(destination.ToArray());
         }
     }
+
+    // A13. The services are singletons, so IOptions<T>.Value would be resolved once for the life
+    // of the container and a configuration reload would silently do nothing. That is unremarkable
+    // for most settings and not for this one: AllowRemoteImageDownload is the ONLY switch that
+    // lets this library open a socket, so turning it off in configuration - as an incident
+    // response, say - looked like it worked and did not take effect until a restart.
+    //
+    // Asserted by SOCKET COUNT rather than by reading the option back. Reading it back would pass
+    // against a service that reads CurrentValue and then ignores it; only the probe proves the
+    // reloaded value reached the conversion.
+    [Fact]
+    public async Task AddDocToolkit_WhenOptionsReload_TheNewValueTakesEffectWithoutARestart()
+    {
+        using var probe = new LoopbackProbe();
+
+        // The configure delegate closes over `allowRemote`, so clearing the options cache re-runs
+        // it and produces a genuinely different value - the same thing an appsettings reload does.
+        var allowRemote = false;
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o =>
+            {
+                o.AllowRemoteImageDownload = allowRemote;
+                o.RemoteImage.AllowPrivateAddresses = true;   // see the note above; the probe is loopback
+            })
+            .BuildServiceProvider();
+
+        var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
+
+        // Resolved and used while the option is false: nothing dials.
+        await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">");
+        Assert.Equal(0, probe.Connections);
+
+        // Now the configuration changes, on the SAME resolved singleton.
+        allowRemote = true;
+        provider.GetRequiredService<IOptionsMonitorCache<DocToolkitOptions>>().Clear();
+
+        try
+        {
+            await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">");
+        }
+        catch (DocToolkit.DocumentConversionException)
+        {
+            // The connection is what is under test, not a successful conversion.
+        }
+
+        Assert.True(
+            await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(5)),
+            "The reloaded AllowRemoteImageDownload never reached the conversion. The service is "
+            + "still holding the value it captured when it was constructed.");
+    }
+
+    // The other direction, and the one that actually matters operationally: turning the switch OFF
+    // must take effect immediately. A guard that can only be relaxed at runtime would be worse than
+    // none at all.
+    [Fact]
+    public async Task AddDocToolkit_WhenOptionsReloadToOff_TheFetchStops()
+    {
+        using var probe = new LoopbackProbe();
+
+        var allowRemote = true;
+        var provider = new ServiceCollection()
+            .AddDocToolkit(o =>
+            {
+                o.AllowRemoteImageDownload = allowRemote;
+                o.RemoteImage.AllowPrivateAddresses = true;
+            })
+            .BuildServiceProvider();
+
+        var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
+
+        try { await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">"); }
+        catch (DocToolkit.DocumentConversionException) { }
+        Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(5)),
+            "Precondition failed: the probe never saw the opt-in connect, so the assertion below "
+            + "would pass vacuously.");
+
+        var before = probe.Connections;
+        allowRemote = false;
+        provider.GetRequiredService<IOptionsMonitorCache<DocToolkitOptions>>().Clear();
+
+        await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">");
+
+        Assert.Equal(before, probe.Connections);
+    }
 }

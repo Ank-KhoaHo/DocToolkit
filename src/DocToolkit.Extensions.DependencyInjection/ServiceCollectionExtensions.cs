@@ -7,10 +7,11 @@ namespace DocToolkit.Extensions.DependencyInjection;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="IHtmlToDocxConverter"/>, <see cref="IDocxToPdfConverter"/>,
-    /// <see cref="IHtmlToPdfConverter"/>, <see cref="IDocxEditor"/>, <see cref="IWorkbookEditor"/>
-    /// and <see cref="IPresentationEditor"/> as singletons - each wraps a stateless static class,
-    /// so one shared instance is safe under concurrent use.
+    /// Registers all ten injectable interfaces as singletons - each wraps a stateless static
+    /// class, so one shared instance is safe under concurrent use.
+    ///
+    /// <see cref="DocToolkitOptions"/> is consumed through <c>IOptionsMonitor</c> and read on
+    /// every call, so a configuration reload takes effect without restarting the process.
     /// </summary>
     /// <param name="services">The service collection to add to.</param>
     /// <param name="configure">

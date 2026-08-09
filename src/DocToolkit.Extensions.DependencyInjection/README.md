@@ -25,6 +25,17 @@ services.AddDocToolkit();
 services.AddDocToolkit(o => o.AllowRemoteImageDownload = true);
 ```
 
+### Configuration reload takes effect immediately
+
+`DocToolkitOptions` is consumed through `IOptionsMonitor` and read on **every call**, so changing
+configuration at runtime applies without restarting the process.
+
+That matters most for `AllowRemoteImageDownload`, which is the only switch that lets this library
+open a socket. Setting it to `false` in configuration - as an incident response, say - stops the
+next conversion fetching, rather than the next deployment.
+
+The services remain singletons; only the option read is live.
+
 ### Bounding the remote-image opt-in
 
 `AllowRemoteImageDownload` is the only switch that decides *whether* anything is fetched. When it

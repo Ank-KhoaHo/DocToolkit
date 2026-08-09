@@ -10,7 +10,7 @@ public class HtmlToPdfConverterServiceTests
     [Fact]
     public async Task ConvertAsync_ProducesAPdf()
     {
-        var sut = new HtmlToPdfConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         var pdf = await sut.ConvertAsync("<h1>Invoice</h1><p>Total: 18,100.00</p>");
 
@@ -21,7 +21,7 @@ public class HtmlToPdfConverterServiceTests
     [Fact]
     public async Task ConvertAsync_RejectsNullHtml()
     {
-        var sut = new HtmlToPdfConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         await Assert.ThrowsAsync<ArgumentNullException>(() => sut.ConvertAsync(null!));
     }
@@ -29,7 +29,7 @@ public class HtmlToPdfConverterServiceTests
     [Fact]
     public async Task ConvertAsync_ToStream_MatchesTheByteArrayOverload()
     {
-        var sut = new HtmlToPdfConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         var expected = await sut.ConvertAsync("<h1>Invoice</h1><p>Total: 18,100.00</p>");
 
@@ -50,7 +50,7 @@ public class HtmlToPdfConverterServiceTests
     [Fact]
     public async Task ConvertAsync_ToStream_HonorsCancellation()
     {
-        var sut = new HtmlToPdfConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
