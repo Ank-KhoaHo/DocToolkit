@@ -9,9 +9,20 @@ namespace DocToolkit.Extensions.DependencyInjection;
 /// </summary>
 internal sealed class HtmlToDocxConverterService : IHtmlToDocxConverter
 {
-    private readonly DocToolkitOptions _options;
+    private readonly IOptionsMonitor<DocToolkitOptions> _options;
 
-    public HtmlToDocxConverterService(IOptions<DocToolkitOptions> options) => _options = options.Value;
+    // IOptionsMonitor, not IOptions, and CurrentValue read PER CALL rather than captured in the
+    // constructor. These services are singletons, so `IOptions<T>.Value` is resolved once for the
+    // lifetime of the container - which means a configuration reload silently does nothing.
+    //
+    // That matters more here than the usual "nice to have reload" argument, because the option in
+    // question is the ONLY switch that lets this library open a socket. Turning
+    // AllowRemoteImageDownload off in configuration - as an incident response, say - looked like it
+    // worked and did not take effect until the process restarted. Nothing reported that.
+    //
+    // Reading CurrentValue per call costs a volatile field read; it is not a per-conversion
+    // allocation and does not need caching.
+    public HtmlToDocxConverterService(IOptionsMonitor<DocToolkitOptions> options) => _options = options;
 
     // Selecting the overload is the one decision this layer makes rather than delegating, and it
     // has to live here: the core API expresses "offline" and "bounded fetch" as two separate
@@ -20,13 +31,13 @@ internal sealed class HtmlToDocxConverterService : IHtmlToDocxConverter
     // than skipping the call keeps the offline path going through exactly the same core method it
     // always did.
     public Task<byte[]> ConvertAsync(string html, CancellationToken ct = default)
-        => _options.AllowRemoteImageDownload
-            ? DocToolkit.HtmlToDocxConverter.ConvertAsync(html, _options.RemoteImage, ct)
+        => _options.CurrentValue.AllowRemoteImageDownload
+            ? DocToolkit.HtmlToDocxConverter.ConvertAsync(html, _options.CurrentValue.RemoteImage, ct)
             : DocToolkit.HtmlToDocxConverter.ConvertAsync(html, false, ct);
 
     public Task ConvertAsync(string html, Stream destination, CancellationToken ct = default)
-        => _options.AllowRemoteImageDownload
-            ? DocToolkit.HtmlToDocxConverter.ConvertAsync(html, _options.RemoteImage, destination, ct)
+        => _options.CurrentValue.AllowRemoteImageDownload
+            ? DocToolkit.HtmlToDocxConverter.ConvertAsync(html, _options.CurrentValue.RemoteImage, destination, ct)
             : DocToolkit.HtmlToDocxConverter.ConvertAsync(html, false, destination, ct);
 
     public Task<byte[]> ConvertAsync(string html, DocToolkit.PageSetup page, CancellationToken ct = default)

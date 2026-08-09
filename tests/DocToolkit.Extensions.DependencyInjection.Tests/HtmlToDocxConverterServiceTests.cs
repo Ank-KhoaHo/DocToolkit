@@ -11,7 +11,7 @@ public class HtmlToDocxConverterServiceTests
     [Fact]
     public async Task ConvertAsync_ProducesADocxContainingTheGivenContent()
     {
-        var sut = new HtmlToDocxConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToDocxConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         var docx = await sut.ConvertAsync("<h1>Title</h1><p>Body copy.</p>");
 
@@ -22,7 +22,7 @@ public class HtmlToDocxConverterServiceTests
     [Fact]
     public async Task ConvertAsync_RejectsNullHtml()
     {
-        var sut = new HtmlToDocxConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToDocxConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         await Assert.ThrowsAsync<ArgumentNullException>(() => sut.ConvertAsync(null!));
     }
@@ -30,7 +30,7 @@ public class HtmlToDocxConverterServiceTests
     [Fact]
     public async Task ConvertAsync_ToStream_MatchesTheByteArrayOverload()
     {
-        var sut = new HtmlToDocxConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToDocxConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         var expected = await sut.ConvertAsync("<h1>Title</h1><p>Body copy.</p>");
 
@@ -49,7 +49,7 @@ public class HtmlToDocxConverterServiceTests
     [Fact]
     public async Task ConvertAsync_ToStream_HonorsCancellation()
     {
-        var sut = new HtmlToDocxConverterService(Options.Create(new DocToolkitOptions()));
+        var sut = new HtmlToDocxConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
