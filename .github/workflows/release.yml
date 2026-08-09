@@ -316,6 +316,58 @@ jobs:
       # Trusted Publishing policy actually works without publishing. A dry run
       # that skipped it would pass while the policy was misconfigured, and the
       # failure would surface on the one run that cannot be undone.
+      # The machine-readable counterpart to THIRD-PARTY-NOTICES.txt. That file is for a
+      # human meeting a licence question; this is for a scanner answering "am I exposed to
+      # CVE-X" without resolving the graph itself.
+      #
+      # CycloneDX is Apache-2.0 and a dotnet tool, so it sits in the existing local manifest
+      # and adds nothing to the shipped graph - the SBOM describes the package's
+      # dependencies without becoming one of them.
+      #
+      # --no-serial-number on purpose, and it is worth being precise about what that buys.
+      # A CycloneDX serial number is a random UUID per run: a value nobody can explain or
+      # reproduce. Dropping it leaves exactly ONE field that varies between two runs over
+      # an identical graph - metadata.timestamp - which is both explicable and normalisable.
+      #
+      # Measured, after the first version of this comment claimed the BOM was byte-stable
+      # and it was not: two consecutive runs differed on line 6 and nowhere else. So the
+      # honest claim is that the CONTENT is reproducible, not the file. To check a published
+      # SBOM, regenerate and compare with the timestamp removed:
+      #
+      #   diff <(jq 'del(.metadata.timestamp)' published.cdx.json) \
+      #        <(jq 'del(.metadata.timestamp)' regenerated.cdx.json)
+      #
+      # That matters here because the repository already sets Deterministic and
+      # ContinuousIntegrationBuild so a published build can be re-derived; an SBOM nobody
+      # can re-derive would be the one supply-chain artefact you had to take on trust.
+      #
+      # --exclude-dev keeps development-only dependencies out of a document describing what
+      # a consumer actually receives.
+      - name: Generate an SBOM for each package
+        run: |
+          for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
+            name=$(basename "$project" .csproj)
+            echo "::group::$name"
+            dotnet dotnet-CycloneDX "$project" \
+              --output artifacts \
+              --filename "$name.cdx.json" \
+              --json \
+              --no-serial-number \
+              --exclude-dev
+            echo "::endgroup::"
+          done
+
+          # An empty or component-less BOM would upload happily and tell a scanner nothing,
+          # so it is treated as a failed release rather than a quiet one.
+          for bom in artifacts/*.cdx.json; do
+            components=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['components']))" "$bom")
+            echo "$bom: $components component(s)"
+            if [ "$components" -eq 0 ]; then
+              echo "::error::$bom lists no components. Publishing it would answer a scanner's question with silence."
+              exit 1
+            fi
+          done
+
       - name: NuGet login (OIDC exchange for a short-lived key)
         id: login
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
@@ -347,7 +399,13 @@ jobs:
         if: steps.v.outputs.publish == 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: artifacts/*.nupkg
+          # The SBOMs are attested too. Without it an SBOM is just a file attached to a
+          # release, which anyone with write access could replace; attested, it carries
+          # proof it came from this workflow and this commit - the same guarantee the
+          # packages get, and the reason to trust what it says about them.
+          subject-path: |
+            artifacts/*.nupkg
+            artifacts/*.cdx.json
 
       - name: Push to nuget.org
         if: steps.v.outputs.publish == 'true'
@@ -369,13 +427,13 @@ jobs:
         run: |
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             echo "Release ${GITHUB_REF_NAME} already exists (created by release-please) - attaching packages"
-            gh release upload "${GITHUB_REF_NAME}" artifacts/*.nupkg artifacts/*.snupkg --clobber
+            gh release upload "${GITHUB_REF_NAME}" artifacts/*.nupkg artifacts/*.snupkg artifacts/*.cdx.json --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
               --title "${GITHUB_REF_NAME}" \
               --generate-notes \
               ${{ steps.v.outputs.prerelease == 'true' && '--prerelease' || '' }} \
-              artifacts/*.nupkg artifacts/*.snupkg
+              artifacts/*.nupkg artifacts/*.snupkg artifacts/*.cdx.json
           fi
 
       - name: Upload packages as build artifacts
