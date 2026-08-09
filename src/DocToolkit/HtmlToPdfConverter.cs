@@ -46,6 +46,7 @@ public static class HtmlToPdfConverter
     public static async Task<byte[]> ConvertAsync(
         string html, PageSetup page, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(html);
         byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, page, ct).ConfigureAwait(false);
         return DocxToPdfConverter.Convert(docx);
     }
@@ -344,6 +345,7 @@ public static class HtmlToPdfConverter
     public static async Task ConvertToFileAsync(
         string html, PageSetup page, string outputPath, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(html);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         var pdf = await ConvertAsync(html, page, ct).ConfigureAwait(false);

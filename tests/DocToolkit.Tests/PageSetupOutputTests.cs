@@ -377,4 +377,61 @@ public class PageSetupOutputTests
 
         Assert.Equal(12240U, size!.Width!.Value);
     }
+
+    // =============================================================================================
+    // Null html, on the overloads that take a page.
+    // =============================================================================================
+    //
+    // Every OTHER overload rejects null html. The page ones did not: they went straight to the
+    // internal builder, which validated `page` and not `html`, so ConvertAsync(null, PageSetup.A4)
+    // returned an empty document. A caller passing null got a document rather than an error - the
+    // silent shape this library treats as worse than throwing.
+    //
+    // Found by a dependency-injection test, not by these: the DI default-page work routed the
+    // parameterless overload through the page one, and the service's existing null-html test
+    // stopped passing.
+
+    [Fact]
+    public async Task DocxPageOverloads_RejectNullHtml()
+    {
+        await using var destination = new MemoryStream();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToDocxConverter.ConvertAsync(null!, PageSetup.A4));
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToDocxConverter.ConvertAsync(null!, PageSetup.A4, destination));
+    }
+
+    [Fact]
+    public async Task PdfPageOverloads_RejectNullHtml()
+    {
+        await using var destination = new MemoryStream();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToPdfConverter.ConvertAsync(null!, PageSetup.A4));
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToPdfConverter.ConvertAsync(null!, PageSetup.A4, destination));
+    }
+
+    [Fact]
+    public async Task PageAndOptionsOverloads_RejectNullHtml()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToDocxConverter.ConvertAsync(null!, PageSetup.A4, new RemoteImageOptions()));
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToPdfConverter.ConvertAsync(null!, PageSetup.A4, new RemoteImageOptions()));
+    }
+
+    [Fact]
+    public async Task ConvertToFilePageOverloads_RejectNullHtml()
+    {
+        var path = Path.Join(Path.GetTempPath(), $"doctoolkit-{Guid.NewGuid():N}.out");
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToDocxConverter.ConvertToFileAsync(null!, PageSetup.A4, path));
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => HtmlToPdfConverter.ConvertToFileAsync(null!, PageSetup.A4, path));
+
+        Assert.False(File.Exists(path), "A rejected conversion still created a file.");
+    }
 }
