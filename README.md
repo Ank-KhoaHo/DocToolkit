@@ -32,7 +32,7 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 
 | Constraint | How |
 |---|---|
-| **Free for commercial use** | 26 dependencies: 25 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
+| **Free for commercial use** | 29 dependencies: 28 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
 | **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
 | **Targets `net8.0` and `net10.0`** | Two LTS targets, one public API surface. `net9.0` is deliberately absent — a `net9.0` app already consumes the `net8.0` build, so it would add no reach. `netstandard2.0` is deliberately absent too: every dependency supports it, but the bounded-fetch guarantee on remote images cannot be expressed there, and `DateOnly`/`TimeOnly` would make the API differ per target. |
 | **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** (`ubuntu-24.04` x64, `windows-latest`, `macos-latest` Apple Silicon, `ubuntu-24.04-arm`). Not inferred from "pure managed" - measured on each. |
@@ -198,6 +198,43 @@ Six static classes, each stateless and safe to call concurrently, with a `byte[]
 `DocumentConversionException`. Full surface:
 **[package README](src/DocToolkit/README.md)** · [API docs](https://ank-khoaho.github.io/DocToolkit/).
 
+## PDF utilities
+
+Operations on a PDF that already exists — the only part of this library that **reads** one rather
+than writing it. Nothing here re-renders: pages move between documents as they are, so text, fonts
+and images arrive unchanged and the converters' fidelity caveats do not apply.
+
+```csharp
+int pages = PdfEditor.PageCount(pdf);
+
+// Join several into one, in the order given.
+byte[] bundle = PdfEditor.Merge([cover, invoice, terms]);
+
+// And take a range back out. firstPage is 1-based, the way a reader numbers pages.
+byte[] justTheInvoice = PdfEditor.ExtractPages(bundle, firstPage: 2, count: 1);
+```
+
+Document information — what a file manager shows in its properties panel, and what a search
+indexer reads — is a `PdfMetadata`:
+
+```csharp
+byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata
+{
+    Title = "Invoice INV-2026-0042",
+    Author = "Contoso Ltd",
+});
+
+PdfMetadata info = PdfEditor.ReadMetadata(stamped);
+```
+
+Every `PdfMetadata` property is nullable, and **`null` means absent rather than blank** in both
+directions. Reading, that lets you tell "no title" from "a title deliberately set to empty";
+writing, a `null` property leaves what the document already had alone, so stamping a title does not
+silently erase the author.
+
+`Stream` overloads exist for `PageCount`, `Merge` and `ExtractPages`. Unreadable input raises
+`DocumentConversionException`, like everything else here.
+
 ## Telemetry
 
 One `ActivitySource` and one `Meter`, both named `Ank.DocToolkit`:
@@ -344,7 +381,7 @@ fails restore loudly rather than silently relicensing you.
 ## Dependencies
 
 Direct: `DocumentFormat.OpenXml` · `HtmlToOpenXml.dll` · `OfficeIMO.Word.Pdf` · `ClosedXML` ·
-`SixLabors.Fonts [1.0.1]`. Full closure is 26 packages — 25 MIT, 1 Apache-2.0; see
+`SixLabors.Fonts [1.0.1]`. Full closure is 29 packages — 28 MIT, 1 Apache-2.0; see
 [`THIRD-PARTY-NOTICES.txt`](src/DocToolkit/THIRD-PARTY-NOTICES.txt).
 
 **Mirroring to a private feed?** Four things catch people out: `System.IO.Packaging` resolves to
