@@ -303,4 +303,18 @@ public class PageSetupOutputTests
 
         AssertPageSize(DocxToPdfConverter.Convert(docx), 612, 792);
     }
+
+    // A square page. `WidthPoints > HeightPoints` mutated to `>=` flips a square from Portrait to
+    // Landscape, and nothing else in the suite has a square page to notice.
+    [Fact]
+    public void Create_WithASquarePage_SaysPortrait()
+    {
+        var square = PageSetup.Custom(400, 400);
+
+        var sectPr = SectionPropertiesOf(DocxEditor.Create(Blocks, square));
+
+        Assert.Equal(
+            PageOrientationValues.Portrait,
+            sectPr!.GetFirstChild<PageSize>()!.Orient!.Value);
+    }
 }

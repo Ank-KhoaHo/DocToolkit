@@ -216,4 +216,29 @@ public class PageSetupTests
     {
         Assert.Equal("595.3 x 841.9 pt, margins 72/72/72/72 pt", PageSetup.A4.ToString());
     }
+
+    // The exact ceiling. `value > MaxPoints` mutated to `>=` survives unless something sits ON the
+    // boundary - and the boundary is the whole point of the guard, since one twentieth of a point
+    // further overflows the integer the OOXML attribute holds.
+    [Fact]
+    public void Custom_AcceptsExactlyTheLargestRepresentableSize()
+    {
+        const double Max = int.MaxValue / 20d;
+
+        var page = PageSetup.Custom(Max, Max);
+
+        Assert.Equal(Max, page.WidthPoints, 3);
+    }
+
+    [Fact]
+    public void WithMargins_AcceptsExactlyTheLargestRepresentableMargin()
+    {
+        const double Max = int.MaxValue / 20d;
+
+        // A margin at the ceiling needs a page larger still, or the content-area check fires first
+        // and this would pass for the wrong reason.
+        var page = PageSetup.Custom(Max, Max).WithMargins(0, Max / 4, 0, Max / 4);
+
+        Assert.Equal(Max / 4, page.RightPoints, 3);
+    }
 }

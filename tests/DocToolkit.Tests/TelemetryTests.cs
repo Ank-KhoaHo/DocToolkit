@@ -175,4 +175,84 @@ public class TelemetryTests : IDisposable
                 _captured, a => (a.GetTagItem("server.address") as string) == "192.168.66.66");
         }
     }
+
+    // The remaining fetch outcomes. These were added with the telemetry and never exercised - a
+    // successful fetch, a non-success status, and a body past MaxBytesPerImage - which mutation
+    // testing reported as surviving mutants in the recording calls themselves.
+    //
+    // Each needs a server that behaves a particular way, which is why they live here with the
+    // LoopbackProbe rather than beside the address-classification tests.
+
+    private static async Task NotFoundResponder(
+        System.Net.Sockets.NetworkStream stream, string requestLine, CancellationToken ct)
+    {
+        await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(
+            "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"), ct);
+        await stream.FlushAsync(ct);
+    }
+
+    private static async Task OversizedResponder(
+        System.Net.Sockets.NetworkStream stream, string requestLine, CancellationToken ct)
+    {
+        var body = new byte[64 * 1024];
+        await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(
+            "HTTP/1.1 200 OK\r\nContent-Type: image/bmp\r\n"
+            + $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n"), ct);
+        await stream.WriteAsync(body, ct);
+        await stream.FlushAsync(ct);
+    }
+
+    [Fact]
+    public async Task ASuccessfulFetchIsReportedAsOkWithItsSize()
+    {
+        using var probe = new LoopbackProbe(_output);
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true });
+
+        var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/logo.bmp"));
+
+        Assert.NotNull(resource);
+        var activity = Single("127.0.0.1");
+        Assert.Equal("ok", Outcome(activity));
+        Assert.Equal(ActivityStatusCode.Unset, activity.Status);
+
+        // The size tag is what makes the span useful for "why is my document 40 MB"; without it a
+        // successful fetch is indistinguishable from any other.
+        var bytes = Assert.IsType<int>(activity.GetTagItem("doctoolkit.remote_image.bytes"));
+        Assert.True(bytes > 0, "A successful fetch recorded no size.");
+    }
+
+    [Fact]
+    public async Task ANonSuccessStatusIsReportedWithItsCode()
+    {
+        using var probe = new LoopbackProbe(_output, NotFoundResponder);
+        var loader = new GuardedResourceLoader(
+            new RemoteImageOptions { AllowPrivateAddresses = true });
+
+        var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/missing.bmp"));
+
+        Assert.Null(resource);
+        var activity = Single("127.0.0.1");
+        Assert.Equal("http_error", Outcome(activity));
+        Assert.Equal(404, activity.GetTagItem("http.response.status_code"));
+    }
+
+    // Distinguishing "too large" from a plain failure is the point: one means raise
+    // MaxBytesPerImage, the other means the host is unreachable. A single "failed" would leave a
+    // consumer guessing.
+    [Fact]
+    public async Task ABodyPastTheCapIsReportedAsTooLarge()
+    {
+        using var probe = new LoopbackProbe(_output, OversizedResponder);
+        var loader = new GuardedResourceLoader(new RemoteImageOptions
+        {
+            AllowPrivateAddresses = true,
+            MaxBytesPerImage = 1024,
+        });
+
+        var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/huge.bmp"));
+
+        Assert.Null(resource);
+        Assert.Equal("too_large", Outcome(Single("127.0.0.1")));
+    }
 }
