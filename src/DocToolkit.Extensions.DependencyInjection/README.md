@@ -119,6 +119,21 @@ Two things on the static API deliberately do **not** appear on these interfaces:
   application may reach the network, and how far, is a property of how it is composed rather than a
   decision at each call site. It is `false` unless you opt in.
 
+## Migrating
+
+### 0.15.0 to 0.16.0 - the extensions package needs a newer DI abstraction
+
+No behaviour change, but a **floor you may have to satisfy**.
+`Ank.DocToolkit.Extensions.DependencyInjection` now requires
+`Microsoft.Extensions.DependencyInjection.Abstractions` **8.0.2**, up from 8.0.0.
+
+It follows from 0.15.0: PDFsharp raised `Microsoft.Extensions.Logging.Abstractions` from 6.0.0 to
+8.0.3 in the core package's graph, and 8.0.3 requires DI abstractions >= 8.0.2. If your application
+pins 8.0.0 or 8.0.1 you will see NuGet report a package downgrade rather than resolve silently -
+raise your reference, or remove the pin and let it float.
+
+The core package `Ank.DocToolkit` is unaffected.
+
 ## Why a separate package
 
 A console app, Lambda or simple script that only wants the static `byte[]`-based API installs
