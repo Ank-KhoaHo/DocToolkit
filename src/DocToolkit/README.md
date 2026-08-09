@@ -23,6 +23,36 @@ PPTX to PDF, turn DOCX into HTML or Markdown, and open/edit DOCX, XLSX and PPTX 
 
 All four are properties of the *resolved dependency graph*, so CI re-checks every one on every push.
 
+## Measured against the alternatives
+
+Every number below was measured on 2026-08-09 by adding the package to an empty `net8.0` console
+app and building it. **Reproduce any row in under a minute** — that is the point of publishing the
+method rather than a conclusion:
+
+```bash
+dotnet new console && dotnet add package <name> && dotnet build -c Release
+find bin -path '*runtimes*' \( -name '*.so' -o -name '*.dylib' \) | wc -l
+du -sm bin/Release/net8.0/runtimes
+```
+
+| package | native `.so`/`.dylib` in build output | `runtimes/` | licence in NuGet metadata |
+|---|---|---|---|
+| **Ank.DocToolkit** | **0** | **0 MB** | **`MIT`**, as an SPDX expression |
+| EPPlus | 0 | 1 MB | ships `license.md` — read it |
+| QuestPDF | 10 | 83 MB | ships `LICENSE.md` — read it |
+| NPOI | 12 | 416 MB | ships `OSMFEULA.txt` — read it |
+| ShapeCrawler | 19 | 664 MB | none declared |
+
+**Two things this table deliberately does not do.** It does not tell you what those licences say —
+they are linked from each package's own page and are the authors' to describe, not ours. And it does
+not claim native payload is everyone's problem: **EPPlus carries essentially none**, so if that is
+your only concern it is not a reason to switch. Where the payload does appear it comes from
+SkiaSharp and Magick.NET, pulled in transitively for image rendering.
+
+What the table is for is the case where **both** columns matter at once — a Linux container that has
+to stay small, with a licence you can clear without asking anybody. That combination is the whole
+reason this package exists, and all four constraints are re-checked by CI on every push.
+
 ## Offline by default — safe in air-gapped environments
 
 **No method on DocToolkit's public API opens a network connection.** Not for images, not for
