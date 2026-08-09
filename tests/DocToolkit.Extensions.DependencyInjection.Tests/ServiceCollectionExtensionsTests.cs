@@ -29,6 +29,7 @@ public class ServiceCollectionExtensionsTests
         Assert.NotNull(provider.GetRequiredService<IPptxToPdfConverter>());
         Assert.NotNull(provider.GetRequiredService<IDocxToHtmlConverter>());
         Assert.NotNull(provider.GetRequiredService<IDocxToMarkdownConverter>());
+        Assert.NotNull(provider.GetRequiredService<IPdfEditor>());
     }
 
     [Fact]
@@ -71,6 +72,7 @@ public class ServiceCollectionExtensionsTests
             typeof(IDocxEditor), typeof(IWorkbookEditor), typeof(IPresentationEditor),
             typeof(IXlsxToPdfConverter), typeof(IPptxToPdfConverter),
             typeof(IDocxToHtmlConverter), typeof(IDocxToMarkdownConverter),
+            typeof(IPdfEditor),
         };
 
         foreach (var serviceType in registeredTypes)
@@ -495,5 +497,63 @@ public class ServiceCollectionExtensionsTests
         await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">");
 
         Assert.Equal(before, probe.Connections);
+    }
+
+
+    [Fact]
+    public async Task AddDocToolkit_ResolvedPdfEditor_MatchesTheStaticApi()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var sut = provider.GetRequiredService<IPdfEditor>();
+
+        var first = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>First</h1>");
+        var second = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>Second</h1>");
+
+        var merged = sut.Merge([first, second]);
+
+        Assert.Equal(DocToolkit.PdfEditor.PageCount(merged), sut.PageCount(merged));
+        Assert.Equal(2, sut.PageCount(merged));
+        Assert.Equal(1, sut.PageCount(sut.ExtractPages(merged, 2, 1)));
+    }
+
+    [Fact]
+    public async Task AddDocToolkit_ResolvedPdfEditor_RoundTripsMetadata()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var sut = provider.GetRequiredService<IPdfEditor>();
+
+        var pdf = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>Report</h1>");
+
+        var stamped = sut.WithMetadata(pdf, new DocToolkit.PdfMetadata { Title = "Quarterly" });
+
+        Assert.Equal("Quarterly", sut.ReadMetadata(stamped).Title);
+
+        // Absent stays absent rather than arriving as "" - the distinction the core API makes, and
+        // the one an interface is most likely to lose by round-tripping through a DTO.
+        Assert.Null(sut.ReadMetadata(stamped).Author);
+    }
+
+
+    // The three Stream-based members. The extensions assembly carries a 100% line-coverage floor
+    // precisely because these are one-line delegations: an untested one would be a typo that
+    // forwards to the wrong static method and nothing else in the suite would ever notice.
+    [Fact]
+    public async Task AddDocToolkit_ResolvedPdfEditor_StreamOverloadsDelegate()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var sut = provider.GetRequiredService<IPdfEditor>();
+
+        var first = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>First</h1>");
+        var second = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>Second</h1>");
+
+        await using var merged = new MemoryStream();
+        await sut.MergeAsync([new MemoryStream(first), new MemoryStream(second)], merged);
+
+        Assert.Equal(2, await sut.PageCountAsync(new MemoryStream(merged.ToArray())));
+
+        await using var extracted = new MemoryStream();
+        await sut.ExtractPagesAsync(new MemoryStream(merged.ToArray()), 2, 1, extracted);
+
+        Assert.Equal(1, sut.PageCount(extracted.ToArray()));
     }
 }
