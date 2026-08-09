@@ -69,6 +69,22 @@ public class TelemetryTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// The one span for <paramref name="port"/>.
+    ///
+    /// Host is not enough for the probe-driven tests below: a <c>LoopbackProbe</c> is always on
+    /// 127.0.0.1, which every other loopback suite also uses. The PORT is OS-assigned per probe
+    /// instance, so it is the only thing that separates two spans in a process-wide listener.
+    /// </summary>
+    private Activity SingleOnPort(int port)
+    {
+        lock (_captured)
+        {
+            return Assert.Single(
+                _captured.Where(a => (a.GetTagItem("server.port") as int?) == port).ToList());
+        }
+    }
+
     // The listener has to be able to see a span before any assertion about one means anything -
     // the same reasoning as AirGapGuardTests' positive probe test.
     [Fact]
@@ -156,6 +172,10 @@ public class TelemetryTests : IDisposable
         }
 
         Assert.Equal("10.77.77.77", activity.GetTagItem("server.address"));
+
+        // server.port is recorded and is deliberately not covered by the assertion above: a port
+        // number cannot carry a credential the way a query string can.
+        Assert.Equal(80, activity.GetTagItem("server.port"));
     }
 
     // Costing nothing without a listener is the claim that lets this exist in a package whose
@@ -212,7 +232,7 @@ public class TelemetryTests : IDisposable
         var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/logo.bmp"));
 
         Assert.NotNull(resource);
-        var activity = Single("127.0.0.1");
+        var activity = SingleOnPort(probe.Port);
         Assert.Equal("ok", Outcome(activity));
         Assert.Equal(ActivityStatusCode.Unset, activity.Status);
 
@@ -232,7 +252,7 @@ public class TelemetryTests : IDisposable
         var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/missing.bmp"));
 
         Assert.Null(resource);
-        var activity = Single("127.0.0.1");
+        var activity = SingleOnPort(probe.Port);
         Assert.Equal("http_error", Outcome(activity));
         Assert.Equal(404, activity.GetTagItem("http.response.status_code"));
     }
@@ -253,6 +273,6 @@ public class TelemetryTests : IDisposable
         var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/huge.bmp"));
 
         Assert.Null(resource);
-        Assert.Equal("too_large", Outcome(Single("127.0.0.1")));
+        Assert.Equal("too_large", Outcome(SingleOnPort(probe.Port)));
     }
 }

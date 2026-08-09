@@ -246,4 +246,94 @@ public class ImageInspectorEdgeCaseTests
 
         Assert.Contains("1 bytes", ex.Message, StringComparison.Ordinal);
     }
+
+    // =====================================================================================
+    // Exact boundaries.
+    //
+    // Every test below exists to kill a specific surviving mutant: a comparison whose `<=` can be
+    // swapped for `<`, or `>` for `>=`, without any existing test noticing. A boundary is only
+    // tested by something sitting exactly ON it, and these are the values that do.
+    // =====================================================================================
+
+    [Fact]
+    public void Inspect_RejectsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => ImageInspector.Inspect(null!));
+    }
+
+    // The JPEG magic test needs three bytes. At exactly three it must still fire - `>= 3` mutated
+    // to `> 3` makes the shortest possible JPEG header unrecognisable.
+    [Fact]
+    public void Inspect_RecognisesJpegFromExactlyThreeBytes()
+    {
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => ImageInspector.Inspect(new byte[] { 0xFF, 0xD8, 0xFF }));
+
+        // Detected as JPEG, then rejected for having no frame - NOT reported as an unknown format,
+        // which is what a narrowed length check would produce.
+        Assert.Contains("JPEG", ex.Message, StringComparison.Ordinal);
+    }
+
+    // Zero is the boundary `is <= 0` guards. `< 0` lets it through, and a zero-size image reaches
+    // OOXML as a zero extent that renders as nothing.
+    [Theory]
+    [InlineData(0.0, null)]
+    [InlineData(null, 0.0)]
+    public void Resolve_RejectsExactlyZero(double? width, double? height)
+    {
+        var info = ImageInspector.Inspect(ImageFixtures.Png(10, 10));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => ImageInspector.Resolve(info, width, height));
+    }
+
+    // Exactly the ceiling must be ACCEPTED - `> MaxCoordinateEmu` mutated to `>=` rejects the
+    // largest legal size, which OOXML can represent perfectly well.
+    [Fact]
+    public void Resolve_AcceptsASizeLandingExactlyOnTheCeiling()
+    {
+        const long MaxCoordinateEmu = int.MaxValue;
+        const long EmuPerPoint = 12700;
+
+        var info = ImageInspector.Inspect(ImageFixtures.Png(10, 10));
+        double points = (double)MaxCoordinateEmu / EmuPerPoint;
+
+        var (widthEmu, heightEmu) = ImageInspector.Resolve(info, points, points);
+
+        Assert.True(widthEmu <= MaxCoordinateEmu && widthEmu > 0, $"width {widthEmu} left the legal range");
+        Assert.True(heightEmu <= MaxCoordinateEmu && heightEmu > 0, $"height {heightEmu} left the legal range");
+    }
+
+    // 0xCF is the last marker in the SOF range. `<= 0xCF` mutated to `< 0xCF` stops SOF15 being
+    // read as a frame, and the size is then silently taken from wherever the walk lands next.
+    [Fact]
+    public void Jpeg_ReadsASizeFromMarkerCf_TheLastInTheSofRange()
+    {
+        var info = ImageInspector.Inspect(Jpeg(Sof(17, 19, marker: 0xCF)));
+
+        Assert.Equal(17, info.WidthPx);
+        Assert.Equal(19, info.HeightPx);
+    }
+
+    // Exactly 8 bytes is the boundary between "too short to identify" and "unrecognised". `< 8`
+    // mutated to `<= 8` changes which message an 8-byte buffer gets.
+    [Fact]
+    public void Inspect_AtExactlyEightBytesSaysUnrecognisedRatherThanTooShort()
+    {
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => ImageInspector.Inspect(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }));
+
+        Assert.Contains("unrecognised", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("too short", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // A buffer exactly as long as the prefix it is compared against. `>= prefix.Length` mutated to
+    // `>` makes a two-byte "BM" fail to match the two-byte BMP prefix.
+    [Fact]
+    public void Inspect_MatchesAMagicPrefixWhenTheBufferIsExactlyThatLong()
+    {
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => ImageInspector.Inspect(new byte[] { 0x42, 0x4D }));   // "BM", and nothing else
+
+        Assert.Contains("BMP", ex.Message, StringComparison.Ordinal);
+    }
 }
