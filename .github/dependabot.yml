@@ -77,6 +77,11 @@ updates:
       # SixLabors.Fonts [1.0.0] -> [3.0.0], straight past the revenue-gated 2.x
       # line the pin exists to prevent, plus three shipped floors ignored
       # elsewhere. CI caught it. This stops it being proposed at all.
+      #
+      # scripts/check-dependabot-scoping.py now asserts this repetition rather than
+      # trusting the comment: it derives the required set from the src/ blocks, so
+      # deleting one of these lines - or adding a NEW block that forgets them - fails
+      # the build instead of silently reopening the hole.
       - dependency-name: "SixLabors.Fonts"
       - dependency-name: "Ank.DocToolkit"
       - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
