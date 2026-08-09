@@ -1,6 +1,6 @@
 # Samples
 
-Eight runnable projects, each answering one question. Every one references the **published** NuGet
+Nine runnable projects, each answering one question. Every one references the **published** NuGet
 packages rather than this repo's source — the same restore an external consumer gets.
 
 | Sample | Answers |
@@ -13,6 +13,7 @@ packages rather than this repo's source — the same restore an external consume
 | [MinimalApi](MinimalApi/) | How do I wire this into ASP.NET Core dependency injection? |
 | [RazorPdf](RazorPdf/) | How do I turn a Razor view I already maintain into a PDF or a Word document? |
 | [WorkerService](WorkerService/) | How do I generate documents from a background job? |
+| [PdfUtilities](PdfUtilities/) | How do I count, merge, split or label a PDF I already have? |
 
 Each folder has its own `README.md` with the command to run it and the one thing about that
 capability that is not obvious.
