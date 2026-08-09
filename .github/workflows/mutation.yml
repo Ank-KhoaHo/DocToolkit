@@ -21,6 +21,20 @@ name: Mutation testing
 # are the places CLAUDE.md's traps live, and mutating the whole library instead
 # would trade a focused signal for a much longer run.
 
+# THE SURVIVORS THAT REMAIN ARE THE FLOOR, not a backlog. Measured 2026-08-09 at
+# 97.52%: 10 survive, and each was traced by hand rather than left unexplained.
+#
+#   5 equivalent mutants, unkillable by any test. Four in RunTextSplicer and one in
+#     GuardedResourceLoader; the reasoning for each sits beside the code it concerns,
+#     in RunTextSplicerTests and Ipv6TransitionNearMissTests.
+#   4 exception-message strings. Killing them means asserting exact wording, which is
+#     brittle for what it buys - the messages already have their DIAGNOSTIC content
+#     asserted where two guards would otherwise be indistinguishable.
+#   1 block removal on PdfRenderPolicy's test-only accessor. Benign.
+#
+# So a future pass chasing the score should expect to find nothing cheap. If the score
+# DROPS, that is a real regression; if it sits here, the suite is doing its job.
+
 on:
   schedule:
     # Mondays, 04:17 UTC. Off the hour on purpose: scheduled workflows queue
