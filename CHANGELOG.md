@@ -16,7 +16,6 @@ repo-wide tooling (CI, release pipeline).
 ### Added
 
 * **core:** read an existing PDF - page count, merge, extract, metadata ([971fffa](https://github.com/Ank-KhoaHo/DocToolkit/commit/971fffa0ce6b63237925ff75fd15ab39efbbd7ac))
-* **core:** read an existing PDF — page count, merge, extract, metadata ([7db7e88](https://github.com/Ank-KhoaHo/DocToolkit/commit/7db7e88c58ba3df60cb0ffafde57c7c7f47e7e19))
 
 ## [0.14.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.13.0...v0.14.0) (2026-08-09)
 
