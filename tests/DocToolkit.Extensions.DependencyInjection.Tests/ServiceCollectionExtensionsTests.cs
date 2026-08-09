@@ -346,4 +346,70 @@ public class ServiceCollectionExtensionsTests
             .ConvertAsync("<p>x</p>", DocToolkit.PageSetup.Letter);
         Assert.NotEmpty(pdf);
     }
+
+    // Every Stream overload on the newly mirrored interfaces. The coverage gate caught these
+    // missing on the first CI run - the DI package is held at 100% precisely because it is pure
+    // delegation, so an uncovered member IS an untested one and the fix is always a short test.
+    [Fact]
+    public async Task ResolvedServices_StreamOverloadsDelegateToo()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var blocks = new[] { DocToolkit.DocxBlock.Heading("Report", 1) };
+        byte[] docx = DocToolkit.DocxEditor.Create(blocks);
+        byte[] xlsx = DocToolkit.WorkbookEditor.Create("Sales", new[] { new object?[] { "A", 1 } });
+        byte[] pptx = DocToolkit.PresentationEditor.Create(new[] { DocToolkit.PptxSlide.Titled("T", "B") });
+
+        using (var destination = new MemoryStream())
+        {
+            await provider.GetRequiredService<IDocxEditor>()
+                .CreateAsync(blocks, DocToolkit.PageSetup.Letter, destination);
+            Assert.NotEmpty(destination.ToArray());
+        }
+
+        using (var source = new MemoryStream(docx))
+            Assert.Contains("<h1", await provider.GetRequiredService<IDocxToHtmlConverter>()
+                .ConvertAsync(source), StringComparison.OrdinalIgnoreCase);
+
+        using (var source = new MemoryStream(docx))
+            Assert.Contains("# Report", await provider.GetRequiredService<IDocxToMarkdownConverter>()
+                .ConvertAsync(source), StringComparison.Ordinal);
+
+        using (var source = new MemoryStream(xlsx))
+        using (var destination = new MemoryStream())
+        {
+            await provider.GetRequiredService<IXlsxToPdfConverter>().ConvertAsync(source, destination);
+            Assert.NotEmpty(destination.ToArray());
+        }
+
+        using (var source = new MemoryStream(pptx))
+        using (var destination = new MemoryStream())
+        {
+            await provider.GetRequiredService<IPptxToPdfConverter>().ConvertAsync(source, destination);
+            Assert.NotEmpty(destination.ToArray());
+        }
+    }
+
+    [Fact]
+    public async Task ResolvedHtmlConverters_PageSetupOverloadsDelegateToo()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        const string Html = "<p>x</p>";
+
+        Assert.NotEmpty(await provider.GetRequiredService<IHtmlToDocxConverter>()
+            .ConvertAsync(Html, DocToolkit.PageSetup.Letter));
+
+        using (var destination = new MemoryStream())
+        {
+            await provider.GetRequiredService<IHtmlToDocxConverter>()
+                .ConvertAsync(Html, DocToolkit.PageSetup.Letter, destination);
+            Assert.NotEmpty(destination.ToArray());
+        }
+
+        using (var destination = new MemoryStream())
+        {
+            await provider.GetRequiredService<IHtmlToPdfConverter>()
+                .ConvertAsync(Html, DocToolkit.PageSetup.Letter, destination);
+            Assert.NotEmpty(destination.ToArray());
+        }
+    }
 }
