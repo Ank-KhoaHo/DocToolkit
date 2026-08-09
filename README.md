@@ -285,6 +285,19 @@ The change was deliberate and is the point of that work rather than a side effec
 filed under *Added* in the changelog, which understated it. It is recorded here because a published
 version can be unlisted but never edited.
 
+### 0.15.0 to 0.16.0 - the extensions package needs a newer DI abstraction
+
+No behaviour change, but a **floor you may have to satisfy**.
+`Ank.DocToolkit.Extensions.DependencyInjection` now requires
+`Microsoft.Extensions.DependencyInjection.Abstractions` **8.0.2**, up from 8.0.0.
+
+It follows from 0.15.0: PDFsharp raised `Microsoft.Extensions.Logging.Abstractions` from 6.0.0 to
+8.0.3 in the core package's graph, and 8.0.3 requires DI abstractions >= 8.0.2. If your application
+pins 8.0.0 or 8.0.1 you will see NuGet report a package downgrade rather than resolve silently -
+raise your reference, or remove the pin and let it float.
+
+The core package `Ank.DocToolkit` is unaffected.
+
 ### 0.13.0 to 0.14.0 - verified on macOS and arm64
 
 No behaviour change. CI now runs the full suite on macOS and Linux arm64 as well as Linux x64 and
