@@ -335,4 +335,46 @@ public class PageSetupOutputTests
 
         Assert.Equal("page", ex.ParamName);
     }
+
+
+    // =============================================================================================
+    // Page setup and remote images together.
+    // =============================================================================================
+    //
+    // The public overloads made these mutually exclusive: (html, page) always converts OFFLINE, and
+    // (html, RemoteImageOptions) always lays out on A4 - it passes PageSetup.A4 to the internal
+    // builder regardless. The builder has taken both since page setup shipped; nothing exposed the
+    // combination.
+    //
+    // That is a silent drop either way round, which is the shape of failure this library treats as
+    // worse than an exception: ask for Letter and a CDN allow-list, and one of the two is discarded
+    // without a word.
+
+    [Fact]
+    public async Task ConvertAsync_WithPageAndRemoteImageOptions_HonoursThePage()
+    {
+        var remote = new RemoteImageOptions();
+        remote.AllowedHosts.Add("assets.example.invalid");
+
+        var docx = await HtmlToDocxConverter.ConvertAsync("<p>Hi</p>", PageSetup.Letter, remote);
+
+        var size = SectionPropertiesOf(docx)!.GetFirstChild<PageSize>();
+
+        // 12240 twentieths = 612 pt = US Letter. A4 would be 11906.
+        Assert.Equal(12240U, size!.Width!.Value);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_WithPageAndRemoteImageOptions_StreamOverloadHonoursThePage()
+    {
+        var remote = new RemoteImageOptions();
+        remote.AllowedHosts.Add("assets.example.invalid");
+
+        await using var destination = new MemoryStream();
+        await HtmlToDocxConverter.ConvertAsync("<p>Hi</p>", PageSetup.Letter, remote, destination);
+
+        var size = SectionPropertiesOf(destination.ToArray())!.GetFirstChild<PageSize>();
+
+        Assert.Equal(12240U, size!.Width!.Value);
+    }
 }

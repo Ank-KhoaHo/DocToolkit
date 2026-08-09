@@ -228,6 +228,10 @@ Six static classes, each stateless and safe to call concurrently, with a `byte[]
 `DocumentConversionException`. Full surface:
 **[package README](src/DocToolkit/README.md)** · [API docs](https://ank-khoaho.github.io/DocToolkit/).
 
+Page setup and remote images combine: `ConvertAsync(html, page, options)`. Before 0.18.0
+they were mutually exclusive - `(html, page)` converted offline and `(html, options)` laid out
+on A4 - so asking for both silently dropped one.
+
 ## PDF utilities
 
 Operations on a PDF that already exists — the only part of this library that **reads** one rather

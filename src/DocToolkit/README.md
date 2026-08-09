@@ -187,6 +187,11 @@ string markdown = DocxToMarkdownConverter.Convert(docx);
 byte[] landscape = await HtmlToPdfConverter.ConvertAsync(
     html, PageSetup.A4.Landscape().WithMargins(36));
 
+// Paper and remote images together. Before 0.18.0 these were mutually exclusive:
+// (html, page) always converted offline and (html, options) always laid out on A4,
+// so asking for both silently dropped one of them.
+byte[] branded = await HtmlToDocxConverter.ConvertAsync(html, PageSetup.Letter, remoteImages);
+
 // Build a DOCX from data rather than markup - headings, paragraphs, tables and images.
 // There is no HTML to escape here, so a value containing '<' cannot corrupt the
 // document's structure, and the same blocks produce the same content on every machine.

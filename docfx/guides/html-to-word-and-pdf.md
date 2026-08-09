@@ -53,6 +53,10 @@ derived a landscape page from `PageSetup.Letter` and `PageSetup.Letter` is still
 `PageSetup.Custom(width, height)` covers sizes that have no named property. It rejects zero,
 negative, and `NaN` dimensions rather than producing a document Word will refuse to open.
 
+Page setup and remote images can be given together — `ConvertAsync(html, page, options)` on
+either converter. Until 0.18.0 they could not: `(html, page)` always converted offline and
+`(html, options)` always laid out on A4, so asking for both silently lost one.
+
 > [!NOTE]
 > One page setup applies to the whole document. A document with a landscape section in the middle
 > of a portrait one is not something this API expresses.
