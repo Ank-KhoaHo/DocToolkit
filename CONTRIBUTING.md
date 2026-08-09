@@ -1,5 +1,8 @@
 # Contributing to DocToolkit
 
+This project has a [Code of Conduct](CODE_OF_CONDUCT.md). By participating you are expected
+to uphold it; report unacceptable behaviour through the private channel it names.
+
 Thanks for considering it. This package has a few constraints that are stricter than most, and
 they are the reason it exists — so this document explains what will get a pull request rejected,
 not just the day-to-day workflow of building and testing it.

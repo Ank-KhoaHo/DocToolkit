@@ -1,0 +1,42 @@
+name: Feature request
+description: Something this package should be able to do and cannot.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **The four constraints decide most of these**, so it is worth knowing them before writing:
+        permissive licences only, NuGet-only with no native binaries, runs everywhere .NET does, and
+        no runtime network I/O. A capability that needs a browser, LibreOffice, Office interop or a
+        revenue-gated dependency cannot be added without breaking the reason this package exists.
+
+        That is not a "no" — several features looked impossible under those constraints and turned
+        out to be fine once somebody actually checked the dependency graph.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        The task, not the API. "I need to render an invoice to PDF on a Linux container" is more
+        useful than "add a RenderInvoice method" — there may already be a way, or a better shape.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What are you doing instead today?
+      description: If nothing, say so. If you dropped to raw OpenXML, that is useful to know.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints
+      options:
+        - label: >
+            As far as I know, this can be done without native binaries, a browser, Office interop,
+            or a dependency that is not permissively licensed.
+          required: false
