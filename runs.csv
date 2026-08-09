@@ -5,3 +5,11 @@ date,workflow,runs
 2026-08-07,Docs,4
 2026-08-07,Release,4
 2026-08-07,release-please,22
+2026-08-08,CI,106
+2026-08-08,CodeQL,72
+2026-08-08,Dependabot auto-merge,11
+2026-08-08,Docs,2
+2026-08-08,Mutation testing,2
+2026-08-08,Release,2
+2026-08-08,nuget stats,2
+2026-08-08,release-please,27
