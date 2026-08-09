@@ -10,6 +10,18 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.14.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.13.0...v0.14.0) (2026-08-09)
+
+
+### Added
+
+* **extensions:** mirror the 0.13.0 API on the injectable interfaces ([67bda53](https://github.com/Ank-KhoaHo/DocToolkit/commit/67bda539cac2840c6f48e8aec48a5c9c42a2fd46))
+
+
+### Fixed
+
+* **extensions:** apply option changes without a restart ([f0f0508](https://github.com/Ank-KhoaHo/DocToolkit/commit/f0f0508c37bc02f2a51e4eb8aa7d7c3c4dcb320e))
+
 ## [0.13.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.12.0...v0.13.0) (2026-08-09)
 
 
