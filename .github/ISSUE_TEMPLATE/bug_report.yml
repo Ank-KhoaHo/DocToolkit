@@ -1,0 +1,73 @@
+name: Bug report
+description: Something this package does is wrong, or fails where it should not.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please do not report a security issue here.** Use
+        [SECURITY.md](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/SECURITY.md) — a public
+        issue discloses it to every consumer at once, and a published NuGet version can never be
+        deleted.
+
+        A few things are **documented limitations rather than bugs**, listed under *Known
+        limitations* in the README: PDF fidelity is bounded because HTML → PDF pivots through DOCX,
+        external stylesheets are never fetched, and generated documents have no headers or footers.
+        Worth a look first — it may save you writing this out.
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: "`Ank.DocToolkit` and, if you use it, `Ank.DocToolkit.Extensions.DependencyInjection`."
+      placeholder: "0.13.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where it happens
+      description: >
+        CI runs the full suite on Linux x64, Linux arm64, Windows and macOS, so "it only fails on
+        one of them" is a genuinely useful clue rather than a formality.
+      multiple: true
+      options:
+        - Linux x64
+        - Linux arm64
+        - Windows
+        - macOS
+        - In a container
+        - On an air-gapped / offline machine
+    validations:
+      required: true
+
+  - type: input
+    id: tfm
+    attributes:
+      label: Target framework
+      placeholder: "net8.0 or net10.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: The smallest code that reproduces it
+      description: >
+        Including the input where you can. A document that triggers it is worth more than a
+        description of one — most bugs found in this project so far were shapes nobody predicted.
+      render: csharp
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+      description: >
+        If the output is a document rather than an exception, say what was wrong with it. Silent
+        wrong output — a blank image frame, a table that lost its rows — is the failure mode this
+        project takes most seriously, because nothing throws.
+    validations:
+      required: true
