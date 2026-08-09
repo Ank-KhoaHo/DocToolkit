@@ -465,6 +465,17 @@ jobs:
       - name: Assert every shipped type is named in its package README
         run: python3 scripts/check-readme-coverage.py
 
+      # The guides carry no code of their own - every block is a #region pulled out of a project
+      # in samples/, which the build job compiles with -warnaserror on four platforms. So a guide
+      # cannot document an API that no longer exists.
+      #
+      # That only holds while the region references resolve, and docfx does NOT enforce it.
+      # Measured 2026-08-09: pointing a snippet at a region that does not exist produced exit
+      # code 0, no warning, and an empty <code> block under prose describing its contents.
+      # --warningsAsErrors catches a dead LINK but not a dead SNIPPET. This is that check.
+      - name: Assert every guide snippet resolves to a real region
+        run: python3 scripts/check-doc-snippets.py
+
       - name: Assert the tree matches .editorconfig
         run: |
           if ! dotnet format ${{ env.SOLUTION }} --verify-no-changes; then

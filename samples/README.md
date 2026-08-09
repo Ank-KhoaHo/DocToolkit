@@ -5,15 +5,26 @@ packages rather than this repo's source — the same restore an external consume
 
 | Sample | Answers |
 |---|---|
-| [HtmlConversion](HtmlConversion/) | How do I turn HTML into a DOCX or a PDF? |
-| [DocxTemplating](DocxTemplating/) | How do I fill a Word template, including one row per record? |
-| [DocxImages](DocxImages/) | How do I drop a logo or signature into a placeholder? |
+| [HtmlConversion](HtmlConversion/) | How do I turn HTML into a DOCX or a PDF, on the page size I want — and what does a failure look like? |
+| [DocxTemplating](DocxTemplating/) | How do I fill a Word template, including one row per record — or build a document with no template at all? |
+| [DocxImages](DocxImages/) | How do I drop a logo or signature into a placeholder, and what happens to an image the HTML only points at? |
 | [Spreadsheets](Spreadsheets/) | How do I create, edit and read an XLSX? |
 | [Presentations](Presentations/) | How do I read text out of a PowerPoint file? |
 | [MinimalApi](MinimalApi/) | How do I wire this into ASP.NET Core dependency injection? |
 
 Each folder has its own `README.md` with the command to run it and the one thing about that
 capability that is not obvious.
+
+## The `#region` markers are load-bearing
+
+These files are also the source of every code block in the
+[guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html). The guides contain
+no code of their own — each block is a `#region` pulled out of a project here, so a documented
+snippet cannot drift from the API: it *is* the sample, and the sample stops compiling.
+
+**Renaming or removing a region breaks a guide silently.** DocFX renders a reference to a region
+that no longer exists as an empty code block and still exits 0 — measured, not assumed. That is
+why `scripts/check-doc-snippets.py` runs in the `formatting` job and fails the build instead.
 
 ## Why they reference the published packages
 

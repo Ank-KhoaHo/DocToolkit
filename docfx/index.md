@@ -15,6 +15,20 @@ dotnet add package Ank.DocToolkit
 
 Targets `net8.0` and `net10.0`. MIT licensed.
 
+## Start here
+
+- **[Getting started](guides/getting-started.md)** — install, your first conversion, and the three
+  conventions the whole API follows
+- **[HTML to Word and PDF](guides/html-to-word-and-pdf.md)** — page setup, and what happens to an
+  `<img>` that points at a URL
+- **[Word documents](guides/word-documents.md)** — fill a template, build one from scratch, export
+  it again
+- **[Spreadsheets and presentations](guides/spreadsheets-and-presentations.md)** — XLSX and PPTX
+- **[Dependency injection](guides/dependency-injection.md)** — `AddDocToolkit()` and the injectable
+  interfaces
+- **[Running in production](guides/production.md)** — streaming, containers, fonts, trimming,
+  telemetry
+
 ## Two packages
 
 - **[Ank.DocToolkit](https://www.nuget.org/packages/Ank.DocToolkit/)** — the library. Static

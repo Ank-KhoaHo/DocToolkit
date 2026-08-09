@@ -33,11 +33,13 @@ var sw = Stopwatch.StartNew();
 // Scoped so the file handle is closed before it is read back below. DocToolkit never closes a
 // stream you hand it - it is yours - which is what lets `output` be a response body you go on
 // writing to, and equally what makes closing it your job here.
+#region stream
 using (var input = new ForwardOnlyStream(source))
 using (var output = File.Create("edited.xlsx"))
 {
     await WorkbookEditor.SetCellAsync(input, "Sales", "B2", 999_999, output);
 }
+#endregion
 
 sw.Stop();
 

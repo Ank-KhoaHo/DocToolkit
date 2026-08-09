@@ -4,6 +4,7 @@ Console.WriteLine("Presentations");
 Console.WriteLine("=============");
 
 // Built from data, not from a template - there is no source file to read.
+#region create
 byte[] pptx = PresentationEditor.Create(new[]
 {
     PptxSlide.Titled("Hello {{who}}", "Built from a typed model", "No template file involved"),
@@ -12,6 +13,7 @@ byte[] pptx = PresentationEditor.Create(new[]
 
 int slides = PresentationEditor.SlideCount(pptx);
 IReadOnlyList<string> text = PresentationEditor.ExtractText(pptx);
+#endregion
 
 Console.WriteLine($"\nSlides       : {slides}");
 // ExtractText returns one entry per text-bearing body, not per slide - and Create emits two shapes

@@ -1,15 +1,19 @@
 using DocToolkit.Extensions.DependencyInjection;
 
+#region register
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDocToolkit();
 
 var app = builder.Build();
+#endregion
 
+#region inject
 app.MapPost("/html-to-docx", async (IHtmlToDocxConverter converter, HtmlRequest request) =>
 {
     byte[] docx = await converter.ConvertAsync(request.Html);
     return Results.File(docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "output.docx");
 });
+#endregion
 
 app.MapPost("/html-to-pdf", async (IHtmlToPdfConverter converter, HtmlRequest request) =>
 {

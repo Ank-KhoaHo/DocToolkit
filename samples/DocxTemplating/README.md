@@ -28,3 +28,12 @@ repeating row.
 
 Worth knowing: a placeholder is often several `<w:t>` runs in the underlying XML, because Word
 splits text as you type. Both methods handle that — a naive per-run `string.Replace` would not.
+
+**Templating assumes a template exists.** When the document's shape comes from your data instead,
+`DocxEditor.Create` takes a sequence of `DocxBlock` values — headings, paragraphs, tables, images
+— and skips the round trip through HTML entirely. The sample builds one that way to show the
+contrast.
+
+**And the result does not have to stay a Word document.** `DocxToHtmlConverter` and
+`DocxToMarkdownConverter` read the filled invoice back out as HTML for a web page or Markdown for
+a diff-able record. Note the HTML is a full `<html>` document rather than a fragment.
