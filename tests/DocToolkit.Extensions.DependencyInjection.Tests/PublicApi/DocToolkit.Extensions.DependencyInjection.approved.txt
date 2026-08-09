@@ -9,7 +9,9 @@ namespace DocToolkit.Extensions.DependencyInjection
     public interface IDocxEditor
     {
         byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks);
+        byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page);
         System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         string ExtractText(byte[] docx);
         string ExtractText(byte[] docx, bool includeHeadersAndFooters);
         System.Threading.Tasks.Task<string> ExtractTextAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
@@ -21,6 +23,16 @@ namespace DocToolkit.Extensions.DependencyInjection
         byte[] ReplaceText(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements);
         System.Threading.Tasks.Task ReplaceTextAsync(System.IO.Stream source, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
+    public interface IDocxToHtmlConverter
+    {
+        string Convert(byte[] docx);
+        System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
+    }
+    public interface IDocxToMarkdownConverter
+    {
+        string Convert(byte[] docx);
+        System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
+    }
     public interface IDocxToPdfConverter
     {
         byte[] Convert(byte[] docx);
@@ -29,12 +41,21 @@ namespace DocToolkit.Extensions.DependencyInjection
     public interface IHtmlToDocxConverter
     {
         System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, DocToolkit.PageSetup page, System.Threading.CancellationToken ct = default);
         System.Threading.Tasks.Task ConvertAsync(string html, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.PageSetup page, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
     public interface IHtmlToPdfConverter
     {
         System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, DocToolkit.PageSetup page, System.Threading.CancellationToken ct = default);
         System.Threading.Tasks.Task ConvertAsync(string html, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+        System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.PageSetup page, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+    }
+    public interface IPptxToPdfConverter
+    {
+        byte[] Convert(byte[] pptx);
+        System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
     public interface IPresentationEditor
     {
@@ -63,6 +84,11 @@ namespace DocToolkit.Extensions.DependencyInjection
         System.Threading.Tasks.Task SetCellAsync(System.IO.Stream source, string sheetName, string cellRef, object? value, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         System.Collections.Generic.IReadOnlyList<string> SheetNames(byte[] xlsx);
         System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> SheetNamesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
+    }
+    public interface IXlsxToPdfConverter
+    {
+        byte[] Convert(byte[] xlsx);
+        System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
     public static class ServiceCollectionExtensions
     {

@@ -15,7 +15,7 @@ public class ServiceCollectionExtensionsTests
     private static readonly TimeSpan SettleWindow = TimeSpan.FromMilliseconds(750);
 
     [Fact]
-    public void AddDocToolkit_ResolvesAllSixInterfaces()
+    public void AddDocToolkit_ResolvesAllTenInterfaces()
     {
         var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
 
@@ -25,6 +25,10 @@ public class ServiceCollectionExtensionsTests
         Assert.NotNull(provider.GetRequiredService<IDocxEditor>());
         Assert.NotNull(provider.GetRequiredService<IWorkbookEditor>());
         Assert.NotNull(provider.GetRequiredService<IPresentationEditor>());
+        Assert.NotNull(provider.GetRequiredService<IXlsxToPdfConverter>());
+        Assert.NotNull(provider.GetRequiredService<IPptxToPdfConverter>());
+        Assert.NotNull(provider.GetRequiredService<IDocxToHtmlConverter>());
+        Assert.NotNull(provider.GetRequiredService<IDocxToMarkdownConverter>());
     }
 
     [Fact]
@@ -65,6 +69,8 @@ public class ServiceCollectionExtensionsTests
         {
             typeof(IHtmlToDocxConverter), typeof(IDocxToPdfConverter), typeof(IHtmlToPdfConverter),
             typeof(IDocxEditor), typeof(IWorkbookEditor), typeof(IPresentationEditor),
+            typeof(IXlsxToPdfConverter), typeof(IPptxToPdfConverter),
+            typeof(IDocxToHtmlConverter), typeof(IDocxToMarkdownConverter),
         };
 
         foreach (var serviceType in registeredTypes)
@@ -300,5 +306,44 @@ public class ServiceCollectionExtensionsTests
         await Task.Delay(SettleWindow);
 
         Assert.Equal(0, probe.Connections);
+    }
+
+    // The mirror going stale is this package's most-repeated defect - seven times now. Resolving
+    // an interface proves it was REGISTERED; these prove each new member actually reaches the
+    // static method behind it, which is the part that has silently drifted before.
+    [Fact]
+    public void ResolvedConverters_DelegateToTheStaticApi()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+
+        byte[] docx = DocToolkit.DocxEditor.Create(new[] { DocToolkit.DocxBlock.Heading("Report", 1) });
+        byte[] xlsx = DocToolkit.WorkbookEditor.Create("Sales", new[] { new object?[] { "A", 1 } });
+        byte[] pptx = DocToolkit.PresentationEditor.Create(new[] { DocToolkit.PptxSlide.Titled("T", "B") });
+
+        Assert.Contains("<h1", provider.GetRequiredService<IDocxToHtmlConverter>().Convert(docx),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("# Report", provider.GetRequiredService<IDocxToMarkdownConverter>().Convert(docx),
+            StringComparison.Ordinal);
+        Assert.NotEmpty(provider.GetRequiredService<IXlsxToPdfConverter>().Convert(xlsx));
+        Assert.NotEmpty(provider.GetRequiredService<IPptxToPdfConverter>().Convert(pptx));
+    }
+
+    // PageSetup is the A9 mirror. Letter is asserted rather than the A4 default precisely because
+    // A4 would pass even if the parameter were dropped on the way through.
+    [Fact]
+    public async Task ResolvedServices_HonourThePageSetupTheyAreGiven()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var blocks = new[] { DocToolkit.DocxBlock.Paragraph("Hello.") };
+
+        byte[] viaInterface = provider.GetRequiredService<IDocxEditor>()
+            .Create(blocks, DocToolkit.PageSetup.Letter);
+        byte[] viaStatic = DocToolkit.DocxEditor.Create(blocks, DocToolkit.PageSetup.Letter);
+        Assert.Equal(DocToolkit.DocxEditor.ExtractText(viaStatic),
+            DocToolkit.DocxEditor.ExtractText(viaInterface));
+
+        byte[] pdf = await provider.GetRequiredService<IHtmlToPdfConverter>()
+            .ConvertAsync("<p>x</p>", DocToolkit.PageSetup.Letter);
+        Assert.NotEmpty(pdf);
     }
 }
