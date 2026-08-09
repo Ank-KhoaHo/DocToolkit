@@ -532,4 +532,28 @@ public class ServiceCollectionExtensionsTests
         // the one an interface is most likely to lose by round-tripping through a DTO.
         Assert.Null(sut.ReadMetadata(stamped).Author);
     }
+
+
+    // The three Stream-based members. The extensions assembly carries a 100% line-coverage floor
+    // precisely because these are one-line delegations: an untested one would be a typo that
+    // forwards to the wrong static method and nothing else in the suite would ever notice.
+    [Fact]
+    public async Task AddDocToolkit_ResolvedPdfEditor_StreamOverloadsDelegate()
+    {
+        var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
+        var sut = provider.GetRequiredService<IPdfEditor>();
+
+        var first = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>First</h1>");
+        var second = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>Second</h1>");
+
+        await using var merged = new MemoryStream();
+        await sut.MergeAsync([new MemoryStream(first), new MemoryStream(second)], merged);
+
+        Assert.Equal(2, await sut.PageCountAsync(new MemoryStream(merged.ToArray())));
+
+        await using var extracted = new MemoryStream();
+        await sut.ExtractPagesAsync(new MemoryStream(merged.ToArray()), 2, 1, extracted);
+
+        Assert.Equal(1, sut.PageCount(extracted.ToArray()));
+    }
 }

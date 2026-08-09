@@ -155,4 +155,81 @@ public class PdfEditorTests
         Assert.Null(read.Title);
         Assert.Null(read.Subject);
     }
+
+
+    // =============================================================================================
+    // The Stream and path overloads
+    // =============================================================================================
+
+    [Fact]
+    public async Task MergeAndExtractWorkThroughStreams()
+    {
+        await using var merged = new MemoryStream();
+        await PdfEditor.MergeAsync(
+            [new MemoryStream(await PdfAsync("A")), new MemoryStream(await PdfAsync("B"))],
+            merged);
+
+        Assert.Equal(2, await PdfEditor.PageCountAsync(new MemoryStream(merged.ToArray())));
+
+        await using var extracted = new MemoryStream();
+        await PdfEditor.ExtractPagesAsync(new MemoryStream(merged.ToArray()), 1, 1, extracted);
+
+        Assert.Equal(1, PdfEditor.PageCount(extracted.ToArray()));
+    }
+
+    [Fact]
+    public async Task PageCountReadsFromAPath()
+    {
+        var path = Path.Join(Path.GetTempPath(), $"doctoolkit-{Guid.NewGuid():N}.pdf");
+        await File.WriteAllBytesAsync(path, await PdfAsync("One"));
+
+        try
+        {
+            Assert.Equal(1, await PdfEditor.PageCountAsync(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task AStreamThatCannotSeekIsReadThrough()
+    {
+        // The same guarantee the rest of the library makes: a request body or a pipe is a valid
+        // source. A MemoryStream would hide a rewind, so this one refuses to seek.
+        await using var source = new ForwardOnly(await PdfAsync("One"));
+
+        Assert.Equal(1, await PdfEditor.PageCountAsync(source));
+    }
+
+    [Fact]
+    public void NullArgumentsAreRejectedByName()
+    {
+        Assert.Equal("pdf", Assert.Throws<ArgumentNullException>(() => PdfEditor.PageCount(null!)).ParamName);
+        Assert.Equal("pdfs", Assert.Throws<ArgumentNullException>(() => PdfEditor.Merge(null!)).ParamName);
+        Assert.Equal("metadata", Assert.Throws<ArgumentNullException>(
+            () => PdfEditor.WithMetadata([1, 2, 3], null!)).ParamName);
+    }
+
+    private sealed class ForwardOnly(byte[] data) : Stream
+    {
+        private readonly MemoryStream _inner = new(data);
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+    }
 }
