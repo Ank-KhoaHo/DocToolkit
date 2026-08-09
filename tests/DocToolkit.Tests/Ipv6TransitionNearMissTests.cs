@@ -121,4 +121,31 @@ public class Ipv6TransitionNearMissTests
             + "reading a byte either side of the embedded address - which lands outside "
             + "172.16.0.0/12 and turns a private target back into a reachable one.");
     }
+
+
+    // =============================================================================================
+    // ToIPv4's THIRD byte is an equivalent mutant. Do not spend another pass on it.
+    // =============================================================================================
+    //
+    // Analysed 2026-08-09 at 96.61% overall, by hand rather than by assumption.
+    //
+    // Stryker shifts `ipv6Bytes[offset + 2]` to `[offset - 2]`, so the extracted address keeps its
+    // first, second and fourth octets and takes a wrong third. The extracted address has exactly
+    // one consumer - IsBlockedAddress - and every branch of it reads only the FIRST TWO octets:
+    //
+    //     IsLoopback            127/8            octet 1
+    //     10.0.0.0/8                             octet 1
+    //     172.16.0.0/12                          octets 1-2
+    //     192.168.0.0/16                         octets 1-2
+    //     169.254.0.0/16                         octets 1-2
+    //     100.64.0.0/10                          octets 1-2
+    //
+    // There is no check anywhere that reads octet 3, and no exact-address comparison either - the
+    // unspecified address 0.0.0.0 is not special-cased. So no input exists for which changing the
+    // third octet changes the verdict, and the mutant cannot be killed.
+    //
+    // The SECOND byte is a different matter and IS tested: see
+    // ATransitionWrapperIsUnwrappedFromExactlyTheRightBytes, which needed 172.16.0.5 rather than
+    // the 10.0.0.5 every other test uses, because a shifted read of a 10.x address lands back
+    // inside 10.0.0.0/8 and stays blocked.
 }
