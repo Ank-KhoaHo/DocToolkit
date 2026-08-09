@@ -10,7 +10,25 @@
       Convert HTML to DOCX and PDF, and open/edit DOCX, XLSX and PPTX - pure managed,
       no native binaries, no browser, no LibreOffice. Runs on Linux.
     </Description>
-    <PackageTags>docx;pdf;xlsx;pptx;html;openxml;document;conversion</PackageTags>
+    <!--
+      Three groups, and the ORDER of thought matters more than the list. The old set was eight
+      format nouns - docx;pdf;xlsx;pptx;html;openxml;document;conversion - which describe what the
+      package is to somebody who already found it. Nobody in pain searches "openxml".
+
+        1. Formats, kept: people do search these.
+        2. The words normal people use (word, excel, powerpoint) and THE JOB they are doing
+           (html-to-docx, docx-to-pdf, mail-merge) - the symptom that brought them here.
+        3. The four constraints (linux, cross-platform, offline). These ARE the differentiator and
+           not one of them was a tag.
+
+      Dropped `document` and `conversion` as too generic to rank for, and `html` in favour of the
+      more specific `html-to-docx`.
+
+      DELIBERATELY NOT KEYWORD-STUFFED. nuget.org dilutes relevance across a package's tags, so
+      twenty weak tags rank worse than ten strong ones. Adding a tag has a cost; keep this list
+      short and argue for anything new.
+    -->
+    <PackageTags>docx;pdf;xlsx;pptx;word;excel;powerpoint;openxml;html-to-docx;docx-to-pdf;mail-merge;linux;cross-platform;offline</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
