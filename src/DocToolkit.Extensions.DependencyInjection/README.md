@@ -4,7 +4,7 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
 Dependency-injection registration for [Ank.DocToolkit](https://www.nuget.org/packages/Ank.DocToolkit) —
-`services.AddDocToolkit()` registers six injectable interfaces over the same pure-managed
+`services.AddDocToolkit()` registers ten injectable interfaces over the same pure-managed
 HTML/DOCX/PDF/XLSX/PPTX conversion and editing logic.
 
 ```bash
@@ -85,8 +85,9 @@ app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter 
 });
 ```
 
-All six interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
-`IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor` — mirror
+All ten interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
+`IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`,
+`IDocxToMarkdownConverter`, `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor` — mirror
 [`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
 `byte[]` and its `Stream`-based async overloads. They are registered as singletons (each wraps
 stateless logic) and are safe to inject and call concurrently. See the core package's README for
