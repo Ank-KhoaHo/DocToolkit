@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.16.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.15.0...v0.16.0) (2026-08-09)
+
+
+### Added
+
+* **extensions:** mirror PdfEditor on IPdfEditor ([b64f21c](https://github.com/Ank-KhoaHo/DocToolkit/commit/b64f21c109c882931a13a6cda1966d012c3994a2))
+* **extensions:** mirror PdfEditor on IPdfEditor ([91e958b](https://github.com/Ank-KhoaHo/DocToolkit/commit/91e958b3078e917af50dad3af65973b280c45e10))
+
 ## [0.15.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.14.0...v0.15.0) (2026-08-09)
 
 
