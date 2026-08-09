@@ -27,8 +27,15 @@ and forgotten in the others.
 A block may ignore MORE than required. The tests block ignores SixLabors.Fonts
 entirely where src/ ignores only its majors; ignoring more is always safe, so
 only the dependency name is compared, never the update-types.
+
+A SECOND invariant is checked here too, added 2026-08-09 after the same failure
+arrived from a different direction: a sample that pins a FIXED version needs an
+ignore in the root block, because the root block sees DocToolkit.sln and a
+solution reaches every project. Both invariants derive their expected set from
+the repository rather than from a list kept in this file.
 """
 
+import glob
 import io
 import re
 import sys
@@ -40,6 +47,8 @@ DIRECTORY = re.compile(r"^    directory:\s*[\"']?([^\"'\s]+)")
 DIRECTORIES_ITEM = re.compile(r"^      - [\"']?([^\"'\s]+)")
 KEY = re.compile(r"^    ([\w-]+):")
 IGNORED_NAME = re.compile(r"^\s+- dependency-name:\s*[\"']?([^\"'\s]+)")
+PACKAGE_REF = re.compile(
+    r'<PackageReference\s+Include="([^"]+)"\s+Version="([^"]+)"')
 
 
 def blocks(text):
@@ -151,9 +160,49 @@ def main():
             failures.append(
                 f"{scope} can reach src/ but does not ignore `{name}`")
 
+    # ---------------------------------------------------------------------------
+    # Second invariant: a sample that pins a FIXED version needs an ignore in the
+    # root block.
+    #
+    # Samples have no block of their own, because they reference the published
+    # packages as Version="*" and nothing needs to propose those. That was recorded
+    # as "samples are deliberately absent", and on 2026-08-09 it turned out to be
+    # too strong: the root block is rooted at "/", DocToolkit.sln is in its view,
+    # and a solution reaches every project. It proposed
+    # Microsoft.Extensions.Hosting 8.0.1 -> 10.0.10 for samples/WorkerService,
+    # whose pin exists precisely to stop an unrelated upstream release reddening a
+    # sample.
+    #
+    # Derived from the csproj files rather than listed, for the same reason as
+    # above: the next sample to pin something must not depend on somebody
+    # remembering this paragraph.
+    # ---------------------------------------------------------------------------
+    pinned_in_samples = {}
+    for csproj in sorted(glob.glob("samples/*/*.csproj")):
+        for name, version in PACKAGE_REF.findall(io.open(csproj, encoding="utf-8").read()):
+            if version != "*":
+                pinned_in_samples.setdefault(name, csproj)
+
+    root = next((b for b in nuget if b[1] == ["/"]), None)
+    if pinned_in_samples and root is None:
+        failures.append("samples pin fixed versions but there is no root-rooted nuget "
+                        "block to carry the ignores")
+    elif pinned_in_samples:
+        print()
+        print(f"{len(pinned_in_samples)} fixed-version pin(s) in samples/, reachable from "
+              "the root block through the solution:")
+        for name, csproj in sorted(pinned_in_samples.items()):
+            ok = name in root[2]
+            print(f"  {name} ({csproj}) - {'OK' if ok else 'NOT IGNORED'}")
+            if not ok:
+                failures.append(
+                    f"{csproj} pins `{name}` at a fixed version, but the root block does "
+                    "not ignore it - the solution puts that project in its view")
+
     print()
     if not failures:
-        print("Every block that can reach src/ repeats the rules protecting it.")
+        print("Every block that can reach src/ repeats the rules protecting it, and every "
+              "fixed-version sample pin is protected.")
         return 0
 
     for failure in failures:

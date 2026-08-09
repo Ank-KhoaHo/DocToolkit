@@ -110,7 +110,17 @@ updates:
       - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
       - dependency-name: "Microsoft.Extensions.Options"
 
-  # ── Samples are deliberately absent ─────────────────────────────────────────
+  # ── Samples have no block of their own ──────────────────────────────────────
+  # They reference the published packages as Version="*", so nothing needs to
+  # propose a bump for those - the newest release is what restores.
+  #
+  # But "deliberately absent" was too strong, and was proved so on 2026-08-09: the
+  # root block below is rooted at "/", which puts DocToolkit.sln in view, and a
+  # solution reaches every project. It proposed Microsoft.Extensions.Hosting
+  # 8.0.1 -> 10.0.10 for samples/WorkerService, whose pin exists precisely to stop
+  # someone else's release reddening a sample. So any sample that pins a FIXED
+  # version needs an ignore in the root block, and scripts/check-dependabot-scoping.py
+  # now asserts that rather than trusting this paragraph.
   # They reference the published packages as Version="*", so they always restore
   # the newest release without anything proposing a bump.
   #
@@ -158,6 +168,10 @@ updates:
       - dependency-name: "Ank.DocToolkit"
       - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
       - dependency-name: "Microsoft.Extensions.Options"
+      # samples/WorkerService pins this to 8.0.x to match its net8.0 target. The
+      # sample is reached from here through the solution, and a bump to 10.x would
+      # be exactly the unrelated-upstream-release noise the pin exists to prevent.
+      - dependency-name: "Microsoft.Extensions.Hosting"
 
   - package-ecosystem: github-actions
     directory: "/"
