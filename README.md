@@ -76,6 +76,36 @@ that were published.
 project does not hold; provenance attestation answers "did this come from that source" without one,
 which is the question a consumer of an open-source package usually has.
 
+### The SBOM
+
+Each release attaches a **CycloneDX SBOM** per package to its
+[GitHub Release](https://github.com/Ank-KhoaHo/DocToolkit/releases) —
+`DocToolkit.cdx.json` and `DocToolkit.Extensions.DependencyInjection.cdx.json`.
+
+It is the machine-readable counterpart to `THIRD-PARTY-NOTICES.txt`: that file is for a human
+meeting a licence question, this is for a scanner answering "am I exposed to CVE-X" without
+resolving the graph itself. The core package's BOM lists 29 components, 28 MIT and one Apache-2.0 —
+the same closure the README states above, derived independently.
+
+**The SBOMs are attested too**, by the same provenance step as the packages. An SBOM that is merely
+attached to a release is a file anyone with write access could replace; attested, it carries proof
+it came from this workflow and this commit, which is what makes it worth reading.
+
+```bash
+gh attestation verify DocToolkit.cdx.json --repo Ank-KhoaHo/DocToolkit
+```
+
+**Its content is reproducible; the file is not.** Generation is run with `--no-serial-number`, so
+the random per-run UUID is gone and exactly one field varies between two runs over an identical
+graph — `metadata.timestamp`. To check a published SBOM against a regenerated one, drop it:
+
+```bash
+dotnet tool restore
+dotnet dotnet-CycloneDX src/DocToolkit/DocToolkit.csproj -o . -fn regenerated.cdx.json   --json --no-serial-number --exclude-dev
+
+diff <(jq 'del(.metadata.timestamp)' DocToolkit.cdx.json)      <(jq 'del(.metadata.timestamp)' regenerated.cdx.json)
+```
+
 ## Measured against the alternatives
 
 Every number below was measured on 2026-08-09 by adding the package to an empty `net8.0` console
