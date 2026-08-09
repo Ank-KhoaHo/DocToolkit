@@ -376,6 +376,31 @@ The other converters and editors need no such handling — `DocumentFormat.OpenX
 and `OfficeIMO` do not resolve external relationships, external workbook links or remote fonts.
 That is asserted, not assumed; see above.
 
+## Migrating
+
+### 0.12.x to 0.13.0 - generated documents are now A4
+
+Before 0.13.0 a generated DOCX stated **no page size at all**, so Word applied its Normal template -
+US Letter on a US install, A4 on most others - and a generated PDF was always US Letter. The same
+content therefore printed on different paper depending on who opened it.
+
+From 0.13.0 every producer states its page setup explicitly and **defaults to A4** with one-inch
+margins. To keep the previous PDF behaviour, pass `PageSetup.Letter`:
+
+```csharp
+byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
+byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
+```
+
+The change was deliberate and is the point of that work rather than a side effect - but it shipped
+filed under *Added* in the changelog, which understated it. It is recorded here because a published
+version can be unlisted but never edited.
+
+### 0.13.0 to 0.14.0 - verified on macOS and arm64
+
+No behaviour change. CI now runs the full suite on macOS and Linux arm64 as well as Linux x64 and
+Windows, so "runs everywhere .NET does" is measured on each rather than inferred.
+
 ## Known limitations
 
 Things this package deliberately does not do, or does only partly — listed because the alternative
