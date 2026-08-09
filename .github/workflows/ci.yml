@@ -445,6 +445,16 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
+      # Three READMEs were kept in sync by hand, and on 2026-08-08 that failed six times in one
+      # day - every consumer-facing addition landed on the ROOT readme while
+      # src/DocToolkit/README.md, the one nuget.org actually renders, went untouched. It
+      # surfaced by accident. It then happened again the next day to the extensions README.
+      #
+      # Cheap to run and needs no build: the public types come from the approved API files,
+      # which are already the reviewed source of truth for what ships.
+      - name: Assert every shipped type is named in its package README
+        run: python3 scripts/check-readme-coverage.py
+
       - name: Assert the tree matches .editorconfig
         run: |
           if ! dotnet format ${{ env.SOLUTION }} --verify-no-changes; then
