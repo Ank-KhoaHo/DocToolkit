@@ -407,4 +407,91 @@ public class ImageInspectorEdgeCaseTests
         Assert.Equal(expectedParam, ex.ParamName);
         Assert.Contains($"{expectedSubject} must be positive", ex.Message, StringComparison.Ordinal);
     }
+
+
+    // =============================================================================================
+    // The JPEG recognition prefix, and the segment-header boundary.
+    // =============================================================================================
+    //
+    // Three mutants lived here through five passes. All three are boundaries, and a boundary is
+    // only tested by an input sitting exactly ON it - every existing JPEG case is comfortably
+    // longer than the prefix and ends comfortably inside a segment.
+
+    /// <summary>
+    /// Two bytes that look like the start of a JPEG. The length test guards the two index reads
+    /// that follow it, and it is an AND for that reason: loosened to OR, <c>image[2]</c> is read
+    /// off the end of a two-byte array and the caller gets an IndexOutOfRangeException from inside
+    /// a library that promises one exception type.
+    /// </summary>
+    [Fact]
+    public void TwoBytesThatBeginLikeAJpegAreRejected_NotIndexedPastTheEnd()
+    {
+        var ex = Assert.Throws<DocumentConversionException>(() => ImageInspector.Inspect(Jpeg()));
+
+        Assert.Contains("too short to identify", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Exactly three bytes - the shortest input the prefix test accepts. With <c>&gt;= 3</c>
+    /// weakened to <c>&gt; 3</c> this is not recognised as a JPEG at all, and the caller is told
+    /// the format is unsupported rather than that the file is truncated. Both are
+    /// DocumentConversionException, so only the message separates them, and the message is the
+    /// entire diagnostic value here: "unsupported format" sends someone converting their file,
+    /// "no Start-Of-Frame" sends them looking at a truncated upload.
+    /// </summary>
+    [Fact]
+    public void AJpegIsRecognisedFromExactlyThreeBytes()
+    {
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => ImageInspector.Inspect(Jpeg(new byte[] { 0xFF })));
+
+        Assert.Contains("Start-Of-Frame", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unsupported image format", ex.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A segment header ending exactly at the last byte: <c>i + 4 == image.Length</c>. The guard is
+    /// <c>&gt;</c>, so the two length bytes ARE there and are read; mutated to <c>&gt;=</c> it
+    /// bails one byte early and reports a truncation that has not happened.
+    /// </summary>
+    [Fact]
+    public void ASegmentHeaderEndingOnTheLastByteIsRead_NotReportedAsTruncated()
+    {
+        // FF D8 | FF E0 00 02 - an APP0 segment whose declared length (2) is just the length field
+        // itself, so the walk steps past it and runs out of file looking for a frame header.
+        var jpeg = Jpeg(new byte[] { 0xFF, 0xE0, 0x00, 0x02 });
+
+        var ex = Assert.Throws<DocumentConversionException>(() => ImageInspector.Inspect(jpeg));
+
+        Assert.Contains("Start-Of-Frame", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("truncated inside a segment header", ex.Message, StringComparison.Ordinal);
+    }
+
+
+    /// <summary>
+    /// A width resolving to <b>exactly</b> MaxCoordinateEmu, with a height that overflows.
+    ///
+    /// The blame logic asks whether the WIDTH is out of range to decide which argument to name, and
+    /// it uses <c>&gt; MaxCoordinateEmu</c>. Sitting exactly on the ceiling, the width is legal, so
+    /// the height is named. Mutated to <c>&gt;=</c> the width is judged bad and the caller is handed
+    /// back the one number that was fine - which is the specific confusion that comment in
+    /// ImageInspector exists to prevent.
+    ///
+    /// int.MaxValue / 12700.0 multiplies back to exactly int.MaxValue in IEEE 754 double, so this
+    /// really does land on the boundary rather than near it. Checked, because most tidy-looking
+    /// decimals nearby do not: 169093.2 resolves seven EMU short.
+    /// </summary>
+    [Fact]
+    public void AWidthExactlyOnTheCeilingIsLegal_SoTheOverflowingHeightIsBlamed()
+    {
+        const double onTheCeiling = int.MaxValue / 12700.0;
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => ImageInspector.Resolve(
+                new ImageInfo(ImageFormat.Png, 100, 50),
+                widthPoints: onTheCeiling,
+                heightPoints: onTheCeiling * 2));
+
+        Assert.Equal("heightPoints", ex.ParamName);
+    }
 }
