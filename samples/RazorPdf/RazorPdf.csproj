@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Only the extensions package, like the other web sample - which is what keeps proving that
+    Ank.DocToolkit arrives transitively. Version="*" is explained in samples/README.md.
+
+    Nothing else is referenced: Razor view compilation and IRazorViewEngine come from the Web SDK's
+    framework reference, so rendering a view to a string needs no package at all.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Ank.DocToolkit.Extensions.DependencyInjection" Version="*" />
+  </ItemGroup>
+
+</Project>

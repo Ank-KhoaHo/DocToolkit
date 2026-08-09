@@ -1,0 +1,49 @@
+@model RazorPdf.Models.Invoice
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Invoice @Model.Number</title>
+    @* Inline <style> is honoured; a <link rel="stylesheet"> would NOT be fetched, because nothing
+       in this library opens a socket you did not ask it to. Keep document CSS inline. *@
+    <style>
+        body { font-family: sans-serif; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #999; padding: 6px; text-align: left; }
+        th { background: #eee; }
+        td.num, th.num { text-align: right; }
+    </style>
+</head>
+<body>
+    <h1>Invoice @Model.Number</h1>
+    <p>
+        <strong>@Model.Customer</strong><br />
+        Issued @Model.Issued.ToString("d MMMM yyyy")
+    </p>
+
+    <table>
+        <tr>
+            <th>Description</th>
+            <th class="num">Qty</th>
+            <th class="num">Unit</th>
+            <th class="num">Total</th>
+        </tr>
+        @foreach (var line in Model.Lines)
+        {
+            <tr>
+                <td>@line.Description</td>
+                <td class="num">@line.Quantity</td>
+                <td class="num">@line.UnitPrice.ToString("N2")</td>
+                <td class="num">@line.Total.ToString("N2")</td>
+            </tr>
+        }
+        <tr>
+            <th colspan="3">Total</th>
+            <th class="num">@Model.Total.ToString("N2")</th>
+        </tr>
+    </table>
+</body>
+</html>

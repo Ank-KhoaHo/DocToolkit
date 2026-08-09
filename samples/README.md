@@ -1,6 +1,6 @@
 # Samples
 
-Six runnable projects, each answering one question. Every one references the **published** NuGet
+Eight runnable projects, each answering one question. Every one references the **published** NuGet
 packages rather than this repo's source — the same restore an external consumer gets.
 
 | Sample | Answers |
@@ -11,6 +11,8 @@ packages rather than this repo's source — the same restore an external consume
 | [Spreadsheets](Spreadsheets/) | How do I create, edit and read an XLSX? |
 | [Presentations](Presentations/) | How do I read text out of a PowerPoint file? |
 | [MinimalApi](MinimalApi/) | How do I wire this into ASP.NET Core dependency injection? |
+| [RazorPdf](RazorPdf/) | How do I turn a Razor view I already maintain into a PDF or a Word document? |
+| [WorkerService](WorkerService/) | How do I generate documents from a background job? |
 
 Each folder has its own `README.md` with the command to run it and the one thing about that
 capability that is not obvious.
