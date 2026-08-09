@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.18.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.18.0...v0.18.1) (2026-08-09)
+
+
+### Fixed
+
+* **ci:** restore local tools in release.yml, and guard that it stays ([#182](https://github.com/Ank-KhoaHo/DocToolkit/issues/182)) ([9830b9f](https://github.com/Ank-KhoaHo/DocToolkit/commit/9830b9f745c83b7d76441189e4931f034706f3df))
+* **core:** reject null html on the overloads that take a page setup ([#185](https://github.com/Ank-KhoaHo/DocToolkit/issues/185)) ([a9ef5ec](https://github.com/Ank-KhoaHo/DocToolkit/commit/a9ef5ecaf12e0e816b7ece390c5b774254af57ee))
+
 ## [0.18.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.17.0...v0.18.0) (2026-08-09)
 
 
