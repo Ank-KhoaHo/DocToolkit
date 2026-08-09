@@ -41,5 +41,21 @@ bool ok = DocxEditor.ExtractText(docx).Contains("Invoice 2026-114", StringCompar
           && markdown.Contains("# Invoice 2026-114", StringComparison.Ordinal)
           && pdf.Length > 1000 && sheetPdf.Length > 1000 && deckPdf.Length > 1000;
 
+// --- D14 diagnostics: what does the PDF actually contain here? ------------------------------
+var raw = System.Text.Encoding.Latin1.GetString(pdf);
+int fontFile2 = System.Text.RegularExpressions.Regex.Matches(raw, "FontFile2").Count;
+int fontFile3 = System.Text.RegularExpressions.Regex.Matches(raw, "FontFile3").Count;
+long biggest = 0;
+foreach (System.Text.RegularExpressions.Match m in
+         System.Text.RegularExpressions.Regex.Matches(raw, @"/Length\s+(\d+)"))
+    biggest = Math.Max(biggest, long.Parse(m.Groups[1].Value));
+
+Console.WriteLine($"\nPDF FontFile2 streams: {fontFile2}");
+Console.WriteLine($"PDF FontFile3 streams: {fontFile3}");
+Console.WriteLine($"largest stream       : {biggest:N0} bytes");
+foreach (System.Text.RegularExpressions.Match m in
+         System.Text.RegularExpressions.Regex.Matches(raw, @"/BaseFont\s*/([A-Za-z0-9+,-]+)"))
+    Console.WriteLine($"  BaseFont: {m.Groups[1].Value}");
+
 Console.WriteLine($"\nContent verified: {ok}");
 return ok ? 0 : 1;
