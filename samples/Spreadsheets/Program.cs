@@ -5,6 +5,7 @@ Console.WriteLine("============");
 
 // --- Create, read one cell, edit one cell -------------------------------------------------
 
+#region create
 byte[] xlsx = WorkbookEditor.Create("Sales", new object?[][]
 {
     new object?[] { "Region", "Total" },
@@ -15,14 +16,17 @@ byte[] xlsx = WorkbookEditor.Create("Sales", new object?[][]
 string before = WorkbookEditor.ReadCell(xlsx, "Sales", "B2");
 byte[] updated = WorkbookEditor.SetCell(xlsx, "Sales", "B2", 1500);
 string after = WorkbookEditor.ReadCell(updated, "Sales", "B2");
+#endregion
 
 Console.WriteLine($"\nB2 before {before}, after SetCell {after}");
 
 // --- Reading a workbook you were handed ---------------------------------------------------
 // The point of these two: you do not need to know the workbook's shape in advance.
 
+#region read
 IReadOnlyList<string> sheets = WorkbookEditor.SheetNames(updated);
 IReadOnlyList<IReadOnlyList<string>> grid = WorkbookEditor.ReadSheet(updated, sheets[0]);
+#endregion
 
 Console.WriteLine($"Sheets       : {string.Join(", ", sheets)}");
 Console.WriteLine($"Shape        : {grid.Count} rows x {grid[0].Count} columns");
@@ -34,6 +38,7 @@ foreach (var row in grid)
 // Content comes from data rather than a template, so there is no source file to edit. A cell
 // holding an XlsxFormula is written as a formula rather than as text.
 
+#region multi-sheet
 byte[] workbook = WorkbookEditor.Create(new[]
 {
     XlsxSheet.Named("Q1", new[]
@@ -53,6 +58,7 @@ workbook = WorkbookEditor.AppendRows(workbook, "Q1", new[]
 {
     new object?[] { "AMER", 1450 },
 });
+#endregion
 
 Console.WriteLine($"\nSheets       : {string.Join(", ", WorkbookEditor.SheetNames(workbook))}");
 Console.WriteLine($"Appended row : {string.Join(" | ", WorkbookEditor.ReadSheet(workbook, "Q1")[3])}");

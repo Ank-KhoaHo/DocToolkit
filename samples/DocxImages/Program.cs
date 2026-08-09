@@ -33,10 +33,12 @@ byte[] letterhead = await HtmlToDocxConverter.ConvertAsync(
 
 // Size is in points. Give one dimension and the other scales to preserve the aspect ratio; give
 // neither and the image's own header decides, read at 96 DPI.
+#region replace-image
 byte[] branded = DocxEditor.ReplaceImage(letterhead, "{{logo}}", logo, widthPoints: 96);
 
 // The same call, a different format. Nothing here tells DocToolkit which it is.
 branded = DocxEditor.ReplaceImage(branded, "{{stamp}}", stamp, widthPoints: 24);
+#endregion
 
 branded = DocxEditor.ReplaceText(branded, new Dictionary<string, string>
 {
@@ -50,5 +52,36 @@ Console.WriteLine($"Stamp        : {stamp.Length:N0}-byte JPEG, placed 24pt wide
 Console.WriteLine($"Document grew: {letterhead.Length:N0} -> {branded.Length:N0} bytes");
 Console.WriteLine($"Placeholders replaced: {!text.Contains("{{logo}}") && !text.Contains("{{stamp}}")}");
 Console.WriteLine($"Customer set : {text.Contains("Contoso Ltd")}");
+
+// --- Images the HTML points at, rather than ones you hand over -------------------------------
+// A <img src="https://..."> in HTML is a request that YOUR server fetch a URL. That is a
+// server-side request forgery primitive, so downloads are off by default and the document is
+// produced with the image absent rather than the conversion failing.
+
+const string RemoteHtml = "<p>Before</p><p><img src=\"https://cdn.example.com/logo.png\"></p><p>After</p>";
+
+#region remote-default
+byte[] withoutRemote = await HtmlToDocxConverter.ConvertAsync(RemoteHtml);
+#endregion
+
+// Opting in is per call, and the allow-list is the part that matters - not the timeout. A host
+// that is not on the list is refused BEFORE any connection is attempted: no DNS lookup, no
+// socket. That is why this sample can demonstrate the guard without touching the network, and
+// why the two documents below come out the same size.
+
+#region remote-allowlist
+var remote = new RemoteImageOptions
+{
+    Timeout = TimeSpan.FromSeconds(5),
+    MaxBytesPerImage = 2 * 1024 * 1024,
+};
+remote.AllowedHosts.Add("assets.contoso.example");
+
+byte[] guarded = await HtmlToDocxConverter.ConvertAsync(RemoteHtml, remote);
+#endregion
+
+Console.WriteLine($"\nRemote off   : {withoutRemote.Length:N0} bytes (default - image dropped)");
+Console.WriteLine($"Not on list  : {guarded.Length:N0} bytes (cdn.example.com refused, no request made)");
+Console.WriteLine($"Text kept    : {DocxEditor.ExtractText(guarded).Contains("After")}");
 
 Console.WriteLine("\nDone.");
