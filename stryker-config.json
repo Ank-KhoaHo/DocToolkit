@@ -25,9 +25,9 @@
       "**/TableRowFinder.cs"
     ],
     "thresholds": {
-      "high": 94,
-      "low": 91,
-      "break": 88
+      "high": 97,
+      "low": 94,
+      "break": 93
     },
     "ignore-methods": [
       "ConfigureAwait"
