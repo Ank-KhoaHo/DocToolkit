@@ -100,25 +100,46 @@ See [Remote-image telemetry](production.md#telemetry).
 ## Once you have a PDF
 
 @DocToolkit.PdfEditor works on a PDF that already exists — the only part of this library that reads
-one rather than writing it. Nothing here re-renders, so the fidelity limits above do not apply:
-pages move between documents as they are.
+one rather than writing it. Nothing here re-renders, so the fidelity limits above do not apply: a
+page that came out of the renderer looking right still looks right after being merged and
+extracted.
 
-```csharp
-int pages = PdfEditor.PageCount(pdf);
+[!code-csharp[](../../samples/PdfUtilities/Program.cs#merge)]
 
-byte[] bundle = PdfEditor.Merge([cover, invoice, terms]);
-byte[] justTheInvoice = PdfEditor.ExtractPages(bundle, firstPage: 2, count: 1);
-
-byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata { Title = "Invoice INV-2026-0042" });
+```text
+Three documents : 1 + 1 + 1 pages
+Merged          : 3 pages, 387,361 bytes
+Page 2 alone    : 1 page, 131,408 bytes
 ```
 
-Every @DocToolkit.PdfMetadata property is nullable, and `null` means **absent** rather than blank in
-both directions — so stamping a title does not silently erase the author.
+`firstPage` is **1-based**, the way a reader numbers pages rather than the way an array indexes
+them. A range that is not entirely inside the document is refused rather than silently clamped, so
+a slice running off the end is a bug you hear about instead of a short document you do not.
 
-> [!NOTE]
-> Unlike every other block in these guides, this one is not pulled from a compiled sample. Samples
-> build against the **published** package, so they cannot use an API until it ships. A runnable
-> sample follows the release that carries this.
+Merging nothing is refused too: a zero-page PDF is not a useful artefact and several readers will
+not open one.
+
+### Metadata
+
+What a file manager shows in its properties panel, and what a search indexer reads.
+
+[!code-csharp[](../../samples/PdfUtilities/Program.cs#metadata)]
+
+Every @DocToolkit.PdfMetadata property is nullable, and `null` means **absent** rather than blank —
+in both directions, which is the part worth remembering:
+
+- **Reading**, that separates "no subject" from "a subject deliberately set to empty". Anything
+  combining metadata from several sources needs the difference: the first should take a fallback,
+  the second should not.
+- **Writing**, a `null` property leaves what the document already had in place, so stamping a title
+  cannot quietly erase the author. Pass an empty string to clear a field on purpose.
+
+```text
+After retitling : title "Superseded", author still "Contoso Ltd"
+```
+
+Injectable as @DocToolkit.Extensions.DependencyInjection.IPdfEditor if you are using the extensions
+package — see [Dependency injection](dependency-injection.md).
 
 ## Writing somewhere other than memory
 

@@ -417,7 +417,7 @@ nothing else publishes.
 src/DocToolkit/                                         the library
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
 tests/                                                  426 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
-samples/                                                eight runnable samples, each answering one question, on the published packages
+samples/                                                nine runnable samples, each answering one question, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
 ```
 
