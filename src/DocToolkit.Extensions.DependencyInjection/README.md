@@ -13,6 +13,10 @@ dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
 
 Targets `net8.0` and `net10.0`. MIT licensed.
 
+📖 **[Dependency injection guide](https://ank-khoaho.github.io/DocToolkit/guides/dependency-injection.html)**
+— registration, options, and why they are read per call rather than captured at startup ·
+🔎 **[API reference](https://ank-khoaho.github.io/DocToolkit/)**
+
 ## Usage
 
 ```csharp

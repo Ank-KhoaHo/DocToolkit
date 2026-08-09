@@ -152,6 +152,11 @@ Targets `net8.0` and `net10.0` — two LTS releases, one public API surface.
 
 Verified in CI on Linux (x64 and **arm64**), Windows and macOS.
 
+📖 **[Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html)** — getting
+started, HTML conversion and page setup, Word templates, spreadsheets and presentations,
+dependency injection, and running in production ·
+🔎 **[API reference](https://ank-khoaho.github.io/DocToolkit/)**
+
 ## Usage
 
 ```csharp

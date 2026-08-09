@@ -18,7 +18,8 @@ dotnet add package Ank.DocToolkit
 
 Targets `net8.0` and `net10.0`. MIT licensed.
 
-📖 [API documentation](https://ank-khoaho.github.io/DocToolkit/) · 🗺️ [Roadmap](ROADMAP.md) · 📦
+📖 [Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html) ·
+🔎 [API reference](https://ank-khoaho.github.io/DocToolkit/) · 🗺️ [Roadmap](ROADMAP.md) · 📦
 [package README](src/DocToolkit/README.md) · 📝 [CHANGELOG](CHANGELOG.md)
 
 > **Contributing?** Branch from `main` and open a pull request back into it — `main` itself cannot

@@ -1,2 +1,6 @@
+# Guides come first: search is disabled on this site (enabling it would pull a ~109 MB Chromium
+# download into the docs build), so the navigation IS how anything is found here.
+- name: Guides
+  href: guides/
 - name: API
   href: api/
