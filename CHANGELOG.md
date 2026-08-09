@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.18.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.17.0...v0.18.0) (2026-08-09)
+
+
+### Added
+
+* **core:** allow a page setup and remote images in the same call ([#180](https://github.com/Ank-KhoaHo/DocToolkit/issues/180)) ([de2c3b2](https://github.com/Ank-KhoaHo/DocToolkit/commit/de2c3b2352eba52ddb3be219d5082a0272fff7c0))
+
 ## [0.17.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.16.0...v0.17.0) (2026-08-09)
 
 
