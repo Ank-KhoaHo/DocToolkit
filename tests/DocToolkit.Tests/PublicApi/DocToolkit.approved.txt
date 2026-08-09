@@ -64,9 +64,11 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, DocToolkit.RemoteImageOptions options, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, bool allowRemoteImageDownload, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, DocToolkit.PageSetup page, DocToolkit.RemoteImageOptions options, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.PageSetup page, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.RemoteImageOptions options, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, bool allowRemoteImageDownload, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.PageSetup page, DocToolkit.RemoteImageOptions options, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, DocToolkit.PageSetup page, string outputPath, System.Threading.CancellationToken ct = default) { }
     }
@@ -77,9 +79,11 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, DocToolkit.RemoteImageOptions options, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, bool allowRemoteImageDownload, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, DocToolkit.PageSetup page, DocToolkit.RemoteImageOptions options, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.PageSetup page, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.RemoteImageOptions options, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(string html, bool allowRemoteImageDownload, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task ConvertAsync(string html, DocToolkit.PageSetup page, DocToolkit.RemoteImageOptions options, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, DocToolkit.PageSetup page, string outputPath, System.Threading.CancellationToken ct = default) { }
     }

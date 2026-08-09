@@ -272,6 +272,60 @@ public static class HtmlToDocxConverter
     }
 
     /// <summary>
+    /// Converts <paramref name="html"/> to a .docx laid out on <paramref name="page"/>, fetching
+    /// remote images under <paramref name="options"/>.
+    /// </summary>
+    /// <remarks>
+    /// The combination the other overloads cannot express: <c>(html, page)</c> always converts
+    /// offline, and <c>(html, options)</c> always lays out on A4. Both silently discarded half of
+    /// what a caller wanting Letter <i>and</i> an allow-list had asked for.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="options"/> has a <see cref="RemoteImageOptions.Timeout"/> or
+    /// <see cref="RemoteImageOptions.MaxBytesPerImage"/> that is not greater than zero.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="options"/>' <see cref="RemoteImageOptions.AllowedHosts"/> contains a blank entry.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task<byte[]> ConvertAsync(
+        string html, PageSetup page, RemoteImageOptions options, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
+        ct.ThrowIfCancellationRequested();
+
+        using var package = await BuildPackageAsync(html, options, page, ct).ConfigureAwait(false);
+        return package.ToArray();
+    }
+
+    /// <inheritdoc cref="ConvertAsync(string, PageSetup, RemoteImageOptions, CancellationToken)"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="destination"/> is not writable, or <paramref name="options"/>'
+    /// <see cref="RemoteImageOptions.AllowedHosts"/> contains a blank entry.
+    /// </exception>
+    public static async Task ConvertAsync(
+        string html, PageSetup page, RemoteImageOptions options, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var package = await BuildPackageAsync(html, options, page, ct).ConfigureAwait(false);
+        await StreamPipeline
+            .EmitAsync(package, destination, "Failed to convert HTML to DOCX.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Builds the .docx package into a scratch buffer, positioned at 0.
     ///
     /// The one place the package is actually produced, so the <c>byte[]</c> overload and the
