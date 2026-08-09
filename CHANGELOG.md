@@ -19,6 +19,13 @@ repo-wide tooling (CI, release pipeline).
 
 ## [0.17.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.16.0...v0.17.0) (2026-08-09)
 
+> **Never published to nuget.org.** The release workflow failed before pushing: its new
+> SBOM step used a local tool that the job had not restored. The packages for this version
+> do not exist and the version number is skipped - 0.16.0 is followed by 0.18.0 on the feed.
+> Nothing is lost: the change here was to the release pipeline, not to either library, so
+> 0.17.0 and 0.16.0 would have been identical to a consumer. The SBOMs it describes ship
+> from 0.18.0 onwards.
+
 
 ### Added
 
