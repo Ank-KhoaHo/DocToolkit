@@ -51,4 +51,10 @@ internal sealed class DocxEditorService : IDocxEditor
         CancellationToken ct = default)
         => DocToolkit.DocxEditor.ReplaceImageAsync(
             source, placeholder, image, destination, widthPoints, heightPoints, ct);
+
+    public byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page)
+        => DocToolkit.DocxEditor.Create(blocks, page);
+
+    public Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page, Stream destination, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.CreateAsync(blocks, page, destination, ct);
 }

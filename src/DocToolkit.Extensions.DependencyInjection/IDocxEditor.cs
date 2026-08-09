@@ -96,7 +96,7 @@ public interface IDocxEditor
 
     /// <summary>
     /// Builds a document from <paramref name="blocks"/> and writes it to
-    /// <paramref name="destination"/>. See <see cref="Create"/> for the block semantics.
+    /// <paramref name="destination"/>. See <see cref="Create(System.Collections.Generic.IEnumerable{DocToolkit.DocxBlock})"/> for the block semantics.
     /// <paramref name="destination"/> is <b>written</b> and is neither disposed, closed nor sought,
     /// so an HTTP response body is a valid destination.
     /// </summary>
@@ -135,4 +135,27 @@ public interface IDocxEditor
         Stream source, string placeholder, byte[] image, Stream destination,
         double? widthPoints = null, double? heightPoints = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// As above, laid out on <paramref name="page"/> rather than the A4 default.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="blocks"/> or <paramref name="page"/> is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="blocks"/> is null.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be built.</exception>
+    byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page);
+
+    /// <summary>
+    /// As above, laid out on <paramref name="page"/> rather than the A4 default.
+    /// </summary>
+    /// <param name="blocks">The content, written in order.</param>
+    /// <param name="page">The page size, orientation and margins.</param>
+    /// <param name="destination">The stream the document is written to.</param>
+    /// <param name="ct">Cancels the build and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">An element of <paramref name="blocks"/> is null, or <paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be built or written.</exception>
+    Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page, Stream destination, CancellationToken ct = default);
 }

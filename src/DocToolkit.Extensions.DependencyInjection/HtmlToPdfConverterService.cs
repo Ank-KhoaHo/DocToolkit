@@ -25,4 +25,10 @@ internal sealed class HtmlToPdfConverterService : IHtmlToPdfConverter
         => _options.AllowRemoteImageDownload
             ? DocToolkit.HtmlToPdfConverter.ConvertAsync(html, _options.RemoteImage, destination, ct)
             : DocToolkit.HtmlToPdfConverter.ConvertAsync(html, false, destination, ct);
+
+    public Task<byte[]> ConvertAsync(string html, DocToolkit.PageSetup page, CancellationToken ct = default)
+        => DocToolkit.HtmlToPdfConverter.ConvertAsync(html, page, ct);
+
+    public Task ConvertAsync(string html, DocToolkit.PageSetup page, Stream destination, CancellationToken ct = default)
+        => DocToolkit.HtmlToPdfConverter.ConvertAsync(html, page, destination, ct);
 }

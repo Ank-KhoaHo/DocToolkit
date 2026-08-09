@@ -30,6 +30,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDocxEditor, DocxEditorService>();
         services.TryAddSingleton<IWorkbookEditor, WorkbookEditorService>();
         services.TryAddSingleton<IPresentationEditor, PresentationEditorService>();
+        services.TryAddSingleton<IXlsxToPdfConverter, XlsxToPdfConverterService>();
+        services.TryAddSingleton<IPptxToPdfConverter, PptxToPdfConverterService>();
+        services.TryAddSingleton<IDocxToHtmlConverter, DocxToHtmlConverterService>();
+        services.TryAddSingleton<IDocxToMarkdownConverter, DocxToMarkdownConverterService>();
 
         return services;
     }
