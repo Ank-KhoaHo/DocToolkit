@@ -14,7 +14,12 @@ network I/O by default.
 
 Current capabilities: HTML → DOCX and PDF; DOCX → PDF, HTML and Markdown; XLSX → PDF; PPTX → PDF;
 create and edit DOCX, XLSX and PPTX; template filling with repeating rows and image placeholders;
-page setup; a DI package mirroring the whole surface.
+page setup; reading an existing PDF — page count, merge, page extraction and
+metadata; a DI package mirroring the whole surface.
+
+Around it: nine runnable samples, a docs site with six conceptual guides whose every code block
+is compiled as part of a sample, and a per-release attested CycloneDX SBOM alongside build
+provenance.
 
 ## Under consideration
 
@@ -24,16 +29,11 @@ Roughly in order of how often the gap has actually been hit. None is scheduled.
   it needs its own content model (plain text? a page-number *field* rather than a string?),
   first-page and odd/even variants to be useful at all, and it interacts with `ReplaceText`, which
   already reaches into header parts.
-- **PDF utilities** — page count, merge, split, metadata. Blocked on a licence review of the
-  candidate libraries, which is the deciding factor rather than the implementation.
 - **Surfacing conversion warnings.** The XLSX and PPTX renderers report features they could not
   represent; today those are dropped silently and the limitation is documented instead. A warning
   channel is purely additive, so it can be added when somebody needs it rather than guessed at now.
 - **A default `PageSetup` on `DocToolkitOptions`**, so a DI consumer can set paper once at
   registration rather than per call.
-- **Conceptual documentation** beyond the API reference — the docs site currently has no "fill a
-  Word template" guide.
-- **More samples**: a worker service, a container, and a large-file streaming example.
 
 ## Not planned, and why
 
