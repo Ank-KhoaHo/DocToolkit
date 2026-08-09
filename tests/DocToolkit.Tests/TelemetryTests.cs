@@ -204,6 +204,45 @@ public class TelemetryTests : IDisposable
     // Each needs a server that behaves a particular way, which is why they live here with the
     // LoopbackProbe rather than beside the address-classification tests.
 
+    /// <summary>
+    /// The fetch timeout for every probe-driven case here, deliberately far longer than the 10s
+    /// default.
+    ///
+    /// These tests assert WHICH outcome a fetch produced - ok, http_error, too_large - and the
+    /// timeout is the one thing that can turn any of them into `failed` without the library doing
+    /// anything differently. On 2026-08-09 that happened: ANonSuccessStatusIsReportedWithItsCode
+    /// failed on windows/net10 expecting http_error and getting failed, after 14 seconds. The probe
+    /// had not answered inside 10, on a two-core runner executing the whole suite in parallel.
+    ///
+    /// Raising it is the right direction even though it looks like papering over slowness. The
+    /// subject under test is the classification of a response, not how fast a loopback socket is
+    /// scheduled; a timeout short enough to be hit by CI noise is measuring the runner. Shortening
+    /// it - the first thing that came to mind - would have made the flake MORE frequent.
+    ///
+    /// A genuinely unresponsive probe still fails, just after a minute instead of ten seconds, and
+    /// the assertions below name that possibility so the next person is not sent looking in the
+    /// library for a harness problem.
+    /// </summary>
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Asserts the recorded outcome, and says what "failed" most likely means when it was not the
+    /// outcome asked for - so a slow runner does not read as a classification bug.
+    /// </summary>
+    private static void AssertOutcome(string expected, Activity activity)
+    {
+        var actual = Outcome(activity);
+
+        Assert.True(expected == actual,
+            $"Expected outcome '{expected}' but the fetch recorded '{actual}'."
+            + (actual == "failed"
+                ? $" 'failed' in a probe-driven test almost always means the LoopbackProbe did not"
+                  + $" answer within the {ProbeTimeout.TotalSeconds:0}s fetch timeout - a runner or"
+                  + " harness problem rather than a classification bug. Check how long the test took"
+                  + " before looking at GuardedResourceLoader."
+                : " The loader classified the response differently from what this test set up."));
+    }
+
     private static async Task NotFoundResponder(
         System.Net.Sockets.NetworkStream stream, string requestLine, CancellationToken ct)
     {
@@ -228,13 +267,13 @@ public class TelemetryTests : IDisposable
     {
         using var probe = new LoopbackProbe(_output);
         var loader = new GuardedResourceLoader(
-            new RemoteImageOptions { AllowPrivateAddresses = true });
+            new RemoteImageOptions { AllowPrivateAddresses = true, Timeout = ProbeTimeout });
 
         var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/logo.bmp"));
 
         Assert.NotNull(resource);
         var activity = SingleOnPort(probe.Port);
-        Assert.Equal("ok", Outcome(activity));
+        AssertOutcome("ok", activity);
         Assert.Equal(ActivityStatusCode.Unset, activity.Status);
 
         // The size tag is what makes the span useful for "why is my document 40 MB"; without it a
@@ -248,13 +287,13 @@ public class TelemetryTests : IDisposable
     {
         using var probe = new LoopbackProbe(_output, NotFoundResponder);
         var loader = new GuardedResourceLoader(
-            new RemoteImageOptions { AllowPrivateAddresses = true });
+            new RemoteImageOptions { AllowPrivateAddresses = true, Timeout = ProbeTimeout });
 
         var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/missing.bmp"));
 
         Assert.Null(resource);
         var activity = SingleOnPort(probe.Port);
-        Assert.Equal("http_error", Outcome(activity));
+        AssertOutcome("http_error", activity);
         Assert.Equal(404, activity.GetTagItem("http.response.status_code"));
     }
 
@@ -269,12 +308,13 @@ public class TelemetryTests : IDisposable
         {
             AllowPrivateAddresses = true,
             MaxBytesPerImage = 1024,
+            Timeout = ProbeTimeout,
         });
 
         var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/huge.bmp"));
 
         Assert.Null(resource);
-        Assert.Equal("too_large", Outcome(SingleOnPort(probe.Port)));
+        AssertOutcome("too_large", SingleOnPort(probe.Port));
     }
 
 
@@ -297,7 +337,7 @@ public class TelemetryTests : IDisposable
     {
         using var probe = new LoopbackProbe(_output);
         var loader = new GuardedResourceLoader(
-            new RemoteImageOptions { AllowPrivateAddresses = true });
+            new RemoteImageOptions { AllowPrivateAddresses = true, Timeout = ProbeTimeout });
 
         await loader.FetchAsync(new Uri($"{probe.BaseUrl}/logo.bmp"));
 
@@ -352,7 +392,7 @@ public class TelemetryTests : IDisposable
 
         using var probe = new LoopbackProbe(_output, DistinctiveSizeResponder);
         var loader = new GuardedResourceLoader(
-            new RemoteImageOptions { AllowPrivateAddresses = true });
+            new RemoteImageOptions { AllowPrivateAddresses = true, Timeout = ProbeTimeout });
 
         var resource = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/logo.bmp"));
         Assert.NotNull(resource);
