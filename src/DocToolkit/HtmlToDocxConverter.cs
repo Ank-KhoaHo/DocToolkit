@@ -46,6 +46,7 @@ public static class HtmlToDocxConverter
     public static async Task<byte[]> ConvertAsync(
         string html, PageSetup page, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(html);
         using var package = await BuildPackageAsync(html, null, page, ct).ConfigureAwait(false);
         return package.ToArray();
     }
@@ -181,6 +182,7 @@ public static class HtmlToDocxConverter
     public static async Task ConvertAsync(
         string html, PageSetup page, Stream destination, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(html);
         StreamPipeline.RequireWritable(destination, nameof(destination));
 
         using var package = await BuildPackageAsync(html, null, page, ct).ConfigureAwait(false);
@@ -342,6 +344,12 @@ public static class HtmlToDocxConverter
     {
         // Outside the try below on purpose: its catch-all wraps everything in
         // DocumentConversionException, and an argument fault must surface unwrapped.
+        //
+        // html is checked here as well as at every public entry point, because this is the
+        // single choke point they all pass through. It was NOT checked here, and the page
+        // overloads did not check it either, so ConvertAsync(null, PageSetup.A4) produced an
+        // empty document instead of throwing - while every sibling overload rejected it.
+        ArgumentNullException.ThrowIfNull(html);
         ArgumentNullException.ThrowIfNull(page);
 
         var ms = new MemoryStream();
@@ -440,6 +448,7 @@ public static class HtmlToDocxConverter
     public static async Task ConvertToFileAsync(
         string html, PageSetup page, string outputPath, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(html);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         var bytes = await ConvertAsync(html, page, ct).ConfigureAwait(false);
