@@ -16,7 +16,7 @@ It brings the core package with it transitively — you do not need to reference
 
 [!code-csharp[](../../samples/MinimalApi/Program.cs#register)]
 
-One call registers ten interfaces, each a thin wrapper over the matching static class:
+One call registers eleven interfaces, each a thin wrapper over the matching static class:
 
 | Interface | Wraps |
 |---|---|
@@ -30,6 +30,7 @@ One call registers ten interfaces, each a thin wrapper over the matching static 
 | @DocToolkit.Extensions.DependencyInjection.IDocxEditor | `DocxEditor` |
 | @DocToolkit.Extensions.DependencyInjection.IWorkbookEditor | `WorkbookEditor` |
 | @DocToolkit.Extensions.DependencyInjection.IPresentationEditor | `PresentationEditor` |
+| @DocToolkit.Extensions.DependencyInjection.IPdfEditor | `PdfEditor` |
 
 All are registered as **singletons**, which is safe because none of them hold state — every
 operation takes its input and returns its output. They are also registered with `TryAdd`, so your

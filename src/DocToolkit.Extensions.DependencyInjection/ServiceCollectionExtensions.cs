@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IPptxToPdfConverter, PptxToPdfConverterService>();
         services.TryAddSingleton<IDocxToHtmlConverter, DocxToHtmlConverterService>();
         services.TryAddSingleton<IDocxToMarkdownConverter, DocxToMarkdownConverterService>();
+        services.TryAddSingleton<IPdfEditor, PdfEditorService>();
 
         return services;
     }
