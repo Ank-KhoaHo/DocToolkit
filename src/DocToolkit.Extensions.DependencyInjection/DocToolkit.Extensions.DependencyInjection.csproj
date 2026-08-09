@@ -12,7 +12,9 @@
       IDocxEditor, IWorkbookEditor, IPresentationEditor) over the same pure-managed HTML/DOCX/
       PDF/XLSX/PPTX conversion and editing logic, for ASP.NET Core and worker-service consumers.
     </Description>
-    <PackageTags>docx;pdf;xlsx;pptx;dependency-injection;aspnetcore;openxml</PackageTags>
+    <!-- Same three groups as the core package; see its csproj for why. The DI words stay first
+         because someone searching for them is already most of the way to this package. -->
+    <PackageTags>docx;pdf;xlsx;pptx;word;excel;dependency-injection;aspnetcore;openxml;linux;cross-platform;offline</PackageTags>
   </PropertyGroup>
 
   <!-- README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by src/Directory.Build.props. -->
