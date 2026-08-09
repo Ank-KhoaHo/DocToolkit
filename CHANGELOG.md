@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.17.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.16.0...v0.17.0) (2026-08-09)
+
+
+### Added
+
+* **ci:** publish an attested CycloneDX SBOM with every release ([#177](https://github.com/Ank-KhoaHo/DocToolkit/issues/177)) ([8919496](https://github.com/Ank-KhoaHo/DocToolkit/commit/8919496c80fbdb641a7b48d447e46e763cda3249))
+
 ## [0.16.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.15.0...v0.16.0) (2026-08-09)
 
 
