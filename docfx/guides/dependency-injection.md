@@ -70,6 +70,23 @@ builder.Services.Configure<DocToolkitOptions>(builder.Configuration.GetSection("
 builder.Services.AddDocToolkit();
 ```
 
+### Setting the paper once
+
+@DocToolkit.Extensions.DependencyInjection.DocToolkitOptions.Page is the page every producer
+lays out on when a call does not name one. Default `PageSetup.A4`, so leaving it alone
+changes nothing.
+
+```csharp
+services.AddDocToolkit(o => o.Page = PageSetup.Letter);
+```
+
+It reaches both HTML converters and `IDocxEditor.Create`. An explicit page argument still
+wins — a call that names a page is answering a narrower question than the configuration was.
+
+Setting it alongside `AllowRemoteImageDownload` keeps both. That combination was impossible
+before 0.18.0: the remote-image path could only lay out on A4, so enabling downloads would
+have silently discarded the configured paper.
+
 ### Options are read per call, not captured
 
 The services consume options through `IOptionsMonitor` and read them **on each call**, not once at

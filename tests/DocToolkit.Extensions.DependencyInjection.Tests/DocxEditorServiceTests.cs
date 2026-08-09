@@ -21,7 +21,7 @@ public class DocxEditorServiceTests
     [Fact]
     public void Create_MatchesTheStaticMethod()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var blocks = new[]
         {
             DocxBlock.Heading("Quarterly Report", 1),
@@ -40,7 +40,7 @@ public class DocxEditorServiceTests
     [Fact]
     public async Task CreateAsync_MatchesTheStaticMethod()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var blocks = new[] { DocxBlock.Paragraph("Written to a stream.") };
 
         using var destination = new MemoryStream();
@@ -54,7 +54,7 @@ public class DocxEditorServiceTests
     [Fact]
     public async Task FillRows_MatchesTheStaticMethod()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var docx = await HtmlToDocxConverter.ConvertAsync(
             "<table border=\"1\"><tr><td>{{item.Desc}}</td></tr></table>");
         var records = new[]
@@ -78,7 +78,7 @@ public class DocxEditorServiceTests
     [Fact]
     public async Task FillRowsAsync_MatchesTheStaticMethod()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var docx = await HtmlToDocxConverter.ConvertAsync(
             "<table border=\"1\"><tr><td>{{item.Desc}}</td></tr></table>");
         var records = new[]
@@ -96,7 +96,7 @@ public class DocxEditorServiceTests
     [Fact]
     public async Task ReplaceImage_MatchesTheStaticMethod()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var docx = await HtmlToDocxConverter.ConvertAsync("<p>Logo: {{logo}}</p>");
         var png = OnePixelPng();
 
@@ -114,7 +114,7 @@ public class DocxEditorServiceTests
     [Fact]
     public async Task ReplaceImageAsync_MatchesTheStaticMethod()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var docx = await HtmlToDocxConverter.ConvertAsync("<p>Logo: {{logo}}</p>");
 
         using var source = new MemoryStream(docx);
@@ -136,7 +136,7 @@ public class DocxEditorServiceTests
     [Fact]
     public async Task ReplaceText_SubstitutesPlaceholders()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var docx = await HtmlToDocxConverter.ConvertAsync(
             "<p>Dear {{name}}, your balance is {{balance}}.</p>");
 
@@ -156,7 +156,7 @@ public class DocxEditorServiceTests
     public void ExtractText_WithHeadersAndFooters_MatchesTheStaticMethod()
     {
         var docx = DocxWithHeaderAndFooter("Body text.", "Page header", "Page footer");
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         Assert.Equal(
             DocxEditor.ExtractText(docx, includeHeadersAndFooters: true),
@@ -173,7 +173,7 @@ public class DocxEditorServiceTests
     [Fact]
     public void ReplaceText_RejectsNullReplacements()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         Assert.Throws<ArgumentNullException>(() => sut.ReplaceText(Array.Empty<byte>(), null!));
     }
@@ -182,7 +182,7 @@ public class DocxEditorServiceTests
     public async Task ExtractTextAsync_MatchesTheStaticMethod()
     {
         var docx = await HtmlToDocxConverter.ConvertAsync("<p>Body copy.</p>");
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         using var expectedSource = new MemoryStream(docx);
         using var actualSource = new MemoryStream(docx);
@@ -197,7 +197,7 @@ public class DocxEditorServiceTests
     public async Task ExtractTextAsync_WithHeadersAndFooters_MatchesTheStaticMethod()
     {
         var docx = DocxWithHeaderAndFooter("Body text.", "Page header", "Page footer");
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
         using var expectedSource = new MemoryStream(docx);
         using var actualSource = new MemoryStream(docx);
@@ -213,7 +213,7 @@ public class DocxEditorServiceTests
     public async Task ReplaceTextAsync_MatchesTheStaticMethod()
     {
         var docx = await HtmlToDocxConverter.ConvertAsync("<p>Dear {{name}}.</p>");
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         var replacements = new Dictionary<string, string> { ["{{name}}"] = "Contoso Ltd" };
 
         using var expectedSource = new MemoryStream(docx);
@@ -230,7 +230,7 @@ public class DocxEditorServiceTests
     [Fact]
     public async Task ExtractTextAsync_HonorsCancellation()
     {
-        var sut = new DocxEditorService();
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
