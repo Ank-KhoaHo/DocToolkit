@@ -208,6 +208,10 @@ internal sealed class GuardedResourceLoader : IWebRequest
         using var activity = Telemetry.Source.StartActivity("RemoteImage.Fetch");
         activity?.SetTag("server.address", host);
         activity?.SetTag("url.scheme", requestUri.Scheme);
+        // Port alongside host. Standard OpenTelemetry attribute, carries nothing sensitive
+        // (a query string can hold a token; a port number cannot), and it is what tells two
+        // services on the same host apart in a trace.
+        activity?.SetTag("server.port", requestUri.Port);
 
         if (!SupportsProtocol(requestUri.Scheme))
         {
