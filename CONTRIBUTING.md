@@ -117,10 +117,18 @@ requests with a real merge commit, so every one of your commits lands on `main` 
 release tooling. Merge commits themselves are exempt — git writes those subjects and no prefix is
 possible.
 
-**Title the pull request without a Conventional Commit prefix.** GitHub copies the PR title into
-the merge commit's body, which release-please parses just like any other commit, so a PR titled
+**Title the pull request without a Conventional Commit prefix.** The title reaches the commit history either way, and release-please parses it like any other commit - so a PR titled
 `feat(core): x` whose branch also has a commit `feat(core): x` produces two identical lines in the
-published changelog — which cannot be rewritten once it ships.
+published changelog, which cannot be rewritten once it ships.
+
+This bites under both merge methods, by different routes. A **merge commit** puts the PR title in
+its body. A **squash** of a multi-commit branch uses the PR title as the subject and lists the
+commit subjects underneath. A squash of a single-commit branch is the one safe case, because it
+takes the commit's own title and ignores the PR's.
+
+> Measured on 2026-08-09: this went unnoticed through two releases, 0.15.0 and 0.16.0, and both
+> needed a line deleted from `CHANGELOG.md` afterwards. The rule above is older than that
+> incident; it was simply not followed.
 
 | Type | Use for | Appears in the public changelog |
 |---|---|---|
@@ -261,6 +269,20 @@ to avoid:
 
 Both packages — `Ank.DocToolkit` and `Ank.DocToolkit.Extensions.DependencyInjection` — always ship
 together at the same version.
+
+### Why the release pull request is not merged automatically
+
+Every other pull request here arms auto-merge. The release PR deliberately does not, and that is a
+decision rather than an omission.
+
+Merging it **publishes to nuget.org**, and a published version can be unlisted but never edited or
+replaced. Everything upstream of that point is reversible: a bad commit can be reverted, a bad
+merge can be undone, a broken `main` can be fixed forward. The moment the release PR merges, the
+artifact is permanent and other people's builds can resolve it.
+
+So it is the one gate where a human reads the generated changelog before it becomes public - which
+is exactly where the duplicate-entry problem above gets caught, and where a change filed under the
+wrong heading gets noticed while it can still be described properly in **Migrating**.
 
 ## Questions
 
