@@ -274,4 +274,89 @@ public class PageSetupTests
         Assert.Equal("left", ex.ParamName);
         Assert.Contains("no content area", ex.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ByDefaultThereIsNoHeaderAndNoDistinctFirstPage()
+    {
+        var page = PageSetup.A4;
+
+        Assert.Null(page.Header);
+        Assert.Null(page.Footer);
+        Assert.False(page.HasDistinctFirstPage);
+    }
+
+    [Fact]
+    public void WithHeaderReturnsANewInstanceAndLeavesTheOriginalAlone()
+    {
+        var original = PageSetup.A4;
+
+        var withHeader = original.WithHeader(DocxHeader.Text("Contoso"));
+
+        Assert.Null(original.Header);
+        Assert.NotNull(withHeader.Header);
+        Assert.Equal("Contoso", withHeader.Header!.ToString());
+    }
+
+    [Fact]
+    public void WithFirstPageTurnsOnTheDistinctFirstPageEvenWhenBothAreNull()
+    {
+        // Calling it at all is the switch. Both null means page one carries neither, which is
+        // exactly a title page - and is why null cannot mean "inherit".
+        var page = PageSetup.A4.WithHeader(DocxHeader.Text("running")).WithFirstPage(null, null);
+
+        Assert.True(page.HasDistinctFirstPage);
+        Assert.Null(page.FirstPageHeader);
+        Assert.Null(page.FirstPageFooter);
+        Assert.NotNull(page.Header);
+    }
+
+    // The trap: every other With* method builds a NEW PageSetup, so any of them could drop the
+    // header on the floor. A caller who sets a header and then rotates the page would silently
+    // lose it.
+    [Fact]
+    public void TheOtherWithMethodsPreserveTheHeaderAndFooter()
+    {
+        var page = PageSetup.A4
+            .WithHeader(DocxHeader.Text("H"))
+            .WithFooter(DocxHeader.Text("F"))
+            .WithFirstPage(DocxHeader.Text("first"), null);
+
+        foreach (var derived in new[] { page.Landscape(), page.WithMargins(36), page.WithMargins(10, 20, 30, 40) })
+        {
+            Assert.Equal("H", derived.Header?.ToString());
+            Assert.Equal("F", derived.Footer?.ToString());
+            Assert.Equal("first", derived.FirstPageHeader?.ToString());
+            Assert.True(derived.HasDistinctFirstPage);
+        }
+    }
+
+    // Every WithHeader/WithFooter call above is made either on PageSetup.A4 directly or BEFORE
+    // WithFirstPage in the chain, so none of them exercises the private With() helper with
+    // FirstPageHeader/FirstPageFooter/HasDistinctFirstPage already set. That is the one ordering
+    // TheOtherWithMethodsPreserveTheHeaderAndFooter cannot reach - it calls WithFirstPage LAST. If
+    // With() ever reverted those three to null, null, false, this suite would still pass without
+    // this test.
+    [Fact]
+    public void WithHeaderAndWithFooterAfterWithFirstPagePreserveTheFirstPageState()
+    {
+        var page = PageSetup.A4
+            .WithFirstPage(DocxHeader.Text("first header"), DocxHeader.Text("first footer"))
+            .WithHeader(DocxHeader.Text("H"))
+            .WithFooter(DocxHeader.Text("F"));
+
+        Assert.Equal("H", page.Header?.ToString());
+        Assert.Equal("F", page.Footer?.ToString());
+        Assert.Equal("first header", page.FirstPageHeader?.ToString());
+        Assert.Equal("first footer", page.FirstPageFooter?.ToString());
+        Assert.True(page.HasDistinctFirstPage);
+    }
+
+    [Fact]
+    public void WithHeaderRejectsNull()
+    {
+        Assert.Equal("header",
+            Assert.Throws<ArgumentNullException>(() => PageSetup.A4.WithHeader(null!)).ParamName);
+        Assert.Equal("footer",
+            Assert.Throws<ArgumentNullException>(() => PageSetup.A4.WithFooter(null!)).ParamName);
+    }
 }

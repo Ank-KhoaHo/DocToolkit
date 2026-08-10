@@ -37,7 +37,10 @@ public sealed class PageSetup
 
     private PageSetup(
         double widthPoints, double heightPoints,
-        double topPoints, double rightPoints, double bottomPoints, double leftPoints)
+        double topPoints, double rightPoints, double bottomPoints, double leftPoints,
+        DocxHeader? header = null, DocxHeader? footer = null,
+        DocxHeader? firstPageHeader = null, DocxHeader? firstPageFooter = null,
+        bool hasDistinctFirstPage = false)
     {
         WidthPoints = widthPoints;
         HeightPoints = heightPoints;
@@ -45,6 +48,11 @@ public sealed class PageSetup
         RightPoints = rightPoints;
         BottomPoints = bottomPoints;
         LeftPoints = leftPoints;
+        Header = header;
+        Footer = footer;
+        FirstPageHeader = firstPageHeader;
+        FirstPageFooter = firstPageFooter;
+        HasDistinctFirstPage = hasDistinctFirstPage;
     }
 
     /// <summary>
@@ -81,6 +89,24 @@ public sealed class PageSetup
     /// <summary>The left margin, in points.</summary>
     public double LeftPoints { get; }
 
+    /// <summary>The header on every page, or null for none.</summary>
+    public DocxHeader? Header { get; }
+
+    /// <summary>The footer on every page, or null for none.</summary>
+    public DocxHeader? Footer { get; }
+
+    /// <summary>The header on page one when <see cref="HasDistinctFirstPage"/>, or null for none.</summary>
+    public DocxHeader? FirstPageHeader { get; }
+
+    /// <summary>The footer on page one when <see cref="HasDistinctFirstPage"/>, or null for none.</summary>
+    public DocxHeader? FirstPageFooter { get; }
+
+    /// <summary>
+    /// Whether page one is treated differently — set by calling <see cref="WithFirstPage"/>, and
+    /// emitted as <c>w:titlePg</c>.
+    /// </summary>
+    public bool HasDistinctFirstPage { get; }
+
     /// <summary>
     /// A page of the given size, in points, with one-inch margins.
     /// </summary>
@@ -115,7 +141,8 @@ public sealed class PageSetup
 
         return new PageSetup(
             HeightPoints, WidthPoints,
-            TopPoints, RightPoints, BottomPoints, LeftPoints);
+            TopPoints, RightPoints, BottomPoints, LeftPoints,
+            Header, Footer, FirstPageHeader, FirstPageFooter, HasDistinctFirstPage);
     }
 
     /// <summary>
@@ -150,8 +177,56 @@ public sealed class PageSetup
 
         return new PageSetup(
             WidthPoints, HeightPoints,
-            topPoints, rightPoints, bottomPoints, leftPoints);
+            topPoints, rightPoints, bottomPoints, leftPoints,
+            Header, Footer, FirstPageHeader, FirstPageFooter, HasDistinctFirstPage);
     }
+
+    /// <summary>A copy carrying <paramref name="header"/> on every page.</summary>
+    /// <param name="header">The header content.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="header"/> is null.</exception>
+    public PageSetup WithHeader(DocxHeader header)
+    {
+        ArgumentNullException.ThrowIfNull(header);
+        return With(header: header);
+    }
+
+    /// <summary>A copy carrying <paramref name="footer"/> on every page.</summary>
+    /// <param name="footer">The footer content.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="footer"/> is null.</exception>
+    public PageSetup WithFooter(DocxHeader footer)
+    {
+        ArgumentNullException.ThrowIfNull(footer);
+        return With(footer: footer);
+    }
+
+    /// <summary>
+    /// A copy whose first page is treated separately.
+    /// </summary>
+    /// <remarks>
+    /// Calling this is the switch: it emits <c>w:titlePg</c>, and then <b>null means blank on page
+    /// one</b> rather than "use the ordinary one". That mirrors the format — an absent first-page
+    /// reference produces no header, and there is no inheritance to fall back on — and it makes the
+    /// common case sayable: a title page with nothing running across it.
+    ///
+    /// Not calling this at all leaves page one looking like every other page.
+    /// </remarks>
+    /// <param name="header">Page one's header, or null for none.</param>
+    /// <param name="footer">Page one's footer, or null for none.</param>
+    public PageSetup WithFirstPage(DocxHeader? header, DocxHeader? footer)
+        => new(
+            WidthPoints, HeightPoints, TopPoints, RightPoints, BottomPoints, LeftPoints,
+            Header, Footer, header, footer, hasDistinctFirstPage: true);
+
+    /// <summary>
+    /// A copy with the paper unchanged and one header slot replaced. Every other <c>With</c> method
+    /// must route its result through the constructor's header parameters too — a derived PageSetup
+    /// that silently dropped the header would be the exact failure this library refuses.
+    /// </summary>
+    private PageSetup With(DocxHeader? header = null, DocxHeader? footer = null)
+        => new(
+            WidthPoints, HeightPoints, TopPoints, RightPoints, BottomPoints, LeftPoints,
+            header ?? Header, footer ?? Footer,
+            FirstPageHeader, FirstPageFooter, HasDistinctFirstPage);
 
     /// <inheritdoc/>
     public override string ToString() => string.Format(

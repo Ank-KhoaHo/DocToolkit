@@ -337,6 +337,23 @@ The core package `Ank.DocToolkit` is unaffected.
 No behaviour change. CI now runs the full suite on macOS and Linux arm64 as well as Linux x64 and
 Windows, so "runs everywhere .NET does" is measured on each rather than inferred.
 
+## Headers and footers
+
+Attach them to the `PageSetup`, and every producer honours them:
+
+```csharp
+var page = PageSetup.A4
+    .WithHeader(DocxHeader.Text("Contoso Ltd"))
+    .WithFooter(DocxHeader.Of(HeaderAlignment.Right,
+        DocxHeaderSegment.Text("Page "), DocxHeaderSegment.PageNumber,
+        DocxHeaderSegment.Text(" of "), DocxHeaderSegment.PageCount));
+
+byte[] docx = DocxEditor.Create(blocks, page);
+```
+
+The page number is a real field, so "Page 3 of 12" is right on every page rather than frozen at
+the moment the document was generated.
+
 ## Known limitations
 
 Things this package deliberately does not do, or does only partly. Listed because the
@@ -349,7 +366,7 @@ alternative is that you find out by reading the source.
 | **PDF fonts depend on the machine doing the conversion** | Where a system font is available it is **embedded**: on a Windows dev box the same invoice produces a ~167 KB PDF carrying Arial-Regular and Arial-Bold. In a slim container with no fonts installed, nothing is embedded and the PDF falls back to the **base-14 standard fonts** (Helvetica), giving ~1.5 KB. **Both are valid and both render**, and Arial and Helvetica are metric-compatible so line breaks do not move — but the glyphs are not identical, so a PDF built in your container will not be byte-identical to one built on your laptop. Install fonts in the image if you need a specific face. |
 | **HTML → PDF goes through DOCX** | So PDF fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |
 | **No external stylesheets** | `<link rel="stylesheet">` is not fetched, by design: nothing here opens a socket by default. Inline `<style>` and `style=` attributes are honoured. |
-| **No headers or footers on generated documents** | `DocxEditor.Create` and `HtmlToDocxConverter` produce a body. `ReplaceText` *does* reach into the headers and footers of a document you supply. |
+| **Headers and footers are one line each** | A header or footer is a single aligned line of text and page-number fields, set on `PageSetup`. One running header and footer per document, plus an optional distinct first page — per-section headers and odd/even (mirrored) variants are not supported. |
 | **One page setup per document** | `PageSetup` applies to the whole document. Multiple sections with different paper is a real Word feature and is not supported. |
 | **Formulas carry no cached value** | A cell written with `XlsxFormula` holds the formula only. Excel recalculates on open, and `ReadCell`/`ReadSheet` evaluate on read — but a reader that only reads cached values (openpyxl with `data_only=True`, say) sees an empty cell until Excel has opened and saved the file. |
 | **Memory scales with the document, not the file** | Peak memory is dominated by the OOXML object model. Measured on a 1.9 MB `.xlsx` of 40,000 rows: ~120 MB for `ReadSheet`, ~233 MB for `SetCell`. The `Stream` overloads are **not** cheaper — they exist for forward-only sources, not to save memory. There is no input size limit; sizing the host is the caller's decision. |

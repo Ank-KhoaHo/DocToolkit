@@ -48,7 +48,7 @@ internal static class DocxDocumentWriter
                 // Last child of w:body, after every paragraph and table. Anywhere else and Word
                 // declares the file corrupt - and the document is schema-valid either way, so
                 // nothing but PageSetupOutputTests catches it.
-                body.AppendChild(SectionPropertiesFactory.Build(page));
+                body.AppendChild(SectionPropertiesFactory.Build(main, page));
 
                 main.Document.Save();
             }

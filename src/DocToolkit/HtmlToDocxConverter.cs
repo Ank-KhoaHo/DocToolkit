@@ -394,7 +394,7 @@ public static class HtmlToDocxConverter
                 // reader's Word template happens to name, so the same HTML lands on Letter in
                 // the US and A4 elsewhere. Appended after ParseBody so it is the body's last
                 // child, which is the only position Word accepts.
-                mainPart.Document.Body!.AppendChild(SectionPropertiesFactory.Build(page));
+                mainPart.Document.Body!.AppendChild(SectionPropertiesFactory.Build(mainPart, page));
 
                 mainPart.Document.Save();
             }

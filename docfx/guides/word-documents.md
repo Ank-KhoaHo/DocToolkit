@@ -72,10 +72,52 @@ layout control wants a template, where a person with Word can do the layout.
 
 `Create` takes an optional @DocToolkit.PageSetup, same as the HTML converters, and defaults to A4.
 
+## Headers and footers
+
+A header belongs to the page, so it goes on the @DocToolkit.PageSetup — which means every producer
+honours it without a new overload.
+
+```csharp
+var page = PageSetup.A4
+    .WithHeader(DocxHeader.Text("Contoso Ltd"))
+    .WithFooter(DocxHeader.Of(HeaderAlignment.Right,
+        DocxHeaderSegment.Text("Page "), DocxHeaderSegment.PageNumber,
+        DocxHeaderSegment.Text(" of "), DocxHeaderSegment.PageCount));
+
+byte[] docx = DocxEditor.Create(blocks, page);
+byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, page);
+```
+
+**The page number is a real field.** Written as text it would be fixed when the document was
+generated — correct on one page, wrong on the rest, and looking right the whole time.
+
+### A different first page
+
+```csharp
+page = page.WithFirstPage(header: null, footer: DocxHeader.Text("Confidential"));
+```
+
+Calling `WithFirstPage` is the switch, and **null means blank on page one** rather than "use the
+ordinary one". That is the format's own model — there is no inheritance to fall back on — and it is
+what makes a title page with nothing running across it expressible.
+
 > [!NOTE]
-> Generated documents have no headers or footers. `DocxEditor.Create` and `HtmlToDocxConverter`
-> produce a body. `ReplaceText` *does* reach into the headers and footers of a document you supply
-> — the limit is on generating them, not on editing them.
+> `ExtractText` shows the field's cached placeholder rather than a real page number: nothing
+> computes pagination until a reader opens the document.
+
+Not supported: per-section headers, and odd/even (mirrored) pages. A distinct first page — shown
+above — is.
+
+> [!NOTE]
+> **Neither code block in this section is compiled, unlike most examples in these guides.** The
+> header/footer setup earlier on this page and the `WithFirstPage` snippet just above this note
+> both use API (`PageSetup.WithHeader`, `.WithFooter`, `.WithFirstPage`) that ships in this same
+> release. A compiled sample builds against the *published* package, so until this API reaches
+> nuget.org there is nothing to compile these two against — treat both with the scepticism you
+> would give any code in a document.
+
+<!-- Convert the block above to a [!code-csharp[]] region reference in the release after this
+     one, the way A8-SAMPLE did, and delete this note with it. -->
 
 ## Reading text back out
 

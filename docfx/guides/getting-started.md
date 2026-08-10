@@ -82,7 +82,8 @@ is not a question you can answer from a filename or a content type.
 - [Dependency injection](dependency-injection.md) — `AddDocToolkit()` and the injectable interfaces
 - [Running in production](production.md) — streaming, containers, trimming, telemetry, limits
 
-Every code block in these guides is pulled from a
+Most code blocks in these guides are pulled from a
 [runnable sample](https://github.com/Ank-KhoaHo/DocToolkit/tree/main/samples) that CI compiles
-against the published package on Linux, Windows and macOS. If a snippet here is wrong, the build
-is red.
+against the published package on Linux, Windows and macOS — if a snippet here is wrong, the build
+is red. A few examples show API that has not reached the published package yet; those are marked
+with a note at the point they appear.
