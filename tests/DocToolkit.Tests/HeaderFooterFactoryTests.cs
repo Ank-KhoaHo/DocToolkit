@@ -88,6 +88,28 @@ public class HeaderFooterFactoryTests
         }
     }
 
+    // InnerText reads Text.Text directly and cannot see the Space attribute, so an assertion on
+    // text alone would pass even if the trailing space were lost. "Page " + a page-number field
+    // renders as the literal string "Page3" without SpaceProcessingModeValues.Preserve on the
+    // w:t element, and only the serialized XML can catch that regression.
+    [Fact]
+    public void ALiteralSegmentEndingInASpacePreservesItInTheSerializedXml()
+    {
+        var (doc, main, _) = NewDocument();
+        using (doc)
+        {
+            var page = PageSetup.A4.WithHeader(DocxHeader.Of(
+                HeaderAlignment.Left,
+                DocxHeaderSegment.Text("Page "),
+                DocxHeaderSegment.PageNumber));
+
+            HeaderFooterFactory.CreateReferences(main, page);
+
+            var part = Assert.Single(main.HeaderParts);
+            Assert.Contains("xml:space=\"preserve\"", part.Header!.OuterXml, StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public void AFirstPageFooterAloneProducesFirstAndDefaultReferencesButNoFirstHeader()
     {
