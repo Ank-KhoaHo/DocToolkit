@@ -91,4 +91,43 @@ string markdown = DocxToMarkdownConverter.Convert(invoice);
 Console.WriteLine($"As HTML      : {html.Length:N0} chars, has a <table>: {html.Contains("<table", StringComparison.OrdinalIgnoreCase)}");
 Console.WriteLine($"As Markdown  : {markdown.Length:N0} chars, first line \"{markdown.Split('\n')[0].Trim()}\"");
 
+// --- Headers and footers -----------------------------------------------------------------
+// A header belongs to the PAGE, so it goes on the PageSetup - which is why every producer
+// honours it without a new overload. The page number is a real field: written as text it would
+// be fixed at generation time, correct on one page and wrong on every other.
+
+#region headers
+PageSetup withRunningHead = PageSetup.A4
+    .WithHeader(DocxHeader.Text("Contoso Ltd"))
+    .WithFooter(DocxHeader.Of(
+        HeaderAlignment.Right,
+        DocxHeaderSegment.Text("Page "),
+        DocxHeaderSegment.PageNumber,
+        DocxHeaderSegment.Text(" of "),
+        DocxHeaderSegment.PageCount));
+
+byte[] withHeader = DocxEditor.Create(
+    new[] { DocxBlock.Paragraph("Body text.") }, withRunningHead);
+#endregion
+
+// Calling WithFirstPage is the switch that turns on a distinct first page, and null means BLANK
+// on page one rather than 'use the ordinary one'. That is what makes a title page carrying
+// nothing across it expressible at all.
+
+#region headers-first-page
+PageSetup withTitlePage = withRunningHead.WithFirstPage(
+    header: null,
+    footer: DocxHeader.Text("Confidential", HeaderAlignment.Center));
+
+byte[] withCover = DocxEditor.Create(
+    new[] { DocxBlock.Paragraph("Body text.") }, withTitlePage);
+#endregion
+
+string headerText = DocxEditor.ExtractText(withHeader, includeHeadersAndFooters: true);
+
+Console.WriteLine($"\nWith header  : {withHeader.Length:N0} bytes");
+Console.WriteLine($"Title page   : {withCover.Length:N0} bytes (page one carries no header)");
+bool headerSurvived = headerText.Contains("Contoso Ltd", StringComparison.Ordinal);
+
+Console.WriteLine($"Header found : {headerSurvived}");
 Console.WriteLine("\nDone.");
