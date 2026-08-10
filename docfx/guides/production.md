@@ -129,8 +129,9 @@ Worth knowing before you design around it:
 - **HTML → PDF goes through Word**, so CSS layout — flexbox, grid, floats, absolute positioning —
   does not survive. Text, headings, tables, lists, inline styling and images do.
 - **DOCX → HTML returns a full document**, not a fragment. Extract the body with a parser.
-- **No headers or footers on generated documents.** `ReplaceText` edits them in a document you
-  supply; nothing here generates them.
+- **Headers and footers are one line each.** Set on `PageSetup` — a single aligned line of text
+  and page-number fields per header or footer. No odd/even variants, and only one header per
+  document.
 - **One page setup per document.** No mixed portrait-and-landscape sections.
 
 The full list, with the reasoning behind each, is in the
