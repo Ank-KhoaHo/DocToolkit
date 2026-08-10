@@ -110,6 +110,11 @@ namespace DocToolkit
     public sealed class PageSetup
     {
         public double BottomPoints { get; }
+        public DocToolkit.DocxHeader? FirstPageFooter { get; }
+        public DocToolkit.DocxHeader? FirstPageHeader { get; }
+        public DocToolkit.DocxHeader? Footer { get; }
+        public bool HasDistinctFirstPage { get; }
+        public DocToolkit.DocxHeader? Header { get; }
         public double HeightPoints { get; }
         public double LeftPoints { get; }
         public double RightPoints { get; }
@@ -119,6 +124,9 @@ namespace DocToolkit
         public static DocToolkit.PageSetup Letter { get; }
         public DocToolkit.PageSetup Landscape() { }
         public override string ToString() { }
+        public DocToolkit.PageSetup WithFirstPage(DocToolkit.DocxHeader? header, DocToolkit.DocxHeader? footer) { }
+        public DocToolkit.PageSetup WithFooter(DocToolkit.DocxHeader footer) { }
+        public DocToolkit.PageSetup WithHeader(DocToolkit.DocxHeader header) { }
         public DocToolkit.PageSetup WithMargins(double points) { }
         public DocToolkit.PageSetup WithMargins(double topPoints, double rightPoints, double bottomPoints, double leftPoints) { }
         public static DocToolkit.PageSetup Custom(double widthPoints, double heightPoints) { }
