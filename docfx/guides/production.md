@@ -130,8 +130,8 @@ Worth knowing before you design around it:
   does not survive. Text, headings, tables, lists, inline styling and images do.
 - **DOCX → HTML returns a full document**, not a fragment. Extract the body with a parser.
 - **Headers and footers are one line each.** Set on `PageSetup` — a single aligned line of text
-  and page-number fields per header or footer. No odd/even variants, and only one header per
-  document.
+  and page-number fields per header or footer. One running header and footer per document, plus
+  an optional distinct first page — no per-section headers, and no odd/even (mirrored) variants.
 - **One page setup per document.** No mixed portrait-and-landscape sections.
 
 The full list, with the reasoning behind each, is in the

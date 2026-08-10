@@ -20,8 +20,9 @@ public enum HeaderAlignment
 /// Footers use this type too. Word's content model for the two is identical, and a second type
 /// differing only in its name would be one more thing to learn for no gain.
 ///
-/// Attach it with <c>PageSetup.WithHeader</c> or <c>PageSetup.WithFooter</c>; every
-/// producer that takes a <see cref="PageSetup"/> then honours it, with no extra overload.
+/// Attach it with <see cref="PageSetup.WithHeader(DocxHeader)"/> or
+/// <see cref="PageSetup.WithFooter(DocxHeader)"/>; every producer that takes a
+/// <see cref="PageSetup"/> then honours it, with no extra overload.
 /// </remarks>
 public sealed class DocxHeader
 {
@@ -78,7 +79,10 @@ public sealed class DocxHeader
                 nameof(segments), $"Segment {i} is null.");
         }
 
-        return new DocxHeader(alignment, copy);
+        // Wrapped rather than handed back as the array itself: a caller downcasting the
+        // IReadOnlyList<T> back to DocxHeaderSegment[] would otherwise reach the very array this
+        // copy exists to keep private, and mutate it in place after construction.
+        return new DocxHeader(alignment, Array.AsReadOnly(copy));
     }
 
     /// <summary>The segments joined, with fields shown as <c>{PAGE}</c> and <c>{NUMPAGES}</c>.</summary>

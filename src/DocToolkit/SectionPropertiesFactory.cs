@@ -14,6 +14,14 @@ namespace DocToolkit;
 ///
 /// <see cref="PageSetup"/> validates; this converts. Keeping the two apart is what lets that type's
 /// tests run without OpenXml.
+///
+/// <see cref="Build"/> is not a pure conversion: when its <c>page</c> argument carries a header or
+/// footer it creates the corresponding <c>HeaderPart</c>/<c>FooterPart</c> package parts on its
+/// <c>main</c> argument as a side effect, via <see cref="HeaderFooterFactory.CreateReferences"/>.
+/// That makes it non-idempotent — calling it twice on the same <see cref="MainDocumentPart"/> adds
+/// a second, orphaned set of header/footer parts rather than replacing the first. It is meant to be
+/// called once per document; both call sites (<see cref="DocxDocumentWriter"/> and
+/// <see cref="HtmlToDocxConverter"/>) already do.
 /// </summary>
 internal static class SectionPropertiesFactory
 {
@@ -28,6 +36,11 @@ internal static class SectionPropertiesFactory
     /// Builds the <c>w:sectPr</c> for <paramref name="page"/>. The caller appends it as the
     /// <b>last</b> child of <c>w:body</c> — anywhere else and Word declares the file corrupt.
     /// </summary>
+    /// <param name="main">
+    /// The part a header or footer's package part is added to as a side effect of this call — see
+    /// the class remarks. Not otherwise read.
+    /// </param>
+    /// <param name="page">The page setup to convert.</param>
     public static SectionProperties Build(MainDocumentPart main, PageSetup page)
     {
         ArgumentNullException.ThrowIfNull(main);

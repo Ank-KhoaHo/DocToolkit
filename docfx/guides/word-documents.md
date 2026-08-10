@@ -105,13 +105,16 @@ what makes a title page with nothing running across it expressible.
 > `ExtractText` shows the field's cached placeholder rather than a real page number: nothing
 > computes pagination until a reader opens the document.
 
-Not supported: different odd and even pages, and more than one header per document.
+Not supported: per-section headers, and odd/even (mirrored) pages. A distinct first page — shown
+above — is.
 
 > [!NOTE]
-> **The example above is the one block on this site that is not compiled.** Every other code
-> block in these guides is pulled from a project under `samples/`, so it cannot drift from the
-> API. Samples build against the *published* package, and this API has not shipped yet — so
-> until it does, treat this snippet with the scepticism you would give any code in a document.
+> **Neither code block in this section is compiled, unlike most examples in these guides.** The
+> header/footer setup earlier on this page and the `WithFirstPage` snippet just above this note
+> both use API (`PageSetup.WithHeader`, `.WithFooter`, `.WithFirstPage`) that ships in this same
+> release. A compiled sample builds against the *published* package, so until this API reaches
+> nuget.org there is nothing to compile these two against — treat both with the scepticism you
+> would give any code in a document.
 
 <!-- Convert the block above to a [!code-csharp[]] region reference in the release after this
      one, the way A8-SAMPLE did, and delete this note with it. -->
