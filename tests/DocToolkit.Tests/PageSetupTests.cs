@@ -330,6 +330,27 @@ public class PageSetupTests
         }
     }
 
+    // Every WithHeader/WithFooter call above is made either on PageSetup.A4 directly or BEFORE
+    // WithFirstPage in the chain, so none of them exercises the private With() helper with
+    // FirstPageHeader/FirstPageFooter/HasDistinctFirstPage already set. That is the one ordering
+    // TheOtherWithMethodsPreserveTheHeaderAndFooter cannot reach - it calls WithFirstPage LAST. If
+    // With() ever reverted those three to null, null, false, this suite would still pass without
+    // this test.
+    [Fact]
+    public void WithHeaderAndWithFooterAfterWithFirstPagePreserveTheFirstPageState()
+    {
+        var page = PageSetup.A4
+            .WithFirstPage(DocxHeader.Text("first header"), DocxHeader.Text("first footer"))
+            .WithHeader(DocxHeader.Text("H"))
+            .WithFooter(DocxHeader.Text("F"));
+
+        Assert.Equal("H", page.Header?.ToString());
+        Assert.Equal("F", page.Footer?.ToString());
+        Assert.Equal("first header", page.FirstPageHeader?.ToString());
+        Assert.Equal("first footer", page.FirstPageFooter?.ToString());
+        Assert.True(page.HasDistinctFirstPage);
+    }
+
     [Fact]
     public void WithHeaderRejectsNull()
     {
