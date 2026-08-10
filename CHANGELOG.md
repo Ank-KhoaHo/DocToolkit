@@ -16,6 +16,12 @@ repo-wide tooling (CI, release pipeline).
 ### Added
 
 * **extensions:** a default page setup on DocToolkitOptions ([#186](https://github.com/Ank-KhoaHo/DocToolkit/issues/186)) ([4e76adc](https://github.com/Ank-KhoaHo/DocToolkit/commit/4e76adc9980f3f6e31dda66c2c951d2619e21825))
+* **core:** headers and footers on generated documents ([#189](https://github.com/Ank-KhoaHo/DocToolkit/pull/189)) ([9dcf579](https://github.com/Ank-KhoaHo/DocToolkit/commit/9dcf579))
+
+  Added by hand. release-please could not parse #189's squash-commit subject - the pull
+  request was titled without a Conventional Commit prefix, per advice that was correct for
+  merge commits and wrong for squash - so it discarded the commit and every `feat:` line in
+  it. The feature is in 0.19.0; only this entry was missing.
 
 ## [0.18.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.18.0...v0.18.1) (2026-08-09)
 
