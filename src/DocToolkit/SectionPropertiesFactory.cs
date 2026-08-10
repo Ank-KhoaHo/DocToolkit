@@ -1,4 +1,5 @@
 using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace DocToolkit;
@@ -27,8 +28,9 @@ internal static class SectionPropertiesFactory
     /// Builds the <c>w:sectPr</c> for <paramref name="page"/>. The caller appends it as the
     /// <b>last</b> child of <c>w:body</c> — anywhere else and Word declares the file corrupt.
     /// </summary>
-    public static SectionProperties Build(PageSetup page)
+    public static SectionProperties Build(MainDocumentPart main, PageSetup page)
     {
+        ArgumentNullException.ThrowIfNull(main);
         ArgumentNullException.ThrowIfNull(page);
 
         var size = new PageSize
@@ -57,7 +59,21 @@ internal static class SectionPropertiesFactory
             Gutter = 0U,
         };
 
-        return new SectionProperties(size, margin);
+        // Order matters and is not cosmetic: the ECMA schema fixes the sequence, and Word reports a
+        // sectPr whose children are out of order as a corrupt document. References first, then
+        // pgSz, then pgMar, then titlePg.
+        var sectPr = new SectionProperties();
+
+        foreach (var reference in HeaderFooterFactory.CreateReferences(main, page))
+            sectPr.AppendChild(reference);
+
+        sectPr.AppendChild(size);
+        sectPr.AppendChild(margin);
+
+        if (page.HasDistinctFirstPage)
+            sectPr.AppendChild(new TitlePage());
+
+        return sectPr;
     }
 
     /// <summary>

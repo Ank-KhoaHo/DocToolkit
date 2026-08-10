@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Xunit;
@@ -331,9 +332,30 @@ public class PageSetupOutputTests
     [Fact]
     public void BuildingSectionPropertiesFromANullPageIsRejectedByName()
     {
-        var ex = Assert.Throws<ArgumentNullException>(() => SectionPropertiesFactory.Build(null!));
+        using var ms = new MemoryStream();
+        using var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document);
+        var main = doc.AddMainDocumentPart();
+        main.Document = new Document(new Body());
+
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => SectionPropertiesFactory.Build(main, null!));
 
         Assert.Equal("page", ex.ParamName);
+    }
+
+    /// <summary>
+    /// Mirrors <see cref="BuildingSectionPropertiesFromANullPageIsRejectedByName"/> for the other
+    /// new parameter: <c>main</c> is checked first, so a null main is rejected by its own name
+    /// rather than surfacing as a NullReferenceException once <c>HeaderFooterFactory</c> tries to
+    /// use it.
+    /// </summary>
+    [Fact]
+    public void BuildingSectionPropertiesFromANullMainPartIsRejectedByName()
+    {
+        var ex = Assert.Throws<ArgumentNullException>(
+            () => SectionPropertiesFactory.Build(null!, PageSetup.A4));
+
+        Assert.Equal("main", ex.ParamName);
     }
 
 
@@ -433,5 +455,81 @@ public class PageSetupOutputTests
             () => HtmlToPdfConverter.ConvertToFileAsync(null!, PageSetup.A4, path));
 
         Assert.False(File.Exists(path), "A rejected conversion still created a file.");
+    }
+
+    [Fact]
+    public void Create_WithAHeader_EmitsAReferenceBeforeThePageSize()
+    {
+        var page = PageSetup.A4.WithHeader(DocxHeader.Text("Contoso"));
+
+        var sectPr = SectionPropertiesOf(DocxEditor.Create(Blocks, page));
+
+        Assert.NotNull(sectPr);
+        var children = sectPr!.ChildElements.ToList();
+        var referenceIndex = children.FindIndex(c => c is HeaderReference);
+        var sizeIndex = children.FindIndex(c => c is PageSize);
+
+        Assert.True(referenceIndex >= 0, "No w:headerReference was emitted.");
+
+        // The schema is order-sensitive and Word calls a misordered sectPr corrupt - the same trap
+        // already recorded for sectPr needing to be the last child of w:body.
+        Assert.True(
+            referenceIndex < sizeIndex,
+            $"w:headerReference must precede w:pgSz; got indexes {referenceIndex} and {sizeIndex}.");
+    }
+
+    [Fact]
+    public void Create_WithNoFirstPage_EmitsNoTitlePg()
+    {
+        var page = PageSetup.A4.WithHeader(DocxHeader.Text("Contoso"));
+
+        var sectPr = SectionPropertiesOf(DocxEditor.Create(Blocks, page));
+
+        Assert.Null(sectPr!.GetFirstChild<TitlePage>());
+    }
+
+    [Fact]
+    public void Create_WithAFirstPage_EmitsTitlePgAfterThePageMargin()
+    {
+        var page = PageSetup.A4
+            .WithHeader(DocxHeader.Text("running"))
+            .WithFirstPage(DocxHeader.Text("cover"), null);
+
+        var sectPr = SectionPropertiesOf(DocxEditor.Create(Blocks, page));
+
+        Assert.NotNull(sectPr!.GetFirstChild<TitlePage>());
+
+        var children = sectPr.ChildElements.ToList();
+        Assert.True(
+            children.FindIndex(c => c is TitlePage) > children.FindIndex(c => c is PageMargin),
+            "w:titlePg must follow w:pgMar.");
+    }
+
+    [Fact]
+    public async Task HtmlToDocx_HonoursTheHeaderToo()
+    {
+        var page = PageSetup.A4.WithHeader(DocxHeader.Text("FromHtml"));
+
+        var docx = await HtmlToDocxConverter.ConvertAsync("<p>Body</p>", page);
+
+        Assert.Contains("FromHtml", DocxEditor.ExtractText(docx, includeHeadersAndFooters: true),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EveryVariantTogetherIsSchemaValid()
+    {
+        var page = PageSetup.Letter
+            .WithHeader(DocxHeader.Text("H", HeaderAlignment.Center))
+            .WithFooter(DocxHeader.Of(HeaderAlignment.Right, DocxHeaderSegment.PageNumber))
+            .WithFirstPage(DocxHeader.Text("first"), DocxHeader.Text("first foot"));
+
+        using var ms = new MemoryStream(DocxEditor.Create(Blocks, page));
+        using var doc = WordprocessingDocument.Open(ms, false);
+
+        var errors = new DocumentFormat.OpenXml.Validation.OpenXmlValidator().Validate(doc).ToList();
+
+        Assert.True(errors.Count == 0,
+            "Schema errors: " + string.Join(" | ", errors.Select(e => e.Description)));
     }
 }
