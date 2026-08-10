@@ -117,19 +117,28 @@ requests with a real merge commit, so every one of your commits lands on `main` 
 release tooling. Merge commits themselves are exempt — git writes those subjects and no prefix is
 possible.
 
-**Title the pull request without a Conventional Commit prefix.** The title reaches the commit history either way, and release-please parses it like any other commit - so a PR titled
-`feat(core): x` whose branch also has a commit `feat(core): x` produces two identical lines in the
-published changelog, which cannot be rewritten once it ships.
+**Title the pull request as a Conventional Commit.** This repository squash-merges, and a squash
+commit's subject is the pull request title whenever the branch holds more than one commit. So the
+title is not decoration - it is the commit message that lands on `main` and the one release-please
+reads.
 
-This bites under both merge methods, by different routes. A **merge commit** puts the PR title in
-its body. A **squash** of a multi-commit branch uses the PR title as the subject and lists the
-commit subjects underneath. A squash of a single-commit branch is the one safe case, because it
-takes the commit's own title and ignores the PR's.
+**A title it cannot parse costs you the whole pull request.** release-please discards an
+unparseable commit entirely, body included, so every `feat:` and `fix:` line on your branch
+disappears from the changelog with it. Nothing fails: the checks stay green, the release succeeds,
+and the code ships with nothing announcing it.
 
-> Measured on 2026-08-09: this went unnoticed through two releases, 0.15.0 and 0.16.0, and both
-> needed a line deleted from `CHANGELOG.md` afterwards. The rule above is older than that
-> incident; it was simply not followed.
+> Measured on 2026-08-10. PR #189 shipped the entire headers-and-footers feature under the title
+> *"Headers and footers on generated documents"*, and 0.19.0's changelog records only an unrelated
+> pull request that happened to share the release. A published release's notes cannot be rewritten.
 
+**This advice used to say the opposite, and the reversal has a reason.** While the repository used
+true merge commits, GitHub copied the pull request title into the merge commit's *body*, beside the
+real commits - so a prefixed title produced two identical changelog lines, which is what happened to
+0.15.0 and 0.16.0. Omitting the prefix was the fix for that. Squash merging inverted it: there is no
+second copy any more, and the title is the only subject there is.
+
+The `commit message format` check now asserts this on the title as well as on every commit, because
+advice alone had already failed twice.
 | Type | Use for | Appears in the public changelog |
 |---|---|---|
 | `feat` | a new capability | yes, under **Added** |
