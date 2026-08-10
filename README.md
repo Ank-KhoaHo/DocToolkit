@@ -337,6 +337,23 @@ The core package `Ank.DocToolkit` is unaffected.
 No behaviour change. CI now runs the full suite on macOS and Linux arm64 as well as Linux x64 and
 Windows, so "runs everywhere .NET does" is measured on each rather than inferred.
 
+## Headers and footers
+
+Attach them to the `PageSetup`, and every producer honours them:
+
+```csharp
+var page = PageSetup.A4
+    .WithHeader(DocxHeader.Text("Contoso Ltd"))
+    .WithFooter(DocxHeader.Of(HeaderAlignment.Right,
+        DocxHeaderSegment.Text("Page "), DocxHeaderSegment.PageNumber,
+        DocxHeaderSegment.Text(" of "), DocxHeaderSegment.PageCount));
+
+byte[] docx = DocxEditor.Create(blocks, page);
+```
+
+The page number is a real field, so "Page 3 of 12" is right on every page rather than frozen at
+the moment the document was generated.
+
 ## Known limitations
 
 Things this package deliberately does not do, or does only partly. Listed because the

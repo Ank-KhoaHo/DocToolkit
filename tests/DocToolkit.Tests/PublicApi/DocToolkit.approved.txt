@@ -41,6 +41,20 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ReplaceTextAsync(System.IO.Stream source, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ReplaceTextAsync(string inputPath, string outputPath, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements, System.Threading.CancellationToken ct = default) { }
     }
+    public sealed class DocxHeader
+    {
+        public DocToolkit.HeaderAlignment Alignment { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxHeaderSegment> Segments { get; }
+        public override string ToString() { }
+        public static DocToolkit.DocxHeader Of(DocToolkit.HeaderAlignment alignment, params DocToolkit.DocxHeaderSegment[] segments) { }
+        public static DocToolkit.DocxHeader Text(string text, DocToolkit.HeaderAlignment alignment = 0) { }
+    }
+    public abstract class DocxHeaderSegment
+    {
+        public static DocToolkit.DocxHeaderSegment PageCount { get; }
+        public static DocToolkit.DocxHeaderSegment PageNumber { get; }
+        public static DocToolkit.DocxHeaderSegment Text(string text) { }
+    }
     public static class DocxToHtmlConverter
     {
         public static string Convert(byte[] docx) { }
@@ -56,6 +70,12 @@ namespace DocToolkit
         public static byte[] Convert(byte[] docx) { }
         public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static void ConvertFile(string inputPath, string outputPath) { }
+    }
+    public enum HeaderAlignment
+    {
+        Left = 0,
+        Center = 1,
+        Right = 2,
     }
     public static class HtmlToDocxConverter
     {
