@@ -104,8 +104,34 @@ public class AirGapGuardTests
     /// <summary>
     /// Bound on the whole timed call, so a regression that reintroduces a network fetch shows up
     /// as a failed assertion rather than as a test suite that never finishes.
+    ///
+    /// <b>This is a wedge net, not a performance ceiling</b>, and the distinction is the whole
+    /// reason for the number. <see cref="UnroutableCeiling"/> is what decides whether something
+    /// dialled out; this only decides whether the run is allowed to hang forever. So it should sit
+    /// far above any conversion cost a runner could plausibly produce - being generous here costs
+    /// a slow failure on a genuinely wedged suite, while being tight costs a red build on code
+    /// that is correct.
+    ///
+    /// It was 30 s until 2026-08-10, when it fired on a Windows runner against
+    /// <see cref="RefusedBaselineHost"/> - a leg that opens no socket at all on the default path,
+    /// so it cannot contain the stall the message named. Nothing had dialled out: 784 of 785 tests
+    /// passed, including every AssertSilentAsync check in this class. The tell was in the run's
+    /// own durations - the two net10.0 assemblies overlapped and ran 2.3x and 7.1x slower than
+    /// their net8.0 counterparts (86 s against 38 s, 71 s against 10 s). Measured locally for
+    /// comparison, on 20 cores: that leg costs <b>0.94 s</b> cold and 0.05 s warm, and 1.73 s under
+    /// 24 spinning threads. 30 s was roughly twice the worst legitimate cost this suite had already
+    /// recorded (13.5 s), which is not headroom for a net whose only job is to stop a hang.
+    ///
+    /// <b>Raising it cannot produce a false negative</b>, which is why this number moves and
+    /// <see cref="UnroutableCeiling"/> does not. Worked through against the per-connect costs
+    /// measured on <see cref="RefusedBaselineHost"/> and <see cref="UnroutableHost"/>, over a
+    /// fixture naming the host 16 ways: if the offline guarantee broke, Windows would spend
+    /// ~16x2.07 s on the baseline leg and ~16x21.03 s on the unroutable one, so the breach still
+    /// fails this test - by the delta assertion if both legs complete, by this net if they do not.
+    /// Linux stalls longer still. There is no arrangement in which a breach finishes quietly under
+    /// two minutes.
     /// </summary>
-    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(2);
 
     // =====================================================================================
     // The probe has to be able to say "yes" before "no" from it means anything.
@@ -666,6 +692,11 @@ public class AirGapGuardTests
     /// <summary>
     /// Runs <paramref name="action"/> with a hard wall-clock bound, so a regression that
     /// reintroduces a blocking network call fails this test instead of wedging the suite.
+    ///
+    /// The bound cannot tell a stall from a very slow runner, so the message must not claim it
+    /// can - saying so as fact once sent a reader looking for a network regression that was not
+    /// there. It names both causes and the assertion that separates them. See
+    /// <see cref="HangGuard"/>.
     /// </summary>
     private async Task<TimeSpan> TimeBoundedAsync(Func<Task> action, string what, string host)
     {
@@ -678,8 +709,14 @@ public class AirGapGuardTests
             // as an unobserved-task escalation later in the run.
             _ = work.ContinueWith(static t => _ = t.Exception, TaskScheduler.Default);
             Assert.Fail(
-                $"{what} was still running after {HangGuard.TotalSeconds:0} s against " +
-                $"{host}. It is waiting on a TCP connect that will never complete.");
+                $"{what} was still running after {HangGuard.TotalMinutes:0.#} min against {host}. " +
+                "Two things look like this and they need different responses. Either something " +
+                "dialled out and is sitting on a connect that will not complete, or this runner " +
+                "is slow enough that the conversion alone took that long. " +
+                "Check the other tests in this class before assuming the first: every " +
+                "AssertSilentAsync check fails too if the offline guarantee broke, and a lone " +
+                $"failure here is a slow runner. Note also that {RefusedBaselineHost} opens no " +
+                "socket at all on the default path, so a baseline leg timing out is never a stall.");
         }
 
         await work;
