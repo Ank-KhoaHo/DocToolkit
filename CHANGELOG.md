@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.19.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.19.0...v0.19.1) (2026-08-10)
+
+
+### Fixed
+
+* **ci:** require a Conventional Commit pull request title ([#190](https://github.com/Ank-KhoaHo/DocToolkit/issues/190)) ([367d57b](https://github.com/Ank-KhoaHo/DocToolkit/commit/367d57b2cbac4270a87866bea99aa2e706900e37))
+
 ## [0.19.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.18.1...v0.19.0) (2026-08-10)
 
 
