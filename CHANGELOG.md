@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.20.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.19.1...v0.20.0) (2026-08-10)
+
+
+### Added
+
+* **extensions:** raise the core floor so DI consumers can use headers ([#192](https://github.com/Ank-KhoaHo/DocToolkit/issues/192)) ([5c973ef](https://github.com/Ank-KhoaHo/DocToolkit/commit/5c973effd68a9b6d3533e939be803a463433b913))
+
 ## [0.19.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.19.0...v0.19.1) (2026-08-10)
 
 
