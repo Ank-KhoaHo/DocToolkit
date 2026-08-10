@@ -72,10 +72,45 @@ layout control wants a template, where a person with Word can do the layout.
 
 `Create` takes an optional @DocToolkit.PageSetup, same as the HTML converters, and defaults to A4.
 
+## Headers and footers
+
+A header belongs to the page, so it goes on the @DocToolkit.PageSetup — which means every producer
+honours it without a new overload.
+
+```csharp
+var page = PageSetup.A4
+    .WithHeader(DocxHeader.Text("Contoso Ltd"))
+    .WithFooter(DocxHeader.Of(HeaderAlignment.Right,
+        DocxHeaderSegment.Text("Page "), DocxHeaderSegment.PageNumber,
+        DocxHeaderSegment.Text(" of "), DocxHeaderSegment.PageCount));
+
+byte[] docx = DocxEditor.Create(blocks, page);
+byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, page);
+```
+
+**The page number is a real field.** Written as text it would be fixed when the document was
+generated — correct on one page, wrong on the rest, and looking right the whole time.
+
+### A different first page
+
+```csharp
+page = page.WithFirstPage(header: null, footer: DocxHeader.Text("Confidential"));
+```
+
+Calling `WithFirstPage` is the switch, and **null means blank on page one** rather than "use the
+ordinary one". That is the format's own model — there is no inheritance to fall back on — and it is
+what makes a title page with nothing running across it expressible.
+
 > [!NOTE]
-> Generated documents have no headers or footers. `DocxEditor.Create` and `HtmlToDocxConverter`
-> produce a body. `ReplaceText` *does* reach into the headers and footers of a document you supply
-> — the limit is on generating them, not on editing them.
+> `ExtractText` shows the field's cached placeholder rather than a real page number: nothing
+> computes pagination until a reader opens the document.
+
+Not supported: different odd and even pages, and more than one header per document.
+
+<!-- This block is a plain fenced snippet, not a `[!code-csharp[]]` region reference like every
+     other example on this page: samples build against the published package, and this API has
+     not shipped yet. Convert it to a region reference in the release after this one, the way
+     A8-SAMPLE did. -->
 
 ## Reading text back out
 
