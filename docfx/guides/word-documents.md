@@ -107,10 +107,14 @@ what makes a title page with nothing running across it expressible.
 
 Not supported: different odd and even pages, and more than one header per document.
 
-<!-- This block is a plain fenced snippet, not a `[!code-csharp[]]` region reference like every
-     other example on this page: samples build against the published package, and this API has
-     not shipped yet. Convert it to a region reference in the release after this one, the way
-     A8-SAMPLE did. -->
+> [!NOTE]
+> **The example above is the one block on this site that is not compiled.** Every other code
+> block in these guides is pulled from a project under `samples/`, so it cannot drift from the
+> API. Samples build against the *published* package, and this API has not shipped yet — so
+> until it does, treat this snippet with the scepticism you would give any code in a document.
+
+<!-- Convert the block above to a [!code-csharp[]] region reference in the release after this
+     one, the way A8-SAMPLE did, and delete this note with it. -->
 
 ## Reading text back out
 
