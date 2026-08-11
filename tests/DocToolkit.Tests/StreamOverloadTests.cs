@@ -42,6 +42,13 @@ public class StreamOverloadTests
     private static readonly byte[] ImageDocx = DocxFixtures.Build(
         DocxFixtures.P(DocxFixtures.R("Logo: {{logo}} end")));
 
+    /// <summary>
+    /// A .pptx holding a shape whose text is nothing but the placeholder, for
+    /// PresentationEditor.ReplaceImageAsync — unlike DocxEditor's, it swaps the whole shape, so it
+    /// cannot share <see cref="Pptx"/>'s "Hello {{who}}" text.
+    /// </summary>
+    private static readonly byte[] ImagePptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
+
     /// <summary>Blocks for DocxEditor.CreateAsync, which takes no source.</summary>
     private static readonly DocxBlock[] Blocks =
     {
@@ -117,6 +124,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
     };
 
@@ -139,6 +147,7 @@ public class StreamOverloadTests
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.ReplaceImageAsync",
     };
 
     /// <summary>
@@ -163,6 +172,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
     };
 
@@ -665,6 +675,8 @@ public class StreamOverloadTests
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>
                 PresentationEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
+            "PresentationEditor.ReplaceImageAsync" =>
+                PresentationEditor.ReplaceImageAsync(source!, "{{chart}}", ImageFixtures.Png(), destination!, ct),
             "PresentationEditor.CreateAsync" =>
                 PresentationEditor.CreateAsync(Slides, destination!, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(api), api, "Unknown Stream overload."),
@@ -677,6 +689,7 @@ public class StreamOverloadTests
         // share the plain Docx fixture the other DocxEditor overloads use.
         "DocxEditor.FillRowsAsync" => TableDocx,
         "DocxEditor.ReplaceImageAsync" => ImageDocx,
+        "PresentationEditor.ReplaceImageAsync" => ImagePptx,
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,
