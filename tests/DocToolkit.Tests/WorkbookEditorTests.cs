@@ -282,8 +282,18 @@ public class WorkbookEditorTests
         var underInvariant = WithCulture(CultureInfo.InvariantCulture, () => OneRow(Row()));
         var underGerman = WithCulture(german, () => OneRow(Row()));
 
+        // Pin FirstRow itself before comparing two of its results (B16). The comparison below is
+        // FirstRow(a) against FirstRow(b) - the helper against itself - which holds however broken
+        // the helper is. If it returned four empty strings, or an empty array, the culture
+        // guarantee would be unverified and nothing would say so. This is the same shape that let
+        // A26 hide behind Assert.Contains for eight releases.
+        var invariantRow = FirstRow(underInvariant, 4);
+        Assert.Equal(4, invariantRow.Length);
+        Assert.All(invariantRow, cell => Assert.False(string.IsNullOrWhiteSpace(cell.Text),
+            "FirstRow returned a blank cell, so the comparison below would prove nothing"));
+
         // Both read back under the ambient test culture, so any difference is baked into the file.
-        Assert.Equal(FirstRow(underInvariant, 4), FirstRow(underGerman, 4));
+        Assert.Equal(invariantRow, FirstRow(underGerman, 4));
     }
 
     private static T WithCulture<T>(CultureInfo culture, Func<T> body)
