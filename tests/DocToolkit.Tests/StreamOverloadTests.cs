@@ -709,4 +709,23 @@ public class StreamOverloadTests
     /// <summary>The main document part's XML — the deterministic part of a .docx.</summary>
     private static string DocumentXml(byte[] docx)
         => DocxFixtures.Read(docx, main => main.Document!.OuterXml);
+
+    /// <summary>
+    /// Pins <see cref="DocumentXml"/> itself (B16). Every other use of it in this file compares
+    /// <c>DocumentXml(a)</c> against <c>DocumentXml(b)</c> - the helper against itself - which
+    /// holds however broken the helper is. If it returned an empty string, the byte[]-versus-Stream
+    /// equivalence assertions it backs would all pass while proving nothing, and those assertions
+    /// are the whole reason this file exists.
+    ///
+    /// Same shape as A26, which hid behind Assert.Contains for eight releases.
+    /// </summary>
+    [Fact]
+    public async Task DocumentXml_ReturnsRealMarkup_SoTheEquivalenceAssertionsMeanSomething()
+    {
+        var xml = DocumentXml(await HtmlToDocxConverter.ConvertAsync(Html));
+
+        Assert.Contains("<w:document", xml, StringComparison.Ordinal);
+        Assert.Contains("<w:body", xml, StringComparison.Ordinal);
+        Assert.True(xml.Length > 200, $"expected real markup, got {xml.Length} characters");
+    }
 }
