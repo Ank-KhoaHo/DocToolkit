@@ -267,6 +267,10 @@ byte[] editedPptx = PresentationEditor.ReplaceText(pptx, new Dictionary<string, 
     ["{{title}}"] = "Q3 Results",
 });
 
+// Swap a placeholder box for an image - see Images below for what "position and size come
+// from the template" means, and when this is refused rather than done silently
+byte[] withChart = PresentationEditor.ReplaceImage(editedPptx, "{{chart}}", chartPngBytes);
+
 // Or build a deck from data - titles and bullets, no template needed
 var deckSlides = new[]
 {
@@ -347,6 +351,27 @@ and the image is attached to that header's own part so Word resolves it correctl
 
 Only the placeholder text is removed: `Signed: {{signature}} (authorised)` becomes `Signed: `, the
 image, then ` (authorised)`, with the surrounding runs keeping their formatting.
+
+### PowerPoint
+
+`PresentationEditor.ReplaceImage` swaps a whole shape rather than splicing into text, because a
+PPTX picture is a positioned shape and not something inline in a text flow the way a DOCX image
+is - which is also why it takes no size argument, unlike `DocxEditor.ReplaceImage` above:
+
+```csharp
+byte[] filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", File.ReadAllBytes("chart.png"));
+```
+
+Position and size come from the template, so there is nothing to pass: a designer draws a box in
+PowerPoint where the chart belongs, and the image lands there, scaled to fit and centred.
+
+The shape's text must be nothing but the placeholder. The whole shape is replaced, so a shape
+reading `Chart: {{chart}} (Q3)` would lose the words around the placeholder - silently, and in a
+document that is still schema-valid. That is refused instead, with a
+`DocumentConversionException` naming the shape's actual text.
+
+**PNG and JPEG**, identified by their own magic bytes rather than a filename, same as the DOCX
+form above.
 
 ## Placeholder replacement
 
