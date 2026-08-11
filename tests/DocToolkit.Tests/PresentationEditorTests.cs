@@ -401,6 +401,11 @@ public class PresentationEditorTests
         // a:xfrm, so there is nowhere to put the replacement picture.
         var pptx = PptxFixtures.DeckWithUnpositionedPlaceholder("{{chart}}");
 
+        // The fixture's doc claims removing the a:xfrm leaves the deck schema-valid. Prove it,
+        // rather than stating it: if this deck were invalid the refusal below could be firing for
+        // the wrong reason entirely, and the test would still look green.
+        Assert.Empty(PptxFixtures.Validate(pptx));
+
         var ex = Assert.Throws<DocumentConversionException>(
             () => PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png()));
 

@@ -343,8 +343,9 @@ public static class PresentationEditor
     /// is blank.
     /// </exception>
     /// <exception cref="DocumentConversionException">
-    /// The placeholder appears nowhere, a matched shape holds other text, a matched shape has no
-    /// explicit position, the image is neither PNG nor JPEG, or the package could not be edited.
+    /// The placeholder appears nowhere, appears only inside a grouped shape, a matched shape holds
+    /// other text, a matched shape has no explicit position, the image is neither PNG nor JPEG,
+    /// or the package could not be edited.
     /// </exception>
     public static byte[] ReplaceImage(byte[] pptx, string placeholder, byte[] image)
     {
@@ -506,8 +507,9 @@ public static class PresentationEditor
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
-    /// The placeholder appears nowhere, a matched shape holds other text, a matched shape has no
-    /// explicit position, the image is neither PNG nor JPEG, or the package could not be edited.
+    /// The placeholder appears nowhere, appears only inside a grouped shape, a matched shape holds
+    /// other text, a matched shape has no explicit position, the image is neither PNG nor JPEG,
+    /// or the package could not be edited.
     /// </exception>
     public static async Task ReplaceImageAsync(
         Stream source, string placeholder, byte[] image, Stream destination,
@@ -702,8 +704,9 @@ public static class PresentationEditor
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
-    /// The placeholder appears nowhere, a matched shape holds other text, a matched shape has no
-    /// explicit position, the image is neither PNG nor JPEG, or the package could not be edited.
+    /// The placeholder appears nowhere, appears only inside a grouped shape, a matched shape holds
+    /// other text, a matched shape has no explicit position, the image is neither PNG nor JPEG,
+    /// or the package could not be edited.
     /// </exception>
     public static async Task ReplaceImageAsync(
         string inputPath, string outputPath, string placeholder, byte[] image,
