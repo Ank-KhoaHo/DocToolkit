@@ -2,6 +2,7 @@ using DocumentFormat.OpenXml.Packaging;
 using DocToolkit;
 using Xunit;
 using A = DocumentFormat.OpenXml.Drawing;
+using P = DocumentFormat.OpenXml.Presentation;
 
 namespace DocToolkit.Tests;
 
@@ -208,5 +209,34 @@ public class PresentationEditorTests
         var text = await PresentationEditor.ExtractTextAsync(output.Path);
         Assert.Contains(text, entry => entry.Contains("World"));
         Assert.DoesNotContain(text, entry => entry.Contains("{{who}}"));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Task 3 fixture: DeckWithPlaceholderBox must carry an explicit a:xfrm of its own, not one
+    // inherited from a layout, since a layout-inherited shape is exactly what ReplaceImage must
+    // reject.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void TheFixtureBoxCarriesTheExactPositionItWasAskedFor()
+    {
+        // Pins the fixture itself. Every ReplaceImage assertion below is computed FROM these
+        // numbers, so a fixture that quietly placed the box elsewhere would make them all agree
+        // with each other and with nothing real.
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}", 1000000, 2000000, 4000000, 3000000);
+        Assert.Empty(PptxFixtures.Validate(pptx));
+
+        using var ms = new MemoryStream(pptx);
+        using var doc = PresentationDocument.Open(ms, false);
+
+        var shape = doc.PresentationPart!.SlideParts.Single()
+                       .Slide!.CommonSlideData!.ShapeTree!.Elements<P.Shape>().Single();
+        var xfrm = shape.ShapeProperties!.Transform2D!;
+
+        Assert.Equal(1000000L, xfrm.Offset!.X!.Value);
+        Assert.Equal(2000000L, xfrm.Offset.Y!.Value);
+        Assert.Equal(4000000L, xfrm.Extents!.Cx!.Value);
+        Assert.Equal(3000000L, xfrm.Extents.Cy!.Value);
+        Assert.Equal("{{chart}}", string.Concat(shape.Descendants<A.Text>().Select(t => t.Text)));
     }
 }

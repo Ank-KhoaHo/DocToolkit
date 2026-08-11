@@ -121,6 +121,31 @@ internal static class PptxFixtures
                     .ToArray();
     }
 
+    /// <summary>
+    /// A one-slide deck holding a single shape at the exact position given, whose text is
+    /// nothing but <paramref name="placeholder"/>.
+    ///
+    /// Deliberately a DRAWN box — an explicit <c>a:xfrm</c> — because that is what a designer
+    /// produces in PowerPoint, and what ReplaceImage must require: a shape that inherits its
+    /// position from a layout carries no <c>a:xfrm</c> of its own, and that is exactly the case
+    /// the feature has to reject. Built the same way every fixture in this file is — by cloning
+    /// the sample deck rather than assembling presentation/master/layout/theme parts from
+    /// nothing (see the class doc comment) — and the sample's sole shape already carries its
+    /// own <c>a:xfrm</c>, so this only has to overwrite its offset/extents and its text rather
+    /// than manufacture a new shape.
+    /// </summary>
+    public static byte[] DeckWithPlaceholderBox(
+        string placeholder, long x = 1000000, long y = 2000000, long cx = 4000000, long cy = 3000000) =>
+        Mutate(slide =>
+        {
+            var shape = slide.CommonSlideData!.ShapeTree!.Elements<P.Shape>().Single();
+            var xfrm = shape.ShapeProperties!.Transform2D!;
+            xfrm.Offset = new A.Offset { X = x, Y = y };
+            xfrm.Extents = new A.Extents { Cx = cx, Cy = cy };
+
+            slide.Descendants<A.Text>().First().Text = placeholder;
+        });
+
     /// <summary>Schema-validation errors for the whole package (empty means valid).</summary>
     public static IReadOnlyList<ValidationErrorInfo> Validate(byte[] pptx)
     {
