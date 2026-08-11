@@ -273,6 +273,115 @@ public static class PdfEditor
                          .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// A copy of <paramref name="pdf"/> with its pages in the order given by
+    /// <paramref name="order"/>, which holds 1-based page numbers.
+    /// </summary>
+    /// <param name="pdf">The document to reorder. It is not modified.</param>
+    /// <param name="order">
+    /// A <b>permutation of every page</b> — the same pages, in a different order. Not a subset, and
+    /// no repeats. A "reorder" that quietly dropped a page would be the worst kind of bug here,
+    /// because the result still looks like a document; taking a subset is what
+    /// <see cref="ExtractPages(byte[], int, int)"/> is for.
+    /// </param>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="order"/> is not a permutation of 1..<c>PageCount</c>. Reported as one
+    /// failure rather than per element, because a caller who passed the wrong list wants to know
+    /// the list is wrong, not which entry was noticed first.
+    /// </exception>
+    public static byte[] ReorderPages(byte[] pdf, IEnumerable<int> order)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        ArgumentNullException.ThrowIfNull(order);
+
+        var wanted = order.ToArray();
+
+        using var input = Open(pdf, PdfDocumentOpenMode.Import);
+
+        var expected = Enumerable.Range(1, input.PageCount);
+        if (!wanted.OrderBy(p => p).SequenceEqual(expected))
+        {
+            throw new ArgumentException(
+                $"The order must be a permutation of pages 1-{input.PageCount}, each exactly once. "
+                + $"Got [{string.Join(", ", wanted)}].",
+                nameof(order));
+        }
+
+        using var reordered = new PdfDocument();
+        foreach (var page in wanted)
+        {
+            reordered.AddPage(input.Pages[page - 1]);
+        }
+
+        return Save(reordered);
+    }
+
+    /// <inheritdoc cref="ReorderPages(byte[], IEnumerable{int})"/>
+    public static async Task ReorderPagesAsync(
+        Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
+        await destination.WriteAsync(ReorderPages(pdf, order), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="target"/> with every page of <paramref name="source"/> inserted so
+    /// that the first of them becomes page <paramref name="atPage"/>.
+    /// </summary>
+    /// <param name="target">The document to insert into. It is not modified.</param>
+    /// <param name="source">The document whose pages are inserted. It is not modified.</param>
+    /// <param name="atPage">
+    /// 1-based position the first inserted page will occupy. <c>1</c> puts them in front of
+    /// everything; <c>PageCount + 1</c> appends, which is deliberately allowed — it is the obvious
+    /// way to say "after everything", and rejecting it would leave appending expressible only
+    /// through <see cref="Merge(IEnumerable{byte[]})"/>.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="atPage"/> is below 1 or more than one past the last page.
+    /// </exception>
+    public static byte[] InsertPages(byte[] target, byte[] source, int atPage)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentOutOfRangeException.ThrowIfLessThan(atPage, 1);
+
+        using var into = Open(target, PdfDocumentOpenMode.Import);
+        using var from = Open(source, PdfDocumentOpenMode.Import);
+
+        if (atPage > into.PageCount + 1)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(atPage), atPage,
+                $"Cannot insert at page {atPage} of a document with {into.PageCount} page(s); "
+                + $"{into.PageCount + 1} appends and is the highest position allowed.");
+        }
+
+        using var combined = new PdfDocument();
+
+        for (var page = 0; page < atPage - 1; page++) combined.AddPage(into.Pages[page]);
+        for (var page = 0; page < from.PageCount; page++) combined.AddPage(from.Pages[page]);
+        for (var page = atPage - 1; page < into.PageCount; page++) combined.AddPage(into.Pages[page]);
+
+        return Save(combined);
+    }
+
+    /// <inheritdoc cref="InsertPages(byte[], byte[], int)"/>
+    public static async Task InsertPagesAsync(
+        Stream target, Stream source, int atPage, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        var into = await ReadAllAsync(target, ct).ConfigureAwait(false);
+        var from = await ReadAllAsync(source, ct).ConfigureAwait(false);
+        await destination.WriteAsync(InsertPages(into, from, atPage), ct).ConfigureAwait(false);
+    }
+
     /// <summary>The document information <paramref name="pdf"/> carries.</summary>
     public static PdfMetadata ReadMetadata(byte[] pdf)
     {
