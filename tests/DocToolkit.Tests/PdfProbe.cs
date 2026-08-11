@@ -273,4 +273,27 @@ public static class PdfProbe
                                      Height: N(m.Groups[4]) - N(m.Groups[2])))
                        .ToList();
     }
+
+    private static readonly Regex Rotate = new(@"/Rotate\s+(-?\d+)", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Every <b>explicit</b> <c>/Rotate</c> value in the file, in the order they appear.
+    ///
+    /// Deliberately NOT one entry per page, unlike <see cref="MediaBoxes"/>. Every page carries a
+    /// <c>/MediaBox</c>, but <c>/Rotate</c> is optional and defaults to 0, so an unrotated page has
+    /// no entry at all. Reporting a padded zero per page would be a guess dressed as a measurement —
+    /// this returns what the file actually says and lets the test assert on that.
+    ///
+    /// Which makes the count load-bearing: rotating one page of three must produce exactly one
+    /// entry, and that is what distinguishes a working rotation from one that silently touched
+    /// everything.
+    /// </summary>
+    public static IReadOnlyList<int> PageRotations(byte[] pdf)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+
+        return Rotate.Matches(Raw(pdf))
+                     .Select(m => int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
+                     .ToList();
+    }
 }

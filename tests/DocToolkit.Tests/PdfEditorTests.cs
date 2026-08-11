@@ -171,6 +171,103 @@ public class PdfEditorTests
     }
 
     // =============================================================================================
+    // Rotate pages (A25)
+    //
+    // Rotation here is RELATIVE — "turn this page 90 degrees clockwise" — not "set /Rotate to 90".
+    // Relative is what the task actually is: a scan came out sideways and you want it upright. An
+    // absolute setter would leak PDF's own /Rotate model at the API, and would silently no-op on a
+    // page that already carried the value asked for.
+    // =============================================================================================
+
+    [Fact]
+    public async Task ARenderedPdfCarriesNoRotationToStartWith()
+    {
+        // Pins PdfProbe.PageRotations itself (B16). Every assertion below counts entries, so a probe
+        // that always returned an empty list would make all of them pass while proving nothing.
+        Assert.Empty(PdfProbe.PageRotations(await PdfAsync("Upright")));
+    }
+
+    [Fact]
+    public async Task RotatingOnePageLeavesTheOthersAlone()
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        var rotated = PdfEditor.RotatePages(merged, firstPage: 2, count: 1, degrees: 90);
+
+        // Exactly one entry: three would mean it rotated everything, zero that it rotated nothing.
+        Assert.Equal([90], PdfProbe.PageRotations(rotated));
+        Assert.Equal(3, PdfEditor.PageCount(rotated));
+    }
+
+    [Fact]
+    public async Task RotationIsRelative_SoRotatingTwiceAccumulates()
+    {
+        // The test that decides the semantics. Under an absolute setter this would still read 90.
+        var once = PdfEditor.RotatePages(await PdfAsync("Sideways"), 1, 1, 90);
+        var twice = PdfEditor.RotatePages(once, 1, 1, 90);
+
+        Assert.Equal([90], PdfProbe.PageRotations(once));
+        Assert.Equal([180], PdfProbe.PageRotations(twice));
+    }
+
+    [Fact]
+    public async Task RotationWrapsRatherThanGrowingWithoutBound()
+    {
+        var pdf = await PdfAsync("Round");
+
+        // -90 wraps to 270 rather than being written as a negative, which PdfSharp rejects.
+        Assert.Equal([270], PdfProbe.PageRotations(PdfEditor.RotatePages(pdf, 1, 1, -90)));
+
+        // A full turn normalises to 0 — written EXPLICITLY as /Rotate 0, not omitted. The first
+        // draft of this test asserted an empty collection and failed, because PdfSharp emits the key
+        // once the property has been set at all. /Rotate 0 and an absent /Rotate mean the same thing
+        // to a reader, so this is correct output; the assertion was simply wrong about the shape.
+        Assert.Equal([0], PdfProbe.PageRotations(PdfEditor.RotatePages(pdf, 1, 1, 360)));
+    }
+
+    [Theory]
+    [InlineData(45)]        // not a quarter turn
+    [InlineData(1)]
+    [InlineData(-45)]
+    public async Task ARotationThatIsNotAMultipleOfNinetyIsRejected(int degrees)
+    {
+        // The PDF specification requires /Rotate to be a multiple of 90. Accepting 45 here would
+        // write a file readers disagree about rather than fail.
+        var pdf = await PdfAsync("Round");
+
+        Assert.ThrowsAny<ArgumentException>(() => PdfEditor.RotatePages(pdf, 1, 1, degrees));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 0)]
+    [InlineData(4, 1)]
+    [InlineData(3, 2)]
+    public async Task ARotationRangeOutsideTheDocumentIsRejected(int firstPage, int count)
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        Assert.ThrowsAny<ArgumentException>(
+            () => PdfEditor.RotatePages(merged, firstPage, count, 90));
+    }
+
+    [Fact]
+    public async Task RotatePagesThroughStreamsMatchesTheByteArrayOverload()
+    {
+        var merged = PdfEditor.Merge([await PdfAsync("Alpha"), await PdfAsync("Bravo")]);
+
+        using var source = new MemoryStream(merged, writable: false);
+        using var destination = new MemoryStream();
+        await PdfEditor.RotatePagesAsync(source, 1, 2, 90, destination);
+
+        Assert.Equal(
+            PdfProbe.PageRotations(PdfEditor.RotatePages(merged, 1, 2, 90)),
+            PdfProbe.PageRotations(destination.ToArray()));
+    }
+
+    // =============================================================================================
     // Metadata
     // =============================================================================================
 
