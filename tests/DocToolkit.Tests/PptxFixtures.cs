@@ -12,6 +12,12 @@ namespace DocToolkit.Tests;
 /// these clone the real fixture and mutate it instead: extra slides come from cloning the sample
 /// slide part, and the deck order is then set independently of the part order so the two can be
 /// told apart.
+///
+/// Several fixtures here (<see cref="DeckWithPlaceholderBox"/>,
+/// <see cref="DeckWithUnpositionedPlaceholder"/>) locate the sample slide's text with
+/// <c>.Single()</c> over its shapes and <c>.First()</c> over its text runs. That only works
+/// because <c>sample.pptx</c> holds exactly one shape and one text run — an invariant nothing
+/// enforces except this comment, so a change to that asset must preserve it.
 /// </summary>
 internal static class PptxFixtures
 {
@@ -110,6 +116,42 @@ internal static class PptxFixtures
                         { Height = 500000L }))
                 { Uri = "http://schemas.openxmlformats.org/drawingml/2006/table" }))));
 
+    /// <summary>
+    /// The sample deck plus a real p:grpSp holding one shape whose text is nothing but
+    /// <paramref name="placeholder"/>. ReplaceImage walks only a slide's direct p:sp children
+    /// (see the comment in <c>PresentationEditor.ReplaceImageCore</c>), so this is what exercises
+    /// "the placeholder genuinely exists on the slide, but only inside a group" rather than "does
+    /// not exist at all" — the two must produce different refusal messages.
+    /// </summary>
+    public static byte[] SampleWithPlaceholderInGroup(string placeholder) => Mutate(slide =>
+        slide.CommonSlideData!.ShapeTree!.AppendChild(new P.GroupShape(
+            new P.NonVisualGroupShapeProperties(
+                new P.NonVisualDrawingProperties { Id = 98U, Name = "Group 1" },
+                new P.NonVisualGroupShapeDrawingProperties(),
+                new P.ApplicationNonVisualDrawingProperties()),
+            new P.GroupShapeProperties(
+                new A.TransformGroup(
+                    new A.Offset { X = 0L, Y = 0L },
+                    new A.Extents { Cx = 1000000L, Cy = 1000000L },
+                    new A.ChildOffset { X = 0L, Y = 0L },
+                    new A.ChildExtents { Cx = 1000000L, Cy = 1000000L })),
+            new P.Shape(
+                new P.NonVisualShapeProperties(
+                    new P.NonVisualDrawingProperties { Id = 97U, Name = "Grouped Shape" },
+                    new P.NonVisualShapeDrawingProperties(),
+                    new P.ApplicationNonVisualDrawingProperties()),
+                new P.ShapeProperties(
+                    new A.Transform2D(
+                        new A.Offset { X = 0L, Y = 0L },
+                        new A.Extents { Cx = 500000L, Cy = 500000L }),
+                    new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle }),
+                new P.TextBody(
+                    new A.BodyProperties(),
+                    new A.ListStyle(),
+                    new A.Paragraph(new A.Run(
+                        new A.RunProperties { Language = "en-US" },
+                        new A.Text(placeholder))))))));
+
     /// <summary>Formatting of every run on the deck's first slide, in document order.</summary>
     public static (string Text, bool Bold)[] RunsOfFirstSlide(byte[] pptx)
     {
@@ -145,6 +187,23 @@ internal static class PptxFixtures
 
             slide.Descendants<A.Text>().First().Text = placeholder;
         });
+
+    /// <summary>
+    /// A one-slide deck holding a single shape whose text is nothing but
+    /// <paramref name="placeholder"/>, but with no <c>a:xfrm</c> of its own — the case
+    /// <see cref="DeckWithPlaceholderBox"/>'s doc comment says ReplaceImage must reject: a shape
+    /// that inherits its position from a layout rather than one a designer drew. Removing the
+    /// sample shape's own <c>a:xfrm</c> leaves the deck schema-valid, since <c>p:spPr</c> with no
+    /// <c>a:xfrm</c> child is valid — the shape then simply inherits whatever position its layout
+    /// gives it, which is exactly the "nowhere to put the image" case.
+    /// </summary>
+    public static byte[] DeckWithUnpositionedPlaceholder(string placeholder) => Mutate(slide =>
+    {
+        var shape = slide.CommonSlideData!.ShapeTree!.Elements<P.Shape>().Single();
+        shape.ShapeProperties!.Transform2D!.Remove();
+
+        slide.Descendants<A.Text>().First().Text = placeholder;
+    });
 
     /// <summary>Schema-validation errors for the whole package (empty means valid).</summary>
     public static IReadOnlyList<ValidationErrorInfo> Validate(byte[] pptx)

@@ -4,8 +4,9 @@ using Xunit;
 namespace DocToolkit.Tests;
 
 /// <summary>
-/// The fit arithmetic on its own. Tested here rather than through a .pptx package because a wrong
-/// number is the likely bug, and a package round trip would hide which number was wrong.
+/// <see cref="PptxPictureFactory"/> in isolation: the fit arithmetic, and the shape it builds.
+/// Tested here rather than through a .pptx package because a wrong number or a malformed element
+/// is the likely bug, and a package round trip would hide which one was wrong.
 /// </summary>
 public class PptxPictureFactoryTests
 {

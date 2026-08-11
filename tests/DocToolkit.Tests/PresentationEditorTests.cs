@@ -220,10 +220,12 @@ public class PresentationEditorTests
     [Fact]
     public void TheFixtureBoxCarriesTheExactPositionItWasAskedFor()
     {
-        // Pins the fixture itself. Every ReplaceImage assertion below is computed FROM these
-        // numbers, so a fixture that quietly placed the box elsewhere would make them all agree
-        // with each other and with nothing real.
-        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}", 1000000, 2000000, 4000000, 3000000);
+        // Pins the fixture itself. Deliberately NOT the method's own defaults (x=1000000,
+        // y=2000000, cx=4000000, cy=3000000) — passing those would let a fixture that ignored its
+        // arguments and always wrote the defaults pass this test too. Every ReplaceImage
+        // assertion below is computed FROM these numbers, so a fixture that quietly placed the box
+        // elsewhere would make them all agree with each other and with nothing real.
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}", 555000, 666000, 777000, 888000);
         Assert.Empty(PptxFixtures.Validate(pptx));
 
         using var ms = new MemoryStream(pptx);
@@ -233,10 +235,10 @@ public class PresentationEditorTests
                        .Slide!.CommonSlideData!.ShapeTree!.Elements<P.Shape>().Single();
         var xfrm = shape.ShapeProperties!.Transform2D!;
 
-        Assert.Equal(1000000L, xfrm.Offset!.X!.Value);
-        Assert.Equal(2000000L, xfrm.Offset.Y!.Value);
-        Assert.Equal(4000000L, xfrm.Extents!.Cx!.Value);
-        Assert.Equal(3000000L, xfrm.Extents.Cy!.Value);
+        Assert.Equal(555000L, xfrm.Offset!.X!.Value);
+        Assert.Equal(666000L, xfrm.Offset.Y!.Value);
+        Assert.Equal(777000L, xfrm.Extents!.Cx!.Value);
+        Assert.Equal(888000L, xfrm.Extents.Cy!.Value);
         Assert.Equal("{{chart}}", string.Concat(shape.Descendants<A.Text>().Select(t => t.Text)));
     }
 
@@ -329,6 +331,46 @@ public class PresentationEditorTests
     }
 
     [Fact]
+    public void APlaceholderSplitAcrossRunsIsFoundAndReplaced()
+    {
+        // Every fixture above writes the placeholder into a single a:t run. PowerPoint routinely
+        // splits one visible string across several runs (spell-check state, formatting changes),
+        // so this is the only test that would catch a regression from matching against each
+        // paragraph's concatenated text back to a naive per-run Contains check.
+        var pptx = PptxFixtures.SampleWithRuns(("{{ch", false), ("art}}", false));
+
+        var filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png());
+
+        using var ms = new MemoryStream(filled);
+        using var doc = PresentationDocument.Open(ms, false);
+        var tree = doc.PresentationPart!.SlideParts.Single().Slide!.CommonSlideData!.ShapeTree!;
+
+        Assert.Single(tree.Elements<P.Picture>());
+        Assert.Empty(tree.Elements<P.Shape>());
+    }
+
+    [Fact]
+    public void ADeckBuiltByCreateWorksWithReplaceImage()
+    {
+        // The design originally claimed a deck built by PresentationEditor.Create would be
+        // refused by ReplaceImage for carrying no explicit position, the same way an
+        // unpositioned layout placeholder is. That claim was wrong: PptxDocumentWriter.TextShape
+        // gives every shape it builds, title included, its own a:xfrm - there is nothing
+        // layout-inherited about it. This test exists so the corrected claim cannot silently
+        // regress back to the wrong one.
+        var deck = PresentationEditor.Create(new[] { PptxSlide.Titled("{{chart}}") });
+
+        var filled = PresentationEditor.ReplaceImage(deck, "{{chart}}", Png());
+
+        using var ms = new MemoryStream(filled);
+        using var doc = PresentationDocument.Open(ms, false);
+        var tree = doc.PresentationPart!.SlideParts.Single().Slide!.CommonSlideData!.ShapeTree!;
+
+        Assert.Single(tree.Elements<P.Picture>());
+        Assert.Empty(tree.Elements<P.Shape>());
+    }
+
+    [Fact]
     public void AShapeHoldingMoreThanThePlaceholderIsRefused()
     {
         // Refusing beats replacing: the unit swapped is the whole shape, so proceeding would
@@ -348,6 +390,38 @@ public class PresentationEditorTests
 
         Assert.Throws<DocumentConversionException>(
             () => PresentationEditor.ReplaceImage(pptx, "{{missing}}", Png()));
+    }
+
+    [Fact]
+    public void AShapeWithNoExplicitPositionIsRefused()
+    {
+        // The third of the feature's three refusals — a shape holding extra text and a
+        // placeholder matching nothing are both covered above; this is the one that was shipping
+        // untested: a shape that inherits its position from a layout rather than carrying its own
+        // a:xfrm, so there is nowhere to put the replacement picture.
+        var pptx = PptxFixtures.DeckWithUnpositionedPlaceholder("{{chart}}");
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png()));
+
+        Assert.Contains("Draw a text box", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APlaceholderInsideAGroupIsRefusedWithAnAccurateMessage()
+    {
+        // ReplaceImage only walks a slide's direct p:sp children - a shape inside a p:grpSp
+        // carries coordinates in the group's own space, so placing a picture there from
+        // slide-space numbers would put it somewhere unrelated. The placeholder genuinely exists
+        // on this slide, so the generic "does not appear in any shape" message would be false;
+        // this pins the message that names the real cause instead.
+        var pptx = PptxFixtures.SampleWithPlaceholderInGroup("{{chart}}");
+        Assert.Empty(PptxFixtures.Validate(pptx));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png()));
+
+        Assert.Contains("group", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -395,13 +469,29 @@ public class PresentationEditorTests
         using var destination = new MemoryStream();
         await PresentationEditor.ReplaceImageAsync(source, "{{chart}}", Png(), destination);
 
-        Assert.Equal(
-            PresentationEditor.ExtractText(PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png())),
-            PresentationEditor.ExtractText(destination.ToArray()));
+        // ExtractText would compare an empty list against an empty list here — the only shape
+        // was replaced by a picture, which ExtractText does not walk — and so would prove nothing
+        // about parity between the two paths. The picture's own xfrm does discriminate: a stream
+        // path that fit the image differently, or picked the wrong shape, produces different
+        // numbers rather than passing by coincidence.
+        var viaBytes = PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png());
+        Assert.Equal(PictureTransformOf(viaBytes), PictureTransformOf(destination.ToArray()));
 
         using var ms = new MemoryStream(destination.ToArray());
         using var doc = PresentationDocument.Open(ms, false);
         Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
+    }
+
+    /// <summary>The sole picture's offset and extent, for comparing two ReplaceImage results.</summary>
+    private static (long X, long Y, long Cx, long Cy) PictureTransformOf(byte[] pptx)
+    {
+        using var ms = new MemoryStream(pptx);
+        using var doc = PresentationDocument.Open(ms, false);
+        var picture = doc.PresentationPart!.SlideParts.Single()
+                         .Slide!.CommonSlideData!.ShapeTree!.Elements<P.Picture>().Single();
+        var xfrm = picture.ShapeProperties!.Transform2D!;
+
+        return (xfrm.Offset!.X!.Value, xfrm.Offset.Y!.Value, xfrm.Extents!.Cx!.Value, xfrm.Extents.Cy!.Value);
     }
 
     [Fact]

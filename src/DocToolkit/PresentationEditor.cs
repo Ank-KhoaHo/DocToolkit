@@ -366,6 +366,7 @@ public static class PresentationEditor
         var (imageCx, imageCy) = ImageInspector.Resolve(info, null, null);
 
         var replaced = 0;
+        var placeholderOnlyInsideAGroup = false;
 
         try
         {
@@ -378,7 +379,10 @@ public static class PresentationEditor
 
                     // Direct children only. A shape inside a group carries coordinates in the
                     // group's own space, so placing a picture there from slide-space numbers would
-                    // put it somewhere unrelated. Grouped placeholders are refused below instead.
+                    // put it somewhere unrelated. A placeholder that exists only inside a group is
+                    // therefore never matched by this loop; it is detected separately below so the
+                    // refusal at the end of this method can name that as the reason instead of
+                    // falsely reporting the placeholder as absent.
                     foreach (var shape in tree.Elements<P.Shape>().ToList())
                     {
                         var text = string.Concat(shape.Descendants<A.Text>().Select(t => t.Text));
@@ -446,6 +450,14 @@ public static class PresentationEditor
                         replaced++;
                     }
 
+                    if (replaced == 0 && !placeholderOnlyInsideAGroup)
+                    {
+                        placeholderOnlyInsideAGroup = tree.Descendants<P.GroupShape>()
+                            .SelectMany(group => group.Descendants<P.Shape>())
+                            .Any(shape => string.Concat(shape.Descendants<A.Text>().Select(t => t.Text))
+                                .Contains(placeholder, StringComparison.Ordinal));
+                    }
+
                     slidePart.Slide!.Save();
                 }
             }
@@ -457,6 +469,16 @@ public static class PresentationEditor
 
         if (replaced == 0)
         {
+            if (placeholderOnlyInsideAGroup)
+            {
+                throw new DocumentConversionException(
+                    $"'{placeholder}' appears only inside a grouped shape (p:grpSp). ReplaceImage "
+                    + "does not look inside groups: a shape inside one carries coordinates in the "
+                    + "group's own space, not the slide's, so there is no slide-space position to "
+                    + "give the replacement picture. Ungroup the shape, or draw the placeholder box "
+                    + "outside any group.");
+            }
+
             throw new DocumentConversionException(
                 $"'{placeholder}' does not appear in any shape, so nothing was replaced.");
         }

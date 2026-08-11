@@ -194,7 +194,7 @@ byte[] deck = PresentationEditor.Create(new[]
 // draws the box in PowerPoint where the chart belongs and the image lands there, scaled to fit
 // and centred. The box's text must be only the placeholder, or this is refused rather than done
 // silently: "Chart: {{chart}} (Q3)" would lose the words around it.
-byte[] withChart = PresentationEditor.ReplaceImage(deck, "{{chart}}", pngBytes);
+byte[] withChart = PresentationEditor.ReplaceImage(pptx, "{{chart}}", pngBytes);
 ```
 
 **Formulas carry no cached value.** A cell written with `XlsxFormula` holds the formula and nothing
