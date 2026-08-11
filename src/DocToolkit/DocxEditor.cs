@@ -391,12 +391,13 @@ public static class DocxEditor
             using var doc = WordprocessingDocument.Open(ms, false);
 
             var main = doc.MainDocumentPart;
-            var bodyText = main?.Document?.Body?.InnerText ?? string.Empty;
+            var body = main?.Document?.Body;
+            var bodyText = body is null ? string.Empty : BlockText(body);
             if (!includeHeadersAndFooters || main is null) return bodyText;
 
             var sb = new StringBuilder(bodyText);
-            foreach (var text in main.HeaderParts.Select(p => p.Header?.InnerText)
-                                     .Concat(main.FooterParts.Select(p => p.Footer?.InnerText)))
+            foreach (var text in main.HeaderParts.Select(p => p.Header is null ? null : BlockText(p.Header))
+                                     .Concat(main.FooterParts.Select(p => p.Footer is null ? null : BlockText(p.Footer))))
             {
                 if (string.IsNullOrEmpty(text)) continue;
                 if (sb.Length > 0) sb.Append('\n');
@@ -410,6 +411,54 @@ public static class DocxEditor
             throw new DocumentConversionException("Failed to read DOCX.", ex);
         }
     }
+
+    /// <summary>
+    /// The text of a block container — the body, a header, a footer, or a table cell — with block
+    /// boundaries preserved: <c>\n</c> between blocks, <c>\t</c> between the cells of a row.
+    ///
+    /// This exists because <c>InnerText</c> concatenates every descendant text node with no
+    /// separator whatsoever, so a heading "Title" followed by a paragraph "Body text." came back
+    /// as the single token <c>TitleBody text.</c> — indistinguishable to a substring search, wrong
+    /// for anything that tokenises, indexes or diffs. Fixed 2026-08-10; see the A26 backlog row.
+    ///
+    /// <b>Uses <c>Elements&lt;T&gt;()</c>, never <c>Descendants&lt;T&gt;()</c>.</b> This is the
+    /// same trap <see cref="TableRowFinder"/> documents: <c>Descendants</c> would yield the rows of
+    /// a table nested inside a cell as though they belonged to the outer table, flattening exactly
+    /// the structure this method exists to preserve. Nesting is handled by recursion instead, so
+    /// each level keeps its own separators.
+    /// </summary>
+    private static string BlockText(OpenXmlElement container)
+    {
+        var blocks = new List<string>();
+
+        foreach (var child in container.Elements())
+        {
+            switch (child)
+            {
+                case Paragraph paragraph:
+                    // InnerText, deliberately, rather than walking runs. A paragraph's runs are
+                    // fragments of ONE visible line — Word splits them on formatting, rsid and
+                    // revision boundaries — so separating them would reintroduce the run-splitting
+                    // bug that RunTextSplicer exists to solve, only in the reading direction.
+                    blocks.Add(paragraph.InnerText);
+                    break;
+                case Table table:
+                    blocks.Add(TableText(table));
+                    break;
+            }
+        }
+
+        return string.Join("\n", blocks);
+    }
+
+    /// <summary>
+    /// A table as text: cells joined by <c>\t</c> and rows by <c>\n</c>, which is what Word's own
+    /// "save as plain text" writes. Cells recurse through <see cref="BlockText"/> so a cell holding
+    /// several paragraphs, or a nested table, keeps its own structure.
+    /// </summary>
+    private static string TableText(Table table) =>
+        string.Join("\n", table.Elements<TableRow>()
+            .Select(row => string.Join("\t", row.Elements<TableCell>().Select(BlockText))));
 
     /// <summary>
     /// Expands a table row once per record, so a template can render a variable-length list such as

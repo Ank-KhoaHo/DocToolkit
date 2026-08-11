@@ -200,6 +200,54 @@ public class DocxEditorTests
     }
 
     // ---------------------------------------------------------------------------------------
+    // Block boundaries (A26). ExtractTextCore returned Body.InnerText, which concatenates every
+    // descendant text node with NO separator, so "Title" and "Body" came back as one token.
+    //
+    // Nineteen tests in this file and 845 elsewhere missed it, and the reason is worth keeping:
+    // every assertion touching ExtractText was structurally unable to see it. Assert.Contains is
+    // substring-based, so "First." and "Second." are both found in "First.Second."; the ordering
+    // check compares two IndexOf results, which also holds; and the exact-equality assertions
+    // compare ExtractText(a) against ExtractText(b) - the method against ITSELF, which is true
+    // whatever it does. The tests below assert the literal string, which is the only shape that
+    // can fail.
+    //
+    // Separator choice is not arbitrary: '\n' is already what this same method puts between the
+    // body and each header/footer part, so the body path was the odd one out. '\t' between cells
+    // matches what Word's own "save as plain text" writes.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ExtractText_SeparatesBlocks_SoAdjacentWordsDoNotFuse()
+    {
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Heading("Title", 1),
+            DocxBlock.Paragraph("Body text."),
+        });
+
+        var text = DocxEditor.ExtractText(docx);
+
+        Assert.DoesNotContain("TitleBody", text, StringComparison.Ordinal);
+        Assert.Equal("Title\nBody text.", text);
+    }
+
+    [Fact]
+    public void ExtractText_SeparatesTableCells_SoAdjacentCellsDoNotFuse()
+    {
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Table(
+                new[] { "Region", "Q1" },
+                new[] { new object?[] { "EMEA", 1200 } }),
+        });
+
+        var text = DocxEditor.ExtractText(docx);
+
+        Assert.DoesNotContain("RegionQ1", text, StringComparison.Ordinal);
+        Assert.Equal("Region\tQ1\nEMEA\t1200", text);
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Error handling (I-6).
     // ---------------------------------------------------------------------------------------
 
