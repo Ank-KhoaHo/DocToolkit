@@ -423,8 +423,18 @@ public static class PresentationEditor
                             imagePart.FeedData(content);
                         }
 
+                        // The id is load-bearing: this is a 1:1 swap of the replaced shape, so the
+                        // plan reuses its own p:cNvPr/@id rather than minting a new one — minting
+                        // one here could collide with an id already in use elsewhere in the deck.
+                        // A missing id means the input is malformed enough that there is no safe
+                        // id to give the picture, so this refuses rather than guessing. The name is
+                        // purely cosmetic (PowerPoint's selection pane label), so a missing one gets
+                        // a sensible fallback instead of failing the whole replacement over it.
                         var id = shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Id
-                                 ?? new UInt32Value(2U);
+                                 ?? throw new DocumentConversionException(
+                                     $"The shape holding '{placeholder}' has no p:cNvPr/@id, so "
+                                     + "there is no id to reuse for the replacement picture and it "
+                                     + "cannot be replaced.");
                         var name = shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name
                                    ?? new StringValue("Picture");
 

@@ -277,6 +277,42 @@ public class PresentationEditorTests
     }
 
     [Fact]
+    public void ReplaceImageFitsAMismatchedAspectRatioRatherThanForwardingTheBox()
+    {
+        // A SQUARE box (4000000x4000000 EMU) against the 64x48 (4:3) test image. Unlike
+        // ReplaceImagePutsAPictureWhereTheBoxWas, box and image ratios deliberately differ, so a
+        // wiring bug that forwards the shape's raw a:xfrm instead of PptxPictureFactory.Fit's
+        // output produces a DIFFERENT (wrong) result here rather than passing by coincidence.
+        var pptx = PptxFixtures.DeckWithPlaceholderBox(
+            "{{chart}}", x: 1000000, y: 2000000, cx: 4000000, cy: 4000000);
+
+        var filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png());
+
+        using var ms = new MemoryStream(filled);
+        using var doc = PresentationDocument.Open(ms, false);
+        var slidePart = doc.PresentationPart!.SlideParts.Single();
+        var tree = slidePart.Slide!.CommonSlideData!.ShapeTree!;
+
+        var picture = Assert.Single(tree.Elements<P.Picture>());
+        Assert.Empty(tree.Elements<P.Shape>());
+
+        // Fit rule: scale = min(boxCx/imageCx, boxCy/imageCy), image scaled by that factor and
+        // centred in the box.
+        //   scale = min(4000000/64, 4000000/48) = min(62500, 83333.33) = 62500   (width binds)
+        //   cx    = round(64 * 62500) = 4000000
+        //   cy    = round(48 * 62500) = 3000000
+        //   x     = boxX + (boxCx - cx) / 2 = 1000000 + (4000000 - 4000000) / 2 = 1000000
+        //   y     = boxY + (boxCy - cy) / 2 = 2000000 + (4000000 - 3000000) / 2 = 2500000
+        // Width fills the box exactly; height is letterboxed with 500000 EMU of equal slack above
+        // (2000000..2500000) and below (5500000..6000000).
+        var xfrm = picture.ShapeProperties!.Transform2D!;
+        Assert.Equal(1000000L, xfrm.Offset!.X!.Value);
+        Assert.Equal(2500000L, xfrm.Offset.Y!.Value);
+        Assert.Equal(4000000L, xfrm.Extents!.Cx!.Value);
+        Assert.Equal(3000000L, xfrm.Extents.Cy!.Value);
+    }
+
+    [Fact]
     public void TheImagePartBelongsToTheSlideNotThePresentation()
     {
         var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
