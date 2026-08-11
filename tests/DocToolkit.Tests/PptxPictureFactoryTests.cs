@@ -1,3 +1,4 @@
+using DocumentFormat.OpenXml.Validation;
 using Xunit;
 
 namespace DocToolkit.Tests;
@@ -8,6 +9,21 @@ namespace DocToolkit.Tests;
 /// </summary>
 public class PptxPictureFactoryTests
 {
+    [Fact]
+    public void PictureProducesASchemaConformantElement()
+    {
+        // Proves the doc comment's ordering claim directly against the schema, without needing a
+        // full package — that is covered separately, where the relationship actually resolves.
+        // OpenXmlValidator.Validate(OpenXmlElement) validates a standalone element, no part or
+        // package required.
+        var picture = PptxPictureFactory.Picture(
+            id: 1, name: "Picture 1", relationshipId: "rId1", x: 0, y: 0, cx: 100, cy: 100);
+
+        var errors = new OpenXmlValidator().Validate(picture).ToList();
+
+        Assert.Empty(errors);
+    }
+
     [Fact]
     public void AnImageMatchingTheBoxRatioFillsItExactly()
     {
