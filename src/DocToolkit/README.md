@@ -379,6 +379,9 @@ byte[] bundle = PdfEditor.Merge([cover, invoice, terms]);
 
 // And take a range back out. firstPage is 1-based, the way a reader numbers pages.
 byte[] justTheInvoice = PdfEditor.ExtractPages(bundle, firstPage: 2, count: 1);
+
+// Or keep everything except a range - the complement of ExtractPages.
+byte[] withoutTheCover = PdfEditor.RemovePages(bundle, firstPage: 1, count: 1);
 ```
 
 Document information — what a file manager shows in its properties panel, and what a search
@@ -399,7 +402,7 @@ directions. Reading, that lets you tell "no title" from "a title deliberately se
 writing, a `null` property leaves what the document already had alone, so stamping a title does not
 silently erase the author.
 
-`Stream` overloads exist for `PageCount`, `Merge` and `ExtractPages`. Unreadable input raises
+`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages` and `RemovePages`. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
 ## How the no-network guarantee is built

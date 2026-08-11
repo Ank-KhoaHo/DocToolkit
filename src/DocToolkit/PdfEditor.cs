@@ -144,6 +144,66 @@ public static class PdfEditor
         await destination.WriteAsync(ExtractPages(pdf, firstPage, count), ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// A new document with <paramref name="count"/> pages removed, starting at
+    /// <paramref name="firstPage"/>. The complement of <see cref="ExtractPages(byte[], int, int)"/>:
+    /// that one keeps the range, this one keeps everything else.
+    /// </summary>
+    /// <param name="pdf">The document to take pages out of. It is not modified.</param>
+    /// <param name="firstPage">1-based, because that is how a reader numbers pages.</param>
+    /// <param name="count">How many pages to drop, starting at <paramref name="firstPage"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The range is not entirely inside the document, or it covers every page. Removing everything
+    /// would leave a zero-page file, which is not a document any reader will open — refusing is more
+    /// useful than returning it. The range is checked as a whole for the same reason as
+    /// <see cref="ExtractPages(byte[], int, int)"/>: a start inside the document with a count that
+    /// runs off the end is the mistake worth catching, and neither argument is wrong on its own.
+    /// </exception>
+    public static byte[] RemovePages(byte[] pdf, int firstPage, int count)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        ArgumentOutOfRangeException.ThrowIfLessThan(firstPage, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
+
+        using var input = Open(pdf, PdfDocumentOpenMode.Import);
+
+        if (firstPage + count - 1 > input.PageCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count), count,
+                $"Pages {firstPage}-{firstPage + count - 1} were requested for removal from a "
+                + $"document with {input.PageCount} page(s).");
+        }
+
+        if (count >= input.PageCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count), count,
+                $"Removing {count} of {input.PageCount} page(s) would leave nothing. A zero-page "
+                + "PDF is not a document.");
+        }
+
+        using var kept = new PdfDocument();
+        for (var page = 1; page <= input.PageCount; page++)
+        {
+            if (page >= firstPage && page < firstPage + count) continue;
+            kept.AddPage(input.Pages[page - 1]);
+        }
+
+        return Save(kept);
+    }
+
+    /// <inheritdoc cref="RemovePages(byte[], int, int)"/>
+    public static async Task RemovePagesAsync(
+        Stream source, int firstPage, int count, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
+        await destination.WriteAsync(RemovePages(pdf, firstPage, count), ct).ConfigureAwait(false);
+    }
+
     /// <summary>The document information <paramref name="pdf"/> carries.</summary>
     public static PdfMetadata ReadMetadata(byte[] pdf)
     {

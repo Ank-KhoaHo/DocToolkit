@@ -100,6 +100,66 @@ public class PdfEditorTests
         Assert.ThrowsAny<ArgumentException>(() => PdfEditor.ExtractPages(merged, firstPage, count));
     }
 
+    // =============================================================================================
+    // Remove pages — the other half of the split (A25)
+    // =============================================================================================
+
+    [Fact]
+    public async Task RemovingAPageDropsThatPageAndKeepsTheOthers()
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        var trimmed = PdfEditor.RemovePages(merged, 2, 1);
+
+        // Asserting the CONTENT, not just the count. A page-count assertion passes just as well
+        // when the wrong page was dropped, which is the blindness B16 exists to stop.
+        Assert.Equal(2, PdfEditor.PageCount(trimmed));
+        var text = PdfProbe.ExtractText(trimmed);
+        Assert.Contains("Alpha", text, StringComparison.Ordinal);
+        Assert.Contains("Charlie", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Bravo", text, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]      // pages are 1-based; 0 is not a page
+    [InlineData(1, 0)]      // removing no pages
+    [InlineData(4, 1)]      // past the end
+    [InlineData(3, 2)]      // starts inside, runs off the end
+    public async Task ARemovalRangeOutsideTheDocumentIsRejected(int firstPage, int count)
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        Assert.ThrowsAny<ArgumentException>(() => PdfEditor.RemovePages(merged, firstPage, count));
+    }
+
+    [Fact]
+    public async Task RemovingEveryPageIsRejected()
+    {
+        // A zero-page PDF is not a document. Refusing is more useful than handing back something
+        // no reader will open.
+        var merged = PdfEditor.Merge([await PdfAsync("Alpha"), await PdfAsync("Bravo")]);
+
+        Assert.ThrowsAny<ArgumentException>(() => PdfEditor.RemovePages(merged, 1, 2));
+    }
+
+    [Fact]
+    public async Task RemovePagesThroughStreamsMatchesTheByteArrayOverload()
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        using var source = new MemoryStream(merged, writable: false);
+        using var destination = new MemoryStream();
+        await PdfEditor.RemovePagesAsync(source, 2, 1, destination);
+
+        Assert.Equal(
+            PdfProbe.ExtractText(PdfEditor.RemovePages(merged, 2, 1)),
+            PdfProbe.ExtractText(destination.ToArray()));
+        Assert.Equal(2, PdfEditor.PageCount(destination.ToArray()));
+    }
+
     [Fact]
     public async Task TheWholeDocumentIsAValidRange()
     {
