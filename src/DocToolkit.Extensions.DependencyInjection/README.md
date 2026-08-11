@@ -141,6 +141,27 @@ option says, since a call naming a page is answering a narrower question than co
 
 ## Migrating
 
+### 0.20.x to 0.21.0 - `DocxEditor.ExtractText` now separates blocks
+
+Before 0.21.0 `ExtractText` returned the document's raw concatenated text, with **no separator
+between blocks at all**. A heading `Title` followed by a paragraph `Body text.` came back as the
+single token `TitleBody text.`, and adjacent table cells `A` and `B` came back as `AB`. Word
+boundaries were lost, so anything that tokenised, indexed or diffed the result got fused words.
+
+From 0.21.0 blocks are separated by `\n` and the cells of a table row by `\t` - which is what
+Word's own *save as plain text* writes, and what this method already did between the body and any
+headers or footers.
+
+```csharp
+// 0.20.x  ->  "TitleBody text."
+// 0.21.0  ->  "Title\nBody text."
+string text = DocxEditor.ExtractText(docx);
+```
+
+Substring checks such as `text.Contains("Title")` are unaffected. **Exact-match comparisons against
+the old fused output will need updating** - that is the whole of the breaking change. If you need
+the previous shape, `text.Replace("\n", "").Replace("\t", "")` reproduces it.
+
 ### 0.15.0 to 0.16.0 - the extensions package needs a newer DI abstraction
 
 No behaviour change, but a **floor you may have to satisfy**.
