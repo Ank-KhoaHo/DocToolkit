@@ -10,6 +10,25 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.21.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.20.0...v0.21.0) (2026-08-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** DocxEditor.ExtractText and ExtractTextAsync now separate blocks with \n and table cells with \t. Previously all text was concatenated with no separator. text.Replace("\n", "").Replace("\t", "") reproduces the old output.
+
+### Added
+
+* **core:** add PdfEditor.RemovePages, the complement of ExtractPages ([#198](https://github.com/Ank-KhoaHo/DocToolkit/issues/198)) ([5ede858](https://github.com/Ank-KhoaHo/DocToolkit/commit/5ede858200f9e76f04f30e6ab40431436ee9a13b))
+* **core:** add PdfEditor.ReorderPages and InsertPages, closing A25 ([#200](https://github.com/Ank-KhoaHo/DocToolkit/issues/200)) ([92e7768](https://github.com/Ank-KhoaHo/DocToolkit/commit/92e77682785774a69be84ef4f4ddb5ce8b138d3f))
+* **core:** add PdfEditor.RotatePages, turning pages a quarter at a time ([#199](https://github.com/Ank-KhoaHo/DocToolkit/issues/199)) ([5877fff](https://github.com/Ank-KhoaHo/DocToolkit/commit/5877fffc370179a590170611c30d12e993be5613))
+* **core:** add PresentationEditor.ReplaceImage ([#201](https://github.com/Ank-KhoaHo/DocToolkit/issues/201)) ([4e17d12](https://github.com/Ank-KhoaHo/DocToolkit/commit/4e17d1257c58d986ef3f6105eae3e35b4c9dcdfc))
+
+
+### Fixed
+
+* **core:** separate block boundaries in DocxEditor.ExtractText ([#195](https://github.com/Ank-KhoaHo/DocToolkit/issues/195)) ([3f67241](https://github.com/Ank-KhoaHo/DocToolkit/commit/3f67241416c30a8d15eefc54b523729d5601e1fc))
+
 ## [0.20.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.19.1...v0.20.0) (2026-08-10)
 
 
