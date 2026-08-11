@@ -323,6 +323,136 @@ public static class PresentationEditor
     }
 
     /// <summary>
+    /// Replaces every shape whose text is exactly <paramref name="placeholder"/> with
+    /// <paramref name="image"/>, which is scaled to fit inside that shape's box and centred there.
+    ///
+    /// Position and size come from the template, so there is nothing to pass: a designer draws a
+    /// box in PowerPoint where the image belongs and the image lands there. This deliberately does
+    /// not mirror <see cref="DocxEditor.ReplaceImage"/>'s size arguments — a DOCX image is inline
+    /// in the text flow and needs a size, a PPTX picture is a positioned shape and already has one.
+    ///
+    /// The shape's text must be nothing but the placeholder. The unit replaced is the whole shape,
+    /// so a shape reading <c>Chart: {{chart}} (Q3)</c> would lose the words around the placeholder
+    /// — silently, and with a schema-valid result. That is refused instead.
+    ///
+    /// PNG and JPEG only, detected from magic bytes rather than any filename.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> or <paramref name="image"/> is empty, or <paramref name="placeholder"/>
+    /// is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The placeholder appears nowhere, a matched shape holds other text, a matched shape has no
+    /// explicit position, the image is neither PNG nor JPEG, or the package could not be edited.
+    /// </exception>
+    public static byte[] ReplaceImage(byte[] pptx, string placeholder, byte[] image)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(placeholder);
+        ArgumentNullException.ThrowIfNull(image);
+        if (image.Length == 0)
+            throw new ArgumentException("Image content was empty.", nameof(image));
+
+        using var ms = OpenForWrite(pptx);
+        ReplaceImageCore(ms, placeholder, image);
+        return ms.ToArray();
+    }
+
+    private static void ReplaceImageCore(MemoryStream ms, string placeholder, byte[] image)
+    {
+        // Inspect before opening the package: an unsupported format is the caller's mistake and
+        // should not depend on whether the deck happens to be readable.
+        var info = ImageInspector.Inspect(image);
+        var (imageCx, imageCy) = ImageInspector.Resolve(info, null, null);
+
+        var replaced = 0;
+
+        try
+        {
+            using (var doc = OpenDocument(ms, true))
+            {
+                foreach (var slidePart in SlidesInDeckOrder(PresentationPartOf(doc)))
+                {
+                    var tree = slidePart.Slide?.CommonSlideData?.ShapeTree;
+                    if (tree is null) continue;
+
+                    // Direct children only. A shape inside a group carries coordinates in the
+                    // group's own space, so placing a picture there from slide-space numbers would
+                    // put it somewhere unrelated. Grouped placeholders are refused below instead.
+                    foreach (var shape in tree.Elements<P.Shape>().ToList())
+                    {
+                        var text = string.Concat(shape.Descendants<A.Text>().Select(t => t.Text));
+                        if (!text.Contains(placeholder, StringComparison.Ordinal)) continue;
+
+                        if (text.Trim() != placeholder)
+                        {
+                            throw new DocumentConversionException(
+                                $"The shape holding '{placeholder}' also holds other text "
+                                + $"(\"{text}\"). ReplaceImage swaps the whole shape, so its text "
+                                + "must be only the placeholder — anything else would be silently "
+                                + "discarded. Put the placeholder in a box of its own.");
+                        }
+
+                        var xfrm = shape.ShapeProperties?.Transform2D;
+                        if (xfrm?.Offset?.X is null || xfrm.Offset.Y is null
+                            || xfrm.Extents?.Cx is null || xfrm.Extents.Cy is null)
+                        {
+                            throw new DocumentConversionException(
+                                $"The shape holding '{placeholder}' has no position of its own, so "
+                                + "there is nowhere to put the image. Draw a text box rather than "
+                                + "using an unpositioned layout placeholder.");
+                        }
+
+                        var (x, y, cx, cy) = PptxPictureFactory.Fit(
+                            xfrm.Offset.X!.Value, xfrm.Offset.Y!.Value,
+                            xfrm.Extents.Cx!.Value, xfrm.Extents.Cy!.Value,
+                            imageCx, imageCy);
+
+                        // The image part belongs to the slide that owns the shape. On the
+                        // presentation part the relationship resolves in the wrong scope and
+                        // PowerPoint renders nothing at all.
+                        //
+                        // Not slidePart.AddImagePart(ImagePartType...): in this SDK version that
+                        // extension takes a PartTypeInfo (or a raw content-type string) rather than
+                        // ImagePartType, so it does not resolve against the enum. AddNewPart<T> with
+                        // an explicit content type is the same pattern DocxEditor's own AddImagePart
+                        // helper already uses.
+                        var imagePart = slidePart.AddNewPart<ImagePart>(info.ContentType);
+                        using (var content = new MemoryStream(image, writable: false))
+                        {
+                            imagePart.FeedData(content);
+                        }
+
+                        var id = shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Id
+                                 ?? new UInt32Value(2U);
+                        var name = shape.NonVisualShapeProperties?.NonVisualDrawingProperties?.Name
+                                   ?? new StringValue("Picture");
+
+                        shape.Parent!.ReplaceChild(
+                            PptxPictureFactory.Picture(
+                                id!, name!, slidePart.GetIdOfPart(imagePart), x, y, cx, cy),
+                            shape);
+
+                        replaced++;
+                    }
+
+                    slidePart.Slide!.Save();
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to edit PPTX.", ex);
+        }
+
+        if (replaced == 0)
+        {
+            throw new DocumentConversionException(
+                $"'{placeholder}' does not appear in any shape, so nothing was replaced.");
+        }
+    }
+
+    /// <summary>
     /// Slide parts in the order the deck presents them.
     ///
     /// <c>PresentationPart.SlideParts</c> is part-relationship order, which has nothing to do with

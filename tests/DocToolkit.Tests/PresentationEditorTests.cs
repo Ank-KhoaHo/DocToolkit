@@ -239,4 +239,110 @@ public class PresentationEditorTests
         Assert.Equal(3000000L, xfrm.Extents.Cy!.Value);
         Assert.Equal("{{chart}}", string.Concat(shape.Descendants<A.Text>().Select(t => t.Text)));
     }
+
+    // -----------------------------------------------------------------------------------------
+    // Task 4: ReplaceImage(byte[]) and its two refusals.
+    // -----------------------------------------------------------------------------------------
+
+    private static byte[] Png() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAIAAAD1Nh4LAAAAI0lEQVR4nO3BAQ0AAADCoP" +
+        "dPbQ8HFAAAAAAAAAAAAAAAAAAA8G0hAAABmmDh1QAAAABJRU5ErkJggg==");
+
+    [Fact]
+    public void ReplaceImagePutsAPictureWhereTheBoxWas()
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}", 1000000, 2000000, 4000000, 3000000);
+
+        var filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png());
+
+        using var ms = new MemoryStream(filled);
+        using var doc = PresentationDocument.Open(ms, false);
+        var slidePart = doc.PresentationPart!.SlideParts.Single();
+        var tree = slidePart.Slide!.CommonSlideData!.ShapeTree!;
+
+        var picture = Assert.Single(tree.Elements<P.Picture>());
+        Assert.Empty(tree.Elements<P.Shape>());     // the text box is GONE, not merely joined
+
+        // The image is 64x48 px at 96 DPI, i.e. 4:3 — the same ratio as the box — so it fills the
+        // box exactly and sits at the box origin. Computed, not copied from a previous run.
+        var xfrm = picture.ShapeProperties!.Transform2D!;
+        Assert.Equal(1000000L, xfrm.Offset!.X!.Value);
+        Assert.Equal(2000000L, xfrm.Offset.Y!.Value);
+        Assert.Equal(4000000L, xfrm.Extents!.Cx!.Value);
+        Assert.Equal(3000000L, xfrm.Extents.Cy!.Value);
+
+        // The blip must resolve against THIS slide part, which is the ownership trap.
+        var embed = picture.BlipFill!.Blip!.Embed!.Value!;
+        Assert.NotNull(slidePart.GetPartById(embed));
+    }
+
+    [Fact]
+    public void TheImagePartBelongsToTheSlideNotThePresentation()
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
+
+        var filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png());
+
+        using var ms = new MemoryStream(filled);
+        using var doc = PresentationDocument.Open(ms, false);
+
+        Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
+        // PresentationPart has no ImageParts property of its own (unlike SlidePart) — walk parts
+        // by type instead, which is exactly what the ownership assertion needs anyway.
+        Assert.Empty(doc.PresentationPart.GetPartsOfType<ImagePart>());
+    }
+
+    [Fact]
+    public void AShapeHoldingMoreThanThePlaceholderIsRefused()
+    {
+        // Refusing beats replacing: the unit swapped is the whole shape, so proceeding would
+        // destroy "Chart: " and " (Q3)" with no error and no schema violation.
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("Chart: {{chart}} (Q3)");
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png()));
+
+        Assert.Contains("only", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void APlaceholderThatMatchesNothingIsRefused()
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
+
+        Assert.Throws<DocumentConversionException>(
+            () => PresentationEditor.ReplaceImage(pptx, "{{missing}}", Png()));
+    }
+
+    [Fact]
+    public void SomethingThatIsNotAnImageIsRefused()
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
+
+        Assert.Throws<DocumentConversionException>(
+            () => PresentationEditor.ReplaceImage(pptx, "{{chart}}", "not an image"u8.ToArray()));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AMissingPlaceholderIsRejectedBeforeAnyWork(string? placeholder)
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{c}}");
+
+        Assert.ThrowsAny<ArgumentException>(
+            () => PresentationEditor.ReplaceImage(pptx, placeholder!, Png()));
+    }
+
+    [Fact]
+    public void AMissingImageIsRejectedBeforeAnyWork()
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{c}}");
+
+        Assert.Throws<ArgumentNullException>(
+            () => PresentationEditor.ReplaceImage(pptx, "{{c}}", null!));
+        Assert.Throws<ArgumentException>(
+            () => PresentationEditor.ReplaceImage(pptx, "{{c}}", []));
+    }
 }
