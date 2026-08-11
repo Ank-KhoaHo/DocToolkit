@@ -381,4 +381,42 @@ public class PresentationEditorTests
         Assert.Throws<ArgumentException>(
             () => PresentationEditor.ReplaceImage(pptx, "{{c}}", []));
     }
+
+    // -----------------------------------------------------------------------------------------
+    // Task 5: ReplaceImageAsync's Stream and file-path overloads.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ReplaceImageAsync_ThroughStreams_MatchesTheByteArrayOverload()
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
+
+        using var source = new MemoryStream(pptx, writable: false);
+        using var destination = new MemoryStream();
+        await PresentationEditor.ReplaceImageAsync(source, "{{chart}}", Png(), destination);
+
+        Assert.Equal(
+            PresentationEditor.ExtractText(PresentationEditor.ReplaceImage(pptx, "{{chart}}", Png())),
+            PresentationEditor.ExtractText(destination.ToArray()));
+
+        using var ms = new MemoryStream(destination.ToArray());
+        using var doc = PresentationDocument.Open(ms, false);
+        Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
+    }
+
+    [Fact]
+    public async Task ReplaceImageAsync_FromFileToFile_ReplacesThePlaceholder()
+    {
+        var pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.ReplaceImageAsync(input.Path, output.Path, "{{chart}}", Png());
+
+        using var ms = new MemoryStream(await File.ReadAllBytesAsync(output.Path));
+        using var doc = PresentationDocument.Open(ms, false);
+        Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
+    }
 }

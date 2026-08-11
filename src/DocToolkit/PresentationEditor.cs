@@ -463,6 +463,52 @@ public static class PresentationEditor
     }
 
     /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, replaces every shape whose text is exactly
+    /// <paramref name="placeholder"/> with <paramref name="image"/>, and writes the result to
+    /// <paramref name="destination"/> — see <see cref="ReplaceImage"/> for exactly what counts as a
+    /// match and how the image is fit into the matched shape's box.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="placeholder">The placeholder text a shape must hold, and hold only.</param>
+    /// <param name="image">PNG or JPEG bytes. The format is decided by the bytes, never a filename.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="placeholder"/> is blank, <paramref name="image"/> is empty,
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The placeholder appears nowhere, a matched shape holds other text, a matched shape has no
+    /// explicit position, the image is neither PNG nor JPEG, or the package could not be edited.
+    /// </exception>
+    public static async Task ReplaceImageAsync(
+        Stream source, string placeholder, byte[] image, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(placeholder);
+        ArgumentNullException.ThrowIfNull(image);
+        if (image.Length == 0)
+            throw new ArgumentException("Image content was empty.", nameof(image));
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX.", ct)
+            .ConfigureAwait(false);
+
+        ReplaceImageCore(ms, placeholder, image);
+
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Slide parts in the order the deck presents them.
     ///
     /// <c>PresentationPart.SlideParts</c> is part-relationship order, which has nothing to do with
@@ -602,6 +648,50 @@ public static class PresentationEditor
 
         var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
         var result = ReplaceText(bytes, replacements);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="inputPath"/>, replaces every shape whose text is exactly
+    /// <paramref name="placeholder"/> with <paramref name="image"/>, and writes the result to
+    /// <paramref name="outputPath"/> — see <see cref="ReplaceImage"/> for exactly what counts as a
+    /// match and how the image is fit into the matched shape's box. The two paths may be the same
+    /// file: the updated bytes are computed in full before <paramref name="outputPath"/> is opened,
+    /// so a document that fails to process — cannot be read, or cannot be edited — leaves
+    /// <paramref name="outputPath"/> untouched. That guarantee does not extend to a failure during
+    /// the write itself: a full disk, a cancellation, or the process dying mid-write can still leave
+    /// a partial file, so in-place editing of an irreplaceable document is not crash-safe.
+    /// </summary>
+    /// <param name="inputPath">The .pptx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="placeholder">The placeholder text a shape must hold, and hold only.</param>
+    /// <param name="image">PNG or JPEG bytes. The format is decided by the bytes, never a filename.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// A path, <paramref name="placeholder"/> or <paramref name="image"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, <paramref name="placeholder"/>
+    /// is blank, or <paramref name="image"/> is empty.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The placeholder appears nowhere, a matched shape holds other text, a matched shape has no
+    /// explicit position, the image is neither PNG nor JPEG, or the package could not be edited.
+    /// </exception>
+    public static async Task ReplaceImageAsync(
+        string inputPath, string outputPath, string placeholder, byte[] image,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var result = ReplaceImage(bytes, placeholder, image);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
 }
