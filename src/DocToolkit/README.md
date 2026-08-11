@@ -382,6 +382,9 @@ byte[] justTheInvoice = PdfEditor.ExtractPages(bundle, firstPage: 2, count: 1);
 
 // Or keep everything except a range - the complement of ExtractPages.
 byte[] withoutTheCover = PdfEditor.RemovePages(bundle, firstPage: 1, count: 1);
+
+// Turn a page that came out sideways. Relative, so calling it twice leaves you at 180.
+byte[] upright = PdfEditor.RotatePages(bundle, firstPage: 3, count: 1, degrees: 90);
 ```
 
 Document information — what a file manager shows in its properties panel, and what a search
@@ -402,7 +405,7 @@ directions. Reading, that lets you tell "no title" from "a title deliberately se
 writing, a `null` property leaves what the document already had alone, so stamping a title does not
 silently erase the author.
 
-`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages` and `RemovePages`. Unreadable input raises
+`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages` and `RotatePages`. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
 ## How the no-network guarantee is built

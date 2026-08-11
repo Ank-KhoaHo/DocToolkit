@@ -204,6 +204,75 @@ public static class PdfEditor
         await destination.WriteAsync(RemovePages(pdf, firstPage, count), ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// A copy of <paramref name="pdf"/> with <paramref name="count"/> pages turned clockwise by
+    /// <paramref name="degrees"/>, starting at <paramref name="firstPage"/>.
+    /// </summary>
+    /// <param name="pdf">The document to turn pages in. It is not modified.</param>
+    /// <param name="firstPage">1-based, because that is how a reader numbers pages.</param>
+    /// <param name="count">How many pages to turn, starting at <paramref name="firstPage"/>.</param>
+    /// <param name="degrees">
+    /// How far to turn, clockwise, as a multiple of 90. Negative turns anticlockwise.
+    ///
+    /// <b>This is relative, not absolute</b> — it adds to whatever rotation the page already
+    /// carries, so calling it twice with 90 leaves the page at 180. That is the operation people
+    /// actually want ("this scan came out sideways, turn it"), and an absolute setter would both
+    /// leak PDF's own <c>/Rotate</c> model into the API and silently do nothing on a page that
+    /// already held the value asked for.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The range is not entirely inside the document, or <paramref name="degrees"/> is not a
+    /// multiple of 90. The PDF specification requires <c>/Rotate</c> to be a quarter turn, so
+    /// accepting 45 would write a file readers disagree about rather than fail.
+    /// </exception>
+    public static byte[] RotatePages(byte[] pdf, int firstPage, int count, int degrees)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        ArgumentOutOfRangeException.ThrowIfLessThan(firstPage, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
+
+        if (degrees % 90 != 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(degrees), degrees,
+                "A PDF page rotation must be a multiple of 90 degrees.");
+        }
+
+        using var document = Open(pdf, PdfDocumentOpenMode.Modify);
+
+        if (firstPage + count - 1 > document.PageCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count), count,
+                $"Pages {firstPage}-{firstPage + count - 1} were requested for rotation from a "
+                + $"document with {document.PageCount} page(s).");
+        }
+
+        for (var offset = 0; offset < count; offset++)
+        {
+            var page = document.Pages[firstPage - 1 + offset];
+
+            // Normalised into [0, 360) because PdfSharp rejects anything outside it, and because a
+            // page that has been turned four times should read as upright rather than as 360.
+            page.Rotate = ((page.Rotate + degrees) % 360 + 360) % 360;
+        }
+
+        return Save(document);
+    }
+
+    /// <inheritdoc cref="RotatePages(byte[], int, int, int)"/>
+    public static async Task RotatePagesAsync(
+        Stream source, int firstPage, int count, int degrees, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
+        await destination.WriteAsync(RotatePages(pdf, firstPage, count, degrees), ct)
+                         .ConfigureAwait(false);
+    }
+
     /// <summary>The document information <paramref name="pdf"/> carries.</summary>
     public static PdfMetadata ReadMetadata(byte[] pdf)
     {
