@@ -385,6 +385,12 @@ byte[] withoutTheCover = PdfEditor.RemovePages(bundle, firstPage: 1, count: 1);
 
 // Turn a page that came out sideways. Relative, so calling it twice leaves you at 180.
 byte[] upright = PdfEditor.RotatePages(bundle, firstPage: 3, count: 1, degrees: 90);
+
+// Put the pages in a different order - a permutation of every page, not a subset.
+byte[] resequenced = PdfEditor.ReorderPages(bundle, [3, 1, 2]);
+
+// Slot another document in. atPage is where its first page lands; PageCount + 1 appends.
+byte[] withAppendix = PdfEditor.InsertPages(bundle, appendix, atPage: 2);
 ```
 
 Document information — what a file manager shows in its properties panel, and what a search
@@ -405,7 +411,7 @@ directions. Reading, that lets you tell "no title" from "a title deliberately se
 writing, a `null` property leaves what the document already had alone, so stamping a title does not
 silently erase the author.
 
-`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages` and `RotatePages`. Unreadable input raises
+`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages` and `InsertPages` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
 ## How the no-network guarantee is built

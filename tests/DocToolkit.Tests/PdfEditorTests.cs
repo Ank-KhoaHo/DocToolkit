@@ -268,6 +268,106 @@ public class PdfEditorTests
     }
 
     // =============================================================================================
+    // Reorder and insert (A25) — the last two page operations
+    //
+    // ReorderPages takes a strict PERMUTATION: the same pages, in a different order. Not a subset,
+    // not with repeats. "Reorder" that quietly dropped a page would be the worst kind of bug here,
+    // because the output still looks like a document. Taking a subset is what ExtractPages is for.
+    // =============================================================================================
+
+    [Fact]
+    public async Task ReorderingPutsThePagesInTheOrderGiven()
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        var reordered = PdfEditor.ReorderPages(merged, [3, 1, 2]);
+
+        // Asserting position by position. A count assertion would pass on any permutation at all,
+        // including the identity, which would make this test decorative.
+        Assert.Equal(3, PdfEditor.PageCount(reordered));
+        Assert.Contains("Charlie", PdfProbe.ExtractText(PdfEditor.ExtractPages(reordered, 1, 1)), StringComparison.Ordinal);
+        Assert.Contains("Alpha", PdfProbe.ExtractText(PdfEditor.ExtractPages(reordered, 2, 1)), StringComparison.Ordinal);
+        Assert.Contains("Bravo", PdfProbe.ExtractText(PdfEditor.ExtractPages(reordered, 3, 1)), StringComparison.Ordinal);
+    }
+
+    public static TheoryData<int[]> NotPermutations => new()
+    {
+        new[] { 1, 2 },         // a page is missing
+        new[] { 1, 2, 2 },      // a page repeated, another dropped
+        new[] { 1, 2, 4 },      // past the end
+        new[] { 0, 1, 2 },      // pages are 1-based
+        new[] { 1, 2, 3, 3 },   // more entries than pages
+    };
+
+    [Theory]
+    [MemberData(nameof(NotPermutations))]
+    public async Task AnOrderThatIsNotAPermutationOfEveryPageIsRejected(int[] order)
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        Assert.ThrowsAny<ArgumentException>(() => PdfEditor.ReorderPages(merged, order));
+    }
+
+    [Fact]
+    public async Task InsertingPutsTheSourcePagesAtTheGivenPosition()
+    {
+        var target = PdfEditor.Merge([await PdfAsync("Alpha"), await PdfAsync("Charlie")]);
+        var source = await PdfAsync("Bravo");
+
+        var combined = PdfEditor.InsertPages(target, source, atPage: 2);
+
+        Assert.Equal(3, PdfEditor.PageCount(combined));
+        Assert.Contains("Alpha", PdfProbe.ExtractText(PdfEditor.ExtractPages(combined, 1, 1)), StringComparison.Ordinal);
+        Assert.Contains("Bravo", PdfProbe.ExtractText(PdfEditor.ExtractPages(combined, 2, 1)), StringComparison.Ordinal);
+        Assert.Contains("Charlie", PdfProbe.ExtractText(PdfEditor.ExtractPages(combined, 3, 1)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InsertingOnePastTheEndAppends()
+    {
+        // The boundary that makes the API complete: atPage == PageCount + 1 is how you say "after
+        // everything". Rejecting it would leave appending expressible only through Merge, and a
+        // caller would reasonably expect the obvious thing to work.
+        var target = PdfEditor.Merge([await PdfAsync("Alpha"), await PdfAsync("Bravo")]);
+
+        var combined = PdfEditor.InsertPages(target, await PdfAsync("Charlie"), atPage: 3);
+
+        Assert.Equal(3, PdfEditor.PageCount(combined));
+        Assert.Contains("Charlie", PdfProbe.ExtractText(PdfEditor.ExtractPages(combined, 3, 1)), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]     // pages are 1-based
+    [InlineData(4)]     // two pages, so 3 appends and 4 is off the end
+    public async Task AnInsertPositionOutsideTheDocumentIsRejected(int atPage)
+    {
+        var target = PdfEditor.Merge([await PdfAsync("Alpha"), await PdfAsync("Bravo")]);
+
+        Assert.ThrowsAny<ArgumentException>(
+            () => PdfEditor.InsertPages(target, PdfEditor.Merge([target]), atPage));
+    }
+
+    [Fact]
+    public async Task ReorderAndInsertWorkThroughStreams()
+    {
+        var merged = PdfEditor.Merge(
+            [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
+
+        using var reordered = new MemoryStream();
+        await PdfEditor.ReorderPagesAsync(new MemoryStream(merged), [3, 2, 1], reordered);
+        Assert.Equal(
+            PdfProbe.ExtractText(PdfEditor.ReorderPages(merged, [3, 2, 1])),
+            PdfProbe.ExtractText(reordered.ToArray()));
+
+        using var inserted = new MemoryStream();
+        await PdfEditor.InsertPagesAsync(
+            new MemoryStream(merged), new MemoryStream(await PdfAsync("Delta")), 1, inserted);
+        Assert.Equal(4, PdfEditor.PageCount(inserted.ToArray()));
+    }
+
+    // =============================================================================================
     // Metadata
     // =============================================================================================
 
