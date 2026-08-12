@@ -124,6 +124,65 @@ public class PageSetupTests
         Assert.Equal(72, original.TopPoints, 3);
     }
 
+    // =============================================================================================
+    // The private With(...) helper's header slots (B13).
+    //
+    // Found by mutation testing rather than by reading: three surviving mutants sat on
+    // `header ?? Header, footer ?? Footer` and nothing killed them. The helper's own doc comment
+    // says "a derived PageSetup that silently dropped the header would be the exact failure this
+    // library refuses" — and no test proved it, so the claim was decoration.
+    //
+    // Every `With*` method routes through that helper, so one wrong ?? there quietly loses a header
+    // on any subsequent call. The three tests below kill the three mutants: swapping either operand,
+    // and dropping the fallback entirely.
+    // =============================================================================================
+
+    [Fact]
+    public void WithFooter_KeepsAHeaderThatWasAlreadySet()
+    {
+        // Kills the "remove right" mutant: `header ?? Header` becoming plain `header` would null the
+        // header here, because With() is called with only the footer named.
+        var page = PageSetup.A4
+            .WithHeader(DocxHeader.Text("Contoso Ltd"))
+            .WithFooter(DocxHeader.Text("Page 1"));
+
+        Assert.NotNull(page.Header);
+        Assert.NotNull(page.Footer);
+    }
+
+    [Fact]
+    public void WithHeader_KeepsAFooterThatWasAlreadySet()
+    {
+        var page = PageSetup.A4
+            .WithFooter(DocxHeader.Text("Page 1"))
+            .WithHeader(DocxHeader.Text("Contoso Ltd"));
+
+        Assert.NotNull(page.Header);
+        Assert.NotNull(page.Footer);
+    }
+
+    [Fact]
+    public void CallingWithHeaderTwiceKeepsTheSecondNotTheFirst()
+    {
+        // Kills both operand-swap mutants: `Header ?? header` would keep the FIRST header, because
+        // by the second call the existing one is non-null and would win.
+        var page = PageSetup.A4
+            .WithHeader(DocxHeader.Text("First"))
+            .WithHeader(DocxHeader.Text("Second"))
+            .WithFooter(DocxHeader.Text("Alpha"))
+            .WithFooter(DocxHeader.Text("Beta"));
+
+        // Asserting the VALUE, not merely that a header exists — a swap leaves a header in place,
+        // just the wrong one, so a null check would pass against the bug.
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("Body.") }, page);
+        var text = DocxEditor.ExtractText(docx, includeHeadersAndFooters: true);
+
+        Assert.Contains("Second", text, StringComparison.Ordinal);
+        Assert.Contains("Beta", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("First", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alpha", text, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(0, 400)]
     [InlineData(-1, 400)]
