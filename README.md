@@ -270,7 +270,13 @@ byte[] resequenced = PdfEditor.ReorderPages(bundle, [3, 1, 2]);
 
 // Slot another document in. atPage is where its first page lands; PageCount + 1 appends.
 byte[] withAppendix = PdfEditor.InsertPages(bundle, appendix, atPage: 2);
+
+// And read the text back out, one string per page. pageTexts[0] is page 1.
+IReadOnlyList<string> pageTexts = PdfEditor.ExtractText(bundle);
 ```
+
+**A scanned PDF has no text layer**, so `ExtractText` returns an empty string per page for one —
+that is what the file contains, not a failure, and OCR is out of scope.
 
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
@@ -290,7 +296,7 @@ directions. Reading, that lets you tell "no title" from "a title deliberately se
 writing, a `null` property leaves what the document already had alone, so stamping a title does not
 silently erase the author.
 
-`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages` and `InsertPages` — that is, for every operation here. Unreadable input raises
+`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
 ## Telemetry
