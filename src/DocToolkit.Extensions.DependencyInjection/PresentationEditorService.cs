@@ -27,4 +27,12 @@ internal sealed class PresentationEditorService : IPresentationEditor
     public Task CreateAsync(
         IEnumerable<DocToolkit.PptxSlide> slides, Stream destination, CancellationToken ct = default)
         => DocToolkit.PresentationEditor.CreateAsync(slides, destination, ct);
+
+    public byte[] ReplaceImage(byte[] pptx, string placeholder, byte[] image)
+        => DocToolkit.PresentationEditor.ReplaceImage(pptx, placeholder, image);
+
+    public Task ReplaceImageAsync(
+        Stream source, string placeholder, byte[] image, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ReplaceImageAsync(source, placeholder, image, destination, ct);
 }

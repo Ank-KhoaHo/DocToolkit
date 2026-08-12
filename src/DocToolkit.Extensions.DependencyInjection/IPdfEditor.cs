@@ -67,4 +67,95 @@ public interface IPdfEditor
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The bytes are not a readable PDF.</exception>
     byte[] WithMetadata(byte[] pdf, DocToolkit.PdfMetadata metadata);
+
+    /// <summary>
+    /// A new document with <paramref name="count"/> pages removed, starting at
+    /// <paramref name="firstPage"/>. The complement of <see cref="ExtractPages(byte[], int, int)"/>:
+    /// that one keeps the range, this one keeps everything else.
+    /// </summary>
+    /// <param name="pdf">The document to take pages out of. It is not modified.</param>
+    /// <param name="firstPage">1-based, because that is how a reader numbers pages.</param>
+    /// <param name="count">How many pages to drop, starting at <paramref name="firstPage"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The range is not entirely inside the document, or it covers every page - removing
+    /// everything would leave a zero-page file.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The bytes are not a readable PDF.</exception>
+    byte[] RemovePages(byte[] pdf, int firstPage, int count);
+
+    /// <inheritdoc cref="RemovePages(byte[], int, int)"/>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task RemovePagesAsync(
+        Stream source, int firstPage, int count, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="pdf"/> with <paramref name="count"/> pages turned clockwise by
+    /// <paramref name="degrees"/>, starting at <paramref name="firstPage"/>.
+    /// </summary>
+    /// <param name="pdf">The document to turn pages in. It is not modified.</param>
+    /// <param name="firstPage">1-based, because that is how a reader numbers pages.</param>
+    /// <param name="count">How many pages to turn, starting at <paramref name="firstPage"/>.</param>
+    /// <param name="degrees">
+    /// How far to turn, clockwise, as a multiple of 90. Negative turns anticlockwise.
+    ///
+    /// <b>This is relative, not absolute</b> — it adds to whatever rotation the page already
+    /// carries, so calling it twice with 90 leaves the page at 180.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The range is not entirely inside the document, or <paramref name="degrees"/> is not a
+    /// multiple of 90.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The bytes are not a readable PDF.</exception>
+    byte[] RotatePages(byte[] pdf, int firstPage, int count, int degrees);
+
+    /// <inheritdoc cref="RotatePages(byte[], int, int, int)"/>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task RotatePagesAsync(
+        Stream source, int firstPage, int count, int degrees, Stream destination,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="pdf"/> with its pages in the order given by
+    /// <paramref name="order"/>, which holds 1-based page numbers.
+    /// </summary>
+    /// <param name="pdf">The document to reorder. It is not modified.</param>
+    /// <param name="order">
+    /// A <b>permutation of every page</b> — the same pages, in a different order. Not a subset, and
+    /// no repeats.
+    /// </param>
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="order"/> is not a permutation of 1..<c>PageCount</c>.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The bytes are not a readable PDF.</exception>
+    byte[] ReorderPages(byte[] pdf, IEnumerable<int> order);
+
+    /// <inheritdoc cref="ReorderPages(byte[], IEnumerable{int})"/>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task ReorderPagesAsync(
+        Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="target"/> with every page of <paramref name="source"/> inserted so
+    /// that the first of them becomes page <paramref name="atPage"/>.
+    /// </summary>
+    /// <param name="target">The document to insert into. It is not modified.</param>
+    /// <param name="source">The document whose pages are inserted. It is not modified.</param>
+    /// <param name="atPage">
+    /// 1-based position the first inserted page will occupy. <c>PageCount + 1</c> appends, which is
+    /// deliberately allowed - it is the obvious way to say "after everything".
+    /// </param>
+    /// <exception cref="ArgumentNullException">Either document is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="atPage"/> is below 1 or more than one past the last page.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The bytes are not a readable PDF.</exception>
+    byte[] InsertPages(byte[] target, byte[] source, int atPage);
+
+    /// <inheritdoc cref="InsertPages(byte[], byte[], int)"/>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task InsertPagesAsync(
+        Stream target, Stream source, int atPage, Stream destination, CancellationToken ct = default);
 }
