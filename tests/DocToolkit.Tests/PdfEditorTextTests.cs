@@ -85,4 +85,37 @@ public class PdfEditorTextTests
         Assert.Throws<ArgumentNullException>(() => PdfEditor.ExtractText(null!));
         Assert.Throws<ArgumentException>(() => PdfEditor.ExtractText([]));
     }
+
+    [Fact]
+    public async Task ReadsThroughAStream()
+    {
+        var pdf = await PdfAsync("<h1>Acme Corporation</h1>");
+
+        using var source = new MemoryStream(pdf, writable: false);
+        var pages = await PdfEditor.ExtractTextAsync(source);
+
+        // The same literal the byte[] path asserts - proving the Stream path produces the same
+        // DATA, not merely that it succeeded.
+        Assert.Single(pages);
+        Assert.Contains("Acme Corporation", pages[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadsFromAPath()
+    {
+        var path = Path.Join(Path.GetTempPath(), $"doctoolkit-{Guid.NewGuid():N}.pdf");
+        await File.WriteAllBytesAsync(path, await PdfAsync("<h1>Acme Corporation</h1>"));
+
+        try
+        {
+            var pages = await PdfEditor.ExtractTextAsync(path);
+
+            Assert.Single(pages);
+            Assert.Contains("Acme Corporation", pages[0], StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

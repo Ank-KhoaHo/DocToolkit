@@ -72,6 +72,40 @@ public static class PdfEditor
         return PdfTextExtractor.Pages(pdf);
     }
 
+    /// <inheritdoc cref="ExtractText(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable.</exception>
+    public static async Task<IReadOnlyList<string>> ExtractTextAsync(
+        Stream source, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!source.CanRead)
+        {
+            throw new ArgumentException(
+                "Source stream is not readable. Pass a stream opened with read access.", nameof(source));
+        }
+
+        ct.ThrowIfCancellationRequested();
+
+        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
+        if (pdf.Length == 0)
+            throw new ArgumentException("PDF content was empty.", nameof(source));
+
+        return ExtractText(pdf);
+    }
+
+    /// <inheritdoc cref="ExtractText(byte[])"/>
+    public static async Task<IReadOnlyList<string>> ExtractTextAsync(
+        string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        return ExtractText(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
+    }
+
     /// <summary>
     /// Joins <paramref name="pdfs"/> into one document, keeping the order given.
     /// </summary>
