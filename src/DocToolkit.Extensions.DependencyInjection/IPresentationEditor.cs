@@ -84,4 +84,47 @@ public interface IPresentationEditor
     /// <exception cref="DocToolkit.DocumentConversionException">The deck could not be built or written.</exception>
     Task CreateAsync(
         IEnumerable<DocToolkit.PptxSlide> slides, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// Replaces every shape whose text is exactly <paramref name="placeholder"/> with
+    /// <paramref name="image"/>, scaled to fit inside that shape's box and centred there. Position
+    /// and size come from the template, so there is nothing to pass — a designer draws a box in
+    /// PowerPoint where the image belongs and the image lands there. The shape's text must be
+    /// nothing but the placeholder; PNG and JPEG only, detected from magic bytes rather than any
+    /// filename.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> or <paramref name="image"/> is empty, or <paramref name="placeholder"/>
+    /// is blank.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The placeholder appears nowhere, appears only inside a grouped shape, a matched shape holds
+    /// other text, a matched shape has no explicit position, the image is neither PNG nor JPEG, or
+    /// the package could not be edited.
+    /// </exception>
+    byte[] ReplaceImage(byte[] pptx, string placeholder, byte[] image);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, replaces every shape whose text is exactly
+    /// <paramref name="placeholder"/> with <paramref name="image"/>, and writes the result to
+    /// <paramref name="destination"/>. See <see cref="ReplaceImage"/> for exactly what counts as a
+    /// match. <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/>
+    /// is <b>written</b>; neither is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="placeholder"/> is blank, <paramref name="image"/> is empty,
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The placeholder appears nowhere, appears only inside a grouped shape, a matched shape holds
+    /// other text, a matched shape has no explicit position, the image is neither PNG nor JPEG, or
+    /// the package could not be edited.
+    /// </exception>
+    Task ReplaceImageAsync(
+        Stream source, string placeholder, byte[] image, Stream destination,
+        CancellationToken ct = default);
 }

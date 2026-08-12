@@ -24,4 +24,33 @@ internal sealed class PdfEditorService : IPdfEditor
 
     public byte[] WithMetadata(byte[] pdf, DocToolkit.PdfMetadata metadata)
         => DocToolkit.PdfEditor.WithMetadata(pdf, metadata);
+
+    public byte[] RemovePages(byte[] pdf, int firstPage, int count)
+        => DocToolkit.PdfEditor.RemovePages(pdf, firstPage, count);
+
+    public Task RemovePagesAsync(
+        Stream source, int firstPage, int count, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.RemovePagesAsync(source, firstPage, count, destination, ct);
+
+    public byte[] RotatePages(byte[] pdf, int firstPage, int count, int degrees)
+        => DocToolkit.PdfEditor.RotatePages(pdf, firstPage, count, degrees);
+
+    public Task RotatePagesAsync(
+        Stream source, int firstPage, int count, int degrees, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.PdfEditor.RotatePagesAsync(source, firstPage, count, degrees, destination, ct);
+
+    public byte[] ReorderPages(byte[] pdf, IEnumerable<int> order)
+        => DocToolkit.PdfEditor.ReorderPages(pdf, order);
+
+    public Task ReorderPagesAsync(
+        Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.ReorderPagesAsync(source, order, destination, ct);
+
+    public byte[] InsertPages(byte[] target, byte[] source, int atPage)
+        => DocToolkit.PdfEditor.InsertPages(target, source, atPage);
+
+    public Task InsertPagesAsync(
+        Stream target, Stream source, int atPage, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.InsertPagesAsync(target, source, atPage, destination, ct);
 }

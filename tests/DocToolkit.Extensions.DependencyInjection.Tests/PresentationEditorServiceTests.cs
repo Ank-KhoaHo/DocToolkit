@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using DocToolkit;
 using DocToolkit.Extensions.DependencyInjection;
+using DocumentFormat.OpenXml.Packaging;
 using Xunit;
+using P = DocumentFormat.OpenXml.Presentation;
 
 namespace DocToolkit.Extensions.DependencyInjection.Tests;
 
@@ -105,6 +107,86 @@ public class PresentationEditorServiceTests
         Assert.Equal(
             PresentationEditor.ExtractText(PresentationEditor.Create(slides)),
             PresentationEditor.ExtractText(written));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // ReplaceImage / ReplaceImageAsync, mirrored from core 0.21.0. Built with
+    // PresentationEditor.Create rather than a fixture asset: PptxDocumentWriter.TextShape gives
+    // every shape it builds its own explicit a:xfrm, so a title placeholder is a valid
+    // ReplaceImage target without needing a hand-built OOXML fixture (core's
+    // ADeckBuiltByCreateWorksWithReplaceImage pins exactly this).
+    // ---------------------------------------------------------------------------------------
+
+    private static byte[] OnePixelPng() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+    /// <summary>The sole picture's offset and extent, for comparing two ReplaceImage results.</summary>
+    private static (long X, long Y, long Cx, long Cy) PictureTransformOf(byte[] pptx)
+    {
+        using var ms = new MemoryStream(pptx);
+        using var doc = PresentationDocument.Open(ms, false);
+        var picture = doc.PresentationPart!.SlideParts.Single()
+                         .Slide!.CommonSlideData!.ShapeTree!.Elements<P.Picture>().Single();
+        var xfrm = picture.ShapeProperties!.Transform2D!;
+
+        return (xfrm.Offset!.X!.Value, xfrm.Offset.Y!.Value, xfrm.Extents!.Cx!.Value, xfrm.Extents.Cy!.Value);
+    }
+
+    [Fact]
+    public void ReplaceImage_MatchesTheStaticMethod()
+    {
+        var deck = PresentationEditor.Create(new[] { PptxSlide.Titled("{{chart}}") });
+        var sut = new PresentationEditorService();
+        var png = OnePixelPng();
+
+        var fromWrapper = sut.ReplaceImage(deck, "{{chart}}", png);
+        var fromStatic = PresentationEditor.ReplaceImage(deck, "{{chart}}", png);
+
+        // Structural comparison via the picture's own transform, not raw bytes - ReplaceImage
+        // mints fresh relationship ids per call the same way Create does, so two calls over
+        // identical input legitimately differ byte-for-byte.
+        Assert.Equal(PictureTransformOf(fromStatic), PictureTransformOf(fromWrapper));
+    }
+
+    [Fact]
+    public void ReplaceImage_PutsAPictureWhereThePlaceholderWasAndRemovesTheText()
+    {
+        var deck = PresentationEditor.Create(new[] { PptxSlide.Titled("{{chart}}") });
+        var sut = new PresentationEditorService();
+
+        var filled = sut.ReplaceImage(deck, "{{chart}}", OnePixelPng());
+
+        // Concrete: the shape holding the placeholder is genuinely GONE and replaced by a
+        // picture - a wrapper that ignored its arguments and handed back the input unchanged
+        // would still pass a delegation-only comparison against calling the static method with
+        // the same (also-unused) arguments, but would fail every assertion here.
+        using var ms = new MemoryStream(filled);
+        using var doc = PresentationDocument.Open(ms, false);
+        var tree = doc.PresentationPart!.SlideParts.Single().Slide!.CommonSlideData!.ShapeTree!;
+
+        Assert.Single(tree.Elements<P.Picture>());
+        Assert.Empty(tree.Elements<P.Shape>());
+        Assert.DoesNotContain(sut.ExtractText(filled), t => t.Contains("{{chart}}"));
+    }
+
+    [Fact]
+    public async Task ReplaceImageAsync_PutsAPictureWhereThePlaceholderWas()
+    {
+        var deck = PresentationEditor.Create(new[] { PptxSlide.Titled("{{chart}}") });
+        var sut = new PresentationEditorService();
+
+        using var source = new MemoryStream(deck);
+        using var destination = new MemoryStream();
+        await sut.ReplaceImageAsync(source, "{{chart}}", OnePixelPng(), destination);
+
+        var written = destination.ToArray();
+        using var ms = new MemoryStream(written);
+        using var doc = PresentationDocument.Open(ms, false);
+        var tree = doc.PresentationPart!.SlideParts.Single().Slide!.CommonSlideData!.ShapeTree!;
+
+        Assert.Single(tree.Elements<P.Picture>());
+        Assert.Empty(tree.Elements<P.Shape>());
+        Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
     }
 
     [Fact]
