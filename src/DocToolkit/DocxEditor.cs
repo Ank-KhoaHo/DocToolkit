@@ -516,6 +516,59 @@ public static class DocxEditor
         return ReadTableCore(ms, index);
     }
 
+    /// <inheritdoc cref="TableCount(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    /// </remarks>
+    public static async Task<int> TableCountAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .ConfigureAwait(false);
+
+        return TableCountCore(docx);
+    }
+
+    /// <inheritdoc cref="TableCount(byte[])"/>
+    public static async Task<int> TableCountAsync(string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        return TableCount(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="ReadTable(byte[], int)"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    /// </remarks>
+    public static async Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(
+        Stream source, int index, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 0);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .ConfigureAwait(false);
+
+        return ReadTableCore(docx, index);
+    }
+
+    /// <inheritdoc cref="ReadTable(byte[], int)"/>
+    public static async Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(
+        string path, int index, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        return ReadTable(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false), index);
+    }
+
     private static int TableCountCore(Stream ms)
     {
         try

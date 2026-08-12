@@ -139,6 +139,8 @@ public class StreamOverloadTests
         "DocxToHtmlConverter.ConvertAsync",
         "DocxToMarkdownConverter.ConvertAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
+        "DocxEditor.TableCountAsync",
+        "DocxEditor.ReadTableAsync",
         "WorkbookEditor.ReadCellAsync",
         "WorkbookEditor.SheetNamesAsync",
         "WorkbookEditor.ReadSheetAsync",
@@ -649,6 +651,10 @@ public class StreamOverloadTests
                 DocxToMarkdownConverter.ConvertAsync(source!, ct),
             "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)" =>
                 DocxEditor.ExtractTextAsync(source!, true, ct),
+            "DocxEditor.TableCountAsync" =>
+                DocxEditor.TableCountAsync(source!, ct),
+            "DocxEditor.ReadTableAsync" =>
+                DocxEditor.ReadTableAsync(source!, 0, ct),
             "DocxEditor.CreateAsync" =>
                 DocxEditor.CreateAsync(Blocks, destination!, ct),
             // PageSetup.Letter rather than A4: A4 is the default, so an arm passing it
@@ -685,9 +691,11 @@ public class StreamOverloadTests
     /// <summary>The bytes an overload's <c>source</c> parameter expects, by format.</summary>
     private static byte[] SourceBytesFor(string api) => api switch
     {
-        // FillRowsAsync throws unless the document holds a matching template row, so it cannot
-        // share the plain Docx fixture the other DocxEditor overloads use.
+        // FillRowsAsync throws unless the document holds a matching template row, and
+        // ReadTableAsync throws unless index 0 exists, so neither can share the plain Docx
+        // fixture the other DocxEditor overloads use.
         "DocxEditor.FillRowsAsync" => TableDocx,
+        "DocxEditor.ReadTableAsync" => TableDocx,
         "DocxEditor.ReplaceImageAsync" => ImageDocx,
         "PresentationEditor.ReplaceImageAsync" => ImagePptx,
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,

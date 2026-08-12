@@ -161,4 +161,45 @@ public class DocxEditorTableReadTests
         Assert.Throws<DocumentConversionException>(() => DocxEditor.TableCount(notADocx));
         Assert.Throws<DocumentConversionException>(() => DocxEditor.ReadTable(notADocx, 0));
     }
+
+    [Fact]
+    public async Task ReadsThroughAStream()
+    {
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Table(new[] { "Region" }, new[] { new object?[] { "EMEA" } }),
+        });
+
+        using var forCount = new MemoryStream(docx, writable: false);
+        Assert.Equal(1, await DocxEditor.TableCountAsync(forCount));
+
+        using var forRead = new MemoryStream(docx, writable: false);
+        var table = await DocxEditor.ReadTableAsync(forRead, 0);
+
+        // The literal grid, not just a row count - the byte[] path is already proven, so what this
+        // adds is that the Stream path produces the SAME data rather than merely succeeding.
+        Assert.Equal(new[] { "Region" }, table[0]);
+        Assert.Equal(new[] { "EMEA" }, table[1]);
+    }
+
+    [Fact]
+    public async Task ReadsFromAPath()
+    {
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Table(new[] { "Region" }, new[] { new object?[] { "EMEA" } }),
+        });
+        var path = Path.Join(Path.GetTempPath(), $"doctoolkit-{Guid.NewGuid():N}.docx");
+        await File.WriteAllBytesAsync(path, docx);
+
+        try
+        {
+            Assert.Equal(1, await DocxEditor.TableCountAsync(path));
+            Assert.Equal(new[] { "EMEA" }, (await DocxEditor.ReadTableAsync(path, 0))[1]);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
