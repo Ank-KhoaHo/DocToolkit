@@ -46,6 +46,69 @@ public static class PdfEditor
     }
 
     /// <summary>
+    /// Each page's text, in document order. <c>[0]</c> is page 1.
+    /// </summary>
+    /// <remarks>
+    /// The index is a list position, not a page number — deliberately unlike this class's
+    /// <c>firstPage</c> parameters, which are 1-based because that is how a reader numbers pages.
+    /// <see cref="PresentationEditor.ExtractText(byte[])"/> returns per slide for the same reason.
+    ///
+    /// <b>A page with no text layer returns an empty string.</b> A scanned document is images, so
+    /// this returns one empty string per page for one — that is what the file contains, not a
+    /// failure, and OCR is out of scope. This is the commonest surprise in PDF text extraction, so
+    /// it is stated here rather than left to be discovered.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The bytes are not a readable PDF, or it requires a password to open. A PDF that is merely
+    /// permission-restricted (an owner password with no user password) is not covered by that:
+    /// PdfPig opens it with its default empty password and this returns its text like any other
+    /// PDF - measured, not assumed.
+    /// </exception>
+    public static IReadOnlyList<string> ExtractText(byte[] pdf)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        if (pdf.Length == 0)
+            throw new ArgumentException("PDF content was empty.", nameof(pdf));
+
+        return PdfTextExtractor.Pages(pdf);
+    }
+
+    /// <inheritdoc cref="ExtractText(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    ///
+    /// This <c>remarks</c> replaces the one on <see cref="ExtractText(byte[])"/> rather than adding
+    /// to it, so its warning is restated rather than assumed to carry over: <b>a page with no text
+    /// layer returns an empty string.</b> A scanned document is images, so this returns one empty
+    /// string per page for one - that is what the file contains, not a failure.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable.</exception>
+    public static async Task<IReadOnlyList<string>> ExtractTextAsync(
+        Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var pdf = await StreamPipeline
+            .DrainAsync(source, "PDF content was empty.", nameof(source), "Failed to read the PDF.", ct)
+            .ConfigureAwait(false);
+
+        return PdfTextExtractor.Pages(pdf.ToArray());
+    }
+
+    /// <inheritdoc cref="ExtractText(byte[])"/>
+    public static async Task<IReadOnlyList<string>> ExtractTextAsync(
+        string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        return ExtractText(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>
     /// Joins <paramref name="pdfs"/> into one document, keeping the order given.
     /// </summary>
     /// <exception cref="ArgumentException">

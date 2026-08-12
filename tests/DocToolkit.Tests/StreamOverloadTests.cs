@@ -77,6 +77,11 @@ public class StreamOverloadTests
 
     private static readonly byte[] Pptx = PptxFixtures.Sample();
 
+    /// <summary>A .pdf, for PdfEditor.ExtractTextAsync. Built from <see cref="Docx"/> rather than
+    /// through HtmlToPdfConverter because that path is async and these fields are initialised
+    /// eagerly.</summary>
+    private static readonly byte[] Pdf = DocxToPdfConverter.Convert(Docx);
+
     /// <summary>Keys for all three formats, so one dictionary drives every ReplaceText overload.</summary>
     private static readonly Dictionary<string, string> Replacements = new()
     {
@@ -136,6 +141,7 @@ public class StreamOverloadTests
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.ExtractTextAsync",
+        "PdfEditor.ExtractTextAsync",
         "DocxToHtmlConverter.ConvertAsync",
         "DocxToMarkdownConverter.ConvertAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
@@ -645,6 +651,8 @@ public class StreamOverloadTests
                 DocxEditor.ReplaceImageAsync(source!, "{{logo}}", ImageFixtures.Png(), destination!, ct: ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
+            "PdfEditor.ExtractTextAsync" =>
+                PdfEditor.ExtractTextAsync(source!, ct),
             "DocxToHtmlConverter.ConvertAsync" =>
                 DocxToHtmlConverter.ConvertAsync(source!, ct),
             "DocxToMarkdownConverter.ConvertAsync" =>
@@ -700,6 +708,7 @@ public class StreamOverloadTests
         "PresentationEditor.ReplaceImageAsync" => ImagePptx,
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
+        "PdfEditor.ExtractTextAsync" => Pdf,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PresentationEditor", StringComparison.Ordinal) => Pptx,
         _ => Docx,

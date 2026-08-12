@@ -431,7 +431,17 @@ byte[] resequenced = PdfEditor.ReorderPages(bundle, [3, 1, 2]);
 
 // Slot another document in. atPage is where its first page lands; PageCount + 1 appends.
 byte[] withAppendix = PdfEditor.InsertPages(bundle, appendix, atPage: 2);
+
+// Read a PDF's text back out, one string per page — pageText[0] is page 1.
+IReadOnlyList<string> pageText = PdfEditor.ExtractText(bundle);
 ```
+
+A scanned PDF has no text layer, so every page comes back as `""` — that is the file's actual
+content, not a failure to extract, and OCR is out of scope here.
+
+A PDF needing a **password to open** raises `DocumentConversionException`. One carrying only owner
+permission flags — "no copying" and the like — is still read. That is measured behaviour and is
+what the rest of the ecosystem does, but it is worth knowing rather than discovering.
 
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
@@ -451,7 +461,7 @@ directions. Reading, that lets you tell "no title" from "a title deliberately se
 writing, a `null` property leaves what the document already had alone, so stamping a title does not
 silently erase the author.
 
-`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages` and `InsertPages` — that is, for every operation here. Unreadable input raises
+`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
 ## How the no-network guarantee is built

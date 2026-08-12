@@ -52,4 +52,12 @@ if (pdf.Length < 1000) Fail($"PDF suspiciously small ({pdf.Length} bytes)");
 if (!pdf.AsSpan(0, 5).SequenceEqual("%PDF-"u8)) Fail("PDF lacks its magic bytes");
 Console.WriteLine($"docx->pdf   ok ({pdf.Length} bytes)");
 
+// --- PDF text extraction: PdfPig, whose font/CMap handling is exactly the reflection-ish code
+// trimming breaks. A silently-empty result here is indistinguishable from the documented
+// scanned-PDF behaviour, so this asserts the extracted text rather than merely that the call
+// returned - same reasoning as every other capability above.
+IReadOnlyList<string> pdfText = PdfEditor.ExtractText(pdf);
+if (!pdfText.Any(t => t.Contains("Hello"))) Fail("PDF text extraction lost the heading");
+Console.WriteLine("pdf->text   ok");
+
 Console.WriteLine("\nAll capabilities work after trimming.");

@@ -93,6 +93,12 @@
           "OfficeIMO.Word": "3.2.0"
         }
       },
+      "PdfPig": {
+        "type": "Direct",
+        "requested": "[0.1.15, )",
+        "resolved": "0.1.15",
+        "contentHash": "Bf0NO4o2ZSVnemMyj21KDU1sfSgmamFC0pD4aAv19CDNXQsoO1Z6O99gNqpiK/XWWZ5d5i7JkQoT7PUBxEPz5g=="
+      },
       "PDFsharp": {
         "type": "Direct",
         "requested": "[6.2.4, )",
@@ -327,6 +333,12 @@
           "OfficeIMO.Pdf": "3.2.0",
           "OfficeIMO.Word": "3.2.0"
         }
+      },
+      "PdfPig": {
+        "type": "Direct",
+        "requested": "[0.1.15, )",
+        "resolved": "0.1.15",
+        "contentHash": "Bf0NO4o2ZSVnemMyj21KDU1sfSgmamFC0pD4aAv19CDNXQsoO1Z6O99gNqpiK/XWWZ5d5i7JkQoT7PUBxEPz5g=="
       },
       "PDFsharp": {
         "type": "Direct",

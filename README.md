@@ -32,7 +32,7 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 
 | Constraint | How |
 |---|---|
-| **Free for commercial use** | 29 dependencies: 28 MIT, 1 Apache-2.0. No revenue thresholds, no per-seat fees. |
+| **Free for commercial use** | 30 dependencies: 28 MIT, 2 Apache-2.0. No revenue thresholds, no per-seat fees. |
 | **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
 | **Targets `net8.0` and `net10.0`** | Two LTS targets, one public API surface. `net9.0` is deliberately absent — a `net9.0` app already consumes the `net8.0` build, so it would add no reach. `netstandard2.0` is deliberately absent too: every dependency supports it, but the bounded-fetch guarantee on remote images cannot be expressed there, and `DateOnly`/`TimeOnly` would make the API differ per target. |
 | **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** (`ubuntu-24.04` x64, `windows-latest`, `macos-latest` Apple Silicon, `ubuntu-24.04-arm`). Not inferred from "pure managed" - measured on each. |
@@ -270,7 +270,17 @@ byte[] resequenced = PdfEditor.ReorderPages(bundle, [3, 1, 2]);
 
 // Slot another document in. atPage is where its first page lands; PageCount + 1 appends.
 byte[] withAppendix = PdfEditor.InsertPages(bundle, appendix, atPage: 2);
+
+// And read the text back out, one string per page. pageTexts[0] is page 1.
+IReadOnlyList<string> pageTexts = PdfEditor.ExtractText(bundle);
 ```
+
+**A scanned PDF has no text layer**, so `ExtractText` returns an empty string per page for one —
+that is what the file contains, not a failure, and OCR is out of scope.
+
+A PDF that needs a **password to open** raises `DocumentConversionException`. One whose owner set
+permission flags such as "no copying" is still read — measured, and standard across the
+ecosystem, but stated here rather than left to surprise anyone.
 
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
@@ -290,7 +300,7 @@ directions. Reading, that lets you tell "no title" from "a title deliberately se
 writing, a `null` property leaves what the document already had alone, so stamping a title does not
 silently erase the author.
 
-`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages` and `InsertPages` — that is, for every operation here. Unreadable input raises
+`Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
 ## Telemetry
@@ -490,7 +500,7 @@ fails restore loudly rather than silently relicensing you.
 ## Dependencies
 
 Direct: `DocumentFormat.OpenXml` · `HtmlToOpenXml.dll` · `OfficeIMO.Word.Pdf` · `ClosedXML` ·
-`SixLabors.Fonts [1.0.1]`. Full closure is 29 packages — 28 MIT, 1 Apache-2.0; see
+`SixLabors.Fonts [1.0.1]`. Full closure is 30 packages — 28 MIT, 2 Apache-2.0; see
 [`THIRD-PARTY-NOTICES.txt`](src/DocToolkit/THIRD-PARTY-NOTICES.txt).
 
 **Mirroring to a private feed?** Four things catch people out: `System.IO.Packaging` resolves to
