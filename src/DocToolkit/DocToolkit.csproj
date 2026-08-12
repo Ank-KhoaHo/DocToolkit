@@ -49,16 +49,17 @@
     <PackageReference Include="PdfPig" Version="0.1.15" />
 
     <!--
-      PDF utilities (page count, merge, page extraction, metadata). MIT, like this
-      package, so THIRD-PARTY-NOTICES stays a single licence class - PdfPig was the
-      alternative and is Apache-2.0, which adds a NOTICE reproduction obligation.
-    
+      PDF utilities (page count, merge, page extraction, metadata). PDFsharp owns the
+      document's STRUCTURE; PdfPig, above, owns its CONTENT (text). Neither does the
+      other's job - see the E6 decision. MIT, so the licence set for the two together is
+      MIT plus PdfPig's Apache-2.0, not a single class.
+
       Measured before taking it on, with a publish probe built as an APP rather than a
       library (a library publish omits native assets and reports zero for everything):
       no .so or .dylib, no banned package, and no SixLabors reference - so the
       SixLabors.Fonts 1.x guard is untouched. Three transitive dependencies, all
       Microsoft.
-    
+
       OfficeIMO.Pdf, already here, cannot serve this: it WRITES PDFs and cannot read
       one back - which is why the test suite carries a hand-rolled PdfProbe at all.
     -->

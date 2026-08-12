@@ -61,7 +61,10 @@ public static class PdfEditor
     /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
     /// <exception cref="DocumentConversionException">
-    /// The bytes are not a readable PDF, or it is encrypted.
+    /// The bytes are not a readable PDF, or it requires a password to open. A PDF that is merely
+    /// permission-restricted (an owner password with no user password) is not covered by that:
+    /// PdfPig opens it with its default empty password and this returns its text like any other
+    /// PDF - measured, not assumed.
     /// </exception>
     public static IReadOnlyList<string> ExtractText(byte[] pdf)
     {
@@ -76,6 +79,11 @@ public static class PdfEditor
     /// <remarks>
     /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
     /// not have to be seekable.
+    ///
+    /// This <c>remarks</c> replaces the one on <see cref="ExtractText(byte[])"/> rather than adding
+    /// to it, so its warning is restated rather than assumed to carry over: <b>a page with no text
+    /// layer returns an empty string.</b> A scanned document is images, so this returns one empty
+    /// string per page for one - that is what the file contains, not a failure.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="source"/> is not readable.</exception>
     public static async Task<IReadOnlyList<string>> ExtractTextAsync(

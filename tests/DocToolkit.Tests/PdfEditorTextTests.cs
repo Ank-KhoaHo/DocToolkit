@@ -38,7 +38,27 @@ public class PdfEditorTextTests
 
         var text = PdfEditor.ExtractText(pdf)[0];
 
+        // A literal too, per the class comment: DoesNotContain alone passes against a method
+        // returning [""].
+        Assert.Contains("Acme Corporation", text, StringComparison.Ordinal);
         Assert.DoesNotContain("CorporationInvoice", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APageWithNoTextLayerReturnsAnEmptyString()
+    {
+        // The class doc and both READMEs call this "the commonest surprise in PDF text
+        // extraction" - a scanned page has no text layer, only an image, and this documents
+        // that as [""] rather than a failure. Built rather than scanned: a placeholder-only
+        // paragraph, swapped for an image, leaves the page with an image and no text at all.
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{image}}")));
+        var withImage = DocxEditor.ReplaceImage(docx, "{{image}}", ImageFixtures.Png());
+
+        var pdf = DocxToPdfConverter.Convert(withImage);
+        var pages = PdfEditor.ExtractText(pdf);
+
+        Assert.Single(pages);
+        Assert.Equal(string.Empty, pages[0]);
     }
 
     [Fact]
