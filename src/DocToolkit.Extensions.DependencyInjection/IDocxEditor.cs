@@ -158,4 +158,54 @@ public interface IDocxEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The document could not be built or written.</exception>
     Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// How many tables the document body holds.
+    /// </summary>
+    /// <remarks>
+    /// Top-level tables only. A table nested inside a cell is part of that cell's text rather than
+    /// an entry of its own, so this count and the indexes it bounds stay stable.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be read.</exception>
+    int TableCount(byte[] docx);
+
+    /// <inheritdoc cref="TableCount(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    /// </remarks>
+    Task<int> TableCountAsync(Stream source, CancellationToken ct = default);
+
+    /// <summary>
+    /// The table at <paramref name="index"/>, as rows of cell text.
+    /// </summary>
+    /// <param name="docx">The .docx content to read.</param>
+    /// <param name="index">
+    /// <b>0-based</b>, indexing what <see cref="TableCount(byte[])"/> reports.
+    /// </param>
+    /// <remarks>
+    /// Cell text is produced the same way <see cref="ExtractText(byte[])"/> produces it, so a cell
+    /// holding several paragraphs is separated by newlines and a nested table keeps its own
+    /// structure.
+    ///
+    /// <b>Rows are returned with the shape they have.</b> A horizontally merged cell means a row
+    /// genuinely holds fewer cells than its neighbours; padding the grid to a rectangle would invent
+    /// cells that are not in the document.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is negative, or at or beyond <see cref="TableCount(byte[])"/>.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be read.</exception>
+    IReadOnlyList<IReadOnlyList<string>> ReadTable(byte[] docx, int index);
+
+    /// <inheritdoc cref="ReadTable(byte[], int)"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    /// </remarks>
+    Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(Stream source, int index, CancellationToken ct = default);
 }

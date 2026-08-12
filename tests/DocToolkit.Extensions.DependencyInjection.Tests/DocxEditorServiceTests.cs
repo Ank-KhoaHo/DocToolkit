@@ -133,6 +133,78 @@ public class DocxEditorServiceTests
     private static byte[] OnePixelPng() => Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
 
+    // ---------------------------------------------------------------------------------------
+    // TableCount/ReadTable landed in core 0.22.0 and are mirrored here for the first time.
+    // Unlike most tests above, each also asserts a concrete literal grid, not just parity with
+    // the static method - the parity check alone cannot fail if the wrapper and the static
+    // method are broken identically.
+    // ---------------------------------------------------------------------------------------
+
+    private static byte[] TableFixture() => DocxEditor.Create(new[]
+    {
+        DocxBlock.Table(
+            new[] { "Region", "Q1" },
+            new[] { new object?[] { "North", 1200 } }),
+    });
+
+    [Fact]
+    public void TableCount_MatchesTheStaticMethodAndReturnsTheRealCount()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = TableFixture();
+
+        var count = sut.TableCount(docx);
+
+        Assert.Equal(DocxEditor.TableCount(docx), count);
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task TableCountAsync_MatchesTheStaticMethodAndReturnsTheRealCount()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = TableFixture();
+
+        using var expectedSource = new MemoryStream(docx);
+        using var actualSource = new MemoryStream(docx);
+
+        var expected = await DocxEditor.TableCountAsync(expectedSource);
+        var actual = await sut.TableCountAsync(actualSource);
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(1, actual);
+    }
+
+    [Fact]
+    public void ReadTable_MatchesTheStaticMethodAndReturnsTheRealGrid()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = TableFixture();
+
+        var table = sut.ReadTable(docx, 0);
+
+        Assert.Equal(DocxEditor.ReadTable(docx, 0), table);
+        Assert.Equal(new[] { "Region", "Q1" }, table[0]);
+        Assert.Equal(new[] { "North", "1200" }, table[1]);
+    }
+
+    [Fact]
+    public async Task ReadTableAsync_MatchesTheStaticMethodAndReturnsTheRealGrid()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = TableFixture();
+
+        using var expectedSource = new MemoryStream(docx);
+        using var actualSource = new MemoryStream(docx);
+
+        var expected = await DocxEditor.ReadTableAsync(expectedSource, 0);
+        var actual = await sut.ReadTableAsync(actualSource, 0);
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(new[] { "Region", "Q1" }, actual[0]);
+        Assert.Equal(new[] { "North", "1200" }, actual[1]);
+    }
+
     [Fact]
     public async Task ReplaceText_SubstitutesPlaceholders()
     {
