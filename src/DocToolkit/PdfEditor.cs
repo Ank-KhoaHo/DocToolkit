@@ -46,6 +46,33 @@ public static class PdfEditor
     }
 
     /// <summary>
+    /// Each page's text, in document order. <c>[0]</c> is page 1.
+    /// </summary>
+    /// <remarks>
+    /// The index is a list position, not a page number — deliberately unlike this class's
+    /// <c>firstPage</c> parameters, which are 1-based because that is how a reader numbers pages.
+    /// <see cref="PresentationEditor.ExtractText(byte[])"/> returns per slide for the same reason.
+    ///
+    /// <b>A page with no text layer returns an empty string.</b> A scanned document is images, so
+    /// this returns one empty string per page for one — that is what the file contains, not a
+    /// failure, and OCR is out of scope. This is the commonest surprise in PDF text extraction, so
+    /// it is stated here rather than left to be discovered.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The bytes are not a readable PDF, or it is encrypted.
+    /// </exception>
+    public static IReadOnlyList<string> ExtractText(byte[] pdf)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        if (pdf.Length == 0)
+            throw new ArgumentException("PDF content was empty.", nameof(pdf));
+
+        return PdfTextExtractor.Pages(pdf);
+    }
+
+    /// <summary>
     /// Joins <paramref name="pdfs"/> into one document, keeping the order given.
     /// </summary>
     /// <exception cref="ArgumentException">
