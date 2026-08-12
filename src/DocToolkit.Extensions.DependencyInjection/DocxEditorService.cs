@@ -69,4 +69,15 @@ internal sealed class DocxEditorService : IDocxEditor
 
     public Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page, Stream destination, CancellationToken ct = default)
         => DocToolkit.DocxEditor.CreateAsync(blocks, page, destination, ct);
+
+    public int TableCount(byte[] docx) => DocToolkit.DocxEditor.TableCount(docx);
+
+    public Task<int> TableCountAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.TableCountAsync(source, ct);
+
+    public IReadOnlyList<IReadOnlyList<string>> ReadTable(byte[] docx, int index)
+        => DocToolkit.DocxEditor.ReadTable(docx, index);
+
+    public Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(Stream source, int index, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.ReadTableAsync(source, index, ct);
 }
