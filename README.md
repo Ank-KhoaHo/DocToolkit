@@ -278,6 +278,10 @@ IReadOnlyList<string> pageTexts = PdfEditor.ExtractText(bundle);
 **A scanned PDF has no text layer**, so `ExtractText` returns an empty string per page for one —
 that is what the file contains, not a failure, and OCR is out of scope.
 
+A PDF that needs a **password to open** raises `DocumentConversionException`. One whose owner set
+permission flags such as "no copying" is still read — measured, and standard across the
+ecosystem, but stated here rather than left to surprise anyone.
+
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
 
