@@ -80,11 +80,20 @@ public class DocxEditorTableReadTests
         var outer = Tbl(new TableRow(new TableCell(P(R("outer")), inner)));
         var docx = DocxFixtures.Build(outer);
 
+        // A cell ending in w:tbl with no trailing w:p is schema-invalid — the OOXML content model
+        // requires a table inside a cell to be followed by a paragraph. Catches the fixture, not
+        // the production code: DocxEditor.Create never emits this shape itself.
+        Assert.Empty(DocxFixtures.Validate(docx));
+
         Assert.Equal(1, DocxEditor.TableCount(docx));
 
         var cell = DocxEditor.ReadTable(docx, 0)[0][0];
-        Assert.Contains("outer", cell, StringComparison.Ordinal);
-        Assert.Contains("inner", cell, StringComparison.Ordinal);
+
+        // Exact string, not two Assert.Contains: both of those pass against "outerinner" too, which
+        // is a BlockText that dropped its block separator — precisely the A26 defect BlockText
+        // exists to fix. The cell holds a paragraph ("outer") followed by a nested table whose own
+        // text is "inner", joined by BlockText's "\n" the same way any two sibling blocks are.
+        Assert.Equal("outer\ninner", cell);
     }
 
     [Fact]
@@ -98,8 +107,10 @@ public class DocxEditorTableReadTests
 
         var table = DocxEditor.ReadTable(docx, 0);
 
-        Assert.Equal(2, table[0].Count);
-        Assert.Single(table[1]);
+        // The literal grid, not just Counts: a Count assertion cannot discriminate wrong cell text
+        // from right cell text at the same shape.
+        Assert.Equal(new[] { "a", "b" }, table[0]);
+        Assert.Equal(new[] { "only" }, table[1]);
     }
 
     [Fact]
@@ -151,6 +162,20 @@ public class DocxEditorTableReadTests
 
         Assert.Equal(0, DocxEditor.TableCount(docx));
         Assert.ThrowsAny<ArgumentOutOfRangeException>(() => DocxEditor.ReadTable(docx, 0));
+    }
+
+    [Fact]
+    public void TableCount_RejectsNullAndEmptyInput()
+    {
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.TableCount(null!));
+        Assert.Throws<ArgumentException>(() => DocxEditor.TableCount(Array.Empty<byte>()));
+    }
+
+    [Fact]
+    public void ReadTable_RejectsNullAndEmptyInput()
+    {
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.ReadTable(null!, 0));
+        Assert.Throws<ArgumentException>(() => DocxEditor.ReadTable(Array.Empty<byte>(), 0));
     }
 
     [Fact]

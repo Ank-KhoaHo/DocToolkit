@@ -470,6 +470,9 @@ public static class DocxEditor
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
     /// <exception cref="DocumentConversionException">The package could not be read.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxReadTable"/>
+    /// </example>
     public static int TableCount(byte[] docx)
     {
         ArgumentNullException.ThrowIfNull(docx);
@@ -505,6 +508,9 @@ public static class DocxEditor
     /// <paramref name="index"/> is negative, or at or beyond <see cref="TableCount(byte[])"/>.
     /// </exception>
     /// <exception cref="DocumentConversionException">The package could not be read.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxReadTable"/>
+    /// </example>
     public static IReadOnlyList<IReadOnlyList<string>> ReadTable(byte[] docx, int index)
     {
         ArgumentNullException.ThrowIfNull(docx);
