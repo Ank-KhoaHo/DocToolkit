@@ -331,6 +331,21 @@ A placeholder with no matching key becomes empty rather than staying visible. Pl
 prefixes are untouched, so a second call fills a second table. An empty list removes the template
 row, and removes the table if that row was its only one.
 
+Read one back to verify what actually landed, rather than trusting the fill succeeded silently:
+
+```csharp
+int tables = DocxEditor.TableCount(filled);
+IReadOnlyList<IReadOnlyList<string>> rows = DocxEditor.ReadTable(filled, 0);
+// rows[0] is the header row: ["Description", "Qty", "Total"]
+// rows[1] is: ["Widget", "2", "19.98"]
+```
+
+The index is 0-based — deliberately unlike `PdfEditor.ExtractPages`'s 1-based `firstPage`, which
+numbers pages the way a reader does; a table index has no such reader-facing numbering. And a row
+comes back with the shape it actually has: a horizontally merged cell means that row genuinely
+holds fewer cells than its neighbours, and padding it out to a rectangle would invent data that is
+not in the document.
+
 ## Images
 
 A text placeholder becomes an inline image — a logo, a signature, a QR code:

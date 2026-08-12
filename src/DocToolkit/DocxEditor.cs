@@ -461,6 +461,169 @@ public static class DocxEditor
             .Select(row => string.Join("\t", row.Elements<TableCell>().Select(BlockText))));
 
     /// <summary>
+    /// How many tables the document body holds.
+    /// </summary>
+    /// <remarks>
+    /// Top-level tables only. A table nested inside a cell is part of that cell's text rather than
+    /// an entry of its own, so this count and the indexes it bounds stay stable.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxReadTable"/>
+    /// </example>
+    public static int TableCount(byte[] docx)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0)
+            throw new ArgumentException("DOCX content was empty.", nameof(docx));
+
+        using var ms = new MemoryStream(docx, writable: false);
+        return TableCountCore(ms);
+    }
+
+    /// <summary>
+    /// The table at <paramref name="index"/>, as rows of cell text.
+    /// </summary>
+    /// <param name="docx">The .docx content to read.</param>
+    /// <param name="index">
+    /// <b>0-based</b>, indexing what <see cref="TableCount(byte[])"/> reports — deliberately unlike
+    /// <c>PdfEditor.ExtractPages</c>, whose <c>firstPage</c> is 1-based because that is how a reader
+    /// numbers pages. A table has no such reader-facing numbering, and the rows and cells this
+    /// returns are 0-based, so a 1-based selector here would be the odd one out.
+    /// </param>
+    /// <remarks>
+    /// Cell text is produced the same way <see cref="ExtractText(byte[])"/> produces it, so a cell
+    /// holding several paragraphs is separated by newlines and a nested table keeps its own
+    /// structure.
+    ///
+    /// <b>Rows are returned with the shape they have.</b> A horizontally merged cell means a row
+    /// genuinely holds fewer cells than its neighbours; padding the grid to a rectangle would invent
+    /// cells that are not in the document.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is negative, or at or beyond <see cref="TableCount(byte[])"/>.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be read.</exception>
+    /// <example>
+    /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxReadTable"/>
+    /// </example>
+    public static IReadOnlyList<IReadOnlyList<string>> ReadTable(byte[] docx, int index)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0)
+            throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 0);
+
+        using var ms = new MemoryStream(docx, writable: false);
+        return ReadTableCore(ms, index);
+    }
+
+    /// <inheritdoc cref="TableCount(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    /// </remarks>
+    public static async Task<int> TableCountAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .ConfigureAwait(false);
+
+        return TableCountCore(docx);
+    }
+
+    /// <inheritdoc cref="TableCount(byte[])"/>
+    public static async Task<int> TableCountAsync(string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        return TableCount(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="ReadTable(byte[], int)"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    /// </remarks>
+    public static async Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(
+        Stream source, int index, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 0);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .ConfigureAwait(false);
+
+        return ReadTableCore(docx, index);
+    }
+
+    /// <inheritdoc cref="ReadTable(byte[], int)"/>
+    public static async Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(
+        string path, int index, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        return ReadTable(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false), index);
+    }
+
+    private static int TableCountCore(Stream ms)
+    {
+        try
+        {
+            using var doc = WordprocessingDocument.Open(ms, false);
+
+            // Elements, not Descendants: a nested table belongs to its cell's text, and counting it
+            // separately would report one table twice and make indexes shift under a caller.
+            return doc.MainDocumentPart?.Document?.Body?.Elements<Table>().Count() ?? 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read DOCX.", ex);
+        }
+    }
+
+    private static IReadOnlyList<IReadOnlyList<string>> ReadTableCore(Stream ms, int index)
+    {
+        try
+        {
+            using var doc = WordprocessingDocument.Open(ms, false);
+
+            var tables = doc.MainDocumentPart?.Document?.Body?.Elements<Table>().ToList()
+                         ?? [];
+
+            if (index >= tables.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(index), index,
+                    $"The document has {tables.Count} table(s).");
+            }
+
+            return tables[index].Elements<TableRow>()
+                .Select(row => (IReadOnlyList<string>)row.Elements<TableCell>()
+                                                         .Select(BlockText)
+                                                         .ToList())
+                .ToList();
+        }
+        // ArgumentOutOfRangeException is thrown INSIDE this try and must escape as itself. The
+        // sibling *Core methods only exclude DocumentConversionException, which would be wrong
+        // here: a caller passing a bad index would receive "Failed to read DOCX" instead.
+        catch (Exception ex)
+            when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
+        {
+            throw new DocumentConversionException("Failed to read DOCX.", ex);
+        }
+    }
+
+    /// <summary>
     /// Expands a table row once per record, so a template can render a variable-length list such as
     /// invoice line items.
     ///

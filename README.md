@@ -166,6 +166,12 @@ byte[] invoice = DocxEditor.FillRows(filled, "item", lineItems);
 // Drop an image into a placeholder — sized from its own header, PNG or JPEG
 invoice = DocxEditor.ReplaceImage(invoice, "{{logo}}", logoBytes);
 
+// Read a table back — what makes a filled template verifiable. The index is 0-based, and a row
+// comes back with the shape it has: a merged cell means fewer cells, not padding invented to fill it.
+int tables = DocxEditor.TableCount(report);
+IReadOnlyList<IReadOnlyList<string>> rows = DocxEditor.ReadTable(report, 0);
+// rows[0] is the header row: ["Region", "Revenue"]
+
 // Or work directly with files — no ReadAllBytes/WriteAllBytes dance, and input/output may be the same file
 await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", new() { ["{{customer}}"] = "Contoso Ltd" });
 

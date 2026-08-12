@@ -94,6 +94,25 @@ public class DocumentationExamples
     }
 
     [Fact]
+    public void DocxReadTableExample()
+    {
+        byte[] docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Table(
+                new[] { "Region", "Total" },
+                new[] { new object?[] { "North", 1200 } }),
+        });
+
+        #region DocxReadTable
+        int count = DocxEditor.TableCount(docx);
+        IReadOnlyList<IReadOnlyList<string>> table = DocxEditor.ReadTable(docx, 0);
+        #endregion
+
+        Assert.Equal(1, count);
+        Assert.Equal(new[] { "Region", "Total" }, table[0]);
+    }
+
+    [Fact]
     public void DocxToHtmlExample()
     {
         byte[] docx = DocxEditor.Create(new[] { DocxBlock.Heading("Quarterly Report", 1) });
