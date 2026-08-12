@@ -74,6 +74,7 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - OfficeIMO.Word.Html 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Markdown 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Pdf 3.2.0 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
+- PdfPig 0.1.15 - Apache-2.0 (direct) - https://github.com/UglyToad/PdfPig
 - PDFsharp 6.2.4 - MIT (direct) - https://github.com/empira/PDFsharp
 - RBush.Signed 4.0.0 - MIT (transitive) - https://github.com/viceroypenguin/RBush
 - SixLabors.Fonts 1.0.1 - Apache-2.0 (direct) - https://github.com/SixLabors/Fonts
@@ -81,7 +82,7 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 - System.Security.Cryptography.Pkcs 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 
-Totals: 29 packages (10 direct, 19 transitive) - 1 Apache-2.0, 28 MIT.
+Totals: 30 packages (11 direct, 19 transitive) - 2 Apache-2.0, 28 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---
