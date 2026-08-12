@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.23.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.22.0...v0.23.0) (2026-08-12)
+
+
+### Added
+
+* **di:** mirror DocxEditor table read-back onto IDocxEditor ([#205](https://github.com/Ank-KhoaHo/DocToolkit/issues/205)) ([71039e5](https://github.com/Ank-KhoaHo/DocToolkit/commit/71039e54e45a4e19bc2d8812315cedd25cf854d3))
+
 ## [0.22.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.21.0...v0.22.0) (2026-08-12)
 
 
