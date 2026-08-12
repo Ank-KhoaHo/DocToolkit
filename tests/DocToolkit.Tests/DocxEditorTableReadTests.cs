@@ -80,9 +80,21 @@ public class DocxEditorTableReadTests
         var outer = Tbl(new TableRow(new TableCell(P(R("outer")), inner)));
         var docx = DocxFixtures.Build(outer);
 
-        // A cell ending in w:tbl with no trailing w:p is schema-invalid — the OOXML content model
-        // requires a table inside a cell to be followed by a paragraph. Catches the fixture, not
-        // the production code: DocxEditor.Create never emits this shape itself.
+        // Checks the FIXTURE, not the production code — this repository has been bitten by
+        // schema-invalid fixtures that every test happily passed against, which is why
+        // DocxFixtures.Validate exists.
+        //
+        // Be precise about what this does and does not prove. An earlier version of this comment
+        // claimed a cell ending in w:tbl with no trailing w:p is schema-invalid — and this fixture
+        // is exactly that shape while Validate reports zero errors, so both could not be true.
+        // CT_Tc's content model is EG_BlockLevelElts*, so the trailing-paragraph rule lives in
+        // ECMA-376's prose and in Word's repair behaviour, NOT in the XSD, and OpenXmlValidator is
+        // schema-based. So this pins the tblPr/tblGrid-before-w:tr ordering the Tbl helper's own
+        // docstring describes; it does not confirm the fixture is what Word would emit.
+        //
+        // Do not "fix" that by appending a trailing P(): it adds an empty block, and the expected
+        // cell text below would have to become "outer\ninner\n" — a noisier test bought with
+        // nothing.
         Assert.Empty(DocxFixtures.Validate(docx));
 
         Assert.Equal(1, DocxEditor.TableCount(docx));
