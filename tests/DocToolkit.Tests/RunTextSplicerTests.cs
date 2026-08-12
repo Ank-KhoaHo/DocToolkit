@@ -470,4 +470,16 @@ public class RunTextSplicerTests
     //        cannot both match at one offset, so which is tried first never changes which one hits.
     //        Only `OrderByDescending(k => k.Length)` above it carries meaning, and that is pinned
     //        by AtOneOffsetTheLongestKeyWins.
+    //
+    //   L40  `read(nodes[i]) ?? string.Empty` -> a sentinel string
+    //        A FIFTH equivalent, added to this list 2026-08-12 after an attempt to kill it failed
+    //        for an instructive reason. `Apply`'s parameter is `Func<T, string>` — NOT nullable —
+    //        so the coalesce guards against something the contract forbids, and OpenXml's own
+    //        `Text.Text` returns "" rather than null. A test can only reach the branch by lying to
+    //        the compiler with `null!`, which proves nothing about any real caller.
+    //
+    //        Left in place rather than deleted: the cost is one unreachable operator, and removing
+    //        production code to raise a mutation score is the wrong direction. But do not try to
+    //        kill it again — the attempt fails at compile time with CS8603, which is the type
+    //        system correctly refusing to let the test pretend.
 }
