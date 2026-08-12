@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.22.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.21.0...v0.22.0) (2026-08-12)
+
+
+### Added
+
+* **core:** read a DOCX table back as data ([#204](https://github.com/Ank-KhoaHo/DocToolkit/issues/204)) ([739e443](https://github.com/Ank-KhoaHo/DocToolkit/commit/739e44318008466bb4c349b90a0113598f35a036))
+* **extensions:** mirror PdfEditor page ops and PresentationEditor.ReplaceImage ([#202](https://github.com/Ank-KhoaHo/DocToolkit/issues/202)) ([6ddbd8e](https://github.com/Ank-KhoaHo/DocToolkit/commit/6ddbd8ef2a71204456d27744553dda5def3272e1))
+
 ## [0.21.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.20.0...v0.21.0) (2026-08-11)
 
 
