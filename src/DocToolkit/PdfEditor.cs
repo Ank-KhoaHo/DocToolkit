@@ -81,20 +81,14 @@ public static class PdfEditor
     public static async Task<IReadOnlyList<string>> ExtractTextAsync(
         Stream source, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        if (!source.CanRead)
-        {
-            throw new ArgumentException(
-                "Source stream is not readable. Pass a stream opened with read access.", nameof(source));
-        }
-
+        StreamPipeline.RequireReadable(source, nameof(source));
         ct.ThrowIfCancellationRequested();
 
-        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
-        if (pdf.Length == 0)
-            throw new ArgumentException("PDF content was empty.", nameof(source));
+        using var pdf = await StreamPipeline
+            .DrainAsync(source, "PDF content was empty.", nameof(source), "Failed to read the PDF.", ct)
+            .ConfigureAwait(false);
 
-        return ExtractText(pdf);
+        return PdfTextExtractor.Pages(pdf.ToArray());
     }
 
     /// <inheritdoc cref="ExtractText(byte[])"/>
