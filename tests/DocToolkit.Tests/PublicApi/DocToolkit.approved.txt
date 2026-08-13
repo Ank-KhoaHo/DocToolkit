@@ -278,6 +278,16 @@ namespace DocToolkit
         public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<object?>> Rows { get; }
         public static DocToolkit.XlsxSheet Named(string name, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
     }
+    public static class XlsxToCsvConverter
+    {
+        public static string Convert(byte[] xlsx, string sheetName) { }
+        public static System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, string sheetName, System.Threading.CancellationToken ct = default) { }
+    }
+    public static class XlsxToHtmlConverter
+    {
+        public static string Convert(byte[] xlsx, string sheetName) { }
+        public static System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, string sheetName, System.Threading.CancellationToken ct = default) { }
+    }
     public static class XlsxToPdfConverter
     {
         public static byte[] Convert(byte[] xlsx) { }

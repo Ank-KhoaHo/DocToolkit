@@ -167,6 +167,8 @@ public class StreamOverloadTests
         "PdfEditor.ExtractTextAsync",
         "DocxToHtmlConverter.ConvertAsync",
         "DocxToMarkdownConverter.ConvertAsync",
+        "XlsxToCsvConverter.ConvertAsync",
+        "XlsxToHtmlConverter.ConvertAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
         "DocxEditor.TableCountAsync",
         "DocxEditor.ReadTableAsync",
@@ -815,6 +817,10 @@ public class StreamOverloadTests
                 DocxToHtmlConverter.ConvertAsync(source!, ct),
             "DocxToMarkdownConverter.ConvertAsync" =>
                 DocxToMarkdownConverter.ConvertAsync(source!, ct),
+            "XlsxToCsvConverter.ConvertAsync" =>
+                XlsxToCsvConverter.ConvertAsync(source!, "Sales", ct),
+            "XlsxToHtmlConverter.ConvertAsync" =>
+                XlsxToHtmlConverter.ConvertAsync(source!, "Sales", ct),
             "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)" =>
                 DocxEditor.ExtractTextAsync(source!, true, ct),
             "DocxEditor.TableCountAsync" =>
@@ -895,6 +901,7 @@ public class StreamOverloadTests
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
         "PdfEditor.RemovePagesAsync" => TwoPagePdf,
+        _ when api.StartsWith("XlsxTo", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PdfEditor", StringComparison.Ordinal) => Pdf,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PresentationEditor", StringComparison.Ordinal) => Pptx,
