@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.24.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.23.0...v0.24.0) (2026-08-12)
+
+
+### Added
+
+* **core:** read text out of a PDF ([#209](https://github.com/Ank-KhoaHo/DocToolkit/issues/209)) ([0d3dd90](https://github.com/Ank-KhoaHo/DocToolkit/commit/0d3dd908e9bd1ac1aff8a3d76adcf862c7e51dd9))
+
 ## [0.23.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.22.0...v0.23.0) (2026-08-12)
 
 
