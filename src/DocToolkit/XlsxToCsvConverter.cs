@@ -41,11 +41,18 @@ public static class XlsxToCsvConverter
     /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
     /// sought, so it may be forward-only.
     /// </summary>
-    /// <inheritdoc cref="Convert(byte[], string)"/>
     /// <param name="source">The stream the workbook is read from.</param>
     /// <param name="sheetName">The sheet to export.</param>
     /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="sheetName"/>
+    /// is blank.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, or the sheet does not exist.
+    /// </exception>
     public static async Task<string> ConvertAsync(
         Stream source, string sheetName, CancellationToken ct = default)
     {
