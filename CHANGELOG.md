@@ -15,16 +15,41 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** report what a DOCX text conversion could not carry across ([c5edbcd](https://github.com/Ank-KhoaHo/DocToolkit/commit/c5edbcd19c85598739084658db8bbf4afa5f2525))
-* **core:** report what a DOCX text conversion could not carry across ([6148021](https://github.com/Ank-KhoaHo/DocToolkit/commit/6148021220142908e144f92ed4430c72184f8a61))
-* **extensions:** mirror PdfEditor.ExtractText on IPdfEditor ([2a57068](https://github.com/Ank-KhoaHo/DocToolkit/commit/2a570685724b517b17029a9bc134dac94cb93fe9))
-* **extensions:** mirror PdfEditor.ExtractText on IPdfEditor ([907df58](https://github.com/Ank-KhoaHo/DocToolkit/commit/907df58219ca9fbe35531382b89b5ff6a146a264))
+* **core:** report what a DOCX text conversion could not carry across ([6148021](https://github.com/Ank-KhoaHo/DocToolkit/commit/6148021220142908e144f92ed4430c72184f8a61)).
+  `DocxToHtmlConverter.ConvertWithReport` and `DocxToMarkdownConverter.ConvertWithReport` return
+  the same output as `Convert` plus a list of `ConversionWarning`, each carrying a `Code`, a
+  `Message` and a `ConversionLossKind`. The existing `Convert` overloads are unchanged.
+  Worth knowing: a DOCX → HTML conversion has **always** reported a loss
+  (`SectionLayoutFlattened`, an approximation of section page geometry) — it was computed on every
+  call and discarded, and this is the first release in which you can see it.
+* **extensions:** mirror `PdfEditor.ExtractText` on `IPdfEditor` ([907df58](https://github.com/Ank-KhoaHo/DocToolkit/commit/907df58219ca9fbe35531382b89b5ff6a146a264)).
+  Adds `ExtractText(byte[])` and `ExtractTextAsync(Stream)`. **Source-breaking for anyone who
+  implements `IPdfEditor` by hand**; additive for anyone who injects it.
+
+
+### Changed
+
+* **core:** `PdfEditor`'s seven other async methods now guard their streams the way every other
+  `Stream` overload in the library does. **Four behaviour changes** to `PageCountAsync`,
+  `MergeAsync`, `ExtractPagesAsync`, `RemovePagesAsync`, `RotatePagesAsync`, `ReorderPagesAsync`
+  and `InsertPagesAsync`:
+  * an unreadable source or unwritable destination now throws `ArgumentException` naming the
+    parameter, where it previously surfaced `NotSupportedException` from inside `CopyToAsync`;
+  * an empty source now throws `ArgumentException`, where it previously passed empty bytes on and
+    reported them later as `DocumentConversionException`;
+  * a source is read from its current `Position` and left drained, where a `MemoryStream` had its
+    whole buffer read regardless of position and was not advanced;
+  * a failure writing to your destination stream is now wrapped in `DocumentConversionException`.
+
+  `ExtractText`, added in 0.24.0, is unaffected — it already behaved this way.
 
 
 ### Fixed
 
-* **core:** build PdfEditor's Stream overloads on StreamPipeline ([207f087](https://github.com/Ank-KhoaHo/DocToolkit/commit/207f0871223ef4f6a4b42057cbb4ff64de633121))
-* **core:** build PdfEditor's Stream overloads on StreamPipeline ([cb413bd](https://github.com/Ank-KhoaHo/DocToolkit/commit/cb413bda8b57925cf53526f495424513fa61cc4e))
+* **core:** build PdfEditor's Stream overloads on StreamPipeline ([cb413bd](https://github.com/Ank-KhoaHo/DocToolkit/commit/cb413bda8b57925cf53526f495424513fa61cc4e)).
+  `PdfEditor` was the only Stream-overload class not built on the shared pipeline, and none of its
+  async methods was covered by the suite that holds that surface to one shape. See **Changed**
+  above for what this alters for callers.
 
 ## [0.24.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.23.0...v0.24.0) (2026-08-12)
 
