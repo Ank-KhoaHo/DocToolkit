@@ -130,8 +130,18 @@ public class MarkdownToDocxConverterTests
         {
             RemoteImageResolver = uri =>
             {
-                try { return http.GetByteArrayAsync(uri).GetAwaiter().GetResult(); }
-                catch { return null; }
+                // The probe is a raw TcpListener and does not speak valid HTTP, so the response
+                // legitimately fails to parse. Narrowed to HttpRequestException on purpose: the
+                // CONNECTION is what this control measures, and anything else going wrong here
+                // should fail the test loudly rather than be swallowed.
+                try
+                {
+                    return http.GetByteArrayAsync(uri).GetAwaiter().GetResult();
+                }
+                catch (HttpRequestException)
+                {
+                    return null;
+                }
             },
         };
 
