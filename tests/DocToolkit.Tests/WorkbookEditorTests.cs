@@ -193,6 +193,13 @@ public class WorkbookEditorTests
         await WorkbookEditor.CreateAsync(sheets, destination);
 
         var streamed = destination.ToArray();
+
+        // B16: literals first. SheetNames == SheetNames holds on two empty lists and
+        // ReadCell == ReadCell holds on two empty strings, so neither line could tell a workbook
+        // that was written from one that was not.
+        Assert.Equal(new[] { "Summary", "Detail" }, WorkbookEditor.SheetNames(streamed));
+        Assert.Equal("EMEA", WorkbookEditor.ReadCell(streamed, "Detail", "A1"));
+
         Assert.Equal(WorkbookEditor.SheetNames(expected), WorkbookEditor.SheetNames(streamed));
         Assert.Equal(
             WorkbookEditor.ReadCell(expected, "Detail", "A1"),
@@ -969,6 +976,12 @@ public class WorkbookEditorTests
         using var destination = new MemoryStream();
         await WorkbookEditor.AppendRowsAsync(source, "Log", rows, destination);
 
+        // B16: the literal grid. Without it this test never checked that "b" arrived - two empty
+        // grids compare equal, so an AppendRows that appended nothing passed.
+        Assert.Equal(
+            new[] { new[] { "a" }, new[] { "b" } },
+            WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
+
         Assert.Equal(
             WorkbookEditor.ReadSheet(expected, "Log"),
             WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
@@ -985,6 +998,12 @@ public class WorkbookEditorTests
         await File.WriteAllBytesAsync(input.Path, xlsx);
 
         await WorkbookEditor.AppendRowsAsync(input.Path, output.Path, "Log", rows);
+
+        // B16: see AppendRowsAsync_MatchesTheByteArrayOverload above - the parity line alone
+        // holds on two empty grids.
+        Assert.Equal(
+            new[] { new[] { "a" }, new[] { "b" } },
+            WorkbookEditor.ReadSheet(await File.ReadAllBytesAsync(output.Path), "Log"));
 
         Assert.Equal(
             WorkbookEditor.ReadSheet(WorkbookEditor.AppendRows(xlsx, "Log", rows), "Log"),

@@ -104,6 +104,15 @@ public class PresentationEditorServiceTests
         await sut.CreateAsync(slides, destination);
 
         var written = destination.ToArray();
+
+        // B16: anchored to literals before the parity check. ExtractText compared against itself
+        // passes on two empty lists, so it cannot on its own tell "the deck was written" from
+        // "nothing was written and nothing was read".
+        //
+        // Two entries for ONE slide: ExtractText returns one entry per text-bearing BODY, so a
+        // title and its content are separate. The parity assertion below never had to know that.
+        Assert.Equal(new[] { "Roadmap", "Ship 0.11.0" }, PresentationEditor.ExtractText(written));
+
         Assert.Equal(
             PresentationEditor.ExtractText(PresentationEditor.Create(slides)),
             PresentationEditor.ExtractText(written));

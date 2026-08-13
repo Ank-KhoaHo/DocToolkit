@@ -46,6 +46,14 @@ public class DocxEditorServiceTests
         using var destination = new MemoryStream();
         await sut.CreateAsync(blocks, destination);
 
+        // B16: the literal comes FIRST and the parity check second. On its own, comparing
+        // ExtractText against ExtractText holds however broken ExtractText is - if it returned ""
+        // for everything, "" == "" passes. That is not hypothetical here: A26 was exactly that
+        // method returning the wrong thing, and it survived 785 tests behind assertions shaped
+        // like the one below.
+        Assert.Contains("Written to a stream.", DocxEditor.ExtractText(destination.ToArray()),
+            StringComparison.Ordinal);
+
         Assert.Equal(
             DocxEditor.ExtractText(DocxEditor.Create(blocks)),
             DocxEditor.ExtractText(destination.ToArray()));
