@@ -147,6 +147,7 @@ public class StreamOverloadTests
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
         "MarkdownToDocxConverter.ConvertAsync",
+        "MarkdownToPdfConverter.ConvertAsync",
         "PdfEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
         "PdfEditor.RemovePagesAsync",
@@ -852,6 +853,12 @@ public class StreamOverloadTests
                 PresentationEditor.CreateAsync(Slides, destination!, ct),
             "MarkdownToDocxConverter.ConvertAsync" =>
                 MarkdownToDocxConverter.ConvertAsync(Md, destination!, ct),
+            // Absent from BufferedDestinationWriters on purpose: like
+            // DocxToPdfConverter, this hands the destination to OfficeIMO's own writer,
+            // whose writes are synchronous - buffering to make them async would give up
+            // the streaming this converter exists to preserve.
+            "MarkdownToPdfConverter.ConvertAsync" =>
+                MarkdownToPdfConverter.ConvertAsync(Md, destination!, ct),
             "PdfEditor.PageCountAsync" =>
                 PdfEditor.PageCountAsync(source!, ct),
             // The theory drives ONE stream; MergeAsync takes a collection, so it gets a one-element
@@ -902,6 +909,7 @@ public class StreamOverloadTests
             || api == "DocxEditor.CreateAsync"
             || api == "PresentationEditor.CreateAsync"
             || api == "MarkdownToDocxConverter.ConvertAsync"
+            || api == "MarkdownToPdfConverter.ConvertAsync"
             ? new MemoryStream()
             : StreamDoubles.Seekable(SourceBytesFor(api));
 

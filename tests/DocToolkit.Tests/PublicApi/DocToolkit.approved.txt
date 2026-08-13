@@ -143,6 +143,12 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ConvertAsync(string markdown, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static DocToolkit.ConversionResult<byte[]> ConvertWithReport(string markdown) { }
     }
+    public static class MarkdownToPdfConverter
+    {
+        public static byte[] Convert(string markdown) { }
+        public static System.Threading.Tasks.Task ConvertAsync(string markdown, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.ConversionResult<byte[]> ConvertWithReport(string markdown) { }
+    }
     public sealed class PageSetup
     {
         public double BottomPoints { get; }

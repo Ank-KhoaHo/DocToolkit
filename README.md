@@ -145,10 +145,11 @@ byte[] docx = await HtmlToDocxConverter.ConvertAsync("<h1>Invoice</h1><p>Total: 
 byte[] pdf  = await HtmlToPdfConverter.ConvertAsync("<h1>Invoice</h1>");  // pivots through DOCX
 byte[] rendered = DocxToPdfConverter.Convert(docx);
 
-// Markdown in both directions. Markdown -> PDF is the first of these composed with
-// DocxToPdfConverter, the same way HTML -> PDF pivots through DOCX.
+// Markdown in both directions, and on to PDF — which pivots through DOCX exactly as
+// HTML -> PDF does.
 string md        = DocxToMarkdownConverter.Convert(docx);
 byte[] fromMd    = MarkdownToDocxConverter.Convert("# Invoice\n\nTotal: **18,100.00**\n");
+byte[] mdPdf     = MarkdownToPdfConverter.Convert("# Invoice\n\nTotal: **18,100.00**\n");
 
 // Or build a DOCX from data rather than markup — no HTML to escape, so a value
 // containing '<' cannot corrupt the document's structure
