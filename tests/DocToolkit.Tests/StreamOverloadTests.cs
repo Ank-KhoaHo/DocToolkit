@@ -544,18 +544,31 @@ public class StreamOverloadTests
     [Fact]
     public async Task PresentationEditor_StreamOverloads_MatchTheByteArrayOverloads()
     {
+        // B16: every assertion in this test used to compare a production method against itself.
+        // SlideCount == SlideCount holds if both return 0; ExtractText == ExtractText holds if
+        // both return an empty list. The literals below are what make the parity lines mean
+        // something, and they are checked first for that reason.
         using var forCount = StreamDoubles.Seekable(Pptx);
-        Assert.Equal(PresentationEditor.SlideCount(Pptx), await PresentationEditor.SlideCountAsync(forCount));
+        Assert.Equal(1, await PresentationEditor.SlideCountAsync(forCount));
+
+        using var forCountParity = StreamDoubles.Seekable(Pptx);
+        Assert.Equal(PresentationEditor.SlideCount(Pptx), await PresentationEditor.SlideCountAsync(forCountParity));
 
         using var forText = StreamDoubles.Seekable(Pptx);
-        Assert.Equal(PresentationEditor.ExtractText(Pptx), await PresentationEditor.ExtractTextAsync(forText));
+        var streamedText = await PresentationEditor.ExtractTextAsync(forText);
+        Assert.Contains("{{who}}", Assert.Single(streamedText), StringComparison.Ordinal);
+        Assert.Equal(PresentationEditor.ExtractText(Pptx), streamedText);
 
         var expected = PresentationEditor.ReplaceText(Pptx, Replacements);
         using var forReplace = StreamDoubles.Seekable(Pptx);
         using var destination = new MemoryStream();
         await PresentationEditor.ReplaceTextAsync(forReplace, Replacements, destination);
 
-        Assert.Equal(PresentationEditor.ExtractText(expected), PresentationEditor.ExtractText(destination.ToArray()));
+        var replaced = PresentationEditor.ExtractText(destination.ToArray());
+        Assert.Contains("World", Assert.Single(replaced), StringComparison.Ordinal);
+        Assert.DoesNotContain("{{who}}", replaced[0], StringComparison.Ordinal);
+
+        Assert.Equal(PresentationEditor.ExtractText(expected), replaced);
     }
 
     // =====================================================================================
