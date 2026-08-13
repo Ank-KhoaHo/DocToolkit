@@ -248,6 +248,19 @@ public class PresentationEditorCreateTests
 
         var written = destination.ToArray();
         AssertValid(written);
+
+        // B16: AssertValid proves the package is schema-valid and the parity line proves the two
+        // paths agree - but an empty two-slide deck is both. These literals are the only
+        // assertions here that can tell the slides carry their content.
+        //
+        // THREE entries for TWO slides, and that is correct: ExtractText returns one entry per
+        // text-bearing BODY, not per slide, so slide 1's title and body are separate entries and
+        // slide 2 contributes only its title. Writing this assertion is what surfaced that - the
+        // self-comparison it replaces was equally satisfied by any shape at all.
+        Assert.Equal(
+            new[] { "Quarterly Report", "Revenue up 12%", "Outlook" },
+            PresentationEditor.ExtractText(written));
+
         Assert.Equal(
             PresentationEditor.ExtractText(PresentationEditor.Create(slides)),
             PresentationEditor.ExtractText(written));

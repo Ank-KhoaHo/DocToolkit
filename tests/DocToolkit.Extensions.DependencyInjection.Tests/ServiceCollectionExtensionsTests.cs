@@ -1,4 +1,6 @@
 using DocToolkit.Extensions.DependencyInjection;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -341,12 +343,44 @@ public class ServiceCollectionExtensionsTests
         byte[] viaInterface = provider.GetRequiredService<IDocxEditor>()
             .Create(blocks, DocToolkit.PageSetup.Letter);
         byte[] viaStatic = DocToolkit.DocxEditor.Create(blocks, DocToolkit.PageSetup.Letter);
+
+        // B16, and this one was worse than unanchored: the test is named for PAGE SETUP and
+        // nothing in it looked at the page. It compared extracted TEXT - which no PageSetup can
+        // change - and asserted the PDF was non-empty. A service that dropped the PageSetup
+        // argument entirely passed it.
+        //
+        // Letter is 8.5x11in = 12240x15840 twentieths of a point. A4, the default, is 11906x16838
+        // (841.9pt x 20 - NOT 16840, which is the whole-point value CLAUDE.md warns renders a page
+        // disagreeing with every other tool). Verified by flipping the argument to A4 and watching
+        // this line fail with (11906, 16838), so it discriminates the argument rather than merely
+        // reading some number back.
+        Assert.Equal((12240u, 15840u), PageSizeOf(viaInterface));
+        Assert.Equal(PageSizeOf(viaStatic), PageSizeOf(viaInterface));
+
         Assert.Equal(DocToolkit.DocxEditor.ExtractText(viaStatic),
             DocToolkit.DocxEditor.ExtractText(viaInterface));
 
         byte[] pdf = await provider.GetRequiredService<IHtmlToPdfConverter>()
             .ConvertAsync("<p>x</p>", DocToolkit.PageSetup.Letter);
         Assert.NotEmpty(pdf);
+    }
+
+    /// <summary>
+    /// The <c>w:pgSz</c> a .docx declares, in twentieths of a point.
+    ///
+    /// Reads the section properties directly rather than through anything in DocToolkit: an
+    /// assertion about page setup that goes through the library's own reader would be the
+    /// self-comparison this test was just fixed for.
+    /// </summary>
+    private static (uint Width, uint Height) PageSizeOf(byte[] docx)
+    {
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var size = doc.MainDocumentPart!.Document!.Body!
+            .Elements<SectionProperties>().Single()
+            .Elements<PageSize>().Single();
+
+        return (size.Width!.Value, size.Height!.Value);
     }
 
     // Every Stream overload on the newly mirrored interfaces. The coverage gate caught these

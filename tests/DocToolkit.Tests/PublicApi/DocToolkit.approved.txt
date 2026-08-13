@@ -1,5 +1,25 @@
 namespace DocToolkit
 {
+    public enum ConversionLossKind
+    {
+        None = 0,
+        Approximation = 1,
+        Omission = 2,
+        Failure = 3,
+    }
+    public sealed class ConversionResult<T>
+    {
+        public bool HasLoss { get; }
+        public T Value { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.ConversionWarning> Warnings { get; }
+    }
+    public sealed class ConversionWarning : System.IEquatable<DocToolkit.ConversionWarning>
+    {
+        public ConversionWarning(string Code, string Message, DocToolkit.ConversionLossKind Kind) { }
+        public string Code { get; init; }
+        public DocToolkit.ConversionLossKind Kind { get; init; }
+        public string Message { get; init; }
+    }
     public static class DocToolkitTelemetry
     {
         public const string ActivitySourceName = "Ank.DocToolkit";
@@ -65,11 +85,15 @@ namespace DocToolkit
     {
         public static string Convert(byte[] docx) { }
         public static System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.ConversionResult<string> ConvertWithReport(byte[] docx) { }
+        public static System.Threading.Tasks.Task<DocToolkit.ConversionResult<string>> ConvertWithReportAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
     }
     public static class DocxToMarkdownConverter
     {
         public static string Convert(byte[] docx) { }
         public static System.Threading.Tasks.Task<string> ConvertAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.ConversionResult<string> ConvertWithReport(byte[] docx) { }
+        public static System.Threading.Tasks.Task<DocToolkit.ConversionResult<string>> ConvertWithReportAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
     }
     public static class DocxToPdfConverter
     {

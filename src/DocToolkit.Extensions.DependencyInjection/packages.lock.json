@@ -4,9 +4,9 @@
     "net10.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.22.0, )",
-        "resolved": "0.22.0",
-        "contentHash": "xEiJAPZ1P8j0qBRg/i2Je5REWaeb51BSQVB9QbGZDx2/XlrcPym8PNd19Hv0jymlMmwki7GWpjQICYlDmyO2bQ==",
+        "requested": "[0.24.0, )",
+        "resolved": "0.24.0",
+        "contentHash": "c8bd0sTKNDczJcF6KeyKZ7WL0nZ+fpxyJ9xh8trJzuJu7tsEa89mvGWZww6UyzjpL7AbytkkGtBbfGcRVy5Q9A==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
@@ -17,6 +17,7 @@
           "OfficeIMO.Word.Markdown": "3.2.0",
           "OfficeIMO.Word.Pdf": "3.2.0",
           "PDFsharp": "6.2.4",
+          "PdfPig": "0.1.15",
           "SixLabors.Fonts": "[1.0.1]"
         }
       },
@@ -230,6 +231,11 @@
           "OfficeIMO.Word": "3.2.0"
         }
       },
+      "PdfPig": {
+        "type": "Transitive",
+        "resolved": "0.1.15",
+        "contentHash": "Bf0NO4o2ZSVnemMyj21KDU1sfSgmamFC0pD4aAv19CDNXQsoO1Z6O99gNqpiK/XWWZ5d5i7JkQoT7PUBxEPz5g=="
+      },
       "PDFsharp": {
         "type": "Transitive",
         "resolved": "6.2.4",
@@ -263,9 +269,9 @@
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.22.0, )",
-        "resolved": "0.22.0",
-        "contentHash": "xEiJAPZ1P8j0qBRg/i2Je5REWaeb51BSQVB9QbGZDx2/XlrcPym8PNd19Hv0jymlMmwki7GWpjQICYlDmyO2bQ==",
+        "requested": "[0.24.0, )",
+        "resolved": "0.24.0",
+        "contentHash": "c8bd0sTKNDczJcF6KeyKZ7WL0nZ+fpxyJ9xh8trJzuJu7tsEa89mvGWZww6UyzjpL7AbytkkGtBbfGcRVy5Q9A==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
@@ -276,6 +282,7 @@
           "OfficeIMO.Word.Markdown": "3.2.0",
           "OfficeIMO.Word.Pdf": "3.2.0",
           "PDFsharp": "6.2.4",
+          "PdfPig": "0.1.15",
           "SixLabors.Fonts": "[1.0.1]"
         }
       },
@@ -488,6 +495,11 @@
           "OfficeIMO.Pdf": "3.2.0",
           "OfficeIMO.Word": "3.2.0"
         }
+      },
+      "PdfPig": {
+        "type": "Transitive",
+        "resolved": "0.1.15",
+        "contentHash": "Bf0NO4o2ZSVnemMyj21KDU1sfSgmamFC0pD4aAv19CDNXQsoO1Z6O99gNqpiK/XWWZ5d5i7JkQoT7PUBxEPz5g=="
       },
       "PDFsharp": {
         "type": "Transitive",

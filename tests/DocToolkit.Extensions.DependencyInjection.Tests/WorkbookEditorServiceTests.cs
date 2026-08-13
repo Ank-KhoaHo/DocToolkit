@@ -241,6 +241,12 @@ public class WorkbookEditorServiceTests
         var expected = WorkbookEditor.AppendRows(xlsx, "Log", rows);
         var actual = sut.AppendRows(xlsx, "Log", rows);
 
+        // B16: the literal grid, not just parity. ReadSheet compared against itself passes on two
+        // empty grids, so it could not tell an append that worked from one that produced nothing.
+        Assert.Equal(
+            new[] { new[] { "start" }, new[] { "a" }, new[] { "b" } },
+            WorkbookEditor.ReadSheet(actual, "Log"));
+
         Assert.Equal(
             WorkbookEditor.ReadSheet(expected, "Log"),
             WorkbookEditor.ReadSheet(actual, "Log"));
@@ -270,6 +276,11 @@ public class WorkbookEditorServiceTests
         using var source = new MemoryStream(xlsx);
         using var destination = new MemoryStream();
         await sut.AppendRowsAsync(source, "Log", rows, destination);
+
+        // B16: literal first — see AppendRows_MatchesTheStaticMethod above.
+        Assert.Equal(
+            new[] { new[] { "start" }, new[] { "next" } },
+            WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
 
         Assert.Equal(
             WorkbookEditor.ReadSheet(expected, "Log"),
