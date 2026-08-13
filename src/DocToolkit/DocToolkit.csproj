@@ -65,7 +65,7 @@
     -->
     <PackageReference Include="PDFsharp" Version="6.2.4" />
 
-    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.2.0" />
+    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.2.2" />
 
     <!--
       Pinned deliberately, not incidentally. OfficeIMO.Word asks for SixLabors.Fonts
