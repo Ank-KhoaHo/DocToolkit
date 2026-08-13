@@ -82,6 +82,14 @@ public class StreamOverloadTests
     /// eagerly.</summary>
     private static readonly byte[] Pdf = DocxToPdfConverter.Convert(Docx);
 
+    /// <summary>
+    /// A two-page .pdf, for RemovePagesAsync — which refuses to remove every page, so it is the one
+    /// PdfEditor overload that cannot run against the single-page <see cref="Pdf"/>.
+    ///
+    /// Declared after <see cref="Pdf"/> because static field initialisers run in declaration order.
+    /// </summary>
+    private static readonly byte[] TwoPagePdf = PdfEditor.Merge(new[] { Pdf, Pdf });
+
     /// <summary>Keys for all three formats, so one dictionary drives every ReplaceText overload.</summary>
     private static readonly Dictionary<string, string> Replacements = new()
     {
@@ -131,6 +139,12 @@ public class StreamOverloadTests
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
+        "PdfEditor.MergeAsync",
+        "PdfEditor.ExtractPagesAsync",
+        "PdfEditor.RemovePagesAsync",
+        "PdfEditor.RotatePagesAsync",
+        "PdfEditor.ReorderPagesAsync",
+        "PdfEditor.InsertPagesAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -156,6 +170,29 @@ public class StreamOverloadTests
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.ReplaceImageAsync",
+        "PdfEditor.PageCountAsync",
+        "PdfEditor.MergeAsync",
+        "PdfEditor.ExtractPagesAsync",
+        "PdfEditor.RemovePagesAsync",
+        "PdfEditor.RotatePagesAsync",
+        "PdfEditor.ReorderPagesAsync",
+        "PdfEditor.InsertPagesAsync",
+    };
+
+    /// <summary>
+    /// The parameter a source reader names when it refuses the stream it was handed.
+    ///
+    /// "source" for all but two, and the two exceptions are why this is a lookup rather than a
+    /// literal in the assertion: <c>MergeAsync</c> takes an <c>IEnumerable&lt;Stream&gt; sources</c>
+    /// and <c>InsertPagesAsync</c> reads a <c>target</c> before its <c>source</c>. Asserting the
+    /// literal "source" would have forced both out of the theory — and being outside the theory is
+    /// exactly how all seven PdfEditor overloads escaped this suite in the first place.
+    /// </summary>
+    private static string SourceParamName(string api) => api switch
+    {
+        "PdfEditor.MergeAsync" => "sources",
+        "PdfEditor.InsertPagesAsync" => "target",
+        _ => "source",
     };
 
     /// <summary>
@@ -182,6 +219,12 @@ public class StreamOverloadTests
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
+        "PdfEditor.MergeAsync",
+        "PdfEditor.ExtractPagesAsync",
+        "PdfEditor.RemovePagesAsync",
+        "PdfEditor.RotatePagesAsync",
+        "PdfEditor.ReorderPagesAsync",
+        "PdfEditor.InsertPagesAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -308,14 +351,16 @@ public class StreamOverloadTests
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => InvokeAsync(api, null, nullCaseDestination));
 
+        var expectedParam = SourceParamName(api);
+
         var unreadable = await Assert.ThrowsAsync<ArgumentException>(
             () => InvokeAsync(api, new NonReadableStream(), unreadableCaseDestination));
-        Assert.Equal("source", unreadable.ParamName);
+        Assert.Equal(expectedParam, unreadable.ParamName);
         Assert.Contains("readable", unreadable.Message, StringComparison.OrdinalIgnoreCase);
 
         var empty = await Assert.ThrowsAsync<ArgumentException>(
             () => InvokeAsync(api, emptyCaseSource, emptyCaseDestination));
-        Assert.Equal("source", empty.ParamName);
+        Assert.Equal(expectedParam, empty.ParamName);
         Assert.Contains("empty", empty.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -604,6 +649,96 @@ public class StreamOverloadTests
         Assert.Contains("Nope", ex.Message);
     }
 
+    /// <summary>
+    /// The Stream overloads agree with the <c>byte[]</c> overloads they shadow. Without this the
+    /// theories above would be satisfied by an overload that guarded its streams correctly and then
+    /// produced the wrong document.
+    /// </summary>
+    [Fact]
+    public async Task PdfEditor_StreamOverloads_MatchTheByteArrayOverloads()
+    {
+        using var forCount = StreamDoubles.Seekable(TwoPagePdf);
+        Assert.Equal(2, await PdfEditor.PageCountAsync(forCount));
+
+        using var forExtract = StreamDoubles.Seekable(TwoPagePdf);
+        using var extracted = new MemoryStream();
+        await PdfEditor.ExtractPagesAsync(forExtract, 2, 1, extracted);
+        Assert.Equal(
+            PdfEditor.ExtractText(PdfEditor.ExtractPages(TwoPagePdf, 2, 1)),
+            PdfEditor.ExtractText(extracted.ToArray()));
+        Assert.Equal(1, PdfEditor.PageCount(extracted.ToArray()));
+
+        using var forRemove = StreamDoubles.Seekable(TwoPagePdf);
+        using var removed = new MemoryStream();
+        await PdfEditor.RemovePagesAsync(forRemove, 1, 1, removed);
+        Assert.Equal(1, PdfEditor.PageCount(removed.ToArray()));
+
+        using var forInsert = StreamDoubles.Seekable(Pdf);
+        using var insertSource = StreamDoubles.Seekable(TwoPagePdf);
+        using var inserted = new MemoryStream();
+        await PdfEditor.InsertPagesAsync(forInsert, insertSource, 1, inserted);
+        Assert.Equal(3, PdfEditor.PageCount(inserted.ToArray()));
+    }
+
+    /// <summary>
+    /// A <see cref="MemoryStream"/> source is consumed like any other stream.
+    ///
+    /// It used to take a fast path that called <c>ToArray()</c>: that returns the whole buffer
+    /// regardless of <c>Position</c> and never advances the stream, so PdfEditor's two ways of
+    /// reading a source disagreed about where reading starts — one of them silently handing back
+    /// bytes the caller had already consumed. No theory above can see this, because they all pass a
+    /// stream positioned at 0.
+    /// </summary>
+    [Fact]
+    public async Task PdfEditor_ConsumesAMemoryStreamSource_RatherThanReadingItsBufferBehindItsBack()
+    {
+        using var source = new MemoryStream(Pdf);
+
+        Assert.Equal(PdfEditor.PageCount(Pdf), await PdfEditor.PageCountAsync(source));
+        Assert.Equal(source.Length, source.Position);
+    }
+
+    /// <summary>
+    /// <c>InsertPagesAsync</c> is the one overload here with two sources, and the theory above can
+    /// only drive one of them. The second gets the same three guards, named for itself.
+    /// </summary>
+    [Fact]
+    public async Task PdfEditor_InsertPagesAsync_GuardsItsSecondSourceToo()
+    {
+        using var target = StreamDoubles.Seekable(Pdf);
+        using var destination = new MemoryStream();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(
+            () => PdfEditor.InsertPagesAsync(target, null!, 1, destination));
+
+        using var forUnreadable = StreamDoubles.Seekable(Pdf);
+        var unreadable = await Assert.ThrowsAsync<ArgumentException>(
+            () => PdfEditor.InsertPagesAsync(forUnreadable, new NonReadableStream(), 1, destination));
+        Assert.Equal("source", unreadable.ParamName);
+
+        using var forEmpty = StreamDoubles.Seekable(Pdf);
+        using var emptySource = new MemoryStream();
+        var empty = await Assert.ThrowsAsync<ArgumentException>(
+            () => PdfEditor.InsertPagesAsync(forEmpty, emptySource, 1, destination));
+        Assert.Equal("source", empty.ParamName);
+        Assert.Contains("empty", empty.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Merging nothing names <c>sources</c> — the parameter the caller actually passed — rather
+    /// than <c>pdfs</c>, which is the byte[] overload's parameter and is not in this signature.
+    /// </summary>
+    [Fact]
+    public async Task PdfEditor_MergeAsync_NamesItsOwnParameterWhenGivenNothingToMerge()
+    {
+        using var destination = new MemoryStream();
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => PdfEditor.MergeAsync(Array.Empty<Stream>(), destination));
+
+        Assert.Equal("sources", ex.ParamName);
+    }
+
     [Fact]
     public async Task DocxToPdf_ReportsARubbishSourceAsAConversionFailure()
     {
@@ -693,6 +828,26 @@ public class StreamOverloadTests
                 PresentationEditor.ReplaceImageAsync(source!, "{{chart}}", ImageFixtures.Png(), destination!, ct),
             "PresentationEditor.CreateAsync" =>
                 PresentationEditor.CreateAsync(Slides, destination!, ct),
+            "PdfEditor.PageCountAsync" =>
+                PdfEditor.PageCountAsync(source!, ct),
+            // The theory drives ONE stream; MergeAsync takes a collection, so it gets a one-element
+            // one. Merging a single document is a real call, not a degenerate case.
+            "PdfEditor.MergeAsync" =>
+                PdfEditor.MergeAsync(new[] { source! }, destination!, ct),
+            "PdfEditor.ExtractPagesAsync" =>
+                PdfEditor.ExtractPagesAsync(source!, 1, 1, destination!, ct),
+            // Against TwoPagePdf: RemovePages refuses to remove every page.
+            "PdfEditor.RemovePagesAsync" =>
+                PdfEditor.RemovePagesAsync(source!, 1, 1, destination!, ct),
+            "PdfEditor.RotatePagesAsync" =>
+                PdfEditor.RotatePagesAsync(source!, 1, 1, 90, destination!, ct),
+            "PdfEditor.ReorderPagesAsync" =>
+                PdfEditor.ReorderPagesAsync(source!, new[] { 1 }, destination!, ct),
+            // The theory's stream is the TARGET here — the first one read, and the one
+            // SourceParamName reports. InsertPagesAsync's own `source` gets its guards from
+            // PdfEditor_InsertPagesAsync_GuardsItsSecondSourceToo below.
+            "PdfEditor.InsertPagesAsync" =>
+                PdfEditor.InsertPagesAsync(source!, StreamDoubles.Seekable(Pdf), 1, destination!, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(api), api, "Unknown Stream overload."),
         };
 
@@ -708,7 +863,8 @@ public class StreamOverloadTests
         "PresentationEditor.ReplaceImageAsync" => ImagePptx,
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
-        "PdfEditor.ExtractTextAsync" => Pdf,
+        "PdfEditor.RemovePagesAsync" => TwoPagePdf,
+        _ when api.StartsWith("PdfEditor", StringComparison.Ordinal) => Pdf,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PresentationEditor", StringComparison.Ordinal) => Pptx,
         _ => Docx,

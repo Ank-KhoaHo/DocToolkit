@@ -41,5 +41,12 @@ StrykerOutput/
 # Benchmark output. Regenerated on every run; the uploaded artifact is the record.
 BenchmarkDotNet.Artifacts/
 
+# Coverage reports. Same reasoning as the two above, and the same shape of artifact:
+# ci.yml collects them here (--results-directory) and uploads the directory. Reproducing
+# that run locally, which is the only way to check the coverage gate before pushing, left
+# them untracked rather than ignored - so `git add -A` would have swept a pile of
+# cobertura XML into a commit.
+TestResults/
+
 # Architecture decision records. Kept on disk alongside CLAUDE.md and docs/, not published.
 adr/
