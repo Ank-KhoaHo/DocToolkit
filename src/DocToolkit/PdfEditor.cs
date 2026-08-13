@@ -29,11 +29,14 @@ public static class PdfEditor
     }
 
     /// <inheritdoc cref="PageCount(byte[])"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes.
+    /// </exception>
     public static async Task<int> PageCountAsync(Stream source, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
+        StreamPipeline.RequireReadable(source, nameof(source));
 
-        return PageCount(await ReadAllAsync(source, ct).ConfigureAwait(false));
+        return PageCount(await ReadAsync(source, nameof(source), ct).ConfigureAwait(false));
     }
 
     /// <inheritdoc cref="PageCount(byte[])"/>
@@ -90,13 +93,8 @@ public static class PdfEditor
         Stream source, CancellationToken ct = default)
     {
         StreamPipeline.RequireReadable(source, nameof(source));
-        ct.ThrowIfCancellationRequested();
 
-        using var pdf = await StreamPipeline
-            .DrainAsync(source, "PDF content was empty.", nameof(source), "Failed to read the PDF.", ct)
-            .ConfigureAwait(false);
-
-        return PdfTextExtractor.Pages(pdf.ToArray());
+        return PdfTextExtractor.Pages(await ReadAsync(source, nameof(source), ct).ConfigureAwait(false));
     }
 
     /// <inheritdoc cref="ExtractText(byte[])"/>
@@ -145,19 +143,33 @@ public static class PdfEditor
     }
 
     /// <inheritdoc cref="Merge(IEnumerable{byte[]})"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sources"/> is empty, or holds a stream that is not readable or held no
+    /// bytes; or <paramref name="destination"/> is not writable.
+    /// </exception>
     public static async Task MergeAsync(
         IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(sources);
-        ArgumentNullException.ThrowIfNull(destination);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
 
         var documents = new List<byte[]>();
         foreach (var source in sources)
         {
-            documents.Add(await ReadAllAsync(source, ct).ConfigureAwait(false));
+            StreamPipeline.RequireReadable(source, nameof(sources));
+            documents.Add(await ReadAsync(source, nameof(sources), ct).ConfigureAwait(false));
         }
 
-        await destination.WriteAsync(Merge(documents), ct).ConfigureAwait(false);
+        // Checked here rather than left to Merge, which would name its own `pdfs` parameter — a
+        // parameter this caller never passed and cannot see.
+        if (documents.Count == 0)
+        {
+            throw new ArgumentException(
+                "At least one document is required; merging nothing would produce a zero-page PDF.",
+                nameof(sources));
+        }
+
+        await WriteAsync(Merge(documents), destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -197,14 +209,18 @@ public static class PdfEditor
     }
 
     /// <inheritdoc cref="ExtractPages(byte[], int, int)"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
     public static async Task ExtractPagesAsync(
         Stream source, int firstPage, int count, Stream destination, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(destination);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
 
-        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
-        await destination.WriteAsync(ExtractPages(pdf, firstPage, count), ct).ConfigureAwait(false);
+        var pdf = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(ExtractPages(pdf, firstPage, count), destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -257,14 +273,18 @@ public static class PdfEditor
     }
 
     /// <inheritdoc cref="RemovePages(byte[], int, int)"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
     public static async Task RemovePagesAsync(
         Stream source, int firstPage, int count, Stream destination, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(destination);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
 
-        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
-        await destination.WriteAsync(RemovePages(pdf, firstPage, count), ct).ConfigureAwait(false);
+        var pdf = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(RemovePages(pdf, firstPage, count), destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -324,16 +344,20 @@ public static class PdfEditor
     }
 
     /// <inheritdoc cref="RotatePages(byte[], int, int, int)"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
     public static async Task RotatePagesAsync(
         Stream source, int firstPage, int count, int degrees, Stream destination,
         CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(destination);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
 
-        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
-        await destination.WriteAsync(RotatePages(pdf, firstPage, count, degrees), ct)
-                         .ConfigureAwait(false);
+        var pdf = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(RotatePages(pdf, firstPage, count, degrees), destination, ct)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -380,14 +404,19 @@ public static class PdfEditor
     }
 
     /// <inheritdoc cref="ReorderPages(byte[], IEnumerable{int})"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="order"/> is not a permutation of every page, <paramref name="source"/> is
+    /// not readable or held no bytes, or <paramref name="destination"/> is not writable.
+    /// </exception>
     public static async Task ReorderPagesAsync(
         Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(order);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
 
-        var pdf = await ReadAllAsync(source, ct).ConfigureAwait(false);
-        await destination.WriteAsync(ReorderPages(pdf, order), ct).ConfigureAwait(false);
+        var pdf = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(ReorderPages(pdf, order), destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -432,17 +461,22 @@ public static class PdfEditor
     }
 
     /// <inheritdoc cref="InsertPages(byte[], byte[], int)"/>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="target"/> or <paramref name="source"/> is not readable or held no bytes, or
+    /// <paramref name="destination"/> is not writable. The two sources are named separately, so a
+    /// caller who mixed them up learns which one this is about.
+    /// </exception>
     public static async Task InsertPagesAsync(
         Stream target, Stream source, int atPage, Stream destination,
         CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(destination);
+        StreamPipeline.RequireReadable(target, nameof(target));
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
 
-        var into = await ReadAllAsync(target, ct).ConfigureAwait(false);
-        var from = await ReadAllAsync(source, ct).ConfigureAwait(false);
-        await destination.WriteAsync(InsertPages(into, from, atPage), ct).ConfigureAwait(false);
+        var into = await ReadAsync(target, nameof(target), ct).ConfigureAwait(false);
+        var from = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(InsertPages(into, from, atPage), destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>The document information <paramref name="pdf"/> carries.</summary>
@@ -523,17 +557,44 @@ public static class PdfEditor
         }
     }
 
-    private static async Task<byte[]> ReadAllAsync(Stream source, CancellationToken ct)
+    /// <summary>
+    /// The one place a <see cref="Stream"/> overload here reads its input, so the eight of them
+    /// cannot disagree about what reading a source means.
+    /// </summary>
+    /// <remarks>
+    /// This used to be a private <c>ReadAllAsync</c> with a <see cref="MemoryStream"/> fast-path
+    /// that returned <c>ToArray()</c>. Three things were wrong with it and none was detectable,
+    /// because no <see cref="PdfEditor"/> method was registered in <c>StreamOverloadTests</c>:
+    /// <c>ToArray()</c> ignores <c>Position</c> and never advances the stream, so the fast path and
+    /// the slow path disagreed about where reading starts; the token was not observed at all on
+    /// that path; and an empty source came back as an empty array, to be reported later as a
+    /// corrupt PDF rather than immediately as the empty argument it was.
+    /// </remarks>
+    private static async Task<byte[]> ReadAsync(Stream source, string paramName, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(source);
+        ct.ThrowIfCancellationRequested();
 
-        if (source is MemoryStream ready)
-        {
-            return ready.ToArray();
-        }
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "PDF content was empty.", paramName, "Failed to read the PDF.", ct)
+            .ConfigureAwait(false);
 
-        using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, ct).ConfigureAwait(false);
         return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// The one place a <see cref="Stream"/> overload here writes its result.
+    /// </summary>
+    /// <remarks>
+    /// Going through <see cref="StreamPipeline.EmitAsync"/> rather than calling
+    /// <c>destination.WriteAsync</c> directly is what makes a failure to write the caller's stream
+    /// arrive as this library's own exception type, the way it already does everywhere else.
+    /// </remarks>
+    private static async Task WriteAsync(byte[] pdf, Stream destination, CancellationToken ct)
+    {
+        using var buffer = new MemoryStream(pdf, writable: false);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to write the PDF to the destination stream.", ct)
+            .ConfigureAwait(false);
     }
 }
