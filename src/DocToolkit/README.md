@@ -614,5 +614,6 @@ whole chain pure managed.
 
 ## Licence
 
-MIT. See `THIRD-PARTY-NOTICES.txt` for dependency attribution — in particular the pinned
-`SixLabors.Fonts 1.0.0`, which is the last Apache-2.0 release of that package.
+MIT. See `THIRD-PARTY-NOTICES.txt` for dependency attribution — in particular `SixLabors.Fonts`,
+pinned to an exact version on its 1.x line because 1.x is the last Apache-2.0 licensed line of
+that package. The notices file records the version actually resolved.

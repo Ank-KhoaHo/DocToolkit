@@ -493,7 +493,7 @@ Magick.NET: 38 native `.so`/`.dylib` files, 664 MB of `runtimes/`, and 26 CVE ad
 sits directly on `DocumentFormat.OpenXml`. The lesson — checking a library's *API* tells you
 nothing about what it drags in — is why the CI guard exists.
 
-**`SixLabors.Fonts` is pinned to `[1.0.0]`.** Version 2.x switches to the Six Labors Split License,
+**`SixLabors.Fonts` is pinned to an exact 1.0.x version** (currently `[1.0.1]`). Version 2.x switches to the Six Labors Split License,
 Apache-2.0 only under $1M annual revenue. CI asserts the pin holds, so a feed carrying only 2.x
 fails restore loudly rather than silently relicensing you.
 

@@ -76,7 +76,9 @@ public class DependencyGuardTests
         // OfficeIMO.Word asks for [1.0.0, 3.0.0). SixLabors.Fonts 1.x is Apache-2.0; 2.x switched
         // to the Six Labors Split License 1.0, which is Apache-2.0 only below $1M annual revenue
         // and commercial above. Floating into 2.x would quietly take DocToolkit off permissive
-        // licensing, so DocToolkit.csproj pins [1.0.0] and this catches the pin being dropped.
+        // licensing, so DocToolkit.csproj pins an exact version on the 1.x line and this catches
+        // the pin being dropped. Asserted on the MAJOR, so a patch bump of the pin does not have
+        // to touch this test - which is why it kept passing while five comments still said 1.0.0.
         var loaded = Assembly.Load(new AssemblyName("SixLabors.Fonts"));
         var version = loaded.GetName().Version;
 

@@ -32,7 +32,9 @@ Direct dependencies
    terms only to organisations under 1,000,000 USD annual gross revenue and requires a
    commercial licence above that. Allowing NuGet to float this reference to 2.x would move
    DocToolkit off permissive licensing without anyone noticing, so DocToolkit.csproj uses the
-   exact-version bracket [1.0.0] and DependencyGuardTests asserts the loaded assembly is 1.x.
+   exact-version bracket on the 1.x line and DependencyGuardTests asserts the loaded assembly is
+   1.x. The generated line above this paragraph carries the version actually pinned; this prose
+   deliberately does not repeat it, having already disagreed with it once.
 
    If this pin ever has to be lifted - for instance because a future OfficeIMO release
    requires 2.x - the licence change must be surfaced to consumers here first.

@@ -11,6 +11,13 @@ on:
     branches: [main, "feat/**", "fix/**"]
   pull_request:
     branches: [main]
+    # `edited` is not in the default set (opened, synchronize, reopened), and commit-format
+    # asserts on the PULL REQUEST TITLE - a field that only the edited event reports. Without
+    # it the guard watches a mutable value on the one event set that never sees it change,
+    # which failed in both directions: a corrected title could not go green without an
+    # unrelated push, and a PR opened with a good title could be edited to a bad one and
+    # merged green. Squash merge uses COMMIT_OR_PR_TITLE, so that title reaches main.
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 # Least privilege, matching docs.yml, release.yml and codeql.yml rather than
@@ -240,7 +247,10 @@ jobs:
           done
 
       # 2.x switches to the Six Labors Split License (Apache-2.0 only under
-      # $1M revenue). Pinned to [1.0.0]; this asserts the pin actually held.
+      # $1M revenue). DocToolkit.csproj pins an exact 1.0.x version - currently
+      # [1.0.1]; read the csproj rather than trusting this line, which said
+      # [1.0.0] for some time after the pin moved. The assertion below is on the
+      # 1.x MAJOR precisely so a patch bump does not have to touch it.
       - name: Assert SixLabors.Fonts stayed on 1.x
         run: |
           for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
@@ -266,8 +276,17 @@ jobs:
       - name: Assert THIRD-PARTY-NOTICES.txt matches the resolved graph
         run: python3 scripts/gen-third-party-notices.py --check
 
-  # src/Directory.Build.props sets IsTrimmable, which tells consumers these assemblies survive
-  # trimming. That is a claim about the WHOLE reachable graph at publish time, and the trim
+  # Each packable csproj carries <AssemblyMetadata Include="IsTrimmable" Value="True" />, which
+  # tells consumers these assemblies survive trimming.
+  #
+  # It is an AssemblyMetadata ITEM in the csproj, NOT an <IsTrimmable> property, and NOT in
+  # src/Directory.Build.props. Both alternatives were tried and both broke the build: the property
+  # makes the SDK inject a Microsoft.NET.ILLink.Tasks PackageReference at whatever version that
+  # SDK bundles, which fails --locked-mode with NU1004 on any SDK patch difference between two
+  # machines; and the item cannot sit in Directory.Build.props at all, where it makes multi-target
+  # framework inference fail with NETSDK1013. See DocToolkit.csproj, which records both.
+  #
+  # That claim is about the WHOLE reachable graph at publish time, and the trim
   # analyzer running over our own source cannot make it - it never sees ClosedXML, OpenXML,
   # HtmlToOpenXml or OfficeIMO. Checking our API and not our dependencies is precisely the mistake
   # that let ShapeCrawler in.

@@ -27,7 +27,7 @@ updates:
     open-pull-requests-limit: 10
     ignore:
       # 2.x moves to the Six Labors Split License - Apache-2.0 only under $1M
-      # annual revenue. The [1.0.0] pin is the licensing wall. Blocking the major
+      # annual revenue. The exact-version 1.0.x pin is the licensing wall. Blocking the major
       # here stops a doomed PR reopening every week; ci.yml's premise guard stays
       # the backstop if anything ever slips past.
       - dependency-name: "SixLabors.Fonts"
