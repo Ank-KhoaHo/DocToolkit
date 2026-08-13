@@ -25,6 +25,12 @@ public class HtmlToPdfConverterTests
         var direct = await HtmlToPdfConverter.ConvertAsync(html);
         var stepwise = DocxToPdfConverter.Convert(await HtmlToDocxConverter.ConvertAsync(html));
 
+        // B16: the literal first. PdfProbe is itself pinned, so it does not silently return
+        // nothing - but two PDFs that both rendered NO text still compare equal, and that is the
+        // failure this test is here to catch. Anchoring it costs one line.
+        Assert.Contains("Same Input", PdfProbe.ExtractText(direct), StringComparison.Ordinal);
+        Assert.Contains("Same output text.", PdfProbe.ExtractText(direct), StringComparison.Ordinal);
+
         // Byte equality is not guaranteed (timestamps/ids), but the rendered text must match.
         Assert.Equal(PdfProbe.ExtractText(stepwise), PdfProbe.ExtractText(direct));
     }

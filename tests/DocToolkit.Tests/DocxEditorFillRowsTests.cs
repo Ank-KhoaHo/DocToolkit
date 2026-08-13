@@ -286,6 +286,15 @@ public class DocxEditorFillRowsTests
         await DocxEditor.FillRowsAsync(source, "item", records, destination);
         var actual = destination.ToArray();
 
+        // B16: the literals come first. AssertValid proves the package is schema-valid and the
+        // parity line proves the two paths agree - but a document with the template row expanded
+        // to nothing is both valid and in agreement with itself. Only these two lines can tell
+        // that the rows were actually filled.
+        var text = DocxEditor.ExtractText(actual);
+        Assert.Contains("Widget x2", text, StringComparison.Ordinal);
+        Assert.Contains("Gadget x5", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{item.", text, StringComparison.Ordinal);
+
         // Parity on readable content, not bytes. Two OpenXML saves happen to be byte-deterministic
         // (measured 2026-08-03), but text is what the method promises and does not depend on that
         // staying true.

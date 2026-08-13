@@ -280,6 +280,13 @@ public class DocxEditorTests
 
         await DocxEditor.ReplaceTextAsync(input.Path, output.Path, replacements);
 
+        // B16: the substitution itself, asserted against literals. The parity line below cannot
+        // see a ReplaceText that stopped substituting - both sides would carry "{{customer}}" and
+        // still be equal.
+        var written = DocxEditor.ExtractText(await File.ReadAllBytesAsync(output.Path));
+        Assert.Contains("Dear Contoso Ltd", written, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{customer}}", written, StringComparison.Ordinal);
+
         Assert.Equal(
             DocxEditor.ExtractText(DocxEditor.ReplaceText(docx, replacements)),
             DocxEditor.ExtractText(await File.ReadAllBytesAsync(output.Path)));
