@@ -145,6 +145,11 @@ byte[] docx = await HtmlToDocxConverter.ConvertAsync("<h1>Invoice</h1><p>Total: 
 byte[] pdf  = await HtmlToPdfConverter.ConvertAsync("<h1>Invoice</h1>");  // pivots through DOCX
 byte[] rendered = DocxToPdfConverter.Convert(docx);
 
+// Markdown in both directions. Markdown -> PDF is the first of these composed with
+// DocxToPdfConverter, the same way HTML -> PDF pivots through DOCX.
+string md        = DocxToMarkdownConverter.Convert(docx);
+byte[] fromMd    = MarkdownToDocxConverter.Convert("# Invoice\n\nTotal: **18,100.00**\n");
+
 // Or build a DOCX from data rather than markup — no HTML to escape, so a value
 // containing '<' cannot corrupt the document's structure
 byte[] report = DocxEditor.Create(new[]
@@ -455,11 +460,17 @@ Both packages ship at the same version from the same tag. See the
 
 ## Offline by default
 
-No default code path performs network I/O — enforced, not merely intended. 37 guard tests assert
+No default code path performs network I/O — enforced, not merely intended. 40 guard tests assert
 **zero** socket connections across the whole public API, against markup naming a loopback listener
 sixteen ways (`<img src>`, `srcset`, `<link rel=stylesheet>`, `@import`, `background-image`,
 `<iframe>`, `<object>`, `<script>`). The guard is proved by mutation: enabling downloads turns nine
 of those tests red with real request lines, so it discriminates rather than passing vacuously.
+
+`MarkdownToDocxConverter` takes the same stance and is measured the same way: an image URL in
+Markdown becomes a **hyperlink rather than a fetch**, a local file reference is **refused** (a path
+in untrusted content would let the document choose which file lands in the output), and `data:`
+images are inlined because they carry their own bytes. Its zero-connection test ships with a
+positive control, so it cannot pass because the probe stopped working.
 **That proof is re-earned weekly rather than asserted** — Stryker.NET mutates the guard-critical
 files in CI and fails if the mutation score drops (74.3% when the gate was added).
 

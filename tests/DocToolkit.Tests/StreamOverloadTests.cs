@@ -77,6 +77,13 @@ public class StreamOverloadTests
 
     private static readonly byte[] Pptx = PptxFixtures.Sample();
 
+    /// <summary>Markdown for MarkdownToDocxConverter.ConvertAsync, which takes no source.</summary>
+    private const string Md = """
+        # Quarterly Report
+
+        Revenue was **up 12%**.
+        """;
+
     /// <summary>A .pdf, for PdfEditor.ExtractTextAsync. Built from <see cref="Docx"/> rather than
     /// through HtmlToPdfConverter because that path is async and these fields are initialised
     /// eagerly.</summary>
@@ -139,6 +146,7 @@ public class StreamOverloadTests
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
+        "MarkdownToDocxConverter.ConvertAsync",
         "PdfEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
         "PdfEditor.RemovePagesAsync",
@@ -219,6 +227,7 @@ public class StreamOverloadTests
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
+        "MarkdownToDocxConverter.ConvertAsync",
         "PdfEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
         "PdfEditor.RemovePagesAsync",
@@ -841,6 +850,8 @@ public class StreamOverloadTests
                 PresentationEditor.ReplaceImageAsync(source!, "{{chart}}", ImageFixtures.Png(), destination!, ct),
             "PresentationEditor.CreateAsync" =>
                 PresentationEditor.CreateAsync(Slides, destination!, ct),
+            "MarkdownToDocxConverter.ConvertAsync" =>
+                MarkdownToDocxConverter.ConvertAsync(Md, destination!, ct),
             "PdfEditor.PageCountAsync" =>
                 PdfEditor.PageCountAsync(source!, ct),
             // The theory drives ONE stream; MergeAsync takes a collection, so it gets a one-element
@@ -890,6 +901,7 @@ public class StreamOverloadTests
             || api == "WorkbookEditor.CreateAsync(sheets)"
             || api == "DocxEditor.CreateAsync"
             || api == "PresentationEditor.CreateAsync"
+            || api == "MarkdownToDocxConverter.ConvertAsync"
             ? new MemoryStream()
             : StreamDoubles.Seekable(SourceBytesFor(api));
 

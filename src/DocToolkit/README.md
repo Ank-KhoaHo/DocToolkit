@@ -182,6 +182,14 @@ byte[] deckPdf  = PptxToPdfConverter.Convert(pptx);
 string html     = DocxToHtmlConverter.Convert(docx);
 string markdown = DocxToMarkdownConverter.Convert(docx);
 
+// ...and back the other way, completing the round trip. Markdown -> PDF is this composed
+// with DocxToPdfConverter, the same way HTML -> PDF already pivots through DOCX.
+//
+// Nothing here reaches the network or the disk: a remote image reference becomes a
+// hyperlink rather than a fetch, a local file reference is refused, and data: images are
+// inlined. That is asserted against a live loopback listener, with a positive control.
+byte[] fromMarkdown = MarkdownToDocxConverter.Convert(markdown);
+
 // ...and, if you need to know what those conversions could NOT carry across, the same
 // call with a report. ConversionResult<T> gives you the output plus a ConversionWarning
 // list; each warning carries a Code, a Message and a ConversionLossKind saying how bad
