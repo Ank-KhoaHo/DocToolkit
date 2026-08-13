@@ -629,6 +629,129 @@ public static class WorkbookEditor
         await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX.", ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Applies <paramref name="format"/> to <paramref name="sheetName"/> and returns the workbook.
+    /// </summary>
+    /// <remarks>
+    /// Formatting is applied to an existing workbook rather than being an argument to
+    /// <c>Create</c>, so it composes with every way a workbook can arrive here — built by
+    /// <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>, appended to, or handed in by
+    /// a caller who never used this library to make it.
+    ///
+    /// See <see cref="XlsxFormat"/> for why the set of settings is deliberately small.
+    /// </remarks>
+    /// <param name="xlsx">The workbook to format. It is not modified.</param>
+    /// <param name="sheetName">The sheet to format.</param>
+    /// <param name="format">The formatting to apply.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="format"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, or <paramref name="sheetName"/> is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, or the sheet does not exist.
+    /// </exception>
+    public static byte[] Format(byte[] xlsx, string sheetName, XlsxFormat format)
+    {
+        ValidateWorkbook(xlsx);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentNullException.ThrowIfNull(format);
+
+        try
+        {
+            using var workbook = Open(xlsx);
+            ApplyFormat(Sheet(workbook, sheetName), format);
+
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to edit XLSX.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, applies <paramref name="format"/> to
+    /// <paramref name="sheetName"/>, and writes the result to <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to format.</param>
+    /// <param name="format">The formatting to apply.</param>
+    /// <param name="destination">The stream the workbook is written to.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="format"/> is null, or a stream is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A stream is unusable, <paramref name="source"/> held no bytes, or <paramref name="sheetName"/>
+    /// is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, or the sheet does not exist.
+    /// </exception>
+    public static async Task FormatAsync(
+        Stream source, string sheetName, XlsxFormat format, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentNullException.ThrowIfNull(format);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = FormatCore(xlsx, sheetName, format);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX.", ct).ConfigureAwait(false);
+    }
+
+    private static MemoryStream FormatCore(Stream xlsx, string sheetName, XlsxFormat format)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook(xlsx);
+            ApplyFormat(Sheet(workbook, sheetName), format);
+
+            var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to edit XLSX.", ex);
+        }
+    }
+
+    /// <summary>
+    /// The one place an <see cref="XlsxFormat"/> becomes spreadsheet styling, so the
+    /// <c>byte[]</c> and <c>Stream</c> paths cannot disagree about what a format means — the same
+    /// rule <see cref="SetCellValue"/> and <c>SectionPropertiesFactory</c> follow.
+    /// </summary>
+    private static void ApplyFormat(IXLWorksheet sheet, XlsxFormat format)
+    {
+        // Number formats first: they apply to whole columns, and doing them before AutoFit means
+        // the widths account for the formatted text rather than the raw value. "1234.5" and
+        // "1,234.50" are different widths.
+        foreach (var (column, numberFormat) in format.ColumnNumberFormats)
+            sheet.Column(column).Style.NumberFormat.Format = numberFormat;
+
+        if (format.BoldHeaderRow)
+            sheet.Row(1).Style.Font.Bold = true;
+
+        if (format.AutoFitColumns)
+            sheet.Columns().AdjustToContents();
+
+        // Freezing splits at the TOP of row 2, which is what "freeze the header" means. Applied
+        // after AutoFit because adjusting a frozen pane's columns is the sort of interaction worth
+        // not relying on.
+        if (format.FreezeHeaderRow)
+            sheet.SheetView.FreezeRows(1);
+    }
+
     private static MemoryStream SetCellCore(Stream xlsx, string sheetName, string cellRef, object? value)
     {
         try
