@@ -182,6 +182,22 @@ byte[] deckPdf  = PptxToPdfConverter.Convert(pptx);
 string html     = DocxToHtmlConverter.Convert(docx);
 string markdown = DocxToMarkdownConverter.Convert(docx);
 
+// ...and, if you need to know what those conversions could NOT carry across, the same
+// call with a report. ConversionResult<T> gives you the output plus a ConversionWarning
+// list; each warning carries a Code, a Message and a ConversionLossKind saying how bad
+// it was (None, Approximation, Omission, Failure).
+//
+// The plain Convert overloads above are unchanged and return exactly the same output -
+// this is opt-in. A conversion that loses something still SUCCEEDS: you get the document
+// and the warnings, and decide for yourself.
+ConversionResult<string> report = DocxToHtmlConverter.ConvertWithReport(docx);
+if (report.HasLoss)
+{
+    foreach (ConversionWarning w in report.Warnings)
+        Console.WriteLine($"{w.Kind} {w.Code}: {w.Message}");
+}
+string faithful = report.Value;
+
 // Page size, orientation and margins. Generated documents are A4 with one-inch margins
 // unless you say otherwise.
 byte[] landscape = await HtmlToPdfConverter.ConvertAsync(
@@ -568,7 +584,7 @@ is that you find out by reading the source.
 
 | Limitation | Detail |
 |---|---|
-| **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; there is no warning channel. The output is a valid PDF either way. |
+| **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; the PDF converters have no warning channel, because the renderer beneath them produces no report to surface. The output is a valid PDF either way. The DOCX → HTML and DOCX → Markdown exporters are the exception — see `ConvertWithReport`. |
 | **PDF fonts depend on the machine doing the conversion** | Where a system font is available it is **embedded**: on a Windows dev box the same invoice produces a ~167 KB PDF carrying Arial-Regular and Arial-Bold. In a slim container with no fonts installed, nothing is embedded and the PDF falls back to the **base-14 standard fonts** (Helvetica), giving ~1.5 KB. **Both are valid and both render**, and Arial and Helvetica are metric-compatible so line breaks do not move — but the glyphs are not identical, so a PDF built in your container will not be byte-identical to one built on your laptop. Install fonts in the image if you need a specific face. |
 | **HTML → PDF goes through DOCX** | So fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |
 | **No external stylesheets** | `<link rel="stylesheet">` is not fetched, by design. Inline `<style>` and `style=` are honoured. |

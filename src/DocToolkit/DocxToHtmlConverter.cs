@@ -51,6 +51,77 @@ public static class DocxToHtmlConverter
     }
 
     /// <summary>
+    /// Converts the .docx in <paramref name="docx"/> to HTML, and reports what the conversion could
+    /// not carry across.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Convert(byte[])"/> returns the same HTML and is unchanged; this overload exists
+    /// because the underlying converter <b>already produces a loss report on every call</b> and
+    /// nothing here used to surface it. A plain DOCX reports at least one entry today —
+    /// <c>SectionLayoutFlattened</c>, an <see cref="ConversionLossKind.Approximation"/> raised
+    /// because page geometry is exported without section metadata — so a caller who needs to know
+    /// whether the HTML is faithful had no way to find out.
+    ///
+    /// The result is always usable: this reports loss, it does not refuse. A caller processing a
+    /// mixed folder would rather branch on <see cref="ConversionResult{T}.HasLoss"/> than wrap a
+    /// normal case in <c>try</c>/<c>catch</c>.
+    /// </remarks>
+    /// <param name="docx">The document to convert.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be converted.</exception>
+    public static ConversionResult<string> ConvertWithReport(byte[] docx)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0)
+            throw new ArgumentException("DOCX content was empty.", nameof(docx));
+
+        try
+        {
+            using var input = new MemoryStream();
+            input.Write(docx, 0, docx.Length);
+            input.Position = 0;
+
+            using var word = WordDocument.Load(input);
+            var result = word.ToHtmlResult(TextExportOptions.ForHtml());
+
+            var warnings = new List<ConversionWarning>(result.Report.Diagnostics.Count);
+            foreach (var d in result.Report.Diagnostics)
+                warnings.Add(ConversionDiagnostics.Warning(d.Code, d.Message, d.LossKind));
+
+            return new ConversionResult<string>(result.Value, warnings);
+        }
+        catch (Exception ex) when (ex is not ArgumentException)
+        {
+            throw new DocumentConversionException(FailureMessage, ex);
+        }
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and converts it to HTML, reporting what the
+    /// conversion could not carry across.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and is not disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="ConvertWithReport(byte[])"/>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    public static async Task<ConversionResult<string>> ConvertWithReportAsync(
+        Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), FailureMessage, ct)
+            .ConfigureAwait(false);
+
+        return ConvertWithReport(docx.ToArray());
+    }
+
+    /// <summary>
     /// Reads a .docx from <paramref name="source"/> and returns it as a complete HTML document.
     ///
     /// <paramref name="source"/> is <b>read</b> to its end and is not disposed, closed or sought, so
