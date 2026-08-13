@@ -10,6 +10,20 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.26.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.25.0...v0.26.0) (2026-08-13)
+
+
+### Added
+
+* **core:** convert Markdown to DOCX ([17c5eba](https://github.com/Ank-KhoaHo/DocToolkit/commit/17c5eba95621457602d9b51fc2cbf5f493eb4fe0))
+* **core:** convert Markdown to DOCX ([8266b3f](https://github.com/Ank-KhoaHo/DocToolkit/commit/8266b3fcac60dbf970a71dd81a9947c0c71d9015))
+* **core:** convert Markdown to PDF ([b00c763](https://github.com/Ank-KhoaHo/DocToolkit/commit/b00c7635ca4645886decec5937394616c3160788))
+* **core:** convert Markdown to PDF ([dc310c2](https://github.com/Ank-KhoaHo/DocToolkit/commit/dc310c24893966a0324e89646f3da0bbbf4894f5))
+* **core:** export a sheet as CSV or as an HTML table ([28acaf0](https://github.com/Ank-KhoaHo/DocToolkit/commit/28acaf0d9ab18f03958d335a32d1ab19de8c9645))
+* **core:** export a sheet as CSV or as an HTML table ([4b70084](https://github.com/Ank-KhoaHo/DocToolkit/commit/4b70084138f20a8bff665493ad0d945a0fa55a9a))
+* **core:** format a sheet - bold header, freeze, auto-fit, number formats ([694a1f4](https://github.com/Ank-KhoaHo/DocToolkit/commit/694a1f4319c7a93fe504f27c27c2e3ba16cf18f4))
+* **core:** format a sheet — bold header, freeze, auto-fit, number formats ([c9bccd2](https://github.com/Ank-KhoaHo/DocToolkit/commit/c9bccd2f81cf2b02e0eca57be57d1afef6649fb6))
+
 ## [0.25.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.24.0...v0.25.0) (2026-08-13)
 
 
