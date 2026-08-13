@@ -206,6 +206,15 @@ byte[] markdownPdf = MarkdownToPdfConverter.Convert(markdown);
 string sheetCsv  = XlsxToCsvConverter.Convert(xlsx, "Sales");
 string sheetHtml = XlsxToHtmlConverter.Convert(xlsx, "Sales");
 
+// Make a generated sheet readable: XlsxFormat.Report is a bold header row, that row frozen,
+// and columns auto-fitted. Add a number format per column if you want one.
+//
+// This set is deliberately SMALL and closed. Cell styling is an open-ended surface - fonts,
+// borders, fills, conditional rules - and this package's premise is a narrow one it can
+// guarantee. If you need more, use ClosedXML directly rather than through a thinner API.
+byte[] report = WorkbookEditor.Format(xlsx, "Sales",
+    XlsxFormat.Report.WithNumberFormat("B", "#,##0.00"));
+
 // ...and, if you need to know what those conversions could NOT carry across, the same
 // call with a report. ConversionResult<T> gives you the output plus a ConversionWarning
 // list; each warning carries a Code, a Message and a ConversionLossKind saying how bad
