@@ -35,8 +35,8 @@
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageReference Include="HtmlToOpenXml.dll" Version="3.5.0" />
-    <PackageReference Include="OfficeIMO.Excel.Pdf" Version="3.2.0" />
-    <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.2.0" />
+    <PackageReference Include="OfficeIMO.Excel.Pdf" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.2.2" />
     <PackageReference Include="OfficeIMO.Word.Html" Version="3.2.2" />
     <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.2" />
     <!--
