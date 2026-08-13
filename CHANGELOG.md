@@ -10,6 +10,22 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.25.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.24.0...v0.25.0) (2026-08-13)
+
+
+### Added
+
+* **core:** report what a DOCX text conversion could not carry across ([c5edbcd](https://github.com/Ank-KhoaHo/DocToolkit/commit/c5edbcd19c85598739084658db8bbf4afa5f2525))
+* **core:** report what a DOCX text conversion could not carry across ([6148021](https://github.com/Ank-KhoaHo/DocToolkit/commit/6148021220142908e144f92ed4430c72184f8a61))
+* **extensions:** mirror PdfEditor.ExtractText on IPdfEditor ([2a57068](https://github.com/Ank-KhoaHo/DocToolkit/commit/2a570685724b517b17029a9bc134dac94cb93fe9))
+* **extensions:** mirror PdfEditor.ExtractText on IPdfEditor ([907df58](https://github.com/Ank-KhoaHo/DocToolkit/commit/907df58219ca9fbe35531382b89b5ff6a146a264))
+
+
+### Fixed
+
+* **core:** build PdfEditor's Stream overloads on StreamPipeline ([207f087](https://github.com/Ank-KhoaHo/DocToolkit/commit/207f0871223ef4f6a4b42057cbb4ff64de633121))
+* **core:** build PdfEditor's Stream overloads on StreamPipeline ([cb413bd](https://github.com/Ank-KhoaHo/DocToolkit/commit/cb413bda8b57925cf53526f495424513fa61cc4e))
+
 ## [0.24.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.23.0...v0.24.0) (2026-08-12)
 
 
