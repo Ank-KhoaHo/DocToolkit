@@ -193,6 +193,19 @@ byte[] fromMarkdown = MarkdownToDocxConverter.Convert(markdown);
 // offline guarantee above unchanged because it performs no conversion of its own.
 byte[] markdownPdf = MarkdownToPdfConverter.Convert(markdown);
 
+// XLSX -> CSV and XLSX -> HTML, one named sheet at a time.
+//
+// Cell text is CULTURE-INVARIANT in both - numbers use a dot, dates are ISO 8601 - which is
+// a correctness requirement rather than a preference: a decimal comma on a German machine
+// would collide with the CSV delimiter itself. Note this differs from WorkbookEditor.ReadSheet,
+// which follows your culture because its result is data you inspect rather than a file you
+// hand to something else. A formula exports its computed VALUE.
+//
+// The HTML is a <table> FRAGMENT, not a whole document (the opposite of DocxToHtmlConverter):
+// a sheet is part of a page rather than a page. Every cell is escaped.
+string sheetCsv  = XlsxToCsvConverter.Convert(xlsx, "Sales");
+string sheetHtml = XlsxToHtmlConverter.Convert(xlsx, "Sales");
+
 // ...and, if you need to know what those conversions could NOT carry across, the same
 // call with a report. ConversionResult<T> gives you the output plus a ConversionWarning
 // list; each warning carries a Code, a Message and a ConversionLossKind saying how bad

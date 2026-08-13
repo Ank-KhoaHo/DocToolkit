@@ -373,7 +373,8 @@ public static class WorkbookEditor
     // while still catching that case before a single byte of it is allocated.
     private const long ReadSheetCellLimit = 2_000_000;
 
-    private static List<IReadOnlyList<string>> ReadSheetCore(XLWorkbook workbook, string sheetName)
+    private static List<IReadOnlyList<string>> ReadSheetCore(
+        XLWorkbook workbook, string sheetName, bool invariant = false)
     {
         var sheet = Sheet(workbook, sheetName);
 
@@ -409,11 +410,86 @@ public static class WorkbookEditor
         {
             var row = new string[lastColumn];
             for (var c = 1; c <= lastColumn; c++)
-                row[c - 1] = sheet.Cell(r, c).GetString();
+                row[c - 1] = CellText(sheet.Cell(r, c), invariant);
             rows.Add(row);
         }
 
         return rows;
+    }
+
+    /// <summary>
+    /// The same grid <see cref="ReadSheet(byte[], string)"/> returns, rendered
+    /// <b>culture-invariantly</b>, for the exporters.
+    /// </summary>
+    /// <remarks>
+    /// One grid reader with a flag rather than a second reader: two ways of turning a sheet into
+    /// text is exactly the drift the <c>*Core</c> convention and <c>SetCellValue</c>'s single site
+    /// exist to prevent.
+    /// </remarks>
+    internal static IReadOnlyList<IReadOnlyList<string>> ReadSheetInvariant(byte[] xlsx, string sheetName)
+    {
+        ValidateWorkbook(xlsx);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+
+        try
+        {
+            using var workbook = Open(xlsx);
+            return ReadSheetCore(workbook, sheetName, invariant: true);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read XLSX.", ex);
+        }
+    }
+
+    /// <summary>
+    /// A cell as text, optionally independent of the machine's regional settings.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why the invariant form exists.</b> <c>GetString()</c> follows
+    /// <see cref="CultureInfo.CurrentCulture"/>, so the same workbook reads back as <c>1234.5</c>
+    /// on one machine and <c>1234,5</c> on another. That is tolerable for
+    /// <see cref="ReadSheet(byte[], string)"/>, whose result a caller inspects — and **corrupting**
+    /// for CSV, where a decimal comma collides with the delimiter itself. Measured 2026-08-13
+    /// across en-US, de-DE and fr-FR.
+    ///
+    /// Invariant output is already this class's convention on the way in: <c>SetCellValue</c>
+    /// writes invariantly so that "the same code writes a different spreadsheet depending on the
+    /// machine's regional settings" cannot happen. The exporters simply hold the same line on the
+    /// way out.
+    ///
+    /// <b>A date-only value renders as <c>yyyy-MM-dd</c>, not with a midnight time.</b> Excel has
+    /// no date-without-time type, so every date carries 00:00:00; emitting it produces
+    /// <c>2026-08-13 00:00:00</c> for what the author entered as a date. A time component is kept
+    /// only when there is one.
+    ///
+    /// A formula cell renders its computed VALUE, which is what both exporters want — the formula
+    /// text is a spreadsheet concern, not a CSV or HTML one.
+    /// </remarks>
+    private static string CellText(IXLCell cell, bool invariant)
+    {
+        if (!invariant) return cell.GetString();
+
+        var value = cell.Value;
+
+        if (value.IsDateTime)
+        {
+            var d = value.GetDateTime();
+            return d.TimeOfDay == TimeSpan.Zero
+                ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : d.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        }
+
+        if (value.IsNumber)
+            return value.GetNumber().ToString(CultureInfo.InvariantCulture);
+
+        if (value.IsBoolean)
+            return value.GetBoolean() ? "TRUE" : "FALSE";
+
+        if (value.IsTimeSpan)
+            return value.GetTimeSpan().ToString("c", CultureInfo.InvariantCulture);
+
+        return cell.GetString();
     }
 
     /// <summary>

@@ -151,6 +151,11 @@ string md        = DocxToMarkdownConverter.Convert(docx);
 byte[] fromMd    = MarkdownToDocxConverter.Convert("# Invoice\n\nTotal: **18,100.00**\n");
 byte[] mdPdf     = MarkdownToPdfConverter.Convert("# Invoice\n\nTotal: **18,100.00**\n");
 
+// A sheet as CSV or as an HTML table fragment. Cell text is culture-invariant in both —
+// a decimal comma would collide with the CSV delimiter itself.
+string csv       = XlsxToCsvConverter.Convert(xlsx, "Sales");
+string tableHtml = XlsxToHtmlConverter.Convert(xlsx, "Sales");
+
 // Or build a DOCX from data rather than markup — no HTML to escape, so a value
 // containing '<' cannot corrupt the document's structure
 byte[] report = DocxEditor.Create(new[]
