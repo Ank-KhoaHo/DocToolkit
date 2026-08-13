@@ -8,6 +8,11 @@ internal sealed class PdfEditorService : IPdfEditor
     public Task<int> PageCountAsync(Stream source, CancellationToken ct = default)
         => DocToolkit.PdfEditor.PageCountAsync(source, ct);
 
+    public IReadOnlyList<string> ExtractText(byte[] pdf) => DocToolkit.PdfEditor.ExtractText(pdf);
+
+    public Task<IReadOnlyList<string>> ExtractTextAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.ExtractTextAsync(source, ct);
+
     public byte[] Merge(IEnumerable<byte[]> pdfs) => DocToolkit.PdfEditor.Merge(pdfs);
 
     public Task MergeAsync(IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default)

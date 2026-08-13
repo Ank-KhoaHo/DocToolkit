@@ -157,4 +157,56 @@ public class PdfEditorServiceTests
 
         Assert.Equal([0, 90, 180], RotationsOf(destination.ToArray()));
     }
+
+    /// <summary>
+    /// A18-DI. Asserts LITERAL text, not just that the wrapper agrees with the static method:
+    /// "the wrapper matches the thing it wraps" holds identically when both return nothing, which
+    /// is the tautology B16 exists to catch. The delegation check is kept as a second assertion,
+    /// underneath one that can actually fail on its own.
+    /// </summary>
+    [Fact]
+    public async Task ExtractText_ReturnsOneEntryPerPage_HoldingThatPagesOwnText()
+    {
+        var merged = PdfEditor.Merge([await PageAsync("Acme Corporation"), await PageAsync("Invoice 42")]);
+        var sut = new PdfEditorService();
+
+        var pages = sut.ExtractText(merged);
+
+        Assert.Equal(2, pages.Count);
+
+        // Page 2's text is page 2's, not page 1's - a wrapper that returned the first page twice,
+        // or concatenated everything, fails here rather than on a count.
+        Assert.Contains("Acme Corporation", pages[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("Invoice 42", pages[0], StringComparison.Ordinal);
+        Assert.Contains("Invoice 42", pages[1], StringComparison.Ordinal);
+
+        Assert.Equal(PdfEditor.ExtractText(merged), pages);
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_MatchesTheByteArrayForm_AndLeavesTheSourceOpen()
+    {
+        var pdf = await PageAsync("Acme Corporation");
+        var sut = new PdfEditorService();
+
+        using var source = new MemoryStream(pdf, writable: false);
+        var pages = await sut.ExtractTextAsync(source);
+
+        Assert.Contains("Acme Corporation", Assert.Single(pages), StringComparison.Ordinal);
+
+        // The caller owns the stream. CanRead is false once a MemoryStream is disposed.
+        Assert.True(source.CanRead, "ExtractTextAsync disposed a source stream it does not own.");
+    }
+
+    [Fact]
+    public async Task ExtractTextAsync_RejectsASourceItCannotRead()
+    {
+        var sut = new PdfEditorService();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(() => sut.ExtractTextAsync(null!));
+
+        using var empty = new MemoryStream();
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => sut.ExtractTextAsync(empty));
+        Assert.Equal("source", ex.ParamName);
+    }
 }
