@@ -68,4 +68,29 @@ Console.WriteLine($"Appended row : {string.Join(" | ", WorkbookEditor.ReadSheet(
 // has opened and saved the file.
 Console.WriteLine($"Grand total  : {WorkbookEditor.ReadCell(workbook, "Summary", "B1")}");
 
+// --- Making a generated sheet look like a report ------------------------------------------
+// Format applies presentation to a sheet that already exists, so it composes with Create,
+// AppendRows and SetCell rather than being an argument to any of them. XlsxFormat is immutable
+// and every With* returns a new one, same as PageSetup.
+
+#region format
+byte[] presented = WorkbookEditor.Format(workbook, "Q1", XlsxFormat.Report
+    .WithNumberFormat("B", "#,##0.00"));
+#endregion
+
+Console.WriteLine($"\nFormatted    : {presented.Length:N0} bytes (was {workbook.Length:N0})");
+Console.WriteLine($"B2 reads back: {WorkbookEditor.ReadCell(presented, "Q1", "B2")}");
+
+// --- Handing a sheet to something that is not Excel ---------------------------------------
+// One sheet at a time, by name - a workbook is not one table and neither format has a way to
+// say "and now a different sheet".
+
+#region export
+string csv = XlsxToCsvConverter.Convert(presented, "Q1");
+string html = XlsxToHtmlConverter.Convert(presented, "Q1");
+#endregion
+
+Console.WriteLine($"\nAs CSV       : {csv.Replace("\r\n", " / ").Replace("\n", " / ")}");
+Console.WriteLine($"As HTML      : {html.Length:N0} chars, starts \"{html[..Math.Min(40, html.Length)]}\"");
+
 Console.WriteLine("\nDone.");

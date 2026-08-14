@@ -40,8 +40,9 @@ Method names only. What each one does, and the traps in it, are in the guides �
 ## Where the detail is
 
 - [HTML to Word and PDF](html-to-word-and-pdf.md) — page setup, remote images, the network guard
+- [Markdown, and conversion loss](markdown.md) — Markdown in and out, and what `ConvertWithReport` tells you
 - [Word documents](word-documents.md) — templates, repeating rows, images, text export
-- [Spreadsheets and presentations](spreadsheets-and-presentations.md) — sheets, formulas, formatting, decks
+- [Spreadsheets and presentations](spreadsheets-and-presentations.md) — sheets, formulas, formatting, export
 - [Running in production](production.md) — streaming, containers, fonts, trimming, telemetry
 - [Dependency injection](dependency-injection.md) — the same surface as injectable interfaces
 

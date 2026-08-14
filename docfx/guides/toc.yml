@@ -4,6 +4,8 @@
   href: capabilities.md
 - name: HTML to Word and PDF
   href: html-to-word-and-pdf.md
+- name: Markdown, and conversion loss
+  href: markdown.md
 - name: Word documents
   href: word-documents.md
 - name: Spreadsheets and presentations

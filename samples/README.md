@@ -6,9 +6,10 @@ packages rather than this repo's source — the same restore an external consume
 | Sample | Answers |
 |---|---|
 | [HtmlConversion](HtmlConversion/) | How do I turn HTML into a DOCX or a PDF, on the page size I want — and what does a failure look like? |
+| [MarkdownConversion](MarkdownConversion/) | How do I turn Markdown into a DOCX or a PDF — and how do I find out what the conversion could not carry across? |
 | [DocxTemplating](DocxTemplating/) | How do I fill a Word template, including one row per record — or build a document with no template at all? |
 | [DocxImages](DocxImages/) | How do I drop a logo or signature into a placeholder, and what happens to an image the HTML only points at? |
-| [Spreadsheets](Spreadsheets/) | How do I create, edit and read an XLSX? |
+| [Spreadsheets](Spreadsheets/) | How do I create, edit and read an XLSX — make it look like a report, and hand one sheet to something that is not Excel? |
 | [Presentations](Presentations/) | How do I read text out of a PowerPoint file? |
 | [MinimalApi](MinimalApi/) | How do I wire this into ASP.NET Core dependency injection? |
 | [RazorPdf](RazorPdf/) | How do I turn a Razor view I already maintain into a PDF or a Word document? |
