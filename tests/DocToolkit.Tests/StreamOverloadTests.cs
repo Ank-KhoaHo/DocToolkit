@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using Xunit;
 
@@ -168,6 +169,8 @@ public class StreamOverloadTests
         "PdfEditor.ExtractTextAsync",
         "DocxToHtmlConverter.ConvertAsync",
         "DocxToMarkdownConverter.ConvertAsync",
+        "DocxToHtmlConverter.ConvertWithReportAsync",
+        "DocxToMarkdownConverter.ConvertWithReportAsync",
         "XlsxToCsvConverter.ConvertAsync",
         "XlsxToHtmlConverter.ConvertAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
@@ -251,6 +254,51 @@ public class StreamOverloadTests
     /// <summary>Every Stream overload, writers and readers alike, each exactly once.</summary>
     public static TheoryData<string> AllOverloads
         => Cases(DestinationWriterNames.Union(SourceReaderNames, StringComparer.Ordinal).ToArray());
+
+    /// <summary>
+    /// The lists above are an inventory, and an inventory drifts. This DERIVES the surface from the
+    /// shipped assembly and fails naming anything missing.
+    ///
+    /// <b>It has now caught the same class of gap twice.</b> B17: every one of <c>PdfEditor</c>'s
+    /// eight Stream overloads was absent, and registering them failed 17 cases, all real defects in
+    /// shipped code. Then, one day after that fix,
+    /// <c>DocxToHtmlConverter.ConvertWithReportAsync</c> and its Markdown twin shipped in 0.25.0
+    /// without being registered either — harmless, as it turned out, but invisible.
+    ///
+    /// The class doc comment above says "adding an overload without adding it to these lists is the
+    /// only way to escape them". That was true, and it is precisely why a hand-maintained list is
+    /// the wrong shape for it. Same principle as <c>gen-third-party-notices.py</c> reading the
+    /// lockfile and <c>automerge-eligible.py</c> reading the workflows: derive, do not remember.
+    ///
+    /// <b>Known limitation, stated so it is a choice.</b> This matches on <c>Class.Method</c>, not
+    /// on signature, because that is how the lists are keyed. A NEW OVERLOAD of an already-listed
+    /// name is therefore still invisible here — the same limitation `CLAUDE.md` records for the 1:1
+    /// interface check. What it does catch is a whole method, or a whole class, going unregistered,
+    /// which is what happened both times.
+    /// </summary>
+    [Fact]
+    public void EveryPublicStreamOverloadIsRegisteredInTheListsAbove()
+    {
+        var listed = DestinationWriterNames
+            .Concat(SourceReaderNames)
+            .Concat(BufferedDestinationWriterNames)
+            .Select(n => n.Split('(')[0])
+            .ToHashSet(StringComparer.Ordinal);
+
+        var shipped =
+            from type in typeof(DocxEditor).Assembly.GetExportedTypes()
+            where type is { IsAbstract: true, IsSealed: true }        // C# static class
+            from method in type.GetMethods(BindingFlags.Public | BindingFlags.Static
+                                           | BindingFlags.DeclaredOnly)
+            where method.GetParameters().Any(p => typeof(Stream).IsAssignableFrom(p.ParameterType))
+            select $"{type.Name}.{method.Name}";
+
+        var missing = shipped.Distinct().Where(m => !listed.Contains(m)).OrderBy(m => m).ToList();
+
+        Assert.True(missing.Count == 0,
+            "These public Stream overloads are not in this file's name lists, so every theory here "
+            + "skips them silently:\n  " + string.Join("\n  ", missing));
+    }
 
     private static TheoryData<string> Cases(IEnumerable<string> names)
     {
@@ -820,6 +868,10 @@ public class StreamOverloadTests
                 DocxToHtmlConverter.ConvertAsync(source!, ct),
             "DocxToMarkdownConverter.ConvertAsync" =>
                 DocxToMarkdownConverter.ConvertAsync(source!, ct),
+            "DocxToHtmlConverter.ConvertWithReportAsync" =>
+                DocxToHtmlConverter.ConvertWithReportAsync(source!, ct),
+            "DocxToMarkdownConverter.ConvertWithReportAsync" =>
+                DocxToMarkdownConverter.ConvertWithReportAsync(source!, ct),
             "XlsxToCsvConverter.ConvertAsync" =>
                 XlsxToCsvConverter.ConvertAsync(source!, "Sales", ct),
             "XlsxToHtmlConverter.ConvertAsync" =>
