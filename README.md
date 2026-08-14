@@ -6,7 +6,8 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.svg)](https://www.nuget.org/packages/Ank.DocToolkit/)
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
-Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
+Convert **HTML and Markdown → DOCX and PDF**, export **DOCX → HTML/Markdown** and
+**XLSX → CSV/HTML**, read text out of a **PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
 
 **Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
 Works after `dotnet restore` alone, runs on Linux, macOS, Windows and arm64, and makes
@@ -36,15 +37,15 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 | **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
 | **Targets `net8.0` and `net10.0`** | Two LTS targets, one public API surface. `net9.0` is deliberately absent — a `net9.0` app already consumes the `net8.0` build, so it would add no reach. `netstandard2.0` is deliberately absent too: every dependency supports it, but the bounded-fetch guarantee on remote images cannot be expressed there, and `DateOnly`/`TimeOnly` would make the API differ per target. |
 | **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** (`ubuntu-24.04` x64, `windows-latest`, `macos-latest` Apple Silicon, `ubuntu-24.04-arm`). Not inferred from "pure managed" - measured on each. |
-| **Works offline** | No runtime network I/O. Proven by 37 air-gap tests. |
+| **Works offline** | No runtime network I/O. Proven by 40 air-gap tests. |
 
 All four are properties of the *resolved dependency graph*, so a single upstream bump can break
 them silently — which is why CI re-checks every one on every push. That has happened once already
 (see [Design notes](#design-notes)).
 
-### Trimming
+### Trimming and native AOT
 
-Both packages are marked `IsTrimmable`, so `PublishTrimmed` apps keep only what they use.
+Both packages are marked `IsTrimmable`, and the core package is marked `IsAotCompatible`.
 
 That claim is checked the same way as the four above — CI trim-publishes an application over the
 real dependency graph, then **runs it** and asserts every capability still works. A trim failure
@@ -55,9 +56,16 @@ One caveat that is a dependency's rather than ours: **ClosedXML emits a trim war
 (`IL2090`, in `DescribedEnumParser<T>`). Spreadsheet reading and writing work correctly in the
 trimmed app CI runs, but the warning will appear in your publish output.
 
-**Native AOT is not claimed.** `IsAotCompatible` is a strictly stronger promise than `IsTrimmable`,
-and it has not been verified end to end here. An unverified compatibility claim is worse than an
-absent one, so it is absent until a CI job compiles *and* runs an AOT build.
+**Native AOT is claimed, and earned the same way.** `IsAotCompatible` is a strictly stronger
+promise than `IsTrimmable` — it additionally forbids runtime code generation — and this README said
+it was *not* claimed for as long as that was true. It changed on 2026-08-14 when a second CI job
+started native-AOT-publishing the same probe and running it. Measured on that run: DOCX create and
+read-back, placeholder replacement, PPTX, XLSX, HTML → DOCX, DOCX → PDF and PDF → text all correct,
+including PdfPig's CMap handling and the font work, which are the two most reflection-dependent
+paths in the graph.
+
+The ClosedXML `IL2090` caveat above applies to an AOT publish too, for the same reason and with the
+same outcome.
 
 ### Verifying what you downloaded
 
@@ -84,8 +92,14 @@ Each release attaches a **CycloneDX SBOM** per package to its
 
 It is the machine-readable counterpart to `THIRD-PARTY-NOTICES.txt`: that file is for a human
 meeting a licence question, this is for a scanner answering "am I exposed to CVE-X" without
-resolving the graph itself. The core package's BOM lists 29 components, 28 MIT and one Apache-2.0 —
-the same closure the README states above, derived independently.
+resolving the graph itself. The core package's BOM lists 30 packages: 28 MIT, 2 Apache-2.0 — the
+same closure the constraints table states above, derived independently.
+
+(Phrased that way on purpose. `gen-third-party-notices.py` verifies README package counts against
+the resolved graph, but only where they are written as "N packages: N MIT, N Apache-2.0". This
+sentence used to read "29 components, 28 MIT and one Apache-2.0", which escaped the pattern on all
+three counts — so it stayed stale through the release that added PdfPig while the check reported
+success. A claim worth checking is worth phrasing the way the checker reads.)
 
 **The SBOMs are attested too**, by the same provenance step as the packages. An SBOM that is merely
 attached to a release is a file anyone with write access could replace; attested, it carries proof
@@ -553,7 +567,7 @@ nothing else publishes.
 src/DocToolkit/                                         the library
 src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
 tests/                                                  426 tests, including the public-API approval guard, Stream-overload proofs and the air-gap/dependency guards
-samples/                                                nine runnable samples, each answering one question, on the published packages
+samples/                                                eleven runnable samples, each answering one question, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
 ```
 

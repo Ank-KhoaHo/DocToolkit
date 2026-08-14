@@ -12,12 +12,18 @@ All four constraints hold and are re-checked by CI on every push: permissive lic
 only with no native binaries, runs on Linux (x64 and arm64), Windows and macOS, and no runtime
 network I/O by default.
 
-Current capabilities: HTML → DOCX and PDF; DOCX → PDF, HTML and Markdown; XLSX → PDF; PPTX → PDF;
-create and edit DOCX, XLSX and PPTX; template filling with repeating rows and image placeholders;
-page setup with headers and footers; reading an existing PDF — page count, merge, page extraction
-and metadata; a DI package mirroring the whole surface.
+Current capabilities: HTML → DOCX and PDF; **Markdown → DOCX and PDF**; DOCX → PDF, HTML and
+Markdown; XLSX → PDF, **CSV and HTML**; PPTX → PDF; create and edit DOCX, XLSX and PPTX;
+**sheet formatting** — bold header, frozen header, auto-fit, number formats; template filling with
+repeating rows and image placeholders; page setup with headers and footers; reading an existing
+PDF — page count, **text extraction**, merge, page extraction and metadata; **conversion loss
+reporting** on the DOCX text exporters and the Markdown importers; a DI package mirroring the whole
+surface, which is now enforced by a derived check rather than asserted.
 
-Around it: nine runnable samples, a docs site with six conceptual guides whose code blocks are
+Both packages are trim-safe and the core package is **native-AOT compatible**, each proved by
+publishing a probe application and running it.
+
+Around it: eleven runnable samples, a docs site with six conceptual guides whose code blocks are
 mostly compiled as part of a sample — the handful that are not are marked in place — and a
 per-release attested CycloneDX SBOM alongside build provenance.
 
@@ -25,9 +31,16 @@ per-release attested CycloneDX SBOM alongside build provenance.
 
 Roughly in order of how often the gap has actually been hit. None is scheduled.
 
-- **Surfacing conversion warnings.** The XLSX and PPTX renderers report features they could not
-  represent; today those are dropped silently and the limitation is documented instead. A warning
-  channel is purely additive, so it can be added when somebody needs it rather than guessed at now.
+- **Surfacing conversion warnings from the PDF renderers.** Half of this shipped in 0.26.0: the
+  DOCX → HTML/Markdown exporters and the Markdown importers now offer `ConvertWithReport`, which
+  returns the output plus what the conversion could not carry across. That half turned out not to
+  need designing at all — the underlying library was already computing a structured loss report on
+  every call and this package was discarding it.
+
+  The other half is genuinely absent and cannot be done the same way: **the PDF renderers produce
+  no report to surface.** Features they cannot represent — charts, conditional formatting, some
+  shape effects — are still dropped silently, and the limitation is documented instead. Offering a
+  `ConvertWithReport` there that always returned an empty list would be a documented lie.
 
 ## Not planned, and why
 
@@ -38,7 +51,7 @@ This section is the useful one.
 | **1.0.0** | Never. `0.x` forever, enforced in configuration rather than intended. Under `0.x` semver already says anything may change, which is an honest description of this package. |
 | **`net9.0`** | Adds zero reach: a `net9.0` app already consumes the `net8.0` build. It would cost a matrix leg and is the only STS target on offer against two LTS. |
 | **`netstandard2.0`** | Not blocked by dependencies — all nine support it. Blocked because the bounded-fetch guarantee on remote images **cannot be expressed** there (no cancellable DNS or stream read), and `DateOnly`/`TimeOnly` would make the public API differ per target. A security guarantee that holds on one target and not another is worse than not offering the target. |
-| **Native AOT compatibility** | Not claimed until CI both compiles *and* runs an AOT build. An unverified compatibility claim is worse than an absent one. |
+| ~~**Native AOT compatibility**~~ | **Shipped in 0.27.0**, and it sat in this table until it was earned rather than being promised from it. The bar this row set — "not claimed until CI both compiles *and* runs an AOT build" — is exactly the bar that was met: a job now native-AOT-publishes a probe over the real dependency closure and runs it, asserting every capability's result. Left here rather than deleted, because a row that moved out of "not planned" by meeting its own stated condition is the most useful kind of entry this table has. |
 | **An input size limit** | This library edits and converts documents; refusing a large one is a defect, not a safeguard. The memory profile is documented instead so you can size a host. |
 | **Keyed DI registrations** | Permanent registration surface for a multi-tenant scenario nobody has asked for. Revisit if someone does. |
 | **Anything needing a browser, LibreOffice, Office interop, or a native binary** | Out of scope by construction — it is the reason this package exists. |
