@@ -174,6 +174,93 @@ public class MarkdownToDocxConverterTests
         Assert.Contains("Title", DocxEditor.ExtractText(docx), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <b>A RELATIVE path, which is the form the guard actually governs.</b>
+    ///
+    /// <see cref="ALocalFileImageIsNotRead"/> above uses a <c>file://</c> URI, and mutation (B14)
+    /// showed it passes just as happily with <c>AllowLocalImages</c> flipped to <c>true</c> — that
+    /// scheme is refused by a different mechanism entirely, so it proves nothing about this
+    /// setting. A bare relative reference is the one that separates them: measured, it is read and
+    /// embedded when the flag is flipped and blocked when it is not.
+    ///
+    /// The file is written to the working directory because that is what a relative reference
+    /// resolves against, which is precisely the disclosure being prevented: a service converting
+    /// Markdown somebody else wrote would otherwise let that document choose which file lands in
+    /// the output.
+    /// </summary>
+    [Fact]
+    public void ARelativeFileImageIsNotRead()
+    {
+        var name = $"doctoolkit-probe-{Guid.NewGuid():N}.png";
+        var path = Path.Combine(Directory.GetCurrentDirectory(), name);
+        File.WriteAllBytes(path, ImageFixtures.Png());
+
+        try
+        {
+            var docx = MarkdownToDocxConverter.Convert($"# Title\n\n![local]({name})\n");
+
+            Assert.Empty(DocxFixtures.Read(docx, main => main.ImageParts.ToList()));
+            Assert.Contains("Title", DocxEditor.ExtractText(docx), StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    /// A remote image is not merely dropped — it becomes a <b>hyperlink carrying its alt text</b>,
+    /// so the reader can still follow it deliberately. That is why the warning is an
+    /// <see cref="ConversionLossKind.Approximation"/> rather than an
+    /// <see cref="ConversionLossKind.Omission"/>, and asserting the text back is what makes the
+    /// label a measurement rather than a claim.
+    /// </summary>
+    [Fact]
+    public void ARemoteImageBecomesAHyperlinkRatherThanVanishing()
+    {
+        var result = MarkdownToDocxConverter.ConvertWithReport(
+            "# Release notes\n\n![build status](https://img.example.com/badge.svg)\n");
+
+        var text = DocxEditor.ExtractText(result.Value);
+        _output.WriteLine(text);
+
+        Assert.Contains("build status", text, StringComparison.Ordinal);
+        Assert.Empty(DocxFixtures.Read(result.Value, main => main.ImageParts.ToList()));
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal(ConversionLossKind.Approximation, warning.Kind);
+    }
+
+    /// <summary>
+    /// A <c>data:</c> URI carries its own bytes, so honouring it costs no I/O and does not weaken
+    /// the offline guarantee. It is bounded anyway, at 32 MB, so a document cannot make the
+    /// process materialise an arbitrary amount of memory.
+    ///
+    /// One assertion, three mutants: this fails if <c>AllowDataUriImages</c> is flipped off, and
+    /// also if the byte cap is mis-computed — <c>32 * 1024 * 1024</c> mutated to
+    /// <c>32 * 1024 / 1024</c> or <c>32 / 1024</c> puts the limit below this image's size, and all
+    /// three survived the suite before this test existed.
+    /// </summary>
+    [Fact]
+    public void ADataUriImageIsEmbedded_BecauseItCostsNoIO()
+    {
+        var png = ImageFixtures.Png();
+        var markdown = $"# Title\n\n![inline](data:image/png;base64,{Convert.ToBase64String(png)})\n";
+
+        var docx = MarkdownToDocxConverter.Convert(markdown);
+
+        var parts = DocxFixtures.Read(docx, main => main.ImageParts.Select(p =>
+        {
+            using var stream = p.GetStream();
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            return buffer.ToArray();
+        }).ToList());
+
+        var embedded = Assert.Single(parts);
+        Assert.Equal(png, embedded);
+    }
+
     // =====================================================================================
     // Reporting, guards and overloads
     // =====================================================================================

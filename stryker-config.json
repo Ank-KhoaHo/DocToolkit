@@ -22,7 +22,13 @@
       "**/PageSetup.cs",
       "**/ImageInspector.cs",
       "**/RunTextSplicer.cs",
-      "**/TableRowFinder.cs"
+      "**/TableRowFinder.cs",
+      "**/StreamPipeline.cs",
+      "**/XlsxToCsvConverter.cs",
+      "**/XlsxToHtmlConverter.cs",
+      "**/XlsxFormat.cs",
+      "**/ConversionDiagnostics.cs",
+      "**/MarkdownImportOptions.cs"
     ],
     "thresholds": {
       "high": 99,
