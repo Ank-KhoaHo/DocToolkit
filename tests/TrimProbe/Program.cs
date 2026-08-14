@@ -60,4 +60,6 @@ IReadOnlyList<string> pdfText = PdfEditor.ExtractText(pdf);
 if (!pdfText.Any(t => t.Contains("Hello"))) Fail("PDF text extraction lost the heading");
 Console.WriteLine("pdf->text   ok");
 
-Console.WriteLine("\nAll capabilities work after trimming.");
+// Deliberately mode-neutral: this file is compiled by BOTH tests/TrimProbe and tests/AotProbe, so
+// it cannot claim which publish mode it is running under. The job that ran it knows that.
+Console.WriteLine("\nAll capabilities work in this publish mode.");
