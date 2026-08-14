@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Native-AOT sibling of tests/TrimProbe, and it exists to answer a question this repository has
+    so far refused to answer dishonestly.
+
+    src/DocToolkit deliberately does NOT set IsAotCompatible. CLAUDE.md records why: the claim was
+    never verified, because the machine it was attempted on had no platform linker, so ILC never
+    ran. "An unverified compatibility claim is worse than an absent one." This project plus the
+    aot-guard job are what would let the claim be made - or refused, with evidence.
+
+    WHY IT SHARES TrimProbe's Program.cs RATHER THAN COPYING IT. The two probes must exercise the
+    same capabilities and assert the same results, or the weaker guard silently covers less than the
+    stronger one. A copy drifts the first time somebody adds a capability to one of them; the same
+    reasoning that puts SetCellValue and SectionPropertiesFactory in one place each.
+
+    DELIBERATELY NOT IN DocToolkit.sln - identical reasoning to TrimProbe, and stronger here. An AOT
+    publish is SelfContained and emits native output, so ci.yml's "zero *.so under any bin/" premise
+    guard would fail on the .NET runtime itself and read exactly like a real breach.
+
+    ProjectReference, not PackageReference: the question is "is the code in THIS pull request
+    AOT-safe", which only a project reference can answer.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+
+    <!--
+      AOT is strictly stronger than trimming: it implies PublishTrimmed and SelfContained, and it
+      additionally forbids runtime code generation. ClosedXML, OpenXML and OfficeIMO are all
+      reflection-heavy, so this failing is a genuinely possible - and useful - outcome. A failure
+      here is evidence that IsAotCompatible must STAY unset, which is worth as much as a pass.
+    -->
+    <PublishAot>true</PublishAot>
+
+    <!--
+      Same reasoning as TrimProbe's: left at its default the toolchain collapses a whole assembly's
+      warnings into one, which cannot be attributed to a call site - so a new unsafe pattern in
+      DocToolkit would be indistinguishable from the ClosedXML warning already known about.
+    -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+
+    <!--
+      Opts out of the root's TreatWarningsAsErrors for exactly TrimProbe's reason: AOT reports
+      IL/AOT warnings from the WHOLE dependency closure, and a NoWarn wide enough to silence
+      ClosedXML would also hide the same warning arriving from our own code - the one thing this
+      project exists to catch. The gate is the aot-guard job, which fails only on a warning naming
+      DocToolkit while printing the dependency ones rather than swallowing them.
+    -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- One program, two publish modes. See the note above on why this is linked, not copied. -->
+    <Compile Include="..\TrimProbe\Program.cs" Link="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DocToolkit\DocToolkit.csproj" />
+  </ItemGroup>
+
+</Project>
