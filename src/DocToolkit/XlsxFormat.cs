@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 namespace DocToolkit;
 
 /// <summary>
@@ -29,7 +31,21 @@ public sealed class XlsxFormat
         BoldHeaderRow = boldHeaderRow;
         FreezeHeaderRow = freezeHeaderRow;
         AutoFitColumns = autoFitColumns;
-        ColumnNumberFormats = columnNumberFormats;
+
+        // Wrapped, not just typed as IReadOnlyDictionary. A plain Dictionary handed out behind
+        // that interface casts straight back to Dictionary, and this type's two instances are
+        // STATIC - so one cast and one write would poison XlsxFormat.None or .Report for the
+        // lifetime of the process, for every caller. Measured 2026-08-14 before this wrapper
+        // existed: the cast succeeded and the injected entry was visible through Report.
+        //
+        // Same reasoning as DocToolkitOptions.RemoteImage being get-only: an immutability claim
+        // that a caller can step around is not a claim, and the cost of holding it is one
+        // allocation on a path nobody calls in a loop.
+        // Copied as well as wrapped. The copy is what guarantees the case-insensitive comparer
+        // survives every With... call, and it costs one allocation on a path nobody calls in a
+        // loop - these maps hold a handful of column letters.
+        ColumnNumberFormats = new ReadOnlyDictionary<string, string>(
+            new Dictionary<string, string>(columnNumberFormats, StringComparer.OrdinalIgnoreCase));
     }
 
     /// <summary>Applies nothing. The starting point for building a format up.</summary>

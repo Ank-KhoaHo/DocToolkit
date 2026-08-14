@@ -142,6 +142,32 @@ public class XlsxFormatTests
         Assert.Single(withFormat.ColumnNumberFormats);
     }
 
+    /// <summary>
+    /// The number-format map cannot be mutated by casting the facade back to its runtime type.
+    ///
+    /// <b>This was a real defect, found reviewing the source against the repo's own rules on
+    /// 2026-08-14.</b> The map was handed out as a plain <c>Dictionary</c> behind an
+    /// <c>IReadOnlyDictionary</c>, so one cast and one write poisoned <see cref="XlsxFormat.None"/>
+    /// or <see cref="XlsxFormat.Report"/> — which are <b>static</b> — for the rest of the process,
+    /// for every caller. Measured: the cast succeeded and the injected entry was visible.
+    ///
+    /// <see cref="WithMethodsDoNotMutateTheInstanceTheyAreCalledOn"/> guards the other route to the
+    /// same damage. Both are needed: that one covers the supported API, this one covers stepping
+    /// around it.
+    /// </summary>
+    [Fact]
+    public void TheNumberFormatMapCannotBeMutatedThroughItsRuntimeType()
+    {
+        Assert.IsNotType<Dictionary<string, string>>(XlsxFormat.Report.ColumnNumberFormats);
+        Assert.IsNotType<Dictionary<string, string>>(XlsxFormat.None.ColumnNumberFormats);
+        Assert.IsNotType<Dictionary<string, string>>(
+            XlsxFormat.None.WithNumberFormat("B", "0.00").ColumnNumberFormats);
+
+        // The shared statics are still pristine, which is the damage being prevented.
+        Assert.Empty(XlsxFormat.Report.ColumnNumberFormats);
+        Assert.Empty(XlsxFormat.None.ColumnNumberFormats);
+    }
+
     // =====================================================================================
     // Formatting composes, and does not disturb content
     // =====================================================================================
