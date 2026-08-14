@@ -71,9 +71,14 @@ jobs:
         run: dotnet tool restore
 
       # Fails the job when the score falls under the `break` threshold in
-      # stryker-config.json. Measured 74.30% on 2026-08-08; break sits at 70, so
-      # the gate catches regression without failing on the day it landed - the
-      # same reasoning as scripts/check-coverage.py's floors.
+      # stryker-config.json, which is the ONLY place that number is authoritative.
+      # Don't copy it into a comment - this one used to say "Measured 74.30% on
+      # 2026-08-08; break sits at 70" while the block at the top of this same file
+      # said 97.52% and the config said 95, and CLAUDE.md said 88 in one sentence
+      # and 85 in the next. Four written-down values, one real one. The gate still
+      # sits under the measured score for the reason it always did - the same
+      # reasoning as scripts/check-coverage.py's floors: a threshold set exactly at
+      # the measurement fails on the day it lands and trains people to lower it.
       - name: Run Stryker
         run: dotnet stryker
 
