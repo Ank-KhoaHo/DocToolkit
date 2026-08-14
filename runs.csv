@@ -47,3 +47,12 @@ date,workflow,runs
 2026-08-12,Release,6
 2026-08-12,nuget stats,1
 2026-08-12,release-please,9
+2026-08-13,CI,66
+2026-08-13,CodeQL,45
+2026-08-13,Dependabot Updates,7
+2026-08-13,Dependabot auto-merge,34
+2026-08-13,Docs,4
+2026-08-13,Install smoke test,2
+2026-08-13,Release,4
+2026-08-13,nuget stats,1
+2026-08-13,release-please,11
