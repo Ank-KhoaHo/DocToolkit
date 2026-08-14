@@ -103,6 +103,27 @@ public class XlsxExportTests
         Assert.Equal("plain,\"has,comma\",\"has\"\"quote\",\"has\nnewline\"\r\n", csv);
     }
 
+    /// <summary>
+    /// A field whose special character is at <b>index 0</b>.
+    ///
+    /// <c>CsvQuotesOnlyFieldsThatNeedIt</c> above never puts one there — its commas and quotes are
+    /// all mid-field — so it passes identically against <c>IndexOfAny(...) &gt; 0</c>, which fails
+    /// to quote exactly these fields and emits a CSV with a row that silently gained a column.
+    /// Found by mutation (B14): that <c>&gt;= 0 → &gt; 0</c> mutant survived the whole suite.
+    /// </summary>
+    [Fact]
+    public void CsvQuotesAFieldWhoseSpecialCharacterIsFirst()
+    {
+        var xlsx = WorkbookEditor.Create("S", new[]
+        {
+            new object?[] { ",leading comma", "\"leading quote", "\nleading newline" },
+        });
+
+        var csv = XlsxToCsvConverter.Convert(xlsx, "S");
+
+        Assert.Equal("\",leading comma\",\"\"\"leading quote\",\"\nleading newline\"\r\n", csv);
+    }
+
     [Fact]
     public void AFormulaExportsItsComputedValue()
     {
@@ -223,5 +244,79 @@ public class XlsxExportTests
 
         Assert.Equal(string.Empty, XlsxToCsvConverter.Convert(xlsx, "Blank"));
         Assert.Equal("<table>\n</table>", XlsxToHtmlConverter.Convert(xlsx, "Blank"));
+    }
+
+    /// <summary>
+    /// A sheet holding <b>exactly one</b> row is a header and no body, so there must be no
+    /// <c>&lt;tbody&gt;</c> at all — not an unopened closing tag.
+    ///
+    /// The two neighbouring cases do not catch this. The three-row workbook has a body, and the
+    /// empty sheet has zero rows, so <c>rows.Count &gt; 1 → &gt;= 1</c> is false in both. One row
+    /// is the only count that separates them, and mutation (B14) found that mutant surviving.
+    /// </summary>
+    [Fact]
+    public void ASingleRowSheetEmitsNoTbodyAtAll()
+    {
+        var xlsx = WorkbookEditor.Create("One", new[]
+        {
+            new object?[] { "Region", "Total" },
+        });
+
+        var html = XlsxToHtmlConverter.Convert(xlsx, "One");
+
+        Assert.Equal(
+            "<table>\n" +
+            "  <thead>\n" +
+            "    <tr><th>Region</th><th>Total</th></tr>\n" +
+            "  </thead>\n" +
+            "</table>",
+            html);
+
+        // Stated separately from the literal above, because this is the property that matters:
+        // a closing tag with no opening one is malformed markup every parser handles differently.
+        Assert.DoesNotContain("</tbody>", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The <c>Stream</c> overloads refuse a blank sheet name and a cancelled token
+    /// <b>before reading a single byte</b>.
+    ///
+    /// <b>Asserting the exception alone proves nothing here, and that is the whole point of this
+    /// test.</b> <c>ConvertAsync</c> drains the source and then calls the <c>byte[]</c> overload,
+    /// which carries the same <c>ThrowIfNullOrWhiteSpace</c> — and <c>DrainAsync</c> observes the
+    /// token itself. So deleting either guard at the top leaves the identical
+    /// <c>ArgumentException</c> and <c>OperationCanceledException</c> arriving from one layer
+    /// down, after the entire stream has been read. Measured: an exception-only version of this
+    /// test passed against all four mutants.
+    ///
+    /// The read count is what separates them, and it is a real contract rather than a trick to
+    /// kill a mutant: a caller handing over a 200 MB upload and a mistyped sheet name should not
+    /// pay for the transfer first. Same failure shape as the seven <c>PdfEditor</c> overloads that
+    /// passed the cancellation suite only because <c>destination.WriteAsync</c> refused at the
+    /// end.
+    /// </summary>
+    [Fact]
+    public async Task StreamOverloadsRefuseABlankSheetNameAndACancelledTokenBeforeReading()
+    {
+        foreach (var convert in new Func<Stream, string, CancellationToken, Task>[]
+        {
+            (s, n, ct) => XlsxToCsvConverter.ConvertAsync(s, n, ct),
+            (s, n, ct) => XlsxToHtmlConverter.ConvertAsync(s, n, ct),
+        })
+        {
+            using var inner = new MemoryStream(Workbook());
+            using var source = new TrackingStream(inner);
+
+            var blank = await Assert.ThrowsAsync<ArgumentException>(
+                () => convert(source, "  ", CancellationToken.None));
+            Assert.Equal("sheetName", blank.ParamName);
+            Assert.Equal(0, source.SyncReads + source.AsyncReads);
+
+            using var cancelled = new CancellationTokenSource();
+            await cancelled.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => convert(source, "Data", cancelled.Token));
+            Assert.Equal(0, source.SyncReads + source.AsyncReads);
+        }
     }
 }

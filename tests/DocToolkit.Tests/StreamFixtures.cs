@@ -346,3 +346,130 @@ internal sealed class CancelsOnFirstReadSource : Stream
 
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }
+
+/// <summary>
+/// Cancels the caller's token on its first write, so cancellation lands <b>during</b> the copy
+/// rather than before it.
+///
+/// The mirror of <see cref="CancelsOnFirstReadSource"/>, and it exists for the same reason that
+/// one does: <c>StreamPipeline.EmitAsync</c>'s <c>catch (OperationCanceledException)</c> rethrow
+/// was executed by <b>no test at all</b> — reported as <c>NoCoverage</c> when B14 widened the
+/// mutation scope. An already-cancelled token never reaches it, because the guard at the top of
+/// each overload refuses first; only a token cancelled mid-write does.
+/// </summary>
+internal sealed class CancelsOnFirstWriteSink : Stream
+{
+    private readonly CancellationTokenSource _cts;
+
+    public CancelsOnFirstWriteSink(CancellationTokenSource cts) => _cts = cts;
+
+    public override bool CanRead => false;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => true;
+
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
+
+    public override void Flush() { }
+
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        _cts.Cancel();
+        _cts.Token.ThrowIfCancellationRequested();
+    }
+
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default)
+    {
+        _cts.Cancel();
+        ct.ThrowIfCancellationRequested();
+        return ValueTask.CompletedTask;
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override void SetLength(long value) => throw new NotSupportedException();
+}
+
+/// <summary>
+/// Fails mid-transfer with an <see cref="IOException"/> — a socket dying part-way, not a
+/// misused API.
+///
+/// It exists because <c>StreamPipeline</c>'s generic <c>catch (Exception)</c> arms, the ones that
+/// wrap a failure in <see cref="DocumentConversionException"/>, were reached by <b>no test at
+/// all</b> — four mutants there came back <c>NoCoverage</c> when B14 widened the mutation scope.
+/// Every existing double refuses an operation up front (<c>CanRead</c> false, <c>Seek</c> throws),
+/// which is a different path: those are caught by the <c>RequireReadable</c>/<c>RequireWritable</c>
+/// guards before any transfer starts.
+///
+/// <paramref name="failAfter"/> bytes are moved successfully first, so the failure lands in the
+/// middle of a copy rather than on its first call — otherwise a pipeline that validated eagerly and
+/// never actually transferred would pass.
+/// </summary>
+internal sealed class FailsPartWayStream : Stream
+{
+    private readonly MemoryStream _inner;
+    private readonly int _failAfter;
+    private int _moved;
+
+    public FailsPartWayStream(byte[]? bytes, int failAfter)
+    {
+        _inner = bytes is null ? new MemoryStream() : new MemoryStream(bytes, writable: false);
+        _failAfter = failAfter;
+    }
+
+    public override bool CanRead => true;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => true;
+
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
+
+    public override void Flush() { }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        Advance(count);
+        return _inner.Read(buffer, offset, count);
+    }
+
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+    {
+        Advance(buffer.Length);
+        return _inner.ReadAsync(buffer, ct);
+    }
+
+    public override void Write(byte[] buffer, int offset, int count) => Advance(count);
+
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default)
+    {
+        Advance(buffer.Length);
+        return ValueTask.CompletedTask;
+    }
+
+    private void Advance(int count)
+    {
+        _moved += count;
+        if (_moved > _failAfter)
+            throw new IOException("the underlying connection was reset");
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override void SetLength(long value) => throw new NotSupportedException();
+}

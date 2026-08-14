@@ -1011,4 +1011,70 @@ public class StreamOverloadTests
         Assert.Contains("<w:body", xml, StringComparison.Ordinal);
         Assert.True(xml.Length > 200, $"expected real markup, got {xml.Length} characters");
     }
+
+    /// <summary>
+    /// A source that dies <b>mid-read</b> surfaces as <see cref="DocumentConversionException"/>
+    /// with the original failure preserved as <c>InnerException</c>.
+    ///
+    /// This is <c>StreamPipeline.DrainAsync</c>'s generic <c>catch (Exception)</c> arm, and before
+    /// this test <b>no test in the suite reached it</b> — B14's widened mutation scope reported its
+    /// mutants as <c>NoCoverage</c> rather than merely surviving, which is the stronger signal of
+    /// the two. Every other stream double refuses up front (<c>CanRead</c> false), which the
+    /// <c>RequireReadable</c> guard catches before a transfer begins; this one fails part-way
+    /// through a copy that has already moved bytes.
+    ///
+    /// The contract being pinned is the public one every reader documents: failures arrive as one
+    /// exception type, with the cause intact for a log.
+    /// </summary>
+    [Fact]
+    public async Task ASourceThatDiesMidReadSurfacesAsDocumentConversionException()
+    {
+        using var source = new FailsPartWayStream(Docx, failAfter: 16);
+
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => DocxEditor.ExtractTextAsync(source));
+
+        Assert.IsType<IOException>(ex.InnerException);
+    }
+
+    /// <summary>
+    /// The same arm on the way out — <c>StreamPipeline.EmitAsync</c>, whose two mutants were also
+    /// <c>NoCoverage</c>. A destination that fails part-way is an HTTP response body whose client
+    /// hung up, which is the ordinary case this path exists for rather than an exotic one.
+    /// </summary>
+    [Fact]
+    public async Task ADestinationThatDiesMidWriteSurfacesAsDocumentConversionException()
+    {
+        using var destination = new FailsPartWayStream(bytes: null, failAfter: 16);
+
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync(Html, destination));
+
+        Assert.IsType<IOException>(ex.InnerException);
+    }
+
+    /// <summary>
+    /// Cancellation arriving <b>during</b> the write surfaces as
+    /// <see cref="OperationCanceledException"/>, not wrapped in
+    /// <see cref="DocumentConversionException"/>.
+    ///
+    /// That distinction is the contract: a cancelled operation is the caller getting what they
+    /// asked for, and a caller who wrote <c>catch (DocumentConversionException)</c> around a
+    /// conversion must not have their own <c>CancellationToken</c> come back to them disguised as
+    /// a document failure.
+    ///
+    /// <c>EveryOverload_ThrowsForAnAlreadyCancelledToken</c> does not reach this arm — an
+    /// already-cancelled token is refused by the guard at the top of the overload, before any
+    /// transfer starts. Only cancellation mid-write gets here, and B14's widened mutation scope
+    /// reported the rethrow as <c>NoCoverage</c>.
+    /// </summary>
+    [Fact]
+    public async Task CancellationDuringTheWriteStaysACancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        using var destination = new CancelsOnFirstWriteSink(cts);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => HtmlToDocxConverter.ConvertAsync(Html, destination, cts.Token));
+    }
 }

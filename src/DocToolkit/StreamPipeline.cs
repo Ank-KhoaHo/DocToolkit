@@ -140,7 +140,19 @@ internal static class StreamPipeline
     /// every doubling, so a 50 MB document arriving into a default-sized buffer is copied a dozen
     /// times on the way in. A forward-only source cannot say how long it is, and that is fine — it
     /// just gets the growing buffer.
+    ///
+    /// <b>Every branch here returns a correct buffer; only its initial capacity differs.</b> That
+    /// makes each mutation of this method an <b>equivalent mutant</b> — measured, 9 of them, all
+    /// surviving when B14 widened the mutation scope to this file, and none killable by any test
+    /// that does not reach into <c>MemoryStream.Capacity</c> and assert on an allocation strategy
+    /// this method exists to keep private. Excluded rather than chased, on the same reasoning as
+    /// <c>ignore-methods: ["ConfigureAwait"]</c> in <c>stryker-config.json</c>: a test written to
+    /// kill an equivalent mutant pins an implementation detail and buys no correctness.
+    ///
+    /// The scope is deliberately this method and no more. <c>DrainAsync</c>'s own branches decide
+    /// whether a document is rejected, and those must stay mutated.
     /// </summary>
+    // Stryker disable all : sizing only - every branch returns a correct buffer, see the remarks above
     private static MemoryStream NewScratch(Stream source)
     {
         if (!source.CanSeek) return new MemoryStream();
@@ -148,4 +160,5 @@ internal static class StreamPipeline
         var remaining = source.Length - source.Position;
         return remaining is > 0 and <= int.MaxValue ? new MemoryStream((int)remaining) : new MemoryStream();
     }
+    // Stryker restore all
 }
