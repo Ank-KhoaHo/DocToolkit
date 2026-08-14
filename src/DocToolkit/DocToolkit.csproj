@@ -60,8 +60,23 @@
       SixLabors.Fonts 1.x guard is untouched. Three transitive dependencies, all
       Microsoft.
 
-      OfficeIMO.Pdf, already here, cannot serve this: it WRITES PDFs and cannot read
-      one back - which is why the test suite carries a hand-rolled PdfProbe at all.
+      CORRECTION, 2026-08-14. This comment used to say "OfficeIMO.Pdf, already here, cannot
+      serve this: it WRITES PDFs and cannot read one back". That was WRONG WHEN WRITTEN.
+      OfficeIMO.Pdf 3.2.0 - already a dependency on the day that decision was made - ships
+      PdfDocumentReader with TextByPage(...) returning IReadOnlyList<string>, which is the
+      exact shape PdfEditor.ExtractText returns. Verified against the cached 3.2.0 package,
+      so it is not something the later 3.2.2 bump introduced.
+
+      The mistake was not checking the graph before reaching for a package: it asked whether
+      a NEW dependency could be added safely, never whether the capability was already
+      present. The same error was caught in the A19 row, which planned to add Markdig for
+      something OfficeIMO already did.
+
+      PdfPig stays for now, deliberately rather than by inertia. It is Apache-2.0 with zero
+      transitive dependencies, it ships in 0.24.0 onwards, and ContentOrderTextExtractor is
+      measured to separate blocks correctly where the cheaper call does not. Removing a
+      shipped dependency is a larger decision than adding one and needs its own measurement -
+      tracked as backlog E7. What is fixed here is the false justification, not the choice.
     -->
     <PackageReference Include="PDFsharp" Version="6.2.4" />
 
