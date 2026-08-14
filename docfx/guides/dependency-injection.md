@@ -16,7 +16,7 @@ It brings the core package with it transitively — you do not need to reference
 
 [!code-csharp[](../../samples/MinimalApi/Program.cs#register)]
 
-One call registers eleven interfaces, each a thin wrapper over the matching static class:
+One call registers fifteen interfaces, each a thin wrapper over the matching static class:
 
 | Interface | Wraps |
 |---|---|
@@ -27,6 +27,10 @@ One call registers eleven interfaces, each a thin wrapper over the matching stat
 | @DocToolkit.Extensions.DependencyInjection.IPptxToPdfConverter | `PptxToPdfConverter` |
 | @DocToolkit.Extensions.DependencyInjection.IDocxToHtmlConverter | `DocxToHtmlConverter` |
 | @DocToolkit.Extensions.DependencyInjection.IDocxToMarkdownConverter | `DocxToMarkdownConverter` |
+| @DocToolkit.Extensions.DependencyInjection.IMarkdownToDocxConverter | `MarkdownToDocxConverter` |
+| @DocToolkit.Extensions.DependencyInjection.IMarkdownToPdfConverter | `MarkdownToPdfConverter` |
+| @DocToolkit.Extensions.DependencyInjection.IXlsxToCsvConverter | `XlsxToCsvConverter` |
+| @DocToolkit.Extensions.DependencyInjection.IXlsxToHtmlConverter | `XlsxToHtmlConverter` |
 | @DocToolkit.Extensions.DependencyInjection.IDocxEditor | `DocxEditor` |
 | @DocToolkit.Extensions.DependencyInjection.IWorkbookEditor | `WorkbookEditor` |
 | @DocToolkit.Extensions.DependencyInjection.IPresentationEditor | `PresentationEditor` |

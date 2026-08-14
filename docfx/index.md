@@ -4,10 +4,13 @@ _layout: landing
 
 # DocToolkit
 
-Convert **HTML → DOCX and PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
+Convert **HTML and Markdown → DOCX and PDF**, export **DOCX → HTML/Markdown** and
+**XLSX → CSV/HTML**, read text back out of a **PDF**, and open/edit **DOCX, XLSX and PPTX**,
+from .NET.
 
 **Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
 Works after `dotnet restore` alone, runs on Linux, and makes **no network calls at runtime**.
+Verified **trim-safe and native-AOT compatible** by publishing and running the real thing in CI.
 
 ```bash
 dotnet add package Ank.DocToolkit
