@@ -10,6 +10,22 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.27.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.26.0...v0.27.0) (2026-08-14)
+
+
+### Added
+
+* **core:** claim native AOT compatibility, now that it is verified ([45ff45b](https://github.com/Ank-KhoaHo/DocToolkit/commit/45ff45b7cf72590f6b329ffb2ac28ac915d6638c))
+* **core:** claim native AOT compatibility, now that it is verified ([6a0434c](https://github.com/Ank-KhoaHo/DocToolkit/commit/6a0434cdd55ffb0b2a2a9a352a46520b0298febf))
+* **extensions:** restore 1:1 parity and enforce it with a derived check ([2996756](https://github.com/Ank-KhoaHo/DocToolkit/commit/2996756c7d42a870720b326edd9da54016480089))
+* **extensions:** restore 1:1 parity and enforce it with a derived check ([c7f7cf1](https://github.com/Ank-KhoaHo/DocToolkit/commit/c7f7cf14e4cbdf2b419777723bb2637d133ebe63))
+
+
+### Fixed
+
+* **core:** make XlsxFormat's number-format map genuinely immutable ([a699c81](https://github.com/Ank-KhoaHo/DocToolkit/commit/a699c813a922cfe3dcb73fc23308f6b8b53640f1))
+* **core:** make XlsxFormat's number-format map genuinely immutable ([45be8a0](https://github.com/Ank-KhoaHo/DocToolkit/commit/45be8a03cf41ac5ca09b798febd59f474d24dd40))
+
 ## [0.26.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.25.0...v0.26.0) (2026-08-13)
 
 
