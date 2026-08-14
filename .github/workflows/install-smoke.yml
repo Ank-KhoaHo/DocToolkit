@@ -86,16 +86,48 @@ jobs:
       # they get core 0.11.0. That is the documented, deliberate consequence of floors (raising one
       # narrows who can consume the package), but it means a DI-only consumer does NOT automatically
       # get the newest API - which is worth failing loudly on if core ever stops arriving at all.
-      - name: Assert the core package arrives transitively
+      # The version it arrives AS is reported to the job summary, not just echoed into a log
+      # nobody opens. That is C24: the lag is deliberate and must not fail the build, but it is
+      # surprising enough that it should be visible here rather than discovered in somebody's
+      # project. Measured 2026-08-15: extensions 0.27.0 resolves core 0.26.0.
+      #
+      # Never fails on the lag itself. A floor is a compatibility decision - raising one narrows
+      # who can consume the package - so "behind" is the designed behaviour, not a defect. It
+      # fails only if core does not arrive at all, which IS a broken .nuspec.
+      - name: Assert the core package arrives transitively, and report which version
         run: |
           cd "${{ runner.temp }}/consumer/app"
           dotnet list package --include-transitive > graph.txt
           cat graph.txt
-          if ! grep -qE '^\s*>\s*Ank\.DocToolkit\s' graph.txt; then
+
+          # The resolved version is the LAST field on the line, because a transitive entry has two
+          # columns (package, resolved) where a top-level one has three (package, requested,
+          # resolved). Matching $2 exactly avoids also matching the extensions package, whose name
+          # starts with the same string.
+          resolved=$(awk '$2 == "Ank.DocToolkit" { print $NF }' graph.txt | head -1)
+
+          if [ -z "$resolved" ]; then
             echo "::error::Ank.DocToolkit did not arrive transitively through the extensions package. Its .nuspec dependency on the core package is broken."
             exit 1
           fi
-          echo "core arrives transitively as: $(grep -oE 'Ank\.DocToolkit\s+[0-9.]+' graph.txt | head -1)"
+
+          newest=$(curl -sf https://api.nuget.org/v3-flatcontainer/ank.doctoolkit/index.json \
+                   | tr ',' '\n' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | tail -1)
+
+          {
+            echo "### Installing the DI package alone"
+            echo
+            echo "| | Version |"
+            echo "|---|---|"
+            echo "| Core that a DI-only consumer receives | \`$resolved\` |"
+            echo "| Newest core published | \`${newest:-unknown}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$newest" ] && [ "$resolved" != "$newest" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Installing **only** \`Ank.DocToolkit.Extensions.DependencyInjection\` gives core \`$resolved\`, not \`$newest\` - NuGet resolves a floor to the LOWEST satisfying version. That is deliberate, and it means a DI-only consumer does not automatically get the newest API. Add \`Ank.DocToolkit\` explicitly to move forward." >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::A DI-only install resolves core $resolved, while $newest is published."
+          fi
 
       # Now add the core package explicitly, so the program below can exercise the CURRENT API.
       # Without this it would compile against whatever the floor resolved to, and a test of the
