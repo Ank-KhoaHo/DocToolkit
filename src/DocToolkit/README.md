@@ -152,6 +152,13 @@ Targets `net8.0` and `net10.0` — two LTS releases, one public API surface.
 
 Verified in CI on Linux (x64 and **arm64**), Windows and macOS.
 
+**Trim-safe and native-AOT compatible**, and both claims are earned the same way: CI publishes a
+probe application — trimmed in one job, native-AOT in the other — and *runs* it, asserting every
+capability's result. Neither trimming nor AOT fails at publish time when it fails; it removes a
+type something resolves by name and the app throws, or silently produces an empty document, in
+production. One caveat that is a dependency's rather than ours: **ClosedXML emits `IL2090`** under
+both, and will appear in your publish output.
+
 📖 **[Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html)** — getting
 started, HTML conversion and page setup, Word templates, spreadsheets and presentations,
 dependency injection, and running in production ·

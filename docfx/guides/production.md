@@ -63,15 +63,29 @@ PDF built in your container will never be byte-identical to one built on your la
 The practical rules: do not assert on PDF byte size or hash across environments, and if you need a
 specific typeface, install it in the image.
 
-## Trimming
+## Trimming and native AOT
 
-Both assemblies are marked trimmable, so a trimmed publish keeps working and gets smaller. CI
-proves it on every pull request: it trim-publishes a probe application, asserts that **no trim
-warning belongs to DocToolkit**, and then *runs* the trimmed binary. A library that publishes
-warning-free but crashes on first call would not pass.
+Both assemblies are marked trimmable, and the core assembly is marked AOT-compatible. CI proves
+both on every pull request, and proves them the same way: it publishes a probe application —
+trimmed in one job, native-AOT in the other — asserts that **no warning belongs to DocToolkit**,
+and then *runs* the binary. A library that publishes warning-free but crashes on first call would
+not pass either job.
 
-That said, the underlying OOXML libraries use reflection in places. If you trim aggressively and
-something fails, check the trim warnings from *those* assemblies before suspecting this one.
+Running it is the part that matters. Neither trimming nor AOT fails at publish time when it fails:
+the toolchain removes a type something looks up by name, and the app throws — or quietly produces
+an empty document — in production. So the probe asserts on every capability's *result* rather than
+merely completing, and the two jobs share one program, so the stronger guard cannot end up
+exercising less than the weaker one.
+
+```bash
+dotnet publish -c Release -r linux-x64 -p:PublishAot=true
+```
+
+That said, the underlying OOXML libraries use reflection in places, and **ClosedXML emits one
+warning** (`IL2090`, in `DescribedEnumParser<T>`) under both trimming and AOT. Spreadsheet reading
+and writing work correctly in the published binaries CI runs, but the warning will appear in your
+own output. If you trim or AOT-publish aggressively and something fails, check the warnings from
+*those* assemblies before suspecting this one.
 
 ## Nothing reaches the network unless you ask
 
