@@ -226,4 +226,37 @@ public interface IWorkbookEditor
     Task SetCellAsync(
         Stream source, string sheetName, string cellRef, object? value, Stream destination,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Applies <paramref name="format"/> to <paramref name="sheetName"/> and returns the workbook.
+    /// </summary>
+    /// <remarks>
+    /// Formatting is applied to an existing workbook rather than being an argument to
+    /// <c>Create</c>, so it composes with every way a workbook can arrive - built here, appended
+    /// to, or handed in by a caller who never used this library. See
+    /// <see cref="DocToolkit.XlsxFormat"/> for why the set of settings is deliberately small.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="format"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or the sheet name is blank.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, or the sheet does not exist.
+    /// </exception>
+    byte[] Format(byte[] xlsx, string sheetName, DocToolkit.XlsxFormat format);
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, applies <paramref name="format"/>, and
+    /// writes the result to <paramref name="destination"/>. Neither stream is disposed, closed or
+    /// sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="format"/> is null, or a stream is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A stream is unusable, <paramref name="source"/> held no bytes, or the sheet name is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, or the sheet does not exist.
+    /// </exception>
+    Task FormatAsync(
+        Stream source, string sheetName, DocToolkit.XlsxFormat format, Stream destination,
+        CancellationToken ct = default);
 }

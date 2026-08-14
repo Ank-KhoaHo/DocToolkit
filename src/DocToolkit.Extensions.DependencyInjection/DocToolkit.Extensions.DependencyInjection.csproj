@@ -20,7 +20,7 @@
   <!-- README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by src/Directory.Build.props. -->
 
   <ItemGroup>
-    <PackageReference Include="Ank.DocToolkit" Version="[0.24.0, )" />
+    <PackageReference Include="Ank.DocToolkit" Version="[0.26.0, )" />
 
     <!--
       8.0.2, not 8.0.0, since 0.15.0. PDFsharp raised Microsoft.Extensions.Logging.Abstractions

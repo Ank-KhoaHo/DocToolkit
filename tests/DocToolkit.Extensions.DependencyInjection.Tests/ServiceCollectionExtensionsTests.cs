@@ -1,3 +1,4 @@
+using System.Reflection;
 using DocToolkit.Extensions.DependencyInjection;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -17,21 +18,104 @@ public class ServiceCollectionExtensionsTests
     private static readonly TimeSpan SettleWindow = TimeSpan.FromMilliseconds(750);
 
     [Fact]
-    public void AddDocToolkit_ResolvesAllTenInterfaces()
+    public void AddDocToolkit_ResolvesEveryPublicInterfaceItShips()
     {
+        // Derived, not listed. This test was called "ResolvesAllTenInterfaces" and asserted
+        // ELEVEN - the name went stale the first time an interface was added, and a hand-written
+        // list is exactly the shape that lets a new interface ship unregistered.
         var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
 
-        Assert.NotNull(provider.GetRequiredService<IHtmlToDocxConverter>());
-        Assert.NotNull(provider.GetRequiredService<IDocxToPdfConverter>());
-        Assert.NotNull(provider.GetRequiredService<IHtmlToPdfConverter>());
-        Assert.NotNull(provider.GetRequiredService<IDocxEditor>());
-        Assert.NotNull(provider.GetRequiredService<IWorkbookEditor>());
-        Assert.NotNull(provider.GetRequiredService<IPresentationEditor>());
-        Assert.NotNull(provider.GetRequiredService<IXlsxToPdfConverter>());
-        Assert.NotNull(provider.GetRequiredService<IPptxToPdfConverter>());
-        Assert.NotNull(provider.GetRequiredService<IDocxToHtmlConverter>());
-        Assert.NotNull(provider.GetRequiredService<IDocxToMarkdownConverter>());
-        Assert.NotNull(provider.GetRequiredService<IPdfEditor>());
+        var interfaces = typeof(IDocxEditor).Assembly.GetExportedTypes()
+            .Where(t => t.IsInterface)
+            .OrderBy(t => t.Name)
+            .ToList();
+
+        Assert.NotEmpty(interfaces);
+
+        foreach (var type in interfaces)
+        {
+            Assert.True(
+                provider.GetService(type) is not null,
+                $"{type.Name} ships in this package but AddDocToolkit does not register it.");
+        }
+    }
+
+    /// <summary>
+    /// Every public static capability class in the core package has a matching interface here, and
+    /// that interface names every one of its methods.
+    /// </summary>
+    /// <remarks>
+    /// <b>This claim has gone stale nine times</b>, most recently on 2026-08-14 with seven gaps at
+    /// once: three interfaces missing methods and four core classes with no interface at all.
+    ///
+    /// CLAUDE.md prescribed a python snippet to check it by hand, listing eleven pairs. That list
+    /// could not see a new class, which is precisely how four of them hid - the same shape as
+    /// `PdfEditor`/`IPdfEditor` having been absent from it earlier. A check that has to be
+    /// remembered and run is not a check.
+    ///
+    /// So this DERIVES both sides by reflection. Same principle the repo already applies four
+    /// times over: notices read the lockfile, automerge reads the workflows, readme-coverage reads
+    /// the approved API, stream overloads read the assembly.
+    ///
+    /// <b>What it compares, and this is the important part.</b> This project references the
+    /// <b>published</b> <c>Ank.DocToolkit</c> package, never a ProjectReference - so the "core"
+    /// side here is the PUBLISHED assembly, not whatever is in <c>src/</c> right now. Verified by
+    /// reflection while writing this: the assembly it loads reports version 0.26.0, and a public
+    /// static class added locally is invisible to it.
+    ///
+    /// That is the correct semantics rather than a shortcoming, because it matches what the
+    /// mirror can actually promise: an interface cannot wrap a method that has not shipped. But it
+    /// has a consequence worth stating plainly - <b>this test cannot fail in the same pull request
+    /// that adds a core method.</b> It goes red once that version publishes and the floor is
+    /// bumped, which is precisely the moment the mirror becomes writable. It closes the lag; it
+    /// does not remove it.
+    ///
+    /// <b>Two deliberate exclusions.</b> File-path overloads are not mirrored - no interface here
+    /// takes a <c>string path</c> - so a core method whose name ends in <c>ToFileAsync</c>, plus
+    /// <c>ConvertFile</c>, is skipped. And this compares METHOD NAMES, not signatures, so a new
+    /// OVERLOAD of an already-mirrored name stays invisible; that limit is inherited from what the
+    /// interfaces actually promise and is stated here rather than left to be discovered.
+    /// </remarks>
+    [Fact]
+    public void EveryCoreCapabilityClassHasAMatchingInterfaceWithEveryMethod()
+    {
+        var fileOnly = new[] { "ConvertFile", "ConvertToFileAsync", "CreateToFileAsync" };
+        var extensions = typeof(IDocxEditor).Assembly;
+
+        var problems = new List<string>();
+        var pairs = 0;
+
+        foreach (var core in typeof(DocToolkit.DocxEditor).Assembly.GetExportedTypes()
+                     .Where(t => t is { IsAbstract: true, IsSealed: true })
+                     .OrderBy(t => t.Name))
+        {
+            var methods = core
+                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .Select(m => m.Name)
+                .Where(n => !fileOnly.Contains(n))
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (methods.Count == 0) continue;
+
+            var iface = extensions.GetExportedTypes()
+                .FirstOrDefault(t => t.IsInterface && t.Name == "I" + core.Name);
+
+            if (iface is null)
+            {
+                problems.Add($"{core.Name}: no I{core.Name} in the extensions package");
+                continue;
+            }
+
+            pairs++;
+            var mirrored = iface.GetMethods().Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
+            var missing = methods.Except(mirrored).OrderBy(n => n).ToList();
+            if (missing.Count > 0)
+                problems.Add($"I{core.Name} is missing: {string.Join(", ", missing)}");
+        }
+
+        Assert.True(pairs > 0, "found no core/interface pairs at all - the check is not looking");
+        Assert.True(problems.Count == 0,
+            "The DI package no longer mirrors the core API:\n  " + string.Join("\n  ", problems));
     }
 
     [Fact]

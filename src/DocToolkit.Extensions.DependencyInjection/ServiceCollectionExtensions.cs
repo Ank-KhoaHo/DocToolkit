@@ -36,6 +36,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDocxToHtmlConverter, DocxToHtmlConverterService>();
         services.TryAddSingleton<IDocxToMarkdownConverter, DocxToMarkdownConverterService>();
         services.TryAddSingleton<IPdfEditor, PdfEditorService>();
+        services.TryAddSingleton<IMarkdownToDocxConverter, MarkdownToDocxConverterService>();
+        services.TryAddSingleton<IMarkdownToPdfConverter, MarkdownToPdfConverterService>();
+        services.TryAddSingleton<IXlsxToCsvConverter, XlsxToCsvConverterService>();
+        services.TryAddSingleton<IXlsxToHtmlConverter, XlsxToHtmlConverterService>();
 
         return services;
     }
