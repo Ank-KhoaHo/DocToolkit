@@ -11,8 +11,10 @@ is the least expressive format here, so it is the one that most obviously cannot
 
 [!code-csharp[](../../samples/MarkdownConversion/Program.cs#convert)]
 
-Headings, emphasis, lists, links, code blocks and **tables** all come through — that sample's
-document contains one real Word table, not a block of monospaced text pretending to be one.
+Headings, emphasis, lists, links, code blocks, blockquotes and **tables** all come through. The
+table is the one worth checking rather than assuming: the sample's document reports
+`DocxEditor.TableCount == 1`, so it is a real Word table with real cells — not a block of
+monospaced text pretending to be one.
 
 **The PDF pivots through DOCX**, exactly as `HtmlToPdfConverter` does, and for the same reason: no
 permissively-licensed, NuGet-only, Linux-safe library renders either format to PDF directly. So
