@@ -72,11 +72,31 @@
       present. The same error was caught in the A19 row, which planned to add Markdig for
       something OfficeIMO already did.
 
-      PdfPig stays for now, deliberately rather than by inertia. It is Apache-2.0 with zero
-      transitive dependencies, it ships in 0.24.0 onwards, and ContentOrderTextExtractor is
-      measured to separate blocks correctly where the cheaper call does not. Removing a
-      shipped dependency is a larger decision than adding one and needs its own measurement -
-      tracked as backlog E7. What is fixed here is the false justification, not the choice.
+      E7 CONCLUDED, 2026-08-14: PdfPig STAYS, and now for measured reasons rather than a false one.
+
+      OfficeIMO.Pdf really can do the job. PdfDocument.Open(byte[]) opens an arbitrary PDF and
+      .Read.TextByPage() returns one string per page. Compared side by side on the same documents,
+      its output is equivalent to ours - it separates a heading from a following paragraph rather
+      than running them together, which is the A26 defect and the reason ContentOrderTextExtractor
+      was chosen over PdfPig's own cheaper page.Text. It splits pages correctly too. The only
+      differences found were line endings (PdfPig \r\n, OfficeIMO \n) and a whitespace-only run
+      that OfficeIMO drops.
+
+      Kept anyway, on three grounds:
+
+      1. INDEPENDENCE. OfficeIMO WRITES the PDFs this library produces. Reading them back with the
+         same library would make a bug in its model self-consistent and invisible - which is
+         precisely why the test suite keeps PdfProbe as a hand-rolled independent oracle instead of
+         verifying OfficeIMO with OfficeIMO. Using a different implementation in production buys
+         the same property for consumers.
+      2. IT WOULD BE A BREAKING CHANGE. ExtractText has shipped since 0.24.0 returning \r\n
+         separators. Switching flips them to \n, silently, for anyone splitting on them.
+      3. THE COST IS SMALL. Apache-2.0, zero transitive dependencies, no native payload. Removing
+         it would take the closure from 30 packages to 29 and leave SixLabors.Fonts as the only
+         non-MIT entry - a tidier sentence in the notices, not a change in kind.
+
+      Revisit only if PdfPig stops being maintained or its licence moves. The reason to keep it is
+      independence, so "OfficeIMO can do it too" is an argument FOR the current design, not against.
     -->
     <PackageReference Include="PDFsharp" Version="6.2.4" />
 
