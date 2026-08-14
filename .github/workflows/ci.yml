@@ -193,6 +193,20 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
+      # Runs BEFORE the locked-mode restore purely to give a better error. Locked
+      # mode already catches a lockfile that has lost a target framework, but it
+      # reports NU1004 with its labels the wrong way round - "Lock file target
+      # frameworks: net8.0,net10.0. Project target frameworks net8.0" when the
+      # truth is the reverse. Read literally that sends you looking for a change
+      # to src/Directory.Build.props that does not exist, which is exactly what
+      # it did on 2026-08-13.
+      #
+      # Dependabot's NuGet updater truncates these lockfiles to net8.0 on every
+      # bump that touches one. This step names the project, names the missing
+      # framework, and names the script that repairs it.
+      - name: Assert every lockfile covers every target framework
+        run: python3 scripts/repair-lockfiles.py --check
+
       # The other premise guards check WHAT the resolved graph contains. This one
       # checks it is the graph we agreed to. --locked-mode fails rather than
       # silently re-resolving, so an upstream bump cannot enter a release without
