@@ -141,12 +141,33 @@
       ClosedXML, OpenXML, HtmlToOpenXml and OfficeIMO. Mutation-verified: an unsafe reflection call
       added to PptxSlide.Titled fails that job.
 
-      IsAotCompatible is deliberately not set either, for a different reason: it is a strictly
-      stronger claim and nothing has verified it end to end. A native AOT publish could not run on
-      the machine where this was added (no platform linker, so ILC never started). An unverified
-      compatibility claim is worse than an absent one.
+      IsAotCompatible is set as an attribute too, for the same two reasons as IsTrimmable above -
+      the property would pull in Microsoft.NET.ILLink.Tasks and break locked-mode restore across
+      SDK patches, and an AssemblyMetadata item in src/Directory.Build.props fails framework
+      inference. (Written "locked-mode restore" rather than with the flag's leading double hyphen,
+      which XML forbids inside a comment - it failed the build once already.)
+
+      IT IS SET ONLY BECAUSE IT IS NOW VERIFIED, 2026-08-14. This used to read "deliberately not
+      set: nothing has verified it end to end, and an unverified compatibility claim is worse than
+      an absent one" - which was the right call for as long as it was true. What changed is
+      evidence, not opinion: ci.yml's aot-guard job native-AOT-publishes tests/AotProbe over the
+      real dependency closure and RUNS it, and every capability asserts on its result rather than
+      merely completing. Measured on the first green run, on main:
+
+        docx ok (1979 bytes) | replace ok | pptx ok (4945) | xlsx ok (6280)
+        html->docx ok (1951) | docx->pdf ok (52850) | pdf->text ok
+
+      including PdfPig's CMap handling and OfficeIMO's font work, which are the two most
+      reflection-dependent paths in the graph. The only AOT warning in the whole closure is
+      ClosedXML's IL2090; none is attributable to DocToolkit, which aot-guard asserts separately.
+
+      A publish that merely LINKS would not have earned this. AOT breaks at runtime, when a type
+      resolved by name turns out not to be there - so "it ran and the output was correct" is the
+      only evidence worth anything here. If aot-guard ever goes red, remove this attribute rather
+      than weakening the job.
     -->
     <AssemblyMetadata Include="IsTrimmable" Value="True" />
+    <AssemblyMetadata Include="IsAotCompatible" Value="True" />
   </ItemGroup>
 
 </Project>
