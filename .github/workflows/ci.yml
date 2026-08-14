@@ -631,6 +631,21 @@ jobs:
       - name: Assert every guide snippet resolves to a real region
         run: python3 scripts/check-doc-snippets.py
 
+      # The docs site's capability matrix is generated from the approved API file rather
+      # than written, for the reason the README check above exists: a capability table is
+      # something nobody re-derives while adding a feature. This repo has now written one
+      # by hand three times and had all three go stale - most recently the docs landing
+      # page, which described a library without Markdown in either direction, without PDF
+      # text extraction and without XLSX export, five days after all three had shipped.
+      #
+      # Same input as check-readme-coverage.py, and the same reasoning: the approved file
+      # is already the reviewed source of truth for what ships, so there is no second list
+      # to maintain. Verified in all three directions rather than only the happy one - it
+      # passes on a correct tree, it fails with a diff when a row is wrong, and it fails
+      # rather than emitting an empty table if the approved file's shape changes.
+      - name: Assert the docs capability matrix matches the approved public API
+        run: python3 scripts/gen-capability-matrix.py --check
+
       - name: Assert the tree matches .editorconfig
         run: |
           if ! dotnet format ${{ env.SOLUTION }} --verify-no-changes; then

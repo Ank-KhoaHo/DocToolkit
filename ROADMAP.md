@@ -23,9 +23,11 @@ surface, which is now enforced by a derived check rather than asserted.
 Both packages are trim-safe and the core package is **native-AOT compatible**, each proved by
 publishing a probe application and running it.
 
-Around it: eleven runnable samples, a docs site with six conceptual guides whose code blocks are
+Around it: eleven runnable samples, a docs site with seven conceptual guides whose code blocks are
 mostly compiled as part of a sample — the handful that are not are marked in place — and a
-per-release attested CycloneDX SBOM alongside build provenance.
+per-release attested CycloneDX SBOM alongside build provenance. One of those guides is a
+**capability matrix generated from the approved API file**, so the list of what this converts can
+no longer drift from what it ships; CI fails when it does.
 
 ## Under consideration
 
