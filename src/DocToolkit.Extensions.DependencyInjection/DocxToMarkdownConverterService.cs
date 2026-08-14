@@ -7,4 +7,11 @@ internal sealed class DocxToMarkdownConverterService : IDocxToMarkdownConverter
 
     public Task<string> ConvertAsync(Stream source, CancellationToken ct = default)
         => DocToolkit.DocxToMarkdownConverter.ConvertAsync(source, ct);
+
+    public DocToolkit.ConversionResult<string> ConvertWithReport(byte[] docx)
+        => DocToolkit.DocxToMarkdownConverter.ConvertWithReport(docx);
+
+    public Task<DocToolkit.ConversionResult<string>> ConvertWithReportAsync(
+        Stream source, CancellationToken ct = default)
+        => DocToolkit.DocxToMarkdownConverter.ConvertWithReportAsync(source, ct);
 }

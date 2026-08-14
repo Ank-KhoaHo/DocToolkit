@@ -4,8 +4,8 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
 Dependency-injection registration for [Ank.DocToolkit](https://www.nuget.org/packages/Ank.DocToolkit) —
-`services.AddDocToolkit()` registers eleven injectable interfaces over the same pure-managed
-HTML/DOCX/PDF/XLSX/PPTX conversion and editing logic.
+`services.AddDocToolkit()` registers fifteen injectable interfaces over the same pure-managed
+HTML/DOCX/PDF/XLSX/PPTX/Markdown conversion and editing logic.
 
 ```bash
 dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
@@ -100,12 +100,18 @@ app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter 
 });
 ```
 
-All eleven interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
+All fifteen interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
 `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`,
-`IDocxToMarkdownConverter`, `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor`,
-`IPdfEditor` — mirror
+`IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`,
+`IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocxEditor`, `IWorkbookEditor`,
+`IPresentationEditor`, `IPdfEditor` — mirror
 [`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
-`byte[]` and its `Stream`-based async overloads. They are registered as singletons (each wraps
+`byte[]` and its `Stream`-based async overloads.
+
+**That mirroring is now enforced rather than asserted.** It had gone stale nine times — most
+recently with seven gaps at once, four of them whole interfaces that simply did not exist — because
+the only check was a snippet someone had to remember to run against a hand-written list of pairs.
+A test in this package now derives both sides by reflection and fails naming anything missing. They are registered as singletons (each wraps
 stateless logic) and are safe to inject and call concurrently. See the core package's README for
 what each one does and the offline/licensing guarantees behind them.
 

@@ -52,4 +52,12 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
         Stream source, string sheetName, IEnumerable<IEnumerable<object?>> rows, Stream destination,
         CancellationToken ct = default)
         => DocToolkit.WorkbookEditor.AppendRowsAsync(source, sheetName, rows, destination, ct);
+
+    public byte[] Format(byte[] xlsx, string sheetName, DocToolkit.XlsxFormat format)
+        => DocToolkit.WorkbookEditor.Format(xlsx, sheetName, format);
+
+    public Task FormatAsync(
+        Stream source, string sheetName, DocToolkit.XlsxFormat format, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.FormatAsync(source, sheetName, format, destination, ct);
 }

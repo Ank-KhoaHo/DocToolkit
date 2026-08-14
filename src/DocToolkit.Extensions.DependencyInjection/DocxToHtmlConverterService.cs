@@ -7,4 +7,11 @@ internal sealed class DocxToHtmlConverterService : IDocxToHtmlConverter
 
     public Task<string> ConvertAsync(Stream source, CancellationToken ct = default)
         => DocToolkit.DocxToHtmlConverter.ConvertAsync(source, ct);
+
+    public DocToolkit.ConversionResult<string> ConvertWithReport(byte[] docx)
+        => DocToolkit.DocxToHtmlConverter.ConvertWithReport(docx);
+
+    public Task<DocToolkit.ConversionResult<string>> ConvertWithReportAsync(
+        Stream source, CancellationToken ct = default)
+        => DocToolkit.DocxToHtmlConverter.ConvertWithReportAsync(source, ct);
 }
