@@ -15,14 +15,47 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** convert Markdown to DOCX ([17c5eba](https://github.com/Ank-KhoaHo/DocToolkit/commit/17c5eba95621457602d9b51fc2cbf5f493eb4fe0))
-* **core:** convert Markdown to DOCX ([8266b3f](https://github.com/Ank-KhoaHo/DocToolkit/commit/8266b3fcac60dbf970a71dd81a9947c0c71d9015))
-* **core:** convert Markdown to PDF ([b00c763](https://github.com/Ank-KhoaHo/DocToolkit/commit/b00c7635ca4645886decec5937394616c3160788))
-* **core:** convert Markdown to PDF ([dc310c2](https://github.com/Ank-KhoaHo/DocToolkit/commit/dc310c24893966a0324e89646f3da0bbbf4894f5))
-* **core:** export a sheet as CSV or as an HTML table ([28acaf0](https://github.com/Ank-KhoaHo/DocToolkit/commit/28acaf0d9ab18f03958d335a32d1ab19de8c9645))
-* **core:** export a sheet as CSV or as an HTML table ([4b70084](https://github.com/Ank-KhoaHo/DocToolkit/commit/4b70084138f20a8bff665493ad0d945a0fa55a9a))
-* **core:** format a sheet - bold header, freeze, auto-fit, number formats ([694a1f4](https://github.com/Ank-KhoaHo/DocToolkit/commit/694a1f4319c7a93fe504f27c27c2e3ba16cf18f4))
-* **core:** format a sheet — bold header, freeze, auto-fit, number formats ([c9bccd2](https://github.com/Ank-KhoaHo/DocToolkit/commit/c9bccd2f81cf2b02e0eca57be57d1afef6649fb6))
+* **core:** convert Markdown to DOCX ([8266b3f](https://github.com/Ank-KhoaHo/DocToolkit/commit/8266b3fcac60dbf970a71dd81a9947c0c71d9015)).
+  `MarkdownToDocxConverter`, completing the round trip `DocxToMarkdownConverter` opened.
+  **Nothing in it reaches the network or the disk**: an image URL becomes a hyperlink rather than
+  a fetch, a local file reference is refused, and `data:` images are inlined. Also available as
+  `ConvertWithReport`, which reports what the conversion could not carry across.
+  **No new dependency** — the capability was already in the resolved graph.
+* **core:** convert Markdown to PDF ([dc310c2](https://github.com/Ank-KhoaHo/DocToolkit/commit/dc310c24893966a0324e89646f3da0bbbf4894f5)).
+  `MarkdownToPdfConverter`, which pivots through DOCX exactly as `HtmlToPdfConverter` does and
+  inherits the offline guarantee above unchanged. `ConvertWithReport` here carries the
+  Markdown → DOCX half's warnings only; the render half produces no report.
+* **core:** export a sheet as CSV or as an HTML table ([4b70084](https://github.com/Ank-KhoaHo/DocToolkit/commit/4b70084138f20a8bff665493ad0d945a0fa55a9a)).
+  `XlsxToCsvConverter` and `XlsxToHtmlConverter`, one named sheet at a time. A formula exports its
+  computed **value**. The HTML is a `<table>` **fragment**, not a whole document — deliberately
+  unlike `DocxToHtmlConverter` — and every cell is escaped.
+  **Read the note under _Changed_ below about culture before using these.**
+* **core:** format a sheet — bold header, freeze, auto-fit, number formats ([694a1f4](https://github.com/Ank-KhoaHo/DocToolkit/commit/694a1f4319c7a93fe504f27c27c2e3ba16cf18f4)).
+  `WorkbookEditor.Format` and `XlsxFormat`, applied to an existing workbook so it composes with
+  `Create`, `AppendRows` and workbooks this library never made. `XlsxFormat.Report` is the
+  three-setting preset for a readable report. **The set is deliberately small and closed**: if you
+  need fonts, borders, fills or conditional rules, use ClosedXML directly rather than through a
+  thinner API in front of it.
+
+
+### Changed
+
+* **core:** the two new spreadsheet exporters are **culture-invariant**, and this differs on purpose
+  from `WorkbookEditor.ReadSheet`.
+
+  `XlsxToCsvConverter` and `XlsxToHtmlConverter` render numbers with a dot and dates as ISO 8601
+  regardless of the machine's regional settings. `ReadSheet` is unchanged and still follows
+  `CurrentCulture`, as its documentation has always said.
+
+  That asymmetry is deliberate rather than an oversight. `ReadSheet` returns data you inspect in
+  process; an exporter produces a file you hand to something else, and on a machine whose culture
+  uses a decimal comma, `1234.5` would export as `1234,5` — **a decimal comma inside a
+  comma-delimited file**, which every downstream reader would see as an extra column. Measured
+  across en-US, de-DE and fr-FR.
+
+  If you were relying on export output matching `ReadSheet`'s text on a non-invariant culture,
+  that is the one behaviour here that will look different — and it is the direction that was
+  previously wrong.
 
 ## [0.25.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.24.0...v0.25.0) (2026-08-13)
 
