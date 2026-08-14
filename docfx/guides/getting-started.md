@@ -76,6 +76,7 @@ is not a question you can answer from a filename or a content type.
 
 ## Where to go next
 
+- [What it can convert](capabilities.md) — the complete grid, generated from the shipped API
 - [HTML to Word and PDF](html-to-word-and-pdf.md) — page setup, remote images, the network guard
 - [Word documents](word-documents.md) — fill a template, build one from scratch, export it again
 - [Spreadsheets and presentations](spreadsheets-and-presentations.md) — XLSX and PPTX

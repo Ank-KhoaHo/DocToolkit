@@ -1,5 +1,7 @@
 - name: Getting started
   href: getting-started.md
+- name: What it can convert
+  href: capabilities.md
 - name: HTML to Word and PDF
   href: html-to-word-and-pdf.md
 - name: Word documents
