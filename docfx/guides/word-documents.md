@@ -136,6 +136,12 @@ renderer's output. If you are embedding the result in a page, extract the body w
 rather than a regular expression. Both text converters embed images as `data:` URIs, so what you
 get is self-contained with no asset files to host.
 
+**Both text converters can tell you what they had to drop.** `ConvertWithReport` returns the same
+string alongside a list of warnings, each saying whether something was approximated, omitted
+outright, or failed. `Convert` is that call with the report discarded. See
+[Markdown, and what a conversion drops](markdown.md#what-the-conversion-could-not-carry-across) —
+and note that `DocxToPdfConverter` has no equivalent, deliberately.
+
 **PDF fonts depend on the machine doing the conversion.** Where a system font is available it is
 embedded; in a slim container with no fonts installed, nothing is embedded and the PDF falls back
 to the base-14 standard fonts. Both are valid and both render, but they are not byte-identical.

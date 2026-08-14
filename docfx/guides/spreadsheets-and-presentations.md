@@ -10,8 +10,14 @@ overloads where you need them.
 
 Cell values are `object?`. Numbers are written as numbers and strings as strings, so a column of
 totals arrives in Excel as something you can sum rather than as text that merely looks numeric.
-`ReadCell` returns a `string` — the cell's value as displayed — because that is what almost every
-caller does with it next.
+`ReadCell` returns a `string`, because that is what almost every caller does with it next.
+
+> [!NOTE]
+> **It is the cell's value as text, not the cell as Excel displays it.** A cell holding `1200`
+> under a `#,##0.00` number format reads back as `1200`, not `1,200.00` — the number format is a
+> presentation instruction stored beside the value, and this returns the value. The text also
+> follows the calling thread's `CurrentCulture`, which is why the exporters below deliberately do
+> not use it.
 
 ## Reading a workbook you were handed
 
@@ -40,6 +46,63 @@ you are on.
 
 `AppendRows` adds after the sheet's last used row and leaves every other sheet untouched, which is
 the operation you want for a log or an export that accumulates.
+
+## Making a generated sheet look like a report
+
+A sheet written from data is correct and unreadable: no header emphasis, columns too narrow for
+their contents, and the header scrolling out of sight on the first flick of the wheel.
+`WorkbookEditor.Format` fixes those four things and nothing else.
+
+[!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
+
+```text
+Formatted    : 7,576 bytes (was 7,370)
+```
+
+@DocToolkit.XlsxFormat is **immutable**, like @DocToolkit.PageSetup — every `With…` returns a new
+instance, so `XlsxFormat.Report` is safe to read from anywhere. `Report` is the combination you
+almost always want (bold header, frozen header, auto-fit); `XlsxFormat.None` is the empty one to
+build up from.
+
+Two things worth knowing before you reach for it:
+
+**It applies to a sheet that already exists.** `Format` is not an argument to `Create` or
+`AppendRows` — it is a separate call taking a workbook and a sheet name. That is what lets it
+compose with all of them, and with a file somebody else made.
+
+**Auto-fit does not always widen.** It fits the column to its *content*, and against short values
+that is narrower than Excel's 8.43-character default. A column of two-digit numbers gets narrower,
+which is correct and is not what "auto-fit" makes most people picture.
+
+The number-format string is Excel's own (`"#,##0.00"`, `"0%"`, `"yyyy-mm-dd"`), keyed by column
+letter. It changes how Excel *displays* the cell and not what is stored in it — so `ReadCell` and
+the exporters below still see `1200`, per the note further up.
+
+## Handing a sheet to something that is not Excel
+
+@DocToolkit.XlsxToCsvConverter and @DocToolkit.XlsxToHtmlConverter take one sheet, by name.
+
+[!code-csharp[](../../samples/Spreadsheets/Program.cs#export)]
+
+```text
+As CSV       : Region,Revenue / EMEA,1200 / APAC,980 / AMER,1450 /
+As HTML      : 222 chars, starts "<table>
+```
+
+**One sheet at a time is the API, not a limitation to work around.** A workbook is not one table,
+and neither CSV nor an HTML `<table>` has any way to say "and now a different sheet". Call it once
+per name from `SheetNames`.
+
+**Both are culture-invariant, deliberately, and this one is not a preference.** A machine set to
+`de-DE` formats `1234.5` as `1234,5` — and a decimal comma inside a comma-delimited file is not a
+differently-formatted CSV, it is a corrupt one, with a row that silently gained a column. So the
+exporters format numbers, dates (ISO 8601) and booleans invariantly regardless of the calling
+thread, which is the same line `SetCell` already holds on the way in.
+
+The CSV is RFC 4180 and quotes **only when it has to** — a value containing a comma, a quote or a
+newline — so the common case stays diffable. The HTML is a `<table>` fragment with a `<thead>`, not
+a document: there is no `<html>` or `<body>` around it, because the caller is embedding it in a
+page they already have. Every cell is escaped.
 
 ## Presentations
 
