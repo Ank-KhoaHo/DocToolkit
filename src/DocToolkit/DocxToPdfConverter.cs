@@ -113,5 +113,6 @@ public static class DocxToPdfConverter
         }
     }
 
-    private const string FailureMessage = "Failed to render DOCX to PDF.";
+    private const string FailureMessage =
+        "Failed to render DOCX to PDF. See the inner exception for details.";
 }

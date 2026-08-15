@@ -20,7 +20,8 @@ namespace DocToolkit;
 /// </summary>
 public static class PptxToPdfConverter
 {
-    private const string FailureMessage = "Failed to convert PPTX to PDF.";
+    private const string FailureMessage =
+        "Failed to convert PPTX to PDF. See the inner exception for details.";
 
     /// <summary>
     /// Renders the .pptx in <paramref name="pptx"/> and returns PDF bytes, one page per slide.

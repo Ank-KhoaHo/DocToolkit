@@ -42,7 +42,9 @@ internal static class PdfTextExtractor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read the PDF.", ex);
+            throw new DocumentConversionException(
+                "Failed to read the PDF. This usually means the PDF is password-protected, "
+                + "truncated, or not actually a PDF — check the source bytes.", ex);
         }
     }
 }

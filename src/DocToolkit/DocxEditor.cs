@@ -263,12 +263,12 @@ public static class DocxEditor
         ct.ThrowIfCancellationRequested();
 
         using var docx = await StreamPipeline
-            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to edit DOCX.", ct)
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to edit DOCX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         ReplaceTextCore(docx, replacements);
 
-        await StreamPipeline.EmitAsync(docx, destination, "Failed to edit DOCX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(docx, destination, "Failed to edit DOCX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     private static void ReplaceTextCore(MemoryStream ms, IReadOnlyDictionary<string, string> replacements)
@@ -278,9 +278,11 @@ public static class DocxEditor
             using (var doc = WordprocessingDocument.Open(ms, true))
             {
                 var main = doc.MainDocumentPart
-                           ?? throw new DocumentConversionException("Document has no main part.");
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
                 var body = main.Document?.Body
-                           ?? throw new DocumentConversionException("Document has no body.");
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
 
                 ReplaceIn(body, replacements);
                 main.Document!.Save();
@@ -314,7 +316,7 @@ public static class DocxEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to edit DOCX.", ex);
+            throw new DocumentConversionException("Failed to edit DOCX. See the inner exception for details.", ex);
         }
     }
 
@@ -376,7 +378,7 @@ public static class DocxEditor
         ct.ThrowIfCancellationRequested();
 
         using var docx = await StreamPipeline
-            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         return ExtractTextCore(docx, includeHeadersAndFooters);
@@ -406,7 +408,7 @@ public static class DocxEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read DOCX.", ex);
+            throw new DocumentConversionException("Failed to read DOCX. See the inner exception for details.", ex);
         }
     }
 
@@ -531,7 +533,7 @@ public static class DocxEditor
         ct.ThrowIfCancellationRequested();
 
         using var docx = await StreamPipeline
-            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         return TableCountCore(docx);
@@ -558,7 +560,7 @@ public static class DocxEditor
         ct.ThrowIfCancellationRequested();
 
         using var docx = await StreamPipeline
-            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX.", ct)
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to read DOCX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         return ReadTableCore(docx, index);
@@ -585,7 +587,7 @@ public static class DocxEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read DOCX.", ex);
+            throw new DocumentConversionException("Failed to read DOCX. See the inner exception for details.", ex);
         }
     }
 
@@ -617,7 +619,7 @@ public static class DocxEditor
         catch (Exception ex)
             when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
         {
-            throw new DocumentConversionException("Failed to read DOCX.", ex);
+            throw new DocumentConversionException("Failed to read DOCX. See the inner exception for details.", ex);
         }
     }
 
@@ -709,13 +711,13 @@ public static class DocxEditor
             throw new ArgumentException("Collection name was blank.", nameof(collection));
 
         using var buffer = await StreamPipeline
-            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to fill table rows in the DOCX package.", ct)
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to fill table rows in the DOCX package. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         FillRowsCore(buffer, collection, rows);
 
         await StreamPipeline
-            .EmitAsync(buffer, destination, "Failed to fill table rows in the DOCX package.", ct)
+            .EmitAsync(buffer, destination, "Failed to fill table rows in the DOCX package. See the inner exception for details.", ct)
             .ConfigureAwait(false);
     }
 
@@ -731,15 +733,19 @@ public static class DocxEditor
             using (var doc = WordprocessingDocument.Open(ms, true))
             {
                 var main = doc.MainDocumentPart
-                           ?? throw new DocumentConversionException("Document has no main part.");
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
                 var body = main.Document?.Body
-                           ?? throw new DocumentConversionException("Document has no body.");
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
 
                 var templates = TableRowFinder.Find(body, marker);
                 if (templates.Count == 0)
                 {
                     throw new DocumentConversionException(
-                        $"No table row containing '{marker}' was found, so there was nothing to fill.");
+                        $"No table row containing '{marker}' was found, so there was nothing to "
+                        + "fill. The marker must appear inside a table cell, not just anywhere in "
+                        + "the document.");
                 }
 
                 foreach (var template in templates)
@@ -752,7 +758,7 @@ public static class DocxEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to fill table rows in the DOCX package.", ex);
+            throw new DocumentConversionException("Failed to fill table rows in the DOCX package. See the inner exception for details.", ex);
         }
     }
 
@@ -761,7 +767,9 @@ public static class DocxEditor
         IReadOnlyList<IReadOnlyDictionary<string, string>> records)
     {
         var parent = template.Parent
-                     ?? throw new DocumentConversionException("A template row had no parent table.");
+                     ?? throw new DocumentConversionException(
+                         "A template row had no parent table. FillRows only expands rows that are "
+                         + "direct children of a table — put the marker inside a table row.");
 
         foreach (var record in records)
         {
@@ -920,13 +928,13 @@ public static class DocxEditor
             throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
 
         using var buffer = await StreamPipeline
-            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to insert an image into the DOCX package.", ct)
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to insert an image into the DOCX package. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         ReplaceImageCore(buffer, placeholder, image, widthPoints, heightPoints);
 
         await StreamPipeline
-            .EmitAsync(buffer, destination, "Failed to insert an image into the DOCX package.", ct)
+            .EmitAsync(buffer, destination, "Failed to insert an image into the DOCX package. See the inner exception for details.", ct)
             .ConfigureAwait(false);
     }
 
@@ -943,9 +951,11 @@ public static class DocxEditor
             using (var doc = WordprocessingDocument.Open(ms, true))
             {
                 var main = doc.MainDocumentPart
-                           ?? throw new DocumentConversionException("Document has no main part.");
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
                 var body = main.Document?.Body
-                           ?? throw new DocumentConversionException("Document has no body.");
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
 
                 // Unique across the WHOLE document: a duplicate wp:docPr id makes Word declare the
                 // file corrupt and offer to repair it, so start above whatever is already there.
@@ -982,7 +992,9 @@ public static class DocxEditor
                 if (replaced == 0)
                 {
                     throw new DocumentConversionException(
-                        $"The placeholder '{placeholder}' was not found, so there was nothing to replace.");
+                        $"The placeholder '{placeholder}' was not found, so there was nothing to "
+                        + "replace. Check the placeholder text, braces included, matches the "
+                        + "document exactly.");
                 }
             }
 
@@ -990,7 +1002,7 @@ public static class DocxEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to insert an image into the DOCX package.", ex);
+            throw new DocumentConversionException("Failed to insert an image into the DOCX package. See the inner exception for details.", ex);
         }
     }
 

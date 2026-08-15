@@ -22,7 +22,8 @@ namespace DocToolkit;
 /// </remarks>
 public static class MarkdownToDocxConverter
 {
-    private const string FailureMessage = "Failed to convert Markdown to DOCX.";
+    private const string FailureMessage =
+        "Failed to convert Markdown to DOCX. See the inner exception for details.";
 
     /// <summary>Converts <paramref name="markdown"/> to a .docx package.</summary>
     /// <param name="markdown">The Markdown to convert.</param>
