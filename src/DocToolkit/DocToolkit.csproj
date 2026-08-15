@@ -14,13 +14,23 @@
       surface earlier in a consumer's journey.
 
       Re-read this whenever a converter is added. `docfx/guides/capabilities.md` is the derived
-      list to check it against.
+      list to check it against - and check it PAIR BY PAIR, not by skimming for format names.
+
+      That distinction is the second failure this text has had, found 2026-08-15 while working the
+      Release-PR curation checklist on 0.27.3. Every format was named, so nothing looked wrong; but
+      three of the eleven converters in the matrix - DOCX, XLSX and PPTX to PDF - appeared nowhere
+      in the sentence. The first failure was an omission of whole capabilities and was obvious once
+      read; this one was invisible to any reading that asked "is DOCX mentioned?" instead of "is
+      DOCX to PDF mentioned?".
+
+      D20's nuspec check proves this field is NON-EMPTY. Nothing can prove it is COMPLETE, which is
+      why the checklist item stayed human - and why it took a person working that list to find it.
     -->
     <Description>
-      Convert HTML and Markdown to DOCX and PDF; export DOCX to HTML/Markdown and XLSX to CSV/HTML;
-      read text out of a PDF; and create/edit DOCX, XLSX and PPTX - pure managed, no native
-      binaries, no browser, no LibreOffice, no Office interop. Runs on Linux, Windows and macOS,
-      and makes no network calls at runtime.
+      Convert HTML and Markdown to DOCX and PDF; render DOCX, XLSX and PPTX to PDF; export DOCX to
+      HTML/Markdown and XLSX to CSV/HTML; read text out of a PDF; and create/edit DOCX, XLSX and
+      PPTX - pure managed, no native binaries, no browser, no LibreOffice, no Office interop. Runs
+      on Linux, Windows and macOS, and makes no network calls at runtime.
     </Description>
     <!--
       Three groups, and the ORDER of thought matters more than the list. The old set was eight
