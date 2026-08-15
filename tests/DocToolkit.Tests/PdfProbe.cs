@@ -199,10 +199,11 @@ public static class PdfProbe
         // stand-in for "the document total" when we can't walk the tree explicitly.
         var max = 0;
         var found = false;
-        foreach (Match dict in AnyDict.Matches(raw).Where(d => TypeIsPages.IsMatch(d.Value)))
+        foreach (var count in AnyDict.Matches(raw)
+                     .Where(d => TypeIsPages.IsMatch(d.Value))
+                     .Select(d => CountField.Match(d.Value))
+                     .Where(m => m.Success))
         {
-            var count = CountField.Match(dict.Value);
-            if (!count.Success) continue;
             found = true;
             var value = int.Parse(count.Groups[1].Value, CultureInfo.InvariantCulture);
             if (value > max) max = value;

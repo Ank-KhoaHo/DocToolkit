@@ -552,7 +552,11 @@ public static class PdfEditor
 
         try
         {
-            return PdfReader.Open(new MemoryStream(pdf, writable: false), mode);
+            // PdfSharp reads the whole package during Open, so the stream is not needed
+            // afterwards and disposing it here is safe - asserted by the PdfEditor suite, which
+            // exercises every open mode. Held in a local rather than inlined so it CAN be disposed.
+            using var source = new MemoryStream(pdf, writable: false);
+            return PdfReader.Open(source, mode);
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {

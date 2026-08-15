@@ -997,15 +997,13 @@ public static class DocxEditor
     /// <summary>One above the highest wp:docPr id anywhere in the package.</summary>
     private static uint NextDrawingId(MainDocumentPart main)
     {
-        var highest = 0U;
-
-        foreach (var value in AllRoots(main)
-                     .SelectMany(root => root.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>())
-                     .Select(properties => properties.Id?.Value)
-                     .Where(id => id.HasValue))
-        {
-            if (value!.Value > highest) highest = value.Value;
-        }
+        var highest = AllRoots(main)
+            .SelectMany(root => root.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>())
+            .Select(properties => properties.Id?.Value)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .DefaultIfEmpty(0U)
+            .Max();
 
         return highest + 1;
 

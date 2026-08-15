@@ -202,10 +202,9 @@ public static class PresentationEditor
             using var doc = OpenDocument(ms, false);
 
             var results = new List<string>();
-            foreach (var slidePart in SlidesInDeckOrder(PresentationPartOf(doc)))
+            foreach (var slide in SlidesInDeckOrder(PresentationPartOf(doc))
+                         .Select(p => p.Slide).Where(s => s is not null).Select(s => s!))
             {
-                var slide = slidePart.Slide;
-                if (slide is null) continue;
 
                 // PowerPoint stores shape text as a:t runs under a:p paragraphs - Wordprocessing's
                 // w:t is the DOCX equivalent, not what PPTX uses. Grouping by the paragraph's
@@ -298,10 +297,9 @@ public static class PresentationEditor
         {
             using (var doc = OpenDocument(ms, true))
             {
-                foreach (var slidePart in SlidesInDeckOrder(PresentationPartOf(doc)))
+                foreach (var slide in SlidesInDeckOrder(PresentationPartOf(doc))
+                             .Select(p => p.Slide).Where(s => s is not null).Select(s => s!))
                 {
-                    var slide = slidePart.Slide;
-                    if (slide is null) continue;
 
                     foreach (var paragraph in slide.Descendants<A.Paragraph>())
                     {
@@ -549,10 +547,11 @@ public static class PresentationEditor
             yield break;
         }
 
-        foreach (var slideId in slideIdList.Elements<P.SlideId>())
+        foreach (var relationshipId in slideIdList.Elements<P.SlideId>()
+                     .Select(id => id.RelationshipId?.Value)
+                     .Where(id => !string.IsNullOrEmpty(id))
+                     .Select(id => id!))
         {
-            var relationshipId = slideId.RelationshipId?.Value;
-            if (string.IsNullOrEmpty(relationshipId)) continue;
 
             OpenXmlPart part;
             try { part = presentationPart.GetPartById(relationshipId); }
