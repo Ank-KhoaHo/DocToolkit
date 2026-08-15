@@ -19,6 +19,9 @@ Targets `net8.0` and `net10.0`. MIT licensed.
 
 ## Usage
 
+`AddDocToolkit` is an extension method in the `DocToolkit.Extensions.DependencyInjection`
+namespace — import it to bring `services.AddDocToolkit()` into scope:
+
 <!-- BEGIN SNIPPET: readme-di-registration -->
 
 ```csharp
