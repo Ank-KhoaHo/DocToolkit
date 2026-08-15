@@ -684,6 +684,16 @@ jobs:
       - name: Assert CONTRIBUTING's guard inventory matches the workflows
         run: python3 scripts/gen-guard-inventory.py --check
 
+      # The DocFX guides have pulled their samples from compiled tests since 2026-08-08,
+      # because a snippet retyped into prose is a claim nothing compiles - it caught two
+      # private constructors on its first run. The READMEs were exempt: 28 blocks, none
+      # verified, and src/DocToolkit/README.md is the one nuget.org renders.
+      #
+      # check-readme-coverage.py already guards these files, but asserts only that every
+      # shipped TYPE is NAMED. Coverage, not correctness.
+      - name: Assert the README snippets match their compiled tests
+        run: python3 scripts/gen-readme-snippets.py --check
+
       # A library's awaits are its own responsibility: a consumer blocking on one of them from a
       # WPF/WinForms/classic-ASP.NET context deadlocks when the continuation tries to resume on
       # the context they are still holding, and they cannot add ConfigureAwait to OUR awaits.

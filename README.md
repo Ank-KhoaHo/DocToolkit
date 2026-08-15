@@ -152,6 +152,9 @@ reason this package exists, and all four constraints are re-checked by CI on eve
 
 ## Usage
 
+**This is one connected walkthrough, not a script that compiles as pasted** — variables such as
+`lineItems` and `logoBytes` stand in for data you already have.
+
 ```csharp
 using DocToolkit;
 
@@ -182,7 +185,7 @@ byte[] report = DocxEditor.Create(new[]
 });
 
 // Fill a template — handles placeholders split across runs, and headers/footers
-byte[] filled = DocxEditor.ReplaceText(docx, new() { ["{{customer}}"] = "Contoso Ltd" });
+byte[] filled = DocxEditor.ReplaceText(docx, new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" });
 
 // Repeat a table row per record — a row holding {{item.Desc}} becomes one row per line item,
 // each keeping the template row's formatting
@@ -198,7 +201,7 @@ IReadOnlyList<IReadOnlyList<string>> rows = DocxEditor.ReadTable(report, 0);
 // rows[0] is the header row: ["Region", "Revenue"]
 
 // Or work directly with files — no ReadAllBytes/WriteAllBytes dance, and input/output may be the same file
-await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", new() { ["{{customer}}"] = "Contoso Ltd" });
+await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" });
 
 byte[] xlsx = WorkbookEditor.Create("Sales", new[] { new object?[] { "Region", "Total" } });
 
@@ -239,6 +242,8 @@ throwing.
 
 Generated documents are **A4 with one-inch margins**. Pass a `PageSetup` for anything else:
 
+<!-- BEGIN SNIPPET: readme-page-setup-options -->
+
 ```csharp
 byte[] pdf = await HtmlToPdfConverter.ConvertAsync(
     html,
@@ -246,6 +251,8 @@ byte[] pdf = await HtmlToPdfConverter.ConvertAsync(
 
 byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
 ```
+
+<!-- END SNIPPET -->
 
 `PageSetup` is immutable, measured in points, and offers `A4`, `Letter` and
 `Custom(widthPoints, heightPoints)`, plus `Landscape()` and `WithMargins(…)`. Every producer —
@@ -275,6 +282,8 @@ Operations on a PDF that already exists — the only part of this library that *
 than writing it. Nothing here re-renders: pages move between documents as they are, so text, fonts
 and images arrive unchanged and the converters' fidelity caveats do not apply.
 
+<!-- BEGIN SNIPPET: readme-pdf-utilities -->
+
 ```csharp
 int pages = PdfEditor.PageCount(pdf);
 
@@ -296,9 +305,11 @@ byte[] resequenced = PdfEditor.ReorderPages(bundle, [3, 1, 2]);
 // Slot another document in. atPage is where its first page lands; PageCount + 1 appends.
 byte[] withAppendix = PdfEditor.InsertPages(bundle, appendix, atPage: 2);
 
-// And read the text back out, one string per page. pageTexts[0] is page 1.
-IReadOnlyList<string> pageTexts = PdfEditor.ExtractText(bundle);
+// Read a PDF's text back out, one string per page — pageText[0] is page 1.
+IReadOnlyList<string> pageText = PdfEditor.ExtractText(bundle);
 ```
+
+<!-- END SNIPPET -->
 
 **A scanned PDF has no text layer**, so `ExtractText` returns an empty string per page for one —
 that is what the file contains, not a failure, and OCR is out of scope.
@@ -310,6 +321,8 @@ ecosystem, but stated here rather than left to surprise anyone.
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
 
+<!-- BEGIN SNIPPET: readme-pdf-metadata -->
+
 ```csharp
 byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata
 {
@@ -319,6 +332,8 @@ byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata
 
 PdfMetadata info = PdfEditor.ReadMetadata(stamped);
 ```
+
+<!-- END SNIPPET -->
 
 Every `PdfMetadata` property is nullable, and **`null` means absent rather than blank** in both
 directions. Reading, that lets you tell "no title" from "a title deliberately set to empty";
@@ -390,10 +405,14 @@ content therefore printed on different paper depending on who opened it.
 From 0.13.0 every producer states its page setup explicitly and **defaults to A4** with one-inch
 margins. To keep the previous PDF behaviour, pass `PageSetup.Letter`:
 
+<!-- BEGIN SNIPPET: readme-html-to-pdf-page -->
+
 ```csharp
-byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
+byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
 byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
 ```
+
+<!-- END SNIPPET -->
 
 The change was deliberate and is the point of that work rather than a side effect - but it shipped
 filed under *Added* in the changelog, which understated it. It is recorded here because a published
@@ -421,6 +440,8 @@ Windows, so "runs everywhere .NET does" is measured on each rather than inferred
 
 Attach them to the `PageSetup`, and every producer honours them:
 
+<!-- BEGIN SNIPPET: readme-page-setup -->
+
 ```csharp
 var page = PageSetup.A4
     .WithHeader(DocxHeader.Text("Contoso Ltd"))
@@ -430,6 +451,8 @@ var page = PageSetup.A4
 
 byte[] docx = DocxEditor.Create(blocks, page);
 ```
+
+<!-- END SNIPPET -->
 
 The page number is a real field, so "Page 3 of 12" is right on every page rather than frozen at
 the moment the document was generated.
@@ -456,24 +479,25 @@ alternative is that you find out by reading the source.
 ## Dependency injection
 
 `Ank.DocToolkit` needs no container. For ASP.NET Core or worker services, a thin companion package
-adds injectable interfaces that delegate one-for-one to the static API — same conversion logic,
-no duplication.
+adds fifteen injectable interfaces that delegate one-for-one to the static API — same conversion
+logic, no duplication.
+
+```bash
+dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
+```
+
+<!-- BEGIN SNIPPET: readme-di-registration -->
 
 ```csharp
-// dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
-services.AddDocToolkit();                                       // six interfaces, as singletons
+services.AddDocToolkit();
 
-services.AddDocToolkit(o =>
-{
-    o.AllowRemoteImageDownload = true;                  // opt in to remote images...
-    o.RemoteImage.AllowedHosts.Add("cdn.example.com");  // ...bounded; defaults are restrictive
-});
-
-public class InvoiceService(IHtmlToPdfConverter toPdf)
-{
-    public Task<byte[]> RenderAsync(string html) => toPdf.ConvertAsync(html);
-}
+// Or opt in to remote image download for HTML->DOCX/PDF. This still succeeds in an
+// air-gapped environment - an unreachable host leaves that image out rather than failing
+// the conversion.
+services.AddDocToolkit(o => o.AllowRemoteImageDownload = true);
 ```
+
+<!-- END SNIPPET -->
 
 Both packages ship at the same version from the same tag. See the
 [extension package's README](src/DocToolkit.Extensions.DependencyInjection/README.md).
@@ -497,14 +521,18 @@ files in CI and fails if the mutation score drops (74.3% when the gate was added
 The one exception is explicit and opt-in, and **is silently image-less in an air-gapped
 environment** — an unreachable host is skipped, not fatal:
 
+<!-- BEGIN SNIPPET: readme-remote-opt-in -->
+
 ```csharp
-await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true);
+byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true);
 
 // Bounded instead of wide open: timeout, byte cap, host allow-list and a block on
 // loopback/private/link-local addresses, all on by default. Not a complete SSRF defence — see
 // the package README.
-await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
+byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
 ```
+
+<!-- END SNIPPET -->
 
 ## Reporting a vulnerability
 
