@@ -16,7 +16,8 @@ on:
     # it the guard watches a mutable value on the one event set that never sees it change,
     # which failed in both directions: a corrected title could not go green without an
     # unrelated push, and a PR opened with a good title could be edited to a bad one and
-    # merged green. Squash merge uses COMMIT_OR_PR_TITLE, so that title reaches main.
+    # merged green. The repo squash-merges with squash_merge_commit_title: PR_TITLE, so
+    # that title IS the subject that reaches main - not a fallback used only sometimes.
     types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
@@ -467,9 +468,17 @@ jobs:
         run: ./tests/AotProbe/bin/Release/net8.0/linux-x64/publish/AotProbe
 
   # Enforces Conventional Commits so release-please's version-bump and changelog inference
-  # (release-please-config.json) is never silently wrong. Checks every commit in the PR's
-  # range, not just the PR title, because this repo true-merges - every individual commit
-  # lands on main and matters to release-please's bump calculation.
+  # (release-please-config.json) is never silently wrong.
+  #
+  # THE PR TITLE IS THE ONE THAT MATTERS. Since 2026-08-15 this repo squash-merges only, so a
+  # branch becomes one commit whose subject is the PR title; no individual commit subject
+  # reaches main. This comment previously said the opposite - "this repo true-merges, every
+  # individual commit lands on main" - which was true of the mode in use and false of the mode
+  # CONTRIBUTING.md described, and that gap is what kept duplicating changelog entries.
+  #
+  # Every commit in the range is still checked, deliberately. It is now belt-and-braces rather
+  # than load-bearing: a branch whose commits are already well-formed makes a good title
+  # obvious, and the check keeps working if the merge mode is ever changed back.
   commit-format:
     name: commit message format
     runs-on: ubuntu-24.04
@@ -481,9 +490,10 @@ jobs:
 
       # THE PULL REQUEST TITLE IS NOW A COMMIT SUBJECT, so it is checked like one.
       #
-      # This repository squash-merges. A squash commit's subject is the PR title whenever
-      # the branch holds more than one commit, so an unparseable title means release-please
-      # discards the WHOLE commit - body included - and every feat: line in it is lost.
+      # This repository squash-merges and merge commits are DISABLED, so a branch becomes
+      # exactly one commit whose subject is the PR title - always, not only when the branch
+      # holds more than one commit. An unparseable title means release-please discards the
+      # WHOLE commit, body included, and every feat: line in it is lost.
       #
       # That is not hypothetical. Measured 2026-08-10: PR #189 shipped the entire headers
       # and footers feature under the title 'Headers and footers on generated documents',
@@ -493,8 +503,11 @@ jobs:
       #
       # CONTRIBUTING.md used to say the opposite - omit the prefix - and it was right while
       # this repo used merge commits, where the title lands in the BODY beside the real
-      # commits and duplicates them. Squash inverted that. The advice was updated in the
-      # same commit as this check, because advice alone had already failed twice.
+      # commits and duplicates them. It then claimed squash had inverted that WHILE MERGE
+      # COMMITS WERE STILL THE MODE IN USE, and the duplicate came back: 0.27.2's entry was
+      # proposed twice. Settled 2026-08-15 by changing the repository, not the prose -
+      # allow_merge_commit is now false and the squash body is PR_BODY, which cannot carry
+      # a second copy of the subject.
       - name: Assert the pull request title follows Conventional Commits
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
