@@ -13,9 +13,26 @@ repo-wide tooling (CI, release pipeline).
 ## [0.27.5](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.4...v0.27.5) (2026-08-15)
 
 
-### Fixed
+**Exception message text changed. No API changed and no call behaves differently** — but if you
+match on `DocumentConversionException.Message`, read the migration note below before upgrading.
 
-* make DocumentConversionException messages actionable ([#266](https://github.com/Ank-KhoaHo/DocToolkit/issues/266)) ([d0a281a](https://github.com/Ank-KhoaHo/DocToolkit/commit/d0a281acd683ffba14836dc8f617a4007c5487e1))
+### Changed
+
+* **`DocumentConversionException` messages now say what to do, not only what failed.** They
+  previously named the failure and stopped — `"Failed to read the PDF."`, `"A template row had no
+  parent table."` — which is little help in a log. Fifteen messages that had a *specific* remedy now
+  carry one sentence of guidance; around twenty generic wrappers now point at the inner exception
+  rather than inventing a cause they cannot know.
+
+  **Migrating:** the first sentence of every message is unchanged, so a substring match on the old
+  text still matches. **An exact-equality match on `.Message` will not.** If you branch on message
+  text, match the prefix or — better — catch the type and read `InnerException`
+  ([#266](https://github.com/Ank-KhoaHo/DocToolkit/issues/266)).
+
+  One message deliberately names *two* causes rather than the likely one: a JPEG with no
+  Start-Of-Frame segment may be truncated **or** simply not a well-formed JPEG, and the code cannot
+  tell those apart. Naming a cause a failure cannot distinguish is how a wrong message costs
+  somebody an afternoon.
 
 ## [0.27.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.3...v0.27.4) (2026-08-15)
 
