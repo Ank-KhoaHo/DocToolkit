@@ -28,14 +28,22 @@ public class ReadmeExamples
     public void PresentationReplaceImageExample()
     {
         byte[] pptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
-        byte[] chartPngBytes = ImageFixtures.Png(40, 30);
+        var chartPath = Path.Join(Directory.GetCurrentDirectory(), "chart.png");
+        File.WriteAllBytes(chartPath, ImageFixtures.Png(40, 30));
 
-        #region readme-pptx-replace-image
-        byte[] filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", chartPngBytes);
-        #endregion
+        try
+        {
+            #region readme-pptx-replace-image
+            byte[] filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", File.ReadAllBytes("chart.png"));
+            #endregion
 
-        Assert.NotEmpty(filled);
-        Assert.DoesNotContain("{{chart}}", string.Join(" ", PresentationEditor.ExtractText(filled)));
+            Assert.NotEmpty(filled);
+            Assert.DoesNotContain("{{chart}}", string.Join(" ", PresentationEditor.ExtractText(filled)));
+        }
+        finally
+        {
+            File.Delete(chartPath);
+        }
     }
 
     [Fact]

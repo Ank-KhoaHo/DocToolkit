@@ -451,7 +451,7 @@ is - which is also why it takes no size argument, unlike `DocxEditor.ReplaceImag
 <!-- BEGIN SNIPPET: readme-pptx-replace-image -->
 
 ```csharp
-byte[] filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", chartPngBytes);
+byte[] filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", File.ReadAllBytes("chart.png"));
 ```
 
 <!-- END SNIPPET -->
