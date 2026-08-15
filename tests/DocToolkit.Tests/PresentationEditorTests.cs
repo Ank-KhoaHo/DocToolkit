@@ -13,7 +13,7 @@ public class PresentationEditorTests
     // It was produced once with ShapeCrawler before that package was removed from the codebase —
     // a real PowerPoint-shaped fixture is more realistic than hand-building the OOXML parts.
     private static readonly string SampleAssetPath =
-        Path.Combine(AppContext.BaseDirectory, "assets", "sample.pptx");
+        Path.Join(AppContext.BaseDirectory, "assets", "sample.pptx");
 
     private static byte[] SampleDeck() => File.ReadAllBytes(SampleAssetPath);
 

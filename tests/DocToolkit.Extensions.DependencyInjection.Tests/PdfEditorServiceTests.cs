@@ -30,7 +30,8 @@ public class PdfEditorServiceTests
 
     private static int[] RotationsOf(byte[] pdf)
     {
-        using var document = PdfReader.Open(new MemoryStream(pdf, writable: false), PdfDocumentOpenMode.Import);
+        using var source = new MemoryStream(pdf, writable: false);
+        using var document = PdfReader.Open(source, PdfDocumentOpenMode.Import);
         var rotations = new int[document.PageCount];
         for (var i = 0; i < document.PageCount; i++)
         {

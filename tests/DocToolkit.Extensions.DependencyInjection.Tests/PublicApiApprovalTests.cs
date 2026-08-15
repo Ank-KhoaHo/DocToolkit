@@ -33,7 +33,7 @@ internal static class ApiApproval
             },
         }));
 
-        var approvedPath = Path.Combine(AppContext.BaseDirectory, "PublicApi", $"{name}.approved.txt");
+        var approvedPath = Path.Join(AppContext.BaseDirectory, "PublicApi", $"{name}.approved.txt");
 
         if (!File.Exists(approvedPath))
         {
@@ -46,7 +46,7 @@ internal static class ApiApproval
         var approved = Normalise(File.ReadAllText(approvedPath));
         if (string.Equals(approved, actual, StringComparison.Ordinal)) return;
 
-        var receivedPath = Path.Combine(AppContext.BaseDirectory, "PublicApi", $"{name}.received.txt");
+        var receivedPath = Path.Join(AppContext.BaseDirectory, "PublicApi", $"{name}.received.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(receivedPath)!);
         File.WriteAllText(receivedPath, actual);
 

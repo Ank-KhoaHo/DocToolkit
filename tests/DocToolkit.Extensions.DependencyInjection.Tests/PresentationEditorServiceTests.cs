@@ -9,7 +9,7 @@ namespace DocToolkit.Extensions.DependencyInjection.Tests;
 
 public class PresentationEditorServiceTests
 {
-    private static byte[] SamplePptx() => File.ReadAllBytes(Path.Combine("assets", "sample.pptx"));
+    private static byte[] SamplePptx() => File.ReadAllBytes(Path.Join("assets", "sample.pptx"));
 
     [Fact]
     public void SlideCount_ExtractText_MatchTheStaticMethods()

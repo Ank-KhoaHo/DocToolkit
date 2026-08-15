@@ -5,8 +5,8 @@ namespace DocToolkit.Tests;
 
 public class PdfProbeTests
 {
-    private static readonly string ResultPdfPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "result.pdf");
-    private static readonly string BigPdfPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "big.pdf");
+    private static readonly string ResultPdfPath = Path.Join(AppContext.BaseDirectory, "Fixtures", "result.pdf");
+    private static readonly string BigPdfPath = Path.Join(AppContext.BaseDirectory, "Fixtures", "big.pdf");
 
     [Fact]
     public void ExtractText_DecodesHexStringTextOperators()

@@ -192,7 +192,7 @@ public class MarkdownToDocxConverterTests
     public void ARelativeFileImageIsNotRead()
     {
         var name = $"doctoolkit-probe-{Guid.NewGuid():N}.png";
-        var path = Path.Combine(Directory.GetCurrentDirectory(), name);
+        var path = Path.Join(Directory.GetCurrentDirectory(), name);
         File.WriteAllBytes(path, ImageFixtures.Png());
 
         try

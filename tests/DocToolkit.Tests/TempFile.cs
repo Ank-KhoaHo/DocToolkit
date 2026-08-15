@@ -7,7 +7,7 @@ namespace DocToolkit.Tests;
 internal sealed class TempFile : IDisposable
 {
     public string Path { get; } =
-        System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"doctoolkit-{Guid.NewGuid():N}.tmp");
+        System.IO.Path.Join(System.IO.Path.GetTempPath(), $"doctoolkit-{Guid.NewGuid():N}.tmp");
 
     public void Dispose()
     {

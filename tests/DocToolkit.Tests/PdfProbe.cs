@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace DocToolkit.Tests;
@@ -198,9 +199,8 @@ public static class PdfProbe
         // stand-in for "the document total" when we can't walk the tree explicitly.
         var max = 0;
         var found = false;
-        foreach (Match dict in AnyDict.Matches(raw))
+        foreach (Match dict in AnyDict.Matches(raw).Where(d => TypeIsPages.IsMatch(d.Value)))
         {
-            if (!TypeIsPages.IsMatch(dict.Value)) continue;
             var count = CountField.Match(dict.Value);
             if (!count.Success) continue;
             found = true;
@@ -234,10 +234,8 @@ public static class PdfProbe
     /// <summary>Finds "&lt;objNum&gt; &lt;gen&gt; obj &lt;&lt; ... &gt;&gt;" and returns the dictionary body.</summary>
     private static string? FindObjectDict(string raw, string objNum)
     {
-        foreach (Match m in ObjectDict.Matches(raw))
-        {
-            if (m.Groups[1].Value == objNum) return m.Groups[2].Value;
-        }
+        foreach (Match m in ObjectDict.Matches(raw).Where(m => m.Groups[1].Value == objNum))
+            return m.Groups[2].Value;
         return null;
     }
 

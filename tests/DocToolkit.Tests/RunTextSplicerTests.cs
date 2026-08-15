@@ -89,9 +89,10 @@ public class RunTextSplicerTests
         string[] fragments = ["{{a}}", "{{b}}", "{{ab}}", "{{", "}}", "a", "b", "x", "", " ", "ab"];
 
         var cases = 0;
+        var text = new StringBuilder();
         for (var iteration = 0; iteration < 2000; iteration++)
         {
-            var text = new StringBuilder();
+            text.Clear();
             for (var f = random.Next(0, 6); f > 0; f--)
                 text.Append(fragments[random.Next(fragments.Length)]);
 
