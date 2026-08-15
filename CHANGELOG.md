@@ -10,6 +10,32 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.27.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.0...v0.27.1) (2026-08-15)
+
+**A packaging and metadata release. Nothing in the public API changed**, and no call behaves
+differently — if you are on 0.27.0 and not reading the nuget.org page or stepping into the source,
+there is nothing here you need.
+
+### Changed
+
+* **The package description now describes what actually ships.** It had gone stale over four
+  releases, naming only HTML → DOCX/PDF while Markdown → DOCX/PDF, DOCX → HTML/Markdown,
+  XLSX → CSV/HTML and PDF text extraction had all shipped. If you evaluated this package on its
+  nuget.org summary before today, it understated it
+  ([e0fdef5](https://github.com/Ank-KhoaHo/DocToolkit/commit/e0fdef5f863892ec10ef0d4be47b5bc8677a6867)).
+* **Both packages now carry a repository URL and a copyright notice.** Source Link previously
+  emitted a commit hash with nothing saying which repository it belonged to, so stepping into the
+  library's source while debugging did not resolve. It does now
+  ([c54ad91](https://github.com/Ank-KhoaHo/DocToolkit/commit/c54ad91d2f2744710235c0b3e49d05f01ded13d8)).
+
+### Fixed
+
+* **Core:** `WorkbookEditor.SetCell` and `WorkbookEditor.Format` now share one implementation with
+  their `Stream` overloads instead of carrying a second copy. **No behaviour change** — the two
+  paths were verified identical before the change — but they had already begun to diverge in how
+  they opened the workbook, which is how the two forms of a method come to disagree
+  ([7b54430](https://github.com/Ank-KhoaHo/DocToolkit/commit/7b54430825e0e33107d251f479495ef3f214c766)).
+
 ## [0.27.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.26.0...v0.27.0) (2026-08-14)
 
 
