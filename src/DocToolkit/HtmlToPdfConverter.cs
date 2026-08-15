@@ -69,7 +69,7 @@ public static class HtmlToPdfConverter
         string html, bool allowRemoteImageDownload, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(html);
-        var docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload, ct);
+        var docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         return DocxToPdfConverter.Convert(docx);
     }
@@ -103,7 +103,7 @@ public static class HtmlToPdfConverter
         ArgumentNullException.ThrowIfNull(html);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
-        var docx = await HtmlToDocxConverter.ConvertAsync(html, options, ct);
+        var docx = await HtmlToDocxConverter.ConvertAsync(html, options, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         return DocxToPdfConverter.Convert(docx);
     }
@@ -326,8 +326,8 @@ public static class HtmlToPdfConverter
     public static async Task ConvertToFileAsync(string html, string outputPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        var pdf = await ConvertAsync(html, ct);
-        await File.WriteAllBytesAsync(outputPath, pdf, ct);
+        var pdf = await ConvertAsync(html, ct).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(outputPath, pdf, ct).ConfigureAwait(false);
     }
 
     /// <summary>

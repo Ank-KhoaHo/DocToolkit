@@ -295,18 +295,24 @@ internal sealed class GuardedResourceLoader : IWebRequest
     /// </summary>
     private async Task<byte[]?> ReadCappedAsync(HttpResponseMessage response, CancellationToken ct)
     {
-        await using var source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        using var buffer = new MemoryStream();
-
-        var chunk = new byte[8192];
-        int read;
-        while ((read = await source.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0)
+        // Two awaits hide in the `await using` declaration form: the one that produces the stream,
+        // and the DISPOSAL. Only the first can carry ConfigureAwait there, and the second is the
+        // one that runs on the caller's context. Scoped with a block so both are configured.
+        var source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        await using (source.ConfigureAwait(false))
         {
-            if (buffer.Length + read > _maxBytesPerImage) return null;
-            buffer.Write(chunk, 0, read);
-        }
+            using var buffer = new MemoryStream();
 
-        return buffer.ToArray();
+            var chunk = new byte[8192];
+            int read;
+            while ((read = await source.ReadAsync(chunk, ct).ConfigureAwait(false)) > 0)
+            {
+                if (buffer.Length + read > _maxBytesPerImage) return null;
+                buffer.Write(chunk, 0, read);
+            }
+
+            return buffer.ToArray();
+        }
     }
 
     /// <param name="host">The host to resolve, or a literal address.</param>
