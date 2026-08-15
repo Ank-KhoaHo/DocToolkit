@@ -631,6 +631,14 @@ jobs:
       - name: Assert every guide snippet resolves to a real region
         run: python3 scripts/check-doc-snippets.py
 
+      # CLAUDE.md states the *Core convention as "the one real implementation that BOTH the byte[]
+      # and Stream overloads call, so the two can never drift apart". Measured 2026-08-14, two of
+      # seventeen were called once - their byte[] overloads had re-implemented the same
+      # open/apply/save/wrap sequence inline, and had already begun to differ in how they opened
+      # the workbook. The convention lived in prose, and prose does not fail a build.
+      - name: Assert every *Core method is shared by both overloads
+        run: python3 scripts/check-core-sharing.py
+
       # The docs site's capability matrix is generated from the approved API file rather
       # than written, for the reason the README check above exists: a capability table is
       # something nobody re-derives while adding a feature. This repo has now written one

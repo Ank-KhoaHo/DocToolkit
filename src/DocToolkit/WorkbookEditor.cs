@@ -567,19 +567,9 @@ public static class WorkbookEditor
     {
         ValidateArguments(xlsx, sheetName, cellRef);
 
-        try
-        {
-            using var workbook = Open(xlsx);
-            SetCellValue(Sheet(workbook, sheetName).Cell(cellRef), value);
-
-            using var ms = new MemoryStream();
-            workbook.SaveAs(ms);
-            return ms.ToArray();
-        }
-        catch (Exception ex) when (ex is not DocumentConversionException)
-        {
-            throw new DocumentConversionException("Failed to edit XLSX.", ex);
-        }
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var result = SetCellCore(source, sheetName, cellRef, value);
+        return result.ToArray();
     }
 
     /// <summary>
@@ -656,19 +646,9 @@ public static class WorkbookEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
         ArgumentNullException.ThrowIfNull(format);
 
-        try
-        {
-            using var workbook = Open(xlsx);
-            ApplyFormat(Sheet(workbook, sheetName), format);
-
-            using var ms = new MemoryStream();
-            workbook.SaveAs(ms);
-            return ms.ToArray();
-        }
-        catch (Exception ex) when (ex is not DocumentConversionException)
-        {
-            throw new DocumentConversionException("Failed to edit XLSX.", ex);
-        }
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var result = FormatCore(source, sheetName, format);
+        return result.ToArray();
     }
 
     /// <summary>
