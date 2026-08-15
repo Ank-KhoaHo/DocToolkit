@@ -654,6 +654,23 @@ jobs:
       - name: Assert the docs capability matrix matches the approved public API
         run: python3 scripts/gen-capability-matrix.py --check
 
+      # CONTRIBUTING.md tells a contributor which check runs which guard, and it was wrong
+      # about this very job: it named ONE of the six guards below and credited it with the
+      # third-party notices check, which runs in premise-guard. A contributor reads that row
+      # at the exact moment their check has gone red, so a wrong answer costs more there than
+      # almost anywhere else in the repository.
+      #
+      # Derived from the workflows, so adding a guard to a job updates the table and moving
+      # one between jobs moves its row. It also fails when a script in scripts/ is run by NO
+      # workflow - which it caught on its very first run, on itself, before this step existed.
+      #
+      # The target is CONTRIBUTING.md rather than the maintainer checklist deliberately:
+      # SOURCE-QUALITY.md is gitignored, so a --check pointed at it would find no file on the
+      # runner and pass every time - the vacuously-green failure this repo has already had to
+      # fix twice in its probe-based suites.
+      - name: Assert CONTRIBUTING's guard inventory matches the workflows
+        run: python3 scripts/gen-guard-inventory.py --check
+
       - name: Assert the tree matches .editorconfig
         run: |
           if ! dotnet format ${{ env.SOLUTION }} --verify-no-changes; then

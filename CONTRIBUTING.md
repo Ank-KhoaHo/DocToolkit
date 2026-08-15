@@ -244,7 +244,7 @@ dotnet restore src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensio
 | `linux container build & test` | The build failed inside a clean `mcr.microsoft.com/dotnet/sdk` image, which copies in only what `Dockerfile.linux-test` lists. It is not a duplicate of `build & test (linux)`: that job runs on a runner with the whole working tree present, so **only this one proves the image's `COPY` list is complete**. A new file the build needs, not added to that list, fails here and nowhere else. |
 | `trimmed app publishes and runs` | `tests/TrimProbe` is trim-published over the real dependency closure and **executed**, with every capability asserting on its result. It fails either because a trim warning names `DocToolkit` — the `IsTrimmable` claim would no longer be true — or because the trimmed binary produced a wrong or empty document at runtime. A warning from a dependency (ClosedXML emits one) is reported, not fatal. |
 | `AOT app publishes and runs` | The same shape, one step stronger: `tests/AotProbe` is native-AOT-published and executed. It backs the `IsAotCompatible` claim, which was set only once this job was green. **If it goes red, remove that attribute rather than weakening the job** — AOT breaks at runtime, when a type resolved by name turns out not to be there, so a publish that merely links proves nothing. |
-| `formatting` | `dotnet format --verify-no-changes`, plus `check-readme-coverage.py` (a shipped public type not named in the README its package publishes) and the third-party notices check. The failing step names which. |
+| `formatting` | `dotnet format --verify-no-changes`, plus several derived guards — the failing step names which. The most common are `check-readme-coverage.py` (a shipped public type not named in the README its package publishes) and `gen-capability-matrix.py --check` (the docs capability table no longer matches the approved API; regenerate and commit). The full list is [below](#which-guard-runs-in-which-check). Note the third-party notices check is **not** here — it runs in `no native binaries / no banned packages`. |
 | `commit message format` | A commit in your branch is not Conventional Commits — **or the pull request title is not**, which is checked separately because this repository can squash-merge and that title would become the commit subject `release-please` parses. Amend, rebase, or retitle. Note that editing the title only re-runs CI because `edited` is in the workflow's `pull_request` types; re-running the job alone replays the old title. |
 | `pack & verify .nupkg (core)` / `(extensions)` | The NuGet package no longer builds or verifies. |
 | `build docs site` | The API documentation site failed to build. |
@@ -257,6 +257,32 @@ update the approved file in the source tree — `tests/DocToolkit.Tests/PublicAp
 the review. Editing the copy in the build output directory does nothing.
 
 If it fails and you did **not** mean to change the public API, that is the test doing its job.
+
+### Which guard runs in which check
+
+Several checks run small Python guards from `scripts/`. When one goes red, this says which check
+it belongs to, so you can find the failing step without reading the workflow.
+
+**This table is generated** by `scripts/gen-guard-inventory.py` from the workflows, and CI fails
+when it drifts. That is not ceremony: the `formatting` row above used to name one of its six
+guards and credit it with a check that runs in a different job — which is the worst possible time
+to be wrong, because you are reading it precisely when something has already failed.
+
+<!-- BEGIN GENERATED (scripts/gen-guard-inventory.py) - do not edit by hand -->
+
+| Check | Workflow | Guards it runs |
+|---|---|---|
+| `build & test (…)` | `ci.yml` | `check-coverage.py` |
+| `formatting` | `ci.yml` | `check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-snippets.py`<br>`check-readme-coverage.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py` |
+| `no native binaries / no banned packages` | `ci.yml` | `gen-third-party-notices.py`<br>`repair-lockfiles.py` |
+| `arm auto-merge if eligible` | `dependabot-automerge.yml` | `automerge-eligible.py` |
+| `outdated shipped dependencies` | `dependency-report.yml` | `check-dependabot-scoping.py`<br>`gen-third-party-notices.py` |
+
+Generated from `.github/workflows/*.yml`. A guard added to a job appears here automatically; one moved between jobs moves with it. What each guard means, and what to do when it fails, is the table above — that part is written by hand because it cannot be derived.
+
+<!-- END GENERATED -->
+
+Run any of them locally the same way CI does — `python scripts/<name>` — before pushing.
 
 ## One thing that surprises people
 
