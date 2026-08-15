@@ -18,7 +18,8 @@ namespace DocToolkit;
 /// </summary>
 public static class DocxToHtmlConverter
 {
-    private const string FailureMessage = "Failed to convert DOCX to HTML.";
+    private const string FailureMessage =
+        "Failed to convert DOCX to HTML. See the inner exception for details.";
 
     /// <summary>Converts the .docx in <paramref name="docx"/> to a complete HTML document.</summary>
     /// <param name="docx">The document to convert.</param>

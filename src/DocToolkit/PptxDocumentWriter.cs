@@ -119,7 +119,7 @@ internal static class PptxDocumentWriter
         catch (Exception ex)
         {
             ms.Dispose();
-            throw new DocumentConversionException("Failed to create PPTX.", ex);
+            throw new DocumentConversionException("Failed to create PPTX. See the inner exception for details.", ex);
         }
     }
 

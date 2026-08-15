@@ -20,7 +20,8 @@ namespace DocToolkit;
 /// </summary>
 public static class XlsxToPdfConverter
 {
-    private const string FailureMessage = "Failed to convert XLSX to PDF.";
+    private const string FailureMessage =
+        "Failed to convert XLSX to PDF. See the inner exception for details.";
 
     /// <summary>
     /// Renders the .xlsx in <paramref name="xlsx"/> and returns PDF bytes.

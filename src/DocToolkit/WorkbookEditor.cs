@@ -58,7 +58,7 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var ms = CreateCore(sheetName, materialised);
-        await StreamPipeline.EmitAsync(ms, destination, "Failed to create XLSX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to create XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     // Excel's own rules. Enforced here rather than left to ClosedXML so an invalid name fails fast,
@@ -135,7 +135,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to create XLSX.", ex);
+            throw new DocumentConversionException("Failed to create XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -174,7 +174,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to create XLSX.", ex);
+            throw new DocumentConversionException("Failed to create XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -199,7 +199,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read XLSX.", ex);
+            throw new DocumentConversionException("Failed to read XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -224,7 +224,7 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var xlsx = await StreamPipeline
-            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX.", ct)
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         try
@@ -234,7 +234,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read XLSX.", ex);
+            throw new DocumentConversionException("Failed to read XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -314,7 +314,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read XLSX.", ex);
+            throw new DocumentConversionException("Failed to read XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -349,7 +349,7 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var xlsx = await StreamPipeline
-            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX.", ct)
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         try
@@ -359,7 +359,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read XLSX.", ex);
+            throw new DocumentConversionException("Failed to read XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -400,7 +400,8 @@ public static class WorkbookEditor
         {
             throw new DocumentConversionException(
                 $"Sheet '{sheetName}' spans {lastRow} rows x {lastColumn} columns ({cellCount} " +
-                $"cells), which exceeds the {ReadSheetCellLimit}-cell limit ReadSheet will materialise.");
+                $"cells), which exceeds the {ReadSheetCellLimit}-cell limit ReadSheet will " +
+                "materialise. Read specific cells with ReadCell instead.");
         }
 
         // From row 1 and column 1, not from the first used cell: the result is anchored at A1 so
@@ -438,7 +439,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read XLSX.", ex);
+            throw new DocumentConversionException("Failed to read XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -513,7 +514,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read XLSX.", ex);
+            throw new DocumentConversionException("Failed to read XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -539,7 +540,7 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var xlsx = await StreamPipeline
-            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX.", ct)
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to read XLSX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         try
@@ -549,7 +550,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read XLSX.", ex);
+            throw new DocumentConversionException("Failed to read XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -612,11 +613,11 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var xlsx = await StreamPipeline
-            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX.", ct)
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         using var result = SetCellCore(xlsx, sheetName, cellRef, value);
-        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -682,11 +683,11 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var xlsx = await StreamPipeline
-            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX.", ct)
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         using var result = FormatCore(xlsx, sheetName, format);
-        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     private static MemoryStream FormatCore(Stream xlsx, string sheetName, XlsxFormat format)
@@ -702,7 +703,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to edit XLSX.", ex);
+            throw new DocumentConversionException("Failed to edit XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -745,7 +746,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to edit XLSX.", ex);
+            throw new DocumentConversionException("Failed to edit XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -774,7 +775,7 @@ public static class WorkbookEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to edit XLSX.", ex);
+            throw new DocumentConversionException("Failed to edit XLSX. See the inner exception for details.", ex);
         }
     }
 
@@ -843,11 +844,11 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var xlsx = await StreamPipeline
-            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX.", ct)
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to edit XLSX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         using var result = AppendRowsCore(xlsx, sheetName, materialised);
-        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to edit XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -913,7 +914,11 @@ public static class WorkbookEditor
     private static IXLWorksheet Sheet(XLWorkbook workbook, string sheetName)
     {
         if (!workbook.Worksheets.TryGetWorksheet(sheetName, out var sheet))
-            throw new DocumentConversionException($"Worksheet '{sheetName}' was not found.");
+        {
+            throw new DocumentConversionException(
+                $"Worksheet '{sheetName}' was not found. Call WorkbookEditor.SheetNames to see "
+                + "what is available.");
+        }
         return sheet;
     }
 
@@ -1035,7 +1040,7 @@ public static class WorkbookEditor
         ct.ThrowIfCancellationRequested();
 
         using var ms = CreateCore(materialised);
-        await StreamPipeline.EmitAsync(ms, destination, "Failed to create XLSX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to create XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     /// <summary>

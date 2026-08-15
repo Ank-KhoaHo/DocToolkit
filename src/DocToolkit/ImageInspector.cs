@@ -154,7 +154,11 @@ internal static class ImageInspector
     private static ImageInfo InspectPng(byte[] image)
     {
         if (image.Length < 24)
-            throw new DocumentConversionException("PNG image is truncated: it has no complete IHDR chunk.");
+        {
+            throw new DocumentConversionException(
+                "PNG image is truncated: it has no complete IHDR chunk. The image bytes are "
+                + "incomplete — check the file was fully read or uploaded before it was passed in.");
+        }
 
         var width = (int)BinaryPrimitives.ReadUInt32BigEndian(image.AsSpan(16, 4));
         var height = (int)BinaryPrimitives.ReadUInt32BigEndian(image.AsSpan(20, 4));
@@ -186,7 +190,11 @@ internal static class ImageInspector
             if (marker is >= 0xC0 and <= 0xCF && marker is not (0xC4 or 0xC8 or 0xCC))
             {
                 if (i + 9 > image.Length)
-                    throw new DocumentConversionException("JPEG image is truncated inside its frame header.");
+                {
+                    throw new DocumentConversionException(
+                        "JPEG image is truncated inside its frame header. The image bytes are "
+                        + "incomplete — check the file was fully read or uploaded before it was passed in.");
+                }
 
                 var height = BinaryPrimitives.ReadUInt16BigEndian(image.AsSpan(i + 5, 2));
                 var width = BinaryPrimitives.ReadUInt16BigEndian(image.AsSpan(i + 7, 2));
@@ -205,13 +213,19 @@ internal static class ImageInspector
             }
 
             if (i + 4 > image.Length)
-                throw new DocumentConversionException("JPEG image is truncated inside a segment header.");
+            {
+                throw new DocumentConversionException(
+                    "JPEG image is truncated inside a segment header. The image bytes are "
+                    + "incomplete — check the file was fully read or uploaded before it was passed in.");
+            }
 
             i += 2 + BinaryPrimitives.ReadUInt16BigEndian(image.AsSpan(i + 2, 2));
         }
 
         throw new DocumentConversionException(
-            "JPEG image has no Start-Of-Frame segment, so its size cannot be determined.");
+            "JPEG image has no Start-Of-Frame segment, so its size cannot be determined. This "
+            + "usually means the image bytes are truncated — check the file was fully read or "
+            + "uploaded before it was passed in.");
     }
 
     /// <summary>Names what the bytes look like, so the error says more than "invalid image".</summary>

@@ -135,7 +135,7 @@ public static class PresentationEditor
         ct.ThrowIfCancellationRequested();
 
         using var ms = await StreamPipeline
-            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX.", ct)
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         return SlideCountCore(ms);
@@ -150,7 +150,7 @@ public static class PresentationEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read PPTX.", ex);
+            throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
         }
     }
 
@@ -189,7 +189,7 @@ public static class PresentationEditor
         ct.ThrowIfCancellationRequested();
 
         using var ms = await StreamPipeline
-            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX.", ct)
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         return ExtractTextCore(ms);
@@ -223,7 +223,7 @@ public static class PresentationEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to read PPTX.", ex);
+            throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
         }
     }
 
@@ -283,12 +283,12 @@ public static class PresentationEditor
         ct.ThrowIfCancellationRequested();
 
         using var ms = await StreamPipeline
-            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX.", ct)
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         ReplaceTextCore(ms, replacements);
 
-        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     private static void ReplaceTextCore(MemoryStream ms, IReadOnlyDictionary<string, string> replacements)
@@ -316,7 +316,7 @@ public static class PresentationEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to edit PPTX.", ex);
+            throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
         }
     }
 
@@ -463,7 +463,7 @@ public static class PresentationEditor
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException("Failed to edit PPTX.", ex);
+            throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
         }
 
         if (replaced == 0)
@@ -479,7 +479,8 @@ public static class PresentationEditor
             }
 
             throw new DocumentConversionException(
-                $"'{placeholder}' does not appear in any shape, so nothing was replaced.");
+                $"'{placeholder}' does not appear in any shape, so nothing was replaced. Check "
+                + "the placeholder text matches a shape's text exactly.");
         }
     }
 
@@ -522,12 +523,12 @@ public static class PresentationEditor
         ct.ThrowIfCancellationRequested();
 
         using var ms = await StreamPipeline
-            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX.", ct)
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
         ReplaceImageCore(ms, placeholder, image);
 
-        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX.", ct).ConfigureAwait(false);
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -563,7 +564,9 @@ public static class PresentationEditor
 
     private static PresentationPart PresentationPartOf(PresentationDocument doc)
         => doc.PresentationPart
-           ?? throw new DocumentConversionException("Presentation has no presentation part.");
+           ?? throw new DocumentConversionException(
+               "Presentation has no presentation part. This usually means the file is not really "
+               + "a .pptx (for example it was renamed from another format) or the upload is corrupt.");
 
     private static PresentationDocument OpenDocument(MemoryStream ms, bool isEditable)
     {
@@ -573,7 +576,7 @@ public static class PresentationEditor
         }
         catch (Exception ex)
         {
-            throw new DocumentConversionException("Failed to open PPTX.", ex);
+            throw new DocumentConversionException("Failed to open PPTX. See the inner exception for details.", ex);
         }
     }
 

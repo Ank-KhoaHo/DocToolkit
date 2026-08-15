@@ -69,7 +69,7 @@ internal static class DocxDocumentWriter
         catch (Exception ex)
         {
             ms.Dispose();
-            throw new DocumentConversionException("Failed to create DOCX.", ex);
+            throw new DocumentConversionException("Failed to create DOCX. See the inner exception for details.", ex);
         }
     }
 
