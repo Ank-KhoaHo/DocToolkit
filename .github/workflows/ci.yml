@@ -760,6 +760,33 @@ jobs:
           if any(n.startswith('runtimes/') for n in names):
               failures.append('runtimes/ present - native payload in package')
 
+          # Metadata a consumer sees on nuget.org. All three were found MISSING or wrong by hand
+          # on 2026-08-15, and none of them was visible from the csproj - the description had gone
+          # stale over four releases, <repository> carried a commit with no url because
+          # PublishRepositoryUrl was unset, and there was no copyright at all. Reading the packed
+          # nuspec is the only view of what is actually shipped, and this job already holds it.
+          #
+          # SCOPE, stated so nobody mistakes this for more than it is: these assert the fields are
+          # PRESENT, never that they are TRUE. Nothing here can know the description still
+          # describes the library - that stays a human step at Release-PR time, against the
+          # generated docfx/guides/capabilities.md.
+          import re
+          description = re.search(r'<description>(.*?)</description>', nuspec, re.S)
+          if not (description and description.group(1).strip()):
+              failures.append('<description> missing or empty')
+
+          repository = re.search(r'<repository[^>]*>', nuspec)
+          if not (repository and 'url=' in repository.group(0)):
+              failures.append('<repository> has no url - is PublishRepositoryUrl set?')
+
+          copyright_ = re.search(r'<copyright>(.*?)</copyright>', nuspec, re.S)
+          if not (copyright_ and copyright_.group(1).strip()):
+              failures.append('<copyright> missing or empty')
+
+          for label, ok in [('description', description), ('repository url', repository),
+                            ('copyright', copyright_)]:
+              print(('OK   ' if ok else 'MISS ') + label)
+
           if failures:
               sys.exit('package verification failed: ' + ', '.join(failures))
           print('\npackage verified')
