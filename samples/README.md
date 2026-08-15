@@ -1,7 +1,8 @@
 # Samples
 
-Nine runnable projects, each answering one question. Every one references the **published** NuGet
-packages rather than this repo's source — the same restore an external consumer gets.
+Thirteen runnable projects, each answering one question. Every one references the **published**
+NuGet packages rather than this repo's source — the same restore an external consumer gets. (This
+line said "Nine" until 2026-08-15. Count them rather than trusting it: `ls -d samples/*/`.)
 
 | Sample | Answers |
 |---|---|
@@ -15,6 +16,7 @@ packages rather than this repo's source — the same restore an external consume
 | [RazorPdf](RazorPdf/) | How do I turn a Razor view I already maintain into a PDF or a Word document? |
 | [WorkerService](WorkerService/) | How do I generate documents from a background job? |
 | [PdfUtilities](PdfUtilities/) | How do I count, merge, split or label a PDF I already have? |
+| [Telemetry](Telemetry/) | How do I find out whether my remote images are actually arriving, and why one didn't? |
 
 Each folder has its own `README.md` with the command to run it and the one thing about that
 capability that is not obvious.
@@ -73,3 +75,20 @@ docker run --rm --network none doctoolkit-container
 `--network none` is worth using: the offline guarantee is then something you watched happen
 rather than something you were told. CI builds and runs this image on every push, for the same
 reason - a Dockerfile nobody builds is a claim, not a sample.
+
+## `Telemetry`
+
+Only `GuardedResourceLoader.FetchAsync` - the opt-in remote-image fetch - is instrumented, so
+showing telemetry meaningfully means actually triggering a fetch. That needs somewhere to fetch
+from, and reaching the real internet was rejected: it would make the sample non-deterministic,
+occasionally slow, and a quiet argument that network access is normal here, which is exactly what
+the rest of this library goes out of its way not to be.
+
+Instead the sample brings its own loopback HTTP server - reachable only at `127.0.0.1`, only for
+the life of the process, and only because the sample opts in with `AllowPrivateAddresses = true`
+the same way `AirGapGuardTests` and `TelemetryTests` do. Nothing here weakens the "no socket opens
+by default" guarantee: it demonstrates a real `ok` outcome against a server this process owns, and
+two refused outcomes - `blocked_address` and `host_not_allowed` - that need no server at all,
+because the guard refuses them before opening a connection. It also prints the request URL, which
+carries a fake signed token in its query string, next to the span's recorded host, so "only the
+host is ever recorded" is something you can check against the output rather than take on faith.
