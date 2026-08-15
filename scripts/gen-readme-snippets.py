@@ -53,6 +53,9 @@ EXCLUDED = {
     "before/after migration blocks": "they show two VERSIONS of the output, only one of which exists",
     "OpenTelemetry wiring": "OpenTelemetry is deliberately not a dependency; compiling it would mean adding one to prove a doc",
     "dotnet add package": "not C#",
+    "readme-di-stream (Stream overload in a minimal-API handler)": "it is an ASP.NET Core "
+        "minimal-API handler, and the shared framework is deliberately not referenced by a "
+        "test project - compiling it would mean taking a dependency to prove a doc",
 }
 
 

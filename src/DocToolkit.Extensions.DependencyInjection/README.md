@@ -97,25 +97,20 @@ public class InvoiceService
 
 <!-- END SNIPPET -->
 
-<!-- BEGIN SNIPPET: readme-di-stream -->
-
 ```csharp
 // Every interface also has Stream-based async members, so a large document never has to be
-// duplicated into a caller-visible byte[] — write straight to the response body instead:
-public static class InvoicePdfEndpoint
-{
-    public static async Task WriteAsync(string html, IHtmlToPdfConverter toPdf, Stream destination)
-    {
-        // The PDF is written to the destination stream as it is rendered, not assembled first, so
-        // a caller wiring this into an HTTP endpoint commits the status code and headers on the
-        // first write. A failure part-way through cannot be turned into a clean 500 - the response
-        // is already underway.
-        await toPdf.ConvertAsync(html, destination);
-    }
-}
-```
+// duplicated into a caller-visible byte[] — write straight to an HTTP response body instead:
+record InvoiceRequest(string Html);
 
-<!-- END SNIPPET -->
+app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter toPdf, HttpResponse response) =>
+{
+    response.ContentType = "application/pdf";
+    // The PDF is written to response.Body as it is rendered, not assembled first, so the
+    // status code and headers are committed on the first write. A failure part-way through
+    // cannot be turned into a clean 500 — the response is already underway.
+    await toPdf.ConvertAsync(request.Html, response.Body);
+});
+```
 
 All fifteen interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
 `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`,
