@@ -10,6 +10,20 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.27.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.0...v0.27.1) (2026-08-15)
+
+
+### Fixed
+
+* **core:** route the byte[] overloads through SetCellCore and FormatCore ([a2b40e2](https://github.com/Ank-KhoaHo/DocToolkit/commit/a2b40e2ab7c4d2802522da4ec68138473871e564))
+* **core:** route the byte[] overloads through SetCellCore and FormatCore ([7b54430](https://github.com/Ank-KhoaHo/DocToolkit/commit/7b54430825e0e33107d251f479495ef3f214c766))
+
+
+### Changed
+
+* fix three package-metadata gaps found by auditing the packed nuspec ([e0fdef5](https://github.com/Ank-KhoaHo/DocToolkit/commit/e0fdef5f863892ec10ef0d4be47b5bc8677a6867))
+* fix three package-metadata gaps, and guard them in CI ([c54ad91](https://github.com/Ank-KhoaHo/DocToolkit/commit/c54ad91d2f2744710235c0b3e49d05f01ded13d8))
+
 ## [0.27.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.26.0...v0.27.0) (2026-08-14)
 
 
