@@ -56,6 +56,22 @@ EXCLUDED = {
     "readme-di-stream (Stream overload in a minimal-API handler)": "it is an ASP.NET Core "
         "minimal-API handler, and the shared framework is deliberately not referenced by a "
         "test project - compiling it would mean taking a dependency to prove a doc",
+    "the two 'everything at a glance' Usage tours (root README's ~73-line block, "
+        "src/DocToolkit/README.md's ~180-line block)": "narrative, not a sequence of independent "
+        "examples - confirmed by pasting each verbatim into a throwaway project and building it. "
+        "Neither compiles as written: the package tour declares a local named 'report' three "
+        "times in one scope (byte[], then ConversionResult<string>, then byte[] again) and reads "
+        "'xlsx' before assigning it; both tours reference variables the block itself never "
+        "assigns (logoBytes, responseBody, remoteImages, xlsxStream, chartPngBytes in the "
+        "package tour; lineItems, logoBytes, pptx, pngBytes in the root tour) standing in for "
+        "'data you already have', which is how a walkthrough reads and a script does not. Most "
+        "of what either tour demonstrates already has its own compiled, assertion-backed region "
+        "- the smaller sections in these same READMEs (FillRows, ReplaceImage, PdfEditor, "
+        "PageSetup, remote images/opt-in, DI registration) or DocFX's DocumentationExamples.cs "
+        "(the plain converters). Splitting the remainder would mean writing a couple dozen new "
+        "[Fact]s whose only news is that an overload exists - duplicating coverage that is "
+        "already real elsewhere - and would break the one place the API's breadth reads as a "
+        "single connected story into a redundant restatement of it.",
 }
 
 
