@@ -13,9 +13,45 @@ repo-wide tooling (CI, release pipeline).
 ## [0.27.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.2...v0.27.3) (2026-08-15)
 
 
+**A consistency release for argument handling. Nothing new, and nothing renders differently** —
+but **three calls now throw a different exception type for the same bad input**, so read *Changed*
+before upgrading if you catch exceptions around `PdfEditor` or `ConvertWithReport`.
+
+### Changed
+
+* **`PdfEditor`: an empty `byte[]` is now an `ArgumentException`, not a
+  `DocumentConversionException`.** It affects `PageCount`, `Merge`, `ExtractPages`, `RemovePages`,
+  `RotatePages`, `ReorderPages`, `InsertPages`, `ReadMetadata` and `WithMetadata`. `ExtractText`
+  already behaved this way, so one class was answering the same mistake two different ways
+  depending on which method you called.
+
+  **Migrating:** if you catch `DocumentConversionException` to handle a truncated or empty upload,
+  add `ArgumentException` — or check `.Length` before calling, which is what the new behaviour is
+  telling you to do ([#258](https://github.com/Ank-KhoaHo/DocToolkit/issues/258)).
+
+* **`PdfEditor`'s file-path overloads reject a whitespace-only path.**
+  `PageCountAsync("   ")` and `ExtractTextAsync("   ")` now throw `ArgumentException` naming
+  `path`, matching every other file-path overload in the library, instead of surfacing a
+  platform-dependent framework exception from the file system
+  ([#258](https://github.com/Ank-KhoaHo/DocToolkit/issues/258)).
+
+* **`DocxToHtmlConverter.ConvertWithReport` and `DocxToMarkdownConverter.ConvertWithReport` now
+  wrap a conversion-internal `ArgumentException`** in `DocumentConversionException`, matching their
+  sibling `Convert`. Previously the same malformed package produced a different exception type
+  depending on which of the two you called, so a caller catching `DocumentConversionException`
+  around both crashed on one ([#258](https://github.com/Ank-KhoaHo/DocToolkit/issues/258)).
+
 ### Fixed
 
-* close the code-review findings that survived verification ([#258](https://github.com/Ank-KhoaHo/DocToolkit/issues/258)) ([d7381d4](https://github.com/Ank-KhoaHo/DocToolkit/commit/d7381d42da3d373a1000af8726b16fd008f80d0e))
+* **Markdown → PDF through the `Stream` overload** handed the renderer a read-only buffer where the
+  renderer documents needing an expandable one. No reported failure — the contract and the call
+  site disagreed, and only one of them could be right
+  ([#258](https://github.com/Ank-KhoaHo/DocToolkit/issues/258)).
+
+* **HTML → DOCX now validates `RemoteImageOptions` at the single point every overload passes
+  through**, rather than at each entry point that remembered to. An unvalidated timeout could
+  abort the conversion instead of skipping the image it applied to
+  ([#258](https://github.com/Ank-KhoaHo/DocToolkit/issues/258)).
 
 ## [0.27.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.1...v0.27.2) (2026-08-15)
 
