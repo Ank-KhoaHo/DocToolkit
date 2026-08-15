@@ -74,6 +74,11 @@ jobs:
           # a resolver would struggle with across two target frameworks.
           build-mode: manual
           queries: security-and-quality
+          # Scopes WHERE the analysis looks, never WHAT it looks for - the query pack above is
+          # unchanged. It excludes bin/ and obj/, because CodeQL was raising alerts against
+          # generated Razor output that nobody writes and every build regenerates. See the
+          # file's own comment for why noise is treated as a defect here rather than tolerated.
+          config-file: ./.github/codeql-config.yml
 
       # Deliberately NOT -warnaserror, unlike ci.yml. This build exists to produce
       # something for CodeQL to analyse; failing it on a warning would hide the

@@ -24,7 +24,7 @@ public static class PdfEditor
     {
         ArgumentNullException.ThrowIfNull(pdf);
 
-        using var document = Open(pdf, PdfDocumentOpenMode.Import);
+        using var document = Open(pdf, PdfDocumentOpenMode.Import, nameof(pdf));
         return document.PageCount;
     }
 
@@ -42,7 +42,7 @@ public static class PdfEditor
     /// <inheritdoc cref="PageCount(byte[])"/>
     public static async Task<int> PageCountAsync(string path, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         // `await using var source = ...` would leave the DISPOSAL await unconfigured, which is a
         // second await the declaration form gives no place to put ConfigureAwait on. Configuring
@@ -107,7 +107,7 @@ public static class PdfEditor
     public static async Task<IReadOnlyList<string>> ExtractTextAsync(
         string path, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         return ExtractText(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
     }
@@ -138,7 +138,7 @@ public static class PdfEditor
         {
             ArgumentNullException.ThrowIfNull(bytes, nameof(pdfs));
 
-            using var input = Open(bytes, PdfDocumentOpenMode.Import);
+            using var input = Open(bytes, PdfDocumentOpenMode.Import, nameof(bytes));
             for (var page = 0; page < input.PageCount; page++)
             {
                 merged.AddPage(input.Pages[page]);
@@ -195,7 +195,7 @@ public static class PdfEditor
         ArgumentOutOfRangeException.ThrowIfLessThan(firstPage, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
 
-        using var input = Open(pdf, PdfDocumentOpenMode.Import);
+        using var input = Open(pdf, PdfDocumentOpenMode.Import, nameof(pdf));
 
         if (firstPage + count - 1 > input.PageCount)
         {
@@ -250,7 +250,7 @@ public static class PdfEditor
         ArgumentOutOfRangeException.ThrowIfLessThan(firstPage, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(count, 1);
 
-        using var input = Open(pdf, PdfDocumentOpenMode.Import);
+        using var input = Open(pdf, PdfDocumentOpenMode.Import, nameof(pdf));
 
         if (firstPage + count - 1 > input.PageCount)
         {
@@ -327,7 +327,7 @@ public static class PdfEditor
                 "A PDF page rotation must be a multiple of 90 degrees.");
         }
 
-        using var document = Open(pdf, PdfDocumentOpenMode.Modify);
+        using var document = Open(pdf, PdfDocumentOpenMode.Modify, nameof(pdf));
 
         if (firstPage + count - 1 > document.PageCount)
         {
@@ -389,7 +389,7 @@ public static class PdfEditor
 
         var wanted = order.ToArray();
 
-        using var input = Open(pdf, PdfDocumentOpenMode.Import);
+        using var input = Open(pdf, PdfDocumentOpenMode.Import, nameof(pdf));
 
         var expected = Enumerable.Range(1, input.PageCount);
         if (!wanted.OrderBy(p => p).SequenceEqual(expected))
@@ -446,8 +446,8 @@ public static class PdfEditor
         ArgumentNullException.ThrowIfNull(source);
         ArgumentOutOfRangeException.ThrowIfLessThan(atPage, 1);
 
-        using var into = Open(target, PdfDocumentOpenMode.Import);
-        using var from = Open(source, PdfDocumentOpenMode.Import);
+        using var into = Open(target, PdfDocumentOpenMode.Import, nameof(target));
+        using var from = Open(source, PdfDocumentOpenMode.Import, nameof(source));
 
         if (atPage > into.PageCount + 1)
         {
@@ -490,7 +490,7 @@ public static class PdfEditor
     {
         ArgumentNullException.ThrowIfNull(pdf);
 
-        using var document = Open(pdf, PdfDocumentOpenMode.Import);
+        using var document = Open(pdf, PdfDocumentOpenMode.Import, nameof(pdf));
         var info = document.Info;
 
         // Read through the underlying dictionary rather than the typed properties: those return
@@ -518,7 +518,7 @@ public static class PdfEditor
         ArgumentNullException.ThrowIfNull(pdf);
         ArgumentNullException.ThrowIfNull(metadata);
 
-        using var document = Open(pdf, PdfDocumentOpenMode.Modify);
+        using var document = Open(pdf, PdfDocumentOpenMode.Modify, nameof(pdf));
 
         if (metadata.Title is not null) document.Info.Title = metadata.Title;
         if (metadata.Author is not null) document.Info.Author = metadata.Author;
@@ -537,8 +537,19 @@ public static class PdfEditor
     /// exception type — a caller should not have to catch a different type for PDFs than for
     /// everything else here.
     /// </summary>
-    private static PdfDocument Open(byte[] pdf, PdfDocumentOpenMode mode)
+    private static PdfDocument Open(byte[] pdf, PdfDocumentOpenMode mode, string paramName)
     {
+        // An empty array is an argument mistake, not a corrupt document, and this is the one
+        // place every byte[] path passes through. Until 2026-08-15 only ExtractText checked it,
+        // so PageCount(Array.Empty<byte>()) threw DocumentConversionException while
+        // ExtractText(Array.Empty<byte>()) threw ArgumentException - the same input answered two
+        // ways by one class. B17 fixed exactly this on the Stream path and left byte[] alone.
+        //
+        // paramName is threaded in rather than hard-coded to "pdf" because InsertPages takes
+        // `target` and `source`, and an exception naming the wrong parameter is its own defect.
+        if (pdf.Length == 0)
+            throw new ArgumentException("PDF content was empty.", paramName);
+
         try
         {
             return PdfReader.Open(new MemoryStream(pdf, writable: false), mode);

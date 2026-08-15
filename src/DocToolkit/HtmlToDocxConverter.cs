@@ -352,6 +352,14 @@ public static class HtmlToDocxConverter
         ArgumentNullException.ThrowIfNull(html);
         ArgumentNullException.ThrowIfNull(page);
 
+        // options gets the same treatment, and for the same reason. Every public entry point that
+        // takes RemoteImageOptions validates it, but by REMEMBERING to - which is precisely how
+        // `html` came to be unchecked on the page overloads. An unvalidated Timeout of zero or
+        // negative makes CancelAfter throw out of FetchAsync rather than skip the image, so the
+        // bounded-fetch guarantee would fail open on a path nobody had added the call to.
+        // Validate() is idempotent, so the entry points keep theirs.
+        options?.Validate();
+
         var ms = new MemoryStream();
         try
         {

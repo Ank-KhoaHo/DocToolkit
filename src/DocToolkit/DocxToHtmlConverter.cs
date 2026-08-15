@@ -91,7 +91,12 @@ public static class DocxToHtmlConverter
 
             return new ConversionResult<string>(result.Value, warnings);
         }
-        catch (Exception ex) when (ex is not ArgumentException)
+        // No `when (ex is not ArgumentException)` filter here. Arguments are validated BEFORE
+        // the try, so the filter could only ever catch an ArgumentException raised inside
+        // the conversion itself - which is a conversion failure, not a caller mistake. With
+        // the filter, this method let that escape raw while the sibling Convert wrapped it,
+        // so a caller catching DocumentConversionException around both crashed on one.
+        catch (Exception ex)
         {
             throw new DocumentConversionException(FailureMessage, ex);
         }

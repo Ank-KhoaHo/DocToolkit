@@ -64,7 +64,17 @@ public static class MarkdownToPdfConverter
 
         ct.ThrowIfCancellationRequested();
 
-        using var package = new MemoryStream(docx, writable: false);
+        // EXPANDABLE, not a read-only view over `docx`. RenderAsync documents that it "takes an
+        // expandable MemoryStream rather than a read-only view over someone else's buffer"
+        // because OfficeIMO opens the package read/write, and DocxToPdfConverter.Convert pays a
+        // full document copy on that basis. This call site passed `writable: false` and its test
+        // passed anyway, which left two contradictory claims shipping at once - either the
+        // invariant was false and several methods copy for nothing, or this path was one OfficeIMO
+        // patch release from throwing. Honouring the documented contract is the cheap side of that
+        // bet; if the invariant is ever shown to be unnecessary, relax it in ONE place.
+        using var package = new MemoryStream();
+        package.Write(docx, 0, docx.Length);
+        package.Position = 0;
         await DocxToPdfConverter.RenderAsync(package, destination, ct).ConfigureAwait(false);
     }
 
