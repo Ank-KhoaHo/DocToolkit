@@ -275,6 +275,8 @@ Operations on a PDF that already exists — the only part of this library that *
 than writing it. Nothing here re-renders: pages move between documents as they are, so text, fonts
 and images arrive unchanged and the converters' fidelity caveats do not apply.
 
+<!-- BEGIN SNIPPET: readme-pdf-utilities -->
+
 ```csharp
 int pages = PdfEditor.PageCount(pdf);
 
@@ -296,9 +298,11 @@ byte[] resequenced = PdfEditor.ReorderPages(bundle, [3, 1, 2]);
 // Slot another document in. atPage is where its first page lands; PageCount + 1 appends.
 byte[] withAppendix = PdfEditor.InsertPages(bundle, appendix, atPage: 2);
 
-// And read the text back out, one string per page. pageTexts[0] is page 1.
-IReadOnlyList<string> pageTexts = PdfEditor.ExtractText(bundle);
+// Read a PDF's text back out, one string per page — pageText[0] is page 1.
+IReadOnlyList<string> pageText = PdfEditor.ExtractText(bundle);
 ```
+
+<!-- END SNIPPET -->
 
 **A scanned PDF has no text layer**, so `ExtractText` returns an empty string per page for one —
 that is what the file contains, not a failure, and OCR is out of scope.
@@ -310,6 +314,8 @@ ecosystem, but stated here rather than left to surprise anyone.
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
 
+<!-- BEGIN SNIPPET: readme-pdf-metadata -->
+
 ```csharp
 byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata
 {
@@ -319,6 +325,8 @@ byte[] stamped = PdfEditor.WithMetadata(bundle, new PdfMetadata
 
 PdfMetadata info = PdfEditor.ReadMetadata(stamped);
 ```
+
+<!-- END SNIPPET -->
 
 Every `PdfMetadata` property is nullable, and **`null` means absent rather than blank** in both
 directions. Reading, that lets you tell "no title" from "a title deliberately set to empty";
@@ -390,10 +398,14 @@ content therefore printed on different paper depending on who opened it.
 From 0.13.0 every producer states its page setup explicitly and **defaults to A4** with one-inch
 margins. To keep the previous PDF behaviour, pass `PageSetup.Letter`:
 
+<!-- BEGIN SNIPPET: readme-html-to-pdf-page -->
+
 ```csharp
 byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
 byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
 ```
+
+<!-- END SNIPPET -->
 
 The change was deliberate and is the point of that work rather than a side effect - but it shipped
 filed under *Added* in the changelog, which understated it. It is recorded here because a published
@@ -421,6 +433,8 @@ Windows, so "runs everywhere .NET does" is measured on each rather than inferred
 
 Attach them to the `PageSetup`, and every producer honours them:
 
+<!-- BEGIN SNIPPET: readme-page-setup -->
+
 ```csharp
 var page = PageSetup.A4
     .WithHeader(DocxHeader.Text("Contoso Ltd"))
@@ -430,6 +444,8 @@ var page = PageSetup.A4
 
 byte[] docx = DocxEditor.Create(blocks, page);
 ```
+
+<!-- END SNIPPET -->
 
 The page number is a real field, so "Page 3 of 12" is right on every page rather than frozen at
 the moment the document was generated.
