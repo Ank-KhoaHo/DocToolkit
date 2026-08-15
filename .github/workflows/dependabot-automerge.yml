@@ -75,7 +75,15 @@ jobs:
         if: steps.decide.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # --merge, not --squash: this repository true-merges so that every commit
-        # subject reaches main and counts toward release-please's bump
-        # calculation. Squashing is disabled repository-wide for that reason.
-        run: gh pr merge --auto --merge "${{ github.event.pull_request.html_url }}"
+        # --squash, and it MUST be: allow_merge_commit is false as of 2026-08-15, so
+        # `gh pr merge --merge` now fails outright rather than falling back.
+        #
+        # This comment used to read "--merge, not --squash: this repository true-merges ...
+        # Squashing is disabled repository-wide for that reason." Every clause of that was
+        # wrong when measured: squash was ENABLED, merge commits were the mode actually in
+        # use, and the reason given - that every commit subject must reach main for
+        # release-please's bump calculation - is the thing that produced DUPLICATE changelog
+        # entries, because a merge commit's body carries the PR title beside the real commit.
+        # Dependabot PRs carry one commit whose subject is already conventional, so squashing
+        # loses nothing here.
+        run: gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"

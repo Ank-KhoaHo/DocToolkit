@@ -468,9 +468,17 @@ jobs:
         run: ./tests/AotProbe/bin/Release/net8.0/linux-x64/publish/AotProbe
 
   # Enforces Conventional Commits so release-please's version-bump and changelog inference
-  # (release-please-config.json) is never silently wrong. Checks every commit in the PR's
-  # range, not just the PR title, because this repo true-merges - every individual commit
-  # lands on main and matters to release-please's bump calculation.
+  # (release-please-config.json) is never silently wrong.
+  #
+  # THE PR TITLE IS THE ONE THAT MATTERS. Since 2026-08-15 this repo squash-merges only, so a
+  # branch becomes one commit whose subject is the PR title; no individual commit subject
+  # reaches main. This comment previously said the opposite - "this repo true-merges, every
+  # individual commit lands on main" - which was true of the mode in use and false of the mode
+  # CONTRIBUTING.md described, and that gap is what kept duplicating changelog entries.
+  #
+  # Every commit in the range is still checked, deliberately. It is now belt-and-braces rather
+  # than load-bearing: a branch whose commits are already well-formed makes a good title
+  # obvious, and the check keeps working if the merge mode is ever changed back.
   commit-format:
     name: commit message format
     runs-on: ubuntu-24.04
