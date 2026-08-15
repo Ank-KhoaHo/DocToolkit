@@ -1,0 +1,20 @@
+# CodeQL scope.
+#
+# WHY THIS EXISTS. CodeQL was analysing GENERATED build output: the Razor source generator
+# writes C# into samples/RazorPdf/obj/.../Document_cshtml.g.cs, and an alert was raised against
+# it (cs/missed-readonly-modifier). That file is not written by anyone, is regenerated on every
+# build, and cannot be fixed - so the alert can only ever be dismissed or ignored, and both
+# outcomes cost attention.
+#
+# That matters more here than the single alert suggests. CLAUDE.md records that
+# cs/local-not-disposed once stood at 61 alerts and was fixed "not because an undisposed
+# MemoryStream leaks ... but because 61 standing alerts made the whole signal meaningless".
+# Noise is the failure mode this repository already paid for once. Anything the scan reports
+# should be something a person can act on.
+#
+# NOT a security narrowing. bin/ and obj/ contain compiler output and generated partials; every
+# line of hand-written source in src/, tests/ and samples/ is still analysed. The default query
+# pack is unchanged - this file scopes WHERE it looks, never WHAT it looks for.
+paths-ignore:
+  - "**/bin/**"
+  - "**/obj/**"

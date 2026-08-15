@@ -115,6 +115,19 @@ public sealed class PageSetup
     /// <exception cref="ArgumentOutOfRangeException">
     /// Either dimension is not a positive, finite number no larger than <c>int.MaxValue / 20</c>.
     /// </exception>
+    /// <remarks>
+    /// <b>The content area is deliberately NOT validated here</b>, unlike
+    /// <see cref="WithMargins(double, double, double, double)"/> and <see cref="Landscape"/>. A page smaller than the one-inch
+    /// defaults — <c>Custom(100, 400)</c> — is a legitimate starting point for
+    /// <c>Custom(100, 400).WithMargins(0, 60, 0, 40)</c>, and guarding construction would make a
+    /// small page impossible to build at all rather than merely awkward. Tried 2026-08-15 and
+    /// reverted: it broke three tests that construct exactly that shape.
+    ///
+    /// The cost is real and is the caller's to avoid: a <c>Custom</c> page too small for the
+    /// default margins, used without <see cref="WithMargins(double, double, double, double)"/>, produces a document Word renders
+    /// blank. Nothing refuses it, because the only place that could is the conversion boundary,
+    /// and moving the check there would change when a shipped API throws.
+    /// </remarks>
     public static PageSetup Custom(double widthPoints, double heightPoints)
     {
         RequireDimension(widthPoints, nameof(widthPoints));

@@ -102,6 +102,18 @@ public static class XlsxToCsvConverter
     /// Quoting everything unconditionally would also be valid CSV and is tempting because it needs
     /// no decision — but it makes every numeric column arrive as text in Excel and in most
     /// importers, which is a worse default for the format's main use.
+    ///
+    /// <b>FORMULA INJECTION IS DELIBERATELY NOT MITIGATED HERE, and that is a decision rather than
+    /// an oversight.</b> A field beginning <c>=</c>, <c>+</c>, <c>-</c> or <c>@</c> is written
+    /// verbatim, so a spreadsheet application opening the result may evaluate it as a formula.
+    /// Prefixing a quote or an apostrophe would corrupt the value for every non-spreadsheet
+    /// consumer — and CSV's main use here is as a data interchange format, not as something to
+    /// double-click. <see cref="XlsxToHtmlConverter"/> escapes every cell because HTML has one
+    /// unambiguous escaping that loses nothing; CSV has no equivalent.
+    ///
+    /// The consequence a caller has to own: <b>if the workbook is untrusted and the CSV will be
+    /// opened in Excel or LibreOffice, sanitise it downstream.</b> This is recorded here because
+    /// the asymmetry with the HTML exporter otherwise looks like an omission.
     /// </remarks>
     private static void Append(StringBuilder csv, string field)
     {

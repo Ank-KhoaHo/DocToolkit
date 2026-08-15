@@ -7,7 +7,7 @@ namespace DocToolkit.Extensions.DependencyInjection;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers all ten injectable interfaces as singletons - each wraps a stateless static
+    /// Registers every injectable interface as a singleton - each wraps a stateless static
     /// class, so one shared instance is safe under concurrent use.
     ///
     /// <see cref="DocToolkitOptions"/> is consumed through <c>IOptionsMonitor</c> and read on
