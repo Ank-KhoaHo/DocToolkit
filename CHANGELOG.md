@@ -13,9 +13,17 @@ repo-wide tooling (CI, release pipeline).
 ## [0.27.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.3...v0.27.4) (2026-08-15)
 
 
+**Package metadata only. No code changed, nothing behaves differently, and the assemblies are
+identical to 0.27.3** — if you are not reading this package's nuget.org page, there is nothing here
+you need.
+
 ### Changed
 
-* describe every converter in the package description ([#262](https://github.com/Ank-KhoaHo/DocToolkit/issues/262)) ([0764ba1](https://github.com/Ank-KhoaHo/DocToolkit/commit/0764ba13cfe77b07b822763e01dcc619480b971f))
+* **The nuget.org description now names all eleven converters.** It listed eight, omitting
+  DOCX → PDF, XLSX → PDF and PPTX → PDF — all three of which have shipped for several releases.
+  Nothing was wrong with what it said; three capabilities were simply absent from it, so the
+  package understated itself to anyone evaluating it from the listing
+  ([#262](https://github.com/Ank-KhoaHo/DocToolkit/issues/262)).
 
 ## [0.27.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.2...v0.27.3) (2026-08-15)
 
