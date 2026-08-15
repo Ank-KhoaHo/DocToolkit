@@ -45,22 +45,32 @@ import xml.etree.ElementTree as ET
 
 # Floors, per assembly: (line %, branch %).
 #
-# Measured 2026-08-08 on d543ef6: DocToolkit 95.44 line / 88.34 branch,
-# DocToolkit.Extensions.DependencyInjection 100 / 100.
+# Re-measured 2026-08-15: DocToolkit 96.30 line (2627/2728) / 90.64 branch (920/1015),
+# DocToolkit.Extensions.DependencyInjection 100 / 100. Confirmed IDENTICAL on the Linux
+# CI runner, which is the only leg that runs this gate - so these are not a
+# Windows-only artefact.
 #
 # DocToolkit sits a little under the measurement on purpose. A floor set exactly
 # at the current number fails on any single uncovered line, including ones that
 # are correct to leave uncovered - a guard clause for a state that cannot be
 # constructed, say - which trains people to lower the floor rather than write a
-# test. The slack here is roughly 8 lines and 16 branches: far too small to hide
+# test. The slack is roughly 8 lines and 16 branches: far too small to hide
 # an untested feature, far too large to trip on noise.
+#
+# THE PREVIOUS FLOORS (95.0 / 87.5) HAD DRIFTED, and the drift is the reason to state
+# the slack in LINES rather than points. They were set 2026-08-08 against 95.44 / 88.34
+# with exactly that ~8-line, ~16-branch intent. Coverage then climbed to 96.30 / 90.64
+# and nobody re-tightened, so by 2026-08-15 the slack was 35 lines and 31 branches -
+# comfortably enough to absorb a whole untested public method, which is precisely what
+# the gate exists to refuse. A percentage looks stable while the absolute number it
+# implies quadruples.
 #
 # The DI package is held at 100 because it is PURE DELEGATION - every member is
 # one line calling a static method, so any member that is not covered is simply
 # a member nobody tested, and the fix is always a two-line test. See CLAUDE.md
 # on how often that mirror has gone stale.
 FLOORS = {
-    "DocToolkit": (95.0, 87.5),
+    "DocToolkit": (96.0, 89.0),
     "DocToolkit.Extensions.DependencyInjection": (100.0, 100.0),
 }
 
@@ -158,10 +168,17 @@ def main():
             failures.append(f"{asm}: branch coverage {branch_pct:.2f}% is below the "
                             f"{branch_floor:.1f}% floor")
 
-        if line_pct >= line_floor + RATCHET_SLACK:
-            print(f"::notice::{asm} line coverage is {line_pct:.2f}%, "
-                  f"{line_pct - line_floor:.2f} points above its floor. Consider raising it - "
-                  "a floor far below reality stops catching regressions.")
+        # BOTH metrics, and the second one is why this row exists. Until 2026-08-15 this
+        # checked line_pct only, so the branch floor drifted to 3.14 points of slack - four
+        # times its design - while the advisory built to catch exactly that stayed silent,
+        # because branch was never compared to anything. A ratchet with a blind spot on one
+        # of the two numbers it guards is worse than none: the green run reads as proof.
+        for label, pct, floor in (("line", line_pct, line_floor),
+                                  ("branch", branch_pct, branch_floor)):
+            if pct >= floor + RATCHET_SLACK:
+                print(f"::notice::{asm} {label} coverage is {pct:.2f}%, "
+                      f"{pct - floor:.2f} points above its floor. Consider raising it to "
+                      f"{pct - 0.3:.1f} - a floor far below reality stops catching regressions.")
 
     if failures:
         print()
