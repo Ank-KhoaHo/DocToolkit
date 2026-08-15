@@ -1,4 +1,6 @@
 using Xunit;
+using Xunit.Abstractions;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 
 namespace DocToolkit.Tests;
 
@@ -15,6 +17,10 @@ namespace DocToolkit.Tests;
 /// </summary>
 public class ReadmeExamples
 {
+    private readonly ITestOutputHelper _output;
+
+    public ReadmeExamples(ITestOutputHelper output) => _output = output;
+
     private static async Task<byte[]> PdfAsync(string heading) =>
         await HtmlToPdfConverter.ConvertAsync($"<h1>{heading}</h1>");
 
@@ -77,7 +83,7 @@ public class ReadmeExamples
         var blocks = new[] { DocxBlock.Paragraph("Body") };
 
         #region readme-html-to-pdf-page
-        byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
+        byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
         byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
         #endregion
 
@@ -162,5 +168,146 @@ public class ReadmeExamples
         Assert.Contains("Cover", pageText[0], StringComparison.Ordinal);
         Assert.Contains("Invoice", pageText[1], StringComparison.Ordinal);
         Assert.Contains("Terms", pageText[2], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RemoteImagesExample()
+    {
+        using var probe = new LoopbackProbe(_output);
+        string html = $"""<p><img src="{probe.BaseUrl}/logo.bmp" alt="logo" /></p>""";
+        var ct = CancellationToken.None;
+
+        // Gated like every other opt-in-download test in this suite: HtmlToOpenXml's ParseBody is
+        // not proven safe to run concurrently with itself once RemoteImageOptions routes through it.
+        await RemoteDownloadGate.RunAsync(async () =>
+        {
+            #region readme-remote-images
+            // The ONLY API family that makes an outbound request: downloads and embeds images the markup
+            // names. It still succeeds in an air-gapped environment - a host that will not answer just leaves
+            // that image out of the result, after a per-image timeout, rather than failing the conversion.
+            byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+            byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+
+            // RemoteImageOptions bounds that opt-in instead of leaving it wide open. Every default here is
+            // already the restrictive one, so `new RemoteImageOptions()` is far narrower than the bool form.
+            byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions(), ct);
+            #endregion
+
+            Assert.NotEmpty(docx);
+            Assert.NotEmpty(PdfProbe.MediaBoxes(pdf));
+            Assert.NotEmpty(bounded);
+
+            // AllowPrivateAddresses defaults to false, so even with the opt-in requested the loopback
+            // probe's image is left out rather than embedded - this is the "still succeeds" claim above.
+            Assert.Equal(0, DocxFixtures.Read(docx, main => main.ImageParts.Count()));
+            Assert.Equal(0, DocxFixtures.Read(bounded, main => main.ImageParts.Count()));
+        });
+
+        await probe.AssertSilentAsync(nameof(RemoteImagesExample));
+    }
+
+    [Fact]
+    public async Task FillRowsExample()
+    {
+        byte[] docx = await HtmlToDocxConverter.ConvertAsync(
+            """
+            <p>Customer: {{customer}}</p>
+            <table border="1">
+              <tr><th>Description</th><th>Qty</th><th>Total</th></tr>
+              <tr><td>{{item.Desc}}</td><td>{{item.Qty}}</td><td>{{item.Total}}</td></tr>
+            </table>
+            """);
+
+        #region readme-fill-rows
+        byte[] filled = DocxEditor.FillRows(docx, "item", new[]
+        {
+            new Dictionary<string, string> { ["Desc"] = "Widget", ["Qty"] = "2", ["Total"] = "19.98" },
+            new Dictionary<string, string> { ["Desc"] = "Gadget", ["Qty"] = "5", ["Total"] = "45.00" },
+        });
+
+        // then the document-level scalars
+        filled = DocxEditor.ReplaceText(filled, new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" });
+        #endregion
+
+        var text = DocxEditor.ExtractText(filled);
+        Assert.Contains("Customer: Contoso Ltd", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{customer}}", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{item.", text, StringComparison.Ordinal);
+
+        var table = DocxEditor.ReadTable(filled, 0);
+        Assert.Equal(new[] { "Description", "Qty", "Total" }, table[0]);
+        Assert.Equal(new[] { "Widget", "2", "19.98" }, table[1]);
+        Assert.Equal(new[] { "Gadget", "5", "45.00" }, table[2]);
+    }
+
+    [Fact]
+    public async Task ReadTableExample()
+    {
+        byte[] docx = await HtmlToDocxConverter.ConvertAsync(
+            """
+            <table border="1">
+              <tr><th>Description</th><th>Qty</th><th>Total</th></tr>
+              <tr><td>{{item.Desc}}</td><td>{{item.Qty}}</td><td>{{item.Total}}</td></tr>
+            </table>
+            """);
+
+        byte[] filled = DocxEditor.FillRows(docx, "item", new[]
+        {
+            new Dictionary<string, string> { ["Desc"] = "Widget", ["Qty"] = "2", ["Total"] = "19.98" },
+            new Dictionary<string, string> { ["Desc"] = "Gadget", ["Qty"] = "5", ["Total"] = "45.00" },
+        });
+
+        #region readme-read-table
+        int tables = DocxEditor.TableCount(filled);
+        IReadOnlyList<IReadOnlyList<string>> rows = DocxEditor.ReadTable(filled, 0);
+        // rows[0] is the header row: ["Description", "Qty", "Total"]
+        // rows[1] is: ["Widget", "2", "19.98"]
+        #endregion
+
+        Assert.Equal(1, tables);
+        Assert.Equal(new[] { "Description", "Qty", "Total" }, rows[0]);
+        Assert.Equal(new[] { "Widget", "2", "19.98" }, rows[1]);
+        Assert.Equal(new[] { "Gadget", "5", "45.00" }, rows[2]);
+    }
+
+    [Fact]
+    public void ReplaceImageExample()
+    {
+        var logoPath = Path.Join(Directory.GetCurrentDirectory(), "logo.png");
+        File.WriteAllBytes(logoPath, ImageFixtures.Png(width: 4, height: 3));
+        byte[] sigBytes = ImageFixtures.Png(width: 6, height: 2);
+
+        byte[] docx = DocxFixtures.Build(
+            DocxFixtures.P(DocxFixtures.R("Logo: {{logo}} end")),
+            DocxFixtures.P(DocxFixtures.R("Signed: {{signature}} (authorised)")));
+
+        try
+        {
+            #region readme-replace-image
+            byte[] withLogo = DocxEditor.ReplaceImage(docx, "{{logo}}", File.ReadAllBytes("logo.png"));
+
+            // or at a chosen width; the height scales to keep the aspect ratio
+            byte[] signed = DocxEditor.ReplaceImage(withLogo, "{{signature}}", sigBytes, widthPoints: 90);
+            #endregion
+
+            var text = DocxEditor.ExtractText(signed);
+            Assert.Contains("Logo: ", text, StringComparison.Ordinal);
+            Assert.Contains(" end", text, StringComparison.Ordinal);
+            Assert.Contains("Signed: ", text, StringComparison.Ordinal);
+            Assert.Contains(" (authorised)", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("{{logo}}", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("{{signature}}", text, StringComparison.Ordinal);
+
+            var extents = DocxFixtures.Read(signed, main => main.Document!.Body!.Descendants<DW.Extent>().ToList());
+            Assert.Equal(2, extents.Count);
+
+            // widthPoints: 90 against a 6x2 source -> 90pt wide, 30pt tall to keep the 3:1 ratio.
+            Assert.Equal(90L * 12700, extents[1].Cx!.Value);
+            Assert.Equal(30L * 12700, extents[1].Cy!.Value);
+        }
+        finally
+        {
+            File.Delete(logoPath);
+        }
     }
 }

@@ -401,7 +401,7 @@ margins. To keep the previous PDF behaviour, pass `PageSetup.Letter`:
 <!-- BEGIN SNIPPET: readme-html-to-pdf-page -->
 
 ```csharp
-byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
+byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
 byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
 ```
 

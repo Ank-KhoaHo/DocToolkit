@@ -62,17 +62,21 @@ proven by 37 dedicated tests — see below.
 
 There is exactly one way to change that, and you have to ask for it by name:
 
+<!-- BEGIN SNIPPET: readme-remote-images -->
+
 ```csharp
 // The ONLY API family that makes an outbound request: downloads and embeds images the markup
 // names. It still succeeds in an air-gapped environment - a host that will not answer just leaves
 // that image out of the result, after a per-image timeout, rather than failing the conversion.
 byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
-byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
 
 // RemoteImageOptions bounds that opt-in instead of leaving it wide open. Every default here is
 // already the restrictive one, so `new RemoteImageOptions()` is far narrower than the bool form.
 byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions(), ct);
 ```
+
+<!-- END SNIPPET -->
 
 **The opt-in is now bounded, not just present.** Every fetch it makes is subject to fixed limits:
 
@@ -365,6 +369,8 @@ line items, timesheet entries, order lines:
 |---|---|---|
 | `{{item.Desc}}` | `{{item.Qty}}` | `{{item.Total}}` |
 
+<!-- BEGIN SNIPPET: readme-fill-rows -->
+
 ```csharp
 byte[] filled = DocxEditor.FillRows(docx, "item", new[]
 {
@@ -373,8 +379,10 @@ byte[] filled = DocxEditor.FillRows(docx, "item", new[]
 });
 
 // then the document-level scalars
-filled = DocxEditor.ReplaceText(filled, new() { ["{{customer}}"] = "Contoso Ltd" });
+filled = DocxEditor.ReplaceText(filled, new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" });
 ```
+
+<!-- END SNIPPET -->
 
 Every clone keeps the template row's formatting, shading and borders, and a hyperlink inside a cell
 survives with its target intact.
@@ -389,12 +397,16 @@ row, and removes the table if that row was its only one.
 
 Read one back to verify what actually landed, rather than trusting the fill succeeded silently:
 
+<!-- BEGIN SNIPPET: readme-read-table -->
+
 ```csharp
 int tables = DocxEditor.TableCount(filled);
 IReadOnlyList<IReadOnlyList<string>> rows = DocxEditor.ReadTable(filled, 0);
 // rows[0] is the header row: ["Description", "Qty", "Total"]
 // rows[1] is: ["Widget", "2", "19.98"]
 ```
+
+<!-- END SNIPPET -->
 
 The index is 0-based — deliberately unlike `PdfEditor.ExtractPages`'s 1-based `firstPage`, which
 numbers pages the way a reader does; a table index has no such reader-facing numbering. And a row
@@ -406,12 +418,16 @@ not in the document.
 
 A text placeholder becomes an inline image — a logo, a signature, a QR code:
 
+<!-- BEGIN SNIPPET: readme-replace-image -->
+
 ```csharp
 byte[] withLogo = DocxEditor.ReplaceImage(docx, "{{logo}}", File.ReadAllBytes("logo.png"));
 
 // or at a chosen width; the height scales to keep the aspect ratio
 byte[] signed = DocxEditor.ReplaceImage(withLogo, "{{signature}}", sigBytes, widthPoints: 90);
 ```
+
+<!-- END SNIPPET -->
 
 **PNG and JPEG**, identified by their own magic bytes rather than a filename. Omit the size and the
 image's intrinsic dimensions are read from its header at 96 DPI; give one dimension and the other
@@ -588,7 +604,7 @@ margins. To keep the previous PDF behaviour, pass `PageSetup.Letter`:
 <!-- BEGIN SNIPPET: readme-html-to-pdf-page -->
 
 ```csharp
-byte[] pdf  = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
+byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, PageSetup.Letter);
 byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
 ```
 
