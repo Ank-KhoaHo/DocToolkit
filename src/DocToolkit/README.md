@@ -429,9 +429,13 @@ image, then ` (authorised)`, with the surrounding runs keeping their formatting.
 PPTX picture is a positioned shape and not something inline in a text flow the way a DOCX image
 is - which is also why it takes no size argument, unlike `DocxEditor.ReplaceImage` above:
 
+<!-- BEGIN SNIPPET: readme-pptx-replace-image -->
+
 ```csharp
-byte[] filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", File.ReadAllBytes("chart.png"));
+byte[] filled = PresentationEditor.ReplaceImage(pptx, "{{chart}}", chartPngBytes);
 ```
+
+<!-- END SNIPPET -->
 
 Position and size come from the template, so there is nothing to pass: a designer draws a box in
 PowerPoint where the chart belongs, and the image lands there, scaled to fit and centred.
