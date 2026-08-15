@@ -46,6 +46,7 @@ READMES = [
 
 BEGIN = "<!-- BEGIN SNIPPET: {} -->"
 END = "<!-- END SNIPPET -->"
+MARKER = re.compile(r"<!-- BEGIN SNIPPET: (.+?) -->")
 
 # Blocks that CANNOT be compiled, each with the reason. An unexplained exclusion list is how
 # a scope decision quietly becomes an oversight.
@@ -118,6 +119,13 @@ def main() -> int:
     failures, used = [], set()
     for path in READMES:
         text = original = path.read_text(encoding="utf-8")
+
+        unknown = sorted({m for m in MARKER.findall(original) if m not in found})
+        if unknown:
+            sys.exit(f"error: {path.relative_to(REPO).as_posix()} has a marker naming a "
+                     f"region that does not exist in either ReadmeExamples.cs: "
+                     + ", ".join(unknown))
+
         for name, body in found.items():
             begin = BEGIN.format(name)
             if begin not in text:
@@ -148,7 +156,8 @@ def main() -> int:
         for path, before, after in failures:
             sys.stdout.writelines(difflib.unified_diff(
                 before.splitlines(keepends=True), after.splitlines(keepends=True),
-                fromfile=f"committed {path.name}", tofile="derived from ReadmeExamples.cs"))
+                fromfile=f"committed {path.relative_to(REPO).as_posix()}",
+                tofile="derived from ReadmeExamples.cs"))
         print("\n::error::A README snippet no longer matches ReadmeExamples.cs. "
               "Run `python scripts/gen-readme-snippets.py` and commit the result.")
         return 1
