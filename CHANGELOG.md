@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.27.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.1...v0.27.2) (2026-08-15)
+
+
+### Fixed
+
+* carry ConfigureAwait(false) on every shipped await ([fd3d59b](https://github.com/Ank-KhoaHo/DocToolkit/commit/fd3d59b59a7950f0a950fa97f839182caa8e6769))
+* carry ConfigureAwait(false) on every shipped await ([e91a653](https://github.com/Ank-KhoaHo/DocToolkit/commit/e91a65310b9279b498783ba78f25d4d6347242ef))
+
 ## [0.27.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.0...v0.27.1) (2026-08-15)
 
 **A packaging and metadata release. Nothing in the public API changed**, and no call behaves
