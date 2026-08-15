@@ -53,11 +53,11 @@ internal static class TableRowFinder
     {
         foreach (var cell in row.ChildElements.OfType<TableCell>())
         {
-            foreach (var paragraph in cell.ChildElements.OfType<Paragraph>())
-            {
-                if (paragraph.InnerText.Contains(marker, StringComparison.Ordinal))
-                    return true;
-            }
+            // Still ChildElements, never Descendants: a table nested in this cell must not have
+            // its paragraphs read as if this row owned them. Any() changes the shape, not that.
+            if (cell.ChildElements.OfType<Paragraph>()
+                    .Any(p => p.InnerText.Contains(marker, StringComparison.Ordinal)))
+                return true;
         }
 
         return false;

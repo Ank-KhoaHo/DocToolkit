@@ -287,18 +287,16 @@ public static class DocxEditor
 
                 // A placeholder in a header or footer used to come back unreplaced with no error
                 // at all, which is a silent wrong answer for the "fill a template" use case.
-                foreach (var part in main.HeaderParts)
+                foreach (var part in main.HeaderParts.Where(p => p.Header is not null))
                 {
-                    if (part.Header is null) continue;
-                    ReplaceIn(part.Header, replacements);
-                    part.Header.Save();
+                    ReplaceIn(part.Header!, replacements);
+                    part.Header!.Save();
                 }
 
-                foreach (var part in main.FooterParts)
+                foreach (var part in main.FooterParts.Where(p => p.Footer is not null))
                 {
-                    if (part.Footer is null) continue;
-                    ReplaceIn(part.Footer, replacements);
-                    part.Footer.Save();
+                    ReplaceIn(part.Footer!, replacements);
+                    part.Footer!.Save();
                 }
 
                 if (main.FootnotesPart?.Footnotes is { } footnotes)
@@ -397,9 +395,9 @@ public static class DocxEditor
 
             var sb = new StringBuilder(bodyText);
             foreach (var text in main.HeaderParts.Select(p => p.Header is null ? null : BlockText(p.Header))
-                                     .Concat(main.FooterParts.Select(p => p.Footer is null ? null : BlockText(p.Footer))))
+                                     .Concat(main.FooterParts.Select(p => p.Footer is null ? null : BlockText(p.Footer)))
+                                     .Where(t => !string.IsNullOrEmpty(t)))
             {
-                if (string.IsNullOrEmpty(text)) continue;
                 if (sb.Length > 0) sb.Append('\n');
                 sb.Append(text);
             }
@@ -957,18 +955,16 @@ public static class DocxEditor
                 replaced += InsertImagesIn(main, body, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
                 main.Document!.Save();
 
-                foreach (var part in main.HeaderParts)
+                foreach (var part in main.HeaderParts.Where(p => p.Header is not null))
                 {
-                    if (part.Header is null) continue;
-                    replaced += InsertImagesIn(part, part.Header, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
-                    part.Header.Save();
+                    replaced += InsertImagesIn(part, part.Header!, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
+                    part.Header!.Save();
                 }
 
-                foreach (var part in main.FooterParts)
+                foreach (var part in main.FooterParts.Where(p => p.Footer is not null))
                 {
-                    if (part.Footer is null) continue;
-                    replaced += InsertImagesIn(part, part.Footer, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
-                    part.Footer.Save();
+                    replaced += InsertImagesIn(part, part.Footer!, placeholder, image, info, widthEmu, heightEmu, name, ref nextId);
+                    part.Footer!.Save();
                 }
 
                 if (main.FootnotesPart?.Footnotes is { } footnotes)
@@ -1003,10 +999,12 @@ public static class DocxEditor
     {
         var highest = 0U;
 
-        foreach (var root in AllRoots(main))
+        foreach (var value in AllRoots(main)
+                     .SelectMany(root => root.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>())
+                     .Select(properties => properties.Id?.Value)
+                     .Where(id => id.HasValue))
         {
-            foreach (var properties in root.Descendants<DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties>())
-                if (properties.Id?.Value is { } value && value > highest) highest = value;
+            if (value!.Value > highest) highest = value.Value;
         }
 
         return highest + 1;
@@ -1014,10 +1012,10 @@ public static class DocxEditor
         static IEnumerable<OpenXmlElement> AllRoots(MainDocumentPart part)
         {
             if (part.Document is not null) yield return part.Document;
-            foreach (var header in part.HeaderParts)
-                if (header.Header is not null) yield return header.Header;
-            foreach (var footer in part.FooterParts)
-                if (footer.Footer is not null) yield return footer.Footer;
+            foreach (var header in part.HeaderParts.Where(h => h.Header is not null))
+                yield return header.Header!;
+            foreach (var footer in part.FooterParts.Where(f => f.Footer is not null))
+                yield return footer.Footer!;
             if (part.FootnotesPart?.Footnotes is { } footnotes) yield return footnotes;
             if (part.EndnotesPart?.Endnotes is { } endnotes) yield return endnotes;
         }
