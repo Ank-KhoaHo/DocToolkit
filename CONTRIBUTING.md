@@ -282,7 +282,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | Check | Workflow | Guards it runs |
 |---|---|---|
 | `build & test (…)` | `ci.yml` | `check-coverage.py` |
-| `formatting` | `ci.yml` | `check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-snippets.py`<br>`check-readme-coverage.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py` |
+| `formatting` | `ci.yml` | `check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-snippets.py`<br>`check-readme-coverage.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py` |
 | `no native binaries / no banned packages` | `ci.yml` | `gen-third-party-notices.py`<br>`repair-lockfiles.py` |
 | `arm auto-merge if eligible` | `dependabot-automerge.yml` | `automerge-eligible.py` |
 | `outdated shipped dependencies` | `dependency-report.yml` | `check-dependabot-scoping.py`<br>`gen-third-party-notices.py` |
