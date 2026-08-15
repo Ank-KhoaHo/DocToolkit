@@ -49,7 +49,7 @@ internal static class ImageFixtures
     /// </summary>
     public static byte[] Jpeg()
     {
-        var pptx = Path.Combine(AppContext.BaseDirectory, "assets", "sample.pptx");
+        var pptx = Path.Join(AppContext.BaseDirectory, "assets", "sample.pptx");
         using var zip = ZipFile.OpenRead(pptx);
         var entry = zip.GetEntry("docProps/thumbnail.jpeg")
                     ?? throw new InvalidOperationException(

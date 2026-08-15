@@ -931,7 +931,7 @@ public class AirGapGuardTests
     private sealed class TempFile : IDisposable
     {
         public TempFile(string extension) =>
-            Path = System.IO.Path.Combine(
+            Path = System.IO.Path.Join(
                 System.IO.Path.GetTempPath(), $"doctoolkit-airgap-{Guid.NewGuid():N}{extension}");
 
         public string Path { get; }

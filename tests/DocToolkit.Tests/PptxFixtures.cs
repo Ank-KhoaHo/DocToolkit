@@ -22,7 +22,7 @@ namespace DocToolkit.Tests;
 internal static class PptxFixtures
 {
     private static readonly string SampleAssetPath =
-        Path.Combine(AppContext.BaseDirectory, "assets", "sample.pptx");
+        Path.Join(AppContext.BaseDirectory, "assets", "sample.pptx");
 
     public static byte[] Sample() => File.ReadAllBytes(SampleAssetPath);
 

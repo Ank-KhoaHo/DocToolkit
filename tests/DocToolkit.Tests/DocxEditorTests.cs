@@ -361,7 +361,7 @@ public class DocxEditorTests
     {
         // A wrong path and a broken document are different problems. Wrapping this in
         // DocumentConversionException would make the caller unwrap it to tell them apart.
-        var missing = Path.Combine(Path.GetTempPath(), $"doctoolkit-missing-{Guid.NewGuid():N}.docx");
+        var missing = Path.Join(Path.GetTempPath(), $"doctoolkit-missing-{Guid.NewGuid():N}.docx");
 
         await Assert.ThrowsAsync<FileNotFoundException>(
             () => DocxEditor.ExtractTextAsync(missing));

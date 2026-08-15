@@ -356,14 +356,16 @@ public class PdfEditorTests
             [await PdfAsync("Alpha"), await PdfAsync("Bravo"), await PdfAsync("Charlie")]);
 
         using var reordered = new MemoryStream();
-        await PdfEditor.ReorderPagesAsync(new MemoryStream(merged), [3, 2, 1], reordered);
+        using var reorderSource = new MemoryStream(merged);
+        await PdfEditor.ReorderPagesAsync(reorderSource, [3, 2, 1], reordered);
         Assert.Equal(
             PdfProbe.ExtractText(PdfEditor.ReorderPages(merged, [3, 2, 1])),
             PdfProbe.ExtractText(reordered.ToArray()));
 
         using var inserted = new MemoryStream();
-        await PdfEditor.InsertPagesAsync(
-            new MemoryStream(merged), new MemoryStream(await PdfAsync("Delta")), 1, inserted);
+        using var insertTarget = new MemoryStream(merged);
+        using var insertSource = new MemoryStream(await PdfAsync("Delta"));
+        await PdfEditor.InsertPagesAsync(insertTarget, insertSource, 1, inserted);
         Assert.Equal(4, PdfEditor.PageCount(inserted.ToArray()));
     }
 
@@ -422,14 +424,16 @@ public class PdfEditorTests
     public async Task MergeAndExtractWorkThroughStreams()
     {
         await using var merged = new MemoryStream();
-        await PdfEditor.MergeAsync(
-            [new MemoryStream(await PdfAsync("A")), new MemoryStream(await PdfAsync("B"))],
-            merged);
+        using var partA = new MemoryStream(await PdfAsync("A"));
+        using var partB = new MemoryStream(await PdfAsync("B"));
+        await PdfEditor.MergeAsync([partA, partB], merged);
 
-        Assert.Equal(2, await PdfEditor.PageCountAsync(new MemoryStream(merged.ToArray())));
+        using var countSource = new MemoryStream(merged.ToArray());
+        Assert.Equal(2, await PdfEditor.PageCountAsync(countSource));
 
         await using var extracted = new MemoryStream();
-        await PdfEditor.ExtractPagesAsync(new MemoryStream(merged.ToArray()), 1, 1, extracted);
+        using var extractSource = new MemoryStream(merged.ToArray());
+        await PdfEditor.ExtractPagesAsync(extractSource, 1, 1, extracted);
 
         Assert.Equal(1, PdfEditor.PageCount(extracted.ToArray()));
     }

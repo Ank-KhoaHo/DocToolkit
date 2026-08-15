@@ -31,7 +31,9 @@ public class HtmlToPdfConverterServiceTests
     {
         var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
 
-        var expected = await sut.ConvertAsync("<h1>Invoice</h1><p>Total: 18,100.00</p>");
+        // Exercised for its own sake: the byte[] overload must still work. Its RESULT is
+        // deliberately unused - see the comment below on why this is not a byte comparison.
+        _ = await sut.ConvertAsync("<h1>Invoice</h1><p>Total: 18,100.00</p>");
 
         using var destination = new MemoryStream();
         await sut.ConvertAsync("<h1>Invoice</h1><p>Total: 18,100.00</p>", destination);

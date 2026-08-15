@@ -602,8 +602,10 @@ public class ServiceCollectionExtensionsTests
 
         var sut = provider.GetRequiredService<IHtmlToDocxConverter>();
 
-        try { await sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">"); }
-        catch (DocToolkit.DocumentConversionException) { }
+        // The conversion may or may not fail - the probe serves no real image bytes - and which
+        // it does is not what this test asserts. The CONNECTION below is. An empty catch said
+        // the same thing less clearly and read as a swallowed error.
+        _ = await Record.ExceptionAsync(() => sut.ConvertAsync($"<img src=\"{probe.ImageUrl}\">"));
         Assert.True(await probe.WaitForConnectionAsync(TimeSpan.FromSeconds(5)),
             "Precondition failed: the probe never saw the opt-in connect, so the assertion below "
             + "would pass vacuously.");
@@ -665,12 +667,16 @@ public class ServiceCollectionExtensionsTests
         var second = await DocToolkit.HtmlToPdfConverter.ConvertAsync("<h1>Second</h1>");
 
         await using var merged = new MemoryStream();
-        await sut.MergeAsync([new MemoryStream(first), new MemoryStream(second)], merged);
+        using var firstSource = new MemoryStream(first);
+        using var secondSource = new MemoryStream(second);
+        await sut.MergeAsync([firstSource, secondSource], merged);
 
-        Assert.Equal(2, await sut.PageCountAsync(new MemoryStream(merged.ToArray())));
+        using var countSource = new MemoryStream(merged.ToArray());
+        Assert.Equal(2, await sut.PageCountAsync(countSource));
 
         await using var extracted = new MemoryStream();
-        await sut.ExtractPagesAsync(new MemoryStream(merged.ToArray()), 2, 1, extracted);
+        using var extractSource = new MemoryStream(merged.ToArray());
+        await sut.ExtractPagesAsync(extractSource, 2, 1, extracted);
 
         Assert.Equal(1, sut.PageCount(extracted.ToArray()));
     }

@@ -42,6 +42,9 @@ internal sealed class LoopbackProbe : IDisposable
     /// embed and a leak on the default path would be a *successful* fetch rather than a connection
     /// error that might be swallowed silently.
     /// </param>
+    /// <summary>
+    /// Starts a loopback listener on an OS-assigned port and begins accepting connections.
+    /// </summary>
     public LoopbackProbe(
         ITestOutputHelper output, Func<NetworkStream, string, CancellationToken, Task>? respond = null)
     {
