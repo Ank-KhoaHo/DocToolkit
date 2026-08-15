@@ -271,6 +271,66 @@ public class ReadmeExamples
     }
 
     [Fact]
+    public async Task RemoteOptInExample()
+    {
+        using var probe = new LoopbackProbe(_output);
+        string html = $"""<p><img src="{probe.BaseUrl}/logo.bmp" alt="logo" /></p>""";
+
+        // Gated like every other opt-in-download test in this suite: HtmlToOpenXml's ParseBody is
+        // not proven safe to run concurrently with itself once RemoteImageOptions routes through it.
+        await RemoteDownloadGate.RunAsync(async () =>
+        {
+            #region readme-remote-opt-in
+            byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true);
+
+            // Bounded instead of wide open: timeout, byte cap, host allow-list and a block on
+            // loopback/private/link-local addresses, all on by default. Not a complete SSRF defence — see
+            // the package README.
+            byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
+            #endregion
+
+            // AllowPrivateAddresses defaults to false, so even with the opt-in requested the loopback
+            // probe's image is left out rather than embedded - the conversion still succeeds either way.
+            Assert.Equal(0, DocxFixtures.Read(docx, main => main.ImageParts.Count()));
+            Assert.Equal(0, DocxFixtures.Read(bounded, main => main.ImageParts.Count()));
+        });
+
+        await probe.AssertSilentAsync(nameof(RemoteOptInExample));
+    }
+
+    [Fact]
+    public async Task PageSetupOptionsExample()
+    {
+        string html = "<h1>Invoice</h1>";
+        var blocks = new[] { DocxBlock.Paragraph("Body") };
+
+        #region readme-page-setup-options
+        byte[] pdf = await HtmlToPdfConverter.ConvertAsync(
+            html,
+            PageSetup.A4.Landscape().WithMargins(36));
+
+        byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
+        #endregion
+
+        var pdfBoxes = PdfProbe.MediaBoxes(pdf);
+        Assert.NotEmpty(pdfBoxes);
+        Assert.All(pdfBoxes, box =>
+        {
+            // A4 landscape swaps the dimensions: 841.9 x 595.3pt, rounded to the nearest point.
+            Assert.Equal(842, box.Width, 0);
+            Assert.Equal(595, box.Height, 0);
+        });
+
+        var docxBoxes = PdfProbe.MediaBoxes(DocxToPdfConverter.Convert(docx));
+        Assert.NotEmpty(docxBoxes);
+        Assert.All(docxBoxes, box =>
+        {
+            Assert.Equal(612, box.Width, 0);
+            Assert.Equal(792, box.Height, 0);
+        });
+    }
+
+    [Fact]
     public void ReplaceImageExample()
     {
         var logoPath = Path.Join(Directory.GetCurrentDirectory(), "logo.png");

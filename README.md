@@ -239,6 +239,8 @@ throwing.
 
 Generated documents are **A4 with one-inch margins**. Pass a `PageSetup` for anything else:
 
+<!-- BEGIN SNIPPET: readme-page-setup-options -->
+
 ```csharp
 byte[] pdf = await HtmlToPdfConverter.ConvertAsync(
     html,
@@ -246,6 +248,8 @@ byte[] pdf = await HtmlToPdfConverter.ConvertAsync(
 
 byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
 ```
+
+<!-- END SNIPPET -->
 
 `PageSetup` is immutable, measured in points, and offers `A4`, `Letter` and
 `Custom(widthPoints, heightPoints)`, plus `Landscape()` and `WithMargins(…)`. Every producer —
@@ -472,24 +476,25 @@ alternative is that you find out by reading the source.
 ## Dependency injection
 
 `Ank.DocToolkit` needs no container. For ASP.NET Core or worker services, a thin companion package
-adds injectable interfaces that delegate one-for-one to the static API — same conversion logic,
-no duplication.
+adds fifteen injectable interfaces that delegate one-for-one to the static API — same conversion
+logic, no duplication.
+
+```bash
+dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
+```
+
+<!-- BEGIN SNIPPET: readme-di-registration -->
 
 ```csharp
-// dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
-services.AddDocToolkit();                                       // six interfaces, as singletons
+services.AddDocToolkit();
 
-services.AddDocToolkit(o =>
-{
-    o.AllowRemoteImageDownload = true;                  // opt in to remote images...
-    o.RemoteImage.AllowedHosts.Add("cdn.example.com");  // ...bounded; defaults are restrictive
-});
-
-public class InvoiceService(IHtmlToPdfConverter toPdf)
-{
-    public Task<byte[]> RenderAsync(string html) => toPdf.ConvertAsync(html);
-}
+// Or opt in to remote image download for HTML->DOCX/PDF. This still succeeds in an
+// air-gapped environment - an unreachable host leaves that image out rather than failing
+// the conversion.
+services.AddDocToolkit(o => o.AllowRemoteImageDownload = true);
 ```
+
+<!-- END SNIPPET -->
 
 Both packages ship at the same version from the same tag. See the
 [extension package's README](src/DocToolkit.Extensions.DependencyInjection/README.md).
@@ -513,14 +518,18 @@ files in CI and fails if the mutation score drops (74.3% when the gate was added
 The one exception is explicit and opt-in, and **is silently image-less in an air-gapped
 environment** — an unreachable host is skipped, not fatal:
 
+<!-- BEGIN SNIPPET: readme-remote-opt-in -->
+
 ```csharp
-await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true);
+byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true);
 
 // Bounded instead of wide open: timeout, byte cap, host allow-list and a block on
 // loopback/private/link-local addresses, all on by default. Not a complete SSRF defence — see
 // the package README.
-await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
+byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
 ```
+
+<!-- END SNIPPET -->
 
 ## Reporting a vulnerability
 

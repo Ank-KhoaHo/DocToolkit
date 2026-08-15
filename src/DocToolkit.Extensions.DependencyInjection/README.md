@@ -19,15 +19,18 @@ Targets `net8.0` and `net10.0`. MIT licensed.
 
 ## Usage
 
-```csharp
-using DocToolkit.Extensions.DependencyInjection;
+<!-- BEGIN SNIPPET: readme-di-registration -->
 
+```csharp
 services.AddDocToolkit();
 
-// Or opt in to remote image download for HTML->DOCX/PDF. This still succeeds in an air-gapped
-// environment - an unreachable host leaves that image out rather than failing the conversion.
+// Or opt in to remote image download for HTML->DOCX/PDF. This still succeeds in an
+// air-gapped environment - an unreachable host leaves that image out rather than failing
+// the conversion.
 services.AddDocToolkit(o => o.AllowRemoteImageDownload = true);
 ```
+
+<!-- END SNIPPET -->
 
 ### Configuration reload takes effect immediately
 
@@ -48,6 +51,8 @@ ones — **loopback, private and link-local addresses are refused** (including `
 cloud metadata endpoint), only `http` and `https` are spoken, redirects are not followed, and each
 fetch is capped at 10 seconds and 5 MB counted on bytes actually read.
 
+<!-- BEGIN SNIPPET: readme-di-options -->
+
 ```csharp
 services.AddDocToolkit(o =>
 {
@@ -56,6 +61,8 @@ services.AddDocToolkit(o =>
     o.RemoteImage.AllowedHosts.Add("cdn.example.com");   // empty means "any public host"
 });
 ```
+
+<!-- END SNIPPET -->
 
 `RemoteImage` is configured **in place**, not assigned: the property is get-only so that a
 restrictive default cannot be lost by dropping in an object that missed one.
@@ -69,6 +76,8 @@ again by the HTTP stack when it connects; a DNS answer that changes in between d
 See the [core package README](https://www.nuget.org/packages/Ank.DocToolkit) and
 [`SECURITY.md`](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/SECURITY.md).
 
+<!-- BEGIN SNIPPET: readme-di-consume -->
+
 ```csharp
 public class InvoiceService
 {
@@ -81,24 +90,32 @@ public class InvoiceService
         _toPdf = toPdf;
     }
 
+    public Task<byte[]> RenderDocxAsync(string html) => _toDocx.ConvertAsync(html);
     public Task<byte[]> RenderAsync(string html) => _toPdf.ConvertAsync(html);
 }
 ```
 
+<!-- END SNIPPET -->
+
+<!-- BEGIN SNIPPET: readme-di-stream -->
+
 ```csharp
 // Every interface also has Stream-based async members, so a large document never has to be
-// duplicated into a caller-visible byte[] — write straight to an HTTP response body instead:
-record InvoiceRequest(string Html);
-
-app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter toPdf, HttpResponse response) =>
+// duplicated into a caller-visible byte[] — write straight to the response body instead:
+public static class InvoicePdfEndpoint
 {
-    response.ContentType = "application/pdf";
-    // The PDF is written to response.Body as it is rendered, not assembled first, so the
-    // status code and headers are committed on the first write. A failure part-way through
-    // cannot be turned into a clean 500 — the response is already underway.
-    await toPdf.ConvertAsync(request.Html, response.Body);
-});
+    public static async Task WriteAsync(string html, IHtmlToPdfConverter toPdf, Stream destination)
+    {
+        // The PDF is written to the destination stream as it is rendered, not assembled first, so
+        // a caller wiring this into an HTTP endpoint commits the status code and headers on the
+        // first write. A failure part-way through cannot be turned into a clean 500 - the response
+        // is already underway.
+        await toPdf.ConvertAsync(html, destination);
+    }
+}
 ```
+
+<!-- END SNIPPET -->
 
 All fifteen interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
 `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`,
@@ -131,9 +148,13 @@ Two things on the static API deliberately do **not** appear on these interfaces:
 one. It defaults to `PageSetup.A4`, which is what the static API already uses, so leaving it
 alone changes nothing.
 
+<!-- BEGIN SNIPPET: readme-di-page-setup -->
+
 ```csharp
 services.AddDocToolkit(o => o.Page = PageSetup.Letter);
 ```
+
+<!-- END SNIPPET -->
 
 It reaches all three producers - both HTML converters and `IDocxEditor.Create` - because an
 option true of two out of three is one a consumer discovers a document at a time.

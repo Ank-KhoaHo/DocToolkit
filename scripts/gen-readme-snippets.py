@@ -13,6 +13,15 @@ TYPE is named. Coverage, not correctness. It cannot tell a working example from 
 Five blocks appeared in more than one README, kept in sync by hand - the same hand-sync that
 failed six times in one day. A shared region removes that.
 
+TWO SOURCES, not one. The extensions package's own snippets (services.AddDocToolkit(),
+IHtmlToPdfConverter and friends) cannot live in tests/DocToolkit.Tests: that project holds a
+ProjectReference to src/DocToolkit, while tests/DocToolkit.Extensions.DependencyInjection.Tests
+references Ank.DocToolkit as a published PackageReference - deliberately, so a DI-flavoured
+snippet compiling there proves it against what a consumer's restore actually gets, not against
+whatever is on main. A region name must be unique ACROSS both sources: the same name defined in
+each would leave it ambiguous which body a README marker means, which is worse than the region
+being missing outright.
+
 USAGE
     python scripts/gen-readme-snippets.py            # write
     python scripts/gen-readme-snippets.py --check    # verify, change nothing
@@ -25,7 +34,10 @@ import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-SOURCE = REPO / "tests" / "DocToolkit.Tests" / "ReadmeExamples.cs"
+SOURCES = [
+    REPO / "tests" / "DocToolkit.Tests" / "ReadmeExamples.cs",
+    REPO / "tests" / "DocToolkit.Extensions.DependencyInjection.Tests" / "ReadmeExamples.cs",
+]
 READMES = [
     REPO / "README.md",
     REPO / "src" / "DocToolkit" / "README.md",
@@ -45,17 +57,25 @@ EXCLUDED = {
 
 
 def regions() -> dict[str, str]:
-    text = SOURCE.read_text(encoding="utf-8")
     found: dict[str, str] = {}
-    for m in re.finditer(r"^[ \t]*#region (readme-[\w-]+)\r?\n(.*?)^[ \t]*#endregion",
-                         text, re.S | re.M):
-        name, body = m.group(1), m.group(2)
-        lines = [ln for ln in body.split("\n") if ln.strip()]
-        if not lines:
-            sys.exit(f"error: region {name} is empty. A blank snippet renders as a short "
-                     f"example rather than a broken one.")
-        indent = min(len(ln) - len(ln.lstrip()) for ln in lines)
-        found[name] = "\n".join(ln[indent:].rstrip() for ln in body.split("\n")).strip()
+    origin: dict[str, pathlib.Path] = {}
+    for source in SOURCES:
+        text = source.read_text(encoding="utf-8")
+        for m in re.finditer(r"^[ \t]*#region (readme-[\w-]+)\r?\n(.*?)^[ \t]*#endregion",
+                             text, re.S | re.M):
+            name, body = m.group(1), m.group(2)
+            if name in found:
+                sys.exit(f"error: region {name} is defined in both "
+                         f"{origin[name].relative_to(REPO).as_posix()} and "
+                         f"{source.relative_to(REPO).as_posix()} - an ambiguous source is worse "
+                         f"than a missing one.")
+            lines = [ln for ln in body.split("\n") if ln.strip()]
+            if not lines:
+                sys.exit(f"error: region {name} is empty. A blank snippet renders as a short "
+                         f"example rather than a broken one.")
+            indent = min(len(ln) - len(ln.lstrip()) for ln in lines)
+            found[name] = "\n".join(ln[indent:].rstrip() for ln in body.split("\n")).strip()
+            origin[name] = source
     return found
 
 
@@ -65,9 +85,9 @@ def main() -> int:
 
     found = regions()
     if not found:
-        sys.exit("error: no readme-* regions found in ReadmeExamples.cs - the region format "
-                 "changed and this script is now blind. Fix the parser rather than letting it "
-                 "silently inject nothing.")
+        sys.exit("error: no readme-* regions found in either ReadmeExamples.cs - the region "
+                 "format changed and this script is now blind. Fix the parser rather than "
+                 "letting it silently inject nothing.")
 
     failures, used = [], set()
     for path in READMES:
