@@ -10,6 +10,24 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.27.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.1...v0.27.2) (2026-08-15)
+
+
+**A concurrency fix, and the only people it affects are the ones it affects badly.** If you call
+this package's async methods with `await`, nothing changes. If you **block** on one of them —
+`.Result`, `.GetAwaiter().GetResult()` — from a thread with a `SynchronizationContext`, which means
+WPF, WinForms or classic ASP.NET, some of them could **deadlock**. They no longer can.
+
+### Fixed
+
+* **Core:** every `await` in the library now carries `ConfigureAwait(false)`. Nine did not, and a
+  blocking caller on a UI or classic-ASP.NET synchronisation context could deadlock on any of them:
+  `HtmlToPdfConverter.ConvertAsync` (both overloads) and `ConvertToFileAsync`,
+  `HtmlToDocxConverter.ConvertToFileAsync` and the shared HTML → DOCX build path,
+  `PdfEditor.PageCountAsync(string)`, and the remote-image read used by the opt-in image fetch.
+  **No behaviour change for a caller who awaits**, which is the normal case
+  ([e91a653](https://github.com/Ank-KhoaHo/DocToolkit/commit/e91a65310b9279b498783ba78f25d4d6347242ef)).
+
 ## [0.27.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.0...v0.27.1) (2026-08-15)
 
 **A packaging and metadata release. Nothing in the public API changed**, and no call behaves
