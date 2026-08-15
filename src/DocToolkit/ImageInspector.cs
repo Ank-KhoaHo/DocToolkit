@@ -224,8 +224,8 @@ internal static class ImageInspector
 
         throw new DocumentConversionException(
             "JPEG image has no Start-Of-Frame segment, so its size cannot be determined. This "
-            + "usually means the image bytes are truncated — check the file was fully read or "
-            + "uploaded before it was passed in.");
+            + "can mean the image bytes are truncated, or that the file is not actually a "
+            + "well-formed JPEG — check both rather than assuming either.");
     }
 
     /// <summary>Names what the bytes look like, so the error says more than "invalid image".</summary>
