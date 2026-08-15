@@ -52,10 +52,49 @@ jobs:
           fi
           echo "RELEASE_PLEASE_TOKEN is configured"
 
+      # Needed by the notes-sync step below, which reads CHANGELOG.md. Checking out BEFORE
+      # release-please runs is deliberate and load-bearing: this workflow is triggered by the
+      # push that merged the Release PR, so main at this SHA already carries the CURATED
+      # changelog. Checking out afterwards would race release-please's own commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      # CURATING THE RELEASE PR FIXES CHANGELOG.md AND NOT THE PUBLISHED RELEASE NOTES.
+      #
+      # release-please builds the GitHub Release body from the COMMITS at release time,
+      # independently of the changelog file it also writes. So the two diverge the moment
+      # anybody edits one. Measured 2026-08-15 on v0.27.2: the curated entry landed in the
+      # repository while the Release page still showed the generated text, including a
+      # duplicate line the curation had removed. It was corrected by hand, which only worked
+      # because somebody happened to look.
+      #
+      # The changelog is the curated source, so the Release body is DERIVED from it - the same
+      # move as gen-third-party-notices.py reading the lockfile. One curated source, both
+      # surfaces, and no checklist item that has to be remembered.
+      #
+      # Fails loudly rather than quietly leaving them out of step: the extractor refuses to
+      # emit an empty or heading-only section, so a Release body can never be blanked by a
+      # parser that stopped matching. Nothing is published by this workflow - release.yml
+      # publishes on the tag - so a red run here costs a re-run, not a bad release.
+      - name: Sync the Release notes from the curated CHANGELOG
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          python3 scripts/extract-changelog-section.py "$TAG" > /tmp/notes.md
+          gh release edit "$TAG" --notes-file /tmp/notes.md
+          echo "Release notes for $TAG now match the curated CHANGELOG.md entry"
+          {
+            echo "### Release notes synced"
+            echo ""
+            echo "\`$TAG\`'s GitHub Release body was replaced with the curated \`CHANGELOG.md\` section."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Reports the Release PR. Deliberately does NOT merge it.
       #
@@ -97,6 +136,28 @@ jobs:
 
           title=$(gh pr view "$number" --json title --jq .title)
           echo "Release PR #$number is open and waiting to be merged: $title"
+
+          # THE CHECKLIST GOES ON THE PULL REQUEST, not only in the run summary.
+          #
+          # This prompt already existed and went solely to $GITHUB_STEP_SUMMARY - a page nobody
+          # opens at the moment they press Merge. So it was written, correct, and invisible,
+          # which is indistinguishable from absent: 0.27.0 shipped uncurated anyway.
+          #
+          # The text lives in .github/release-curation-checklist.md rather than inline here, so
+          # it can be reviewed and edited without touching YAML quoting, and so the hidden
+          # marker on its first line stays next to the content it identifies.
+          #
+          # Posted ONCE, not per run. This workflow fires on every push to main, so an
+          # unconditional `gh pr comment` would leave one copy per merge and turn the checklist
+          # into the noise it exists to cut through. The marker is how an existing one is found.
+          marker='<!-- release-curation-checklist -->'
+          if gh pr view "$number" --json comments                --jq '.comments[].body' | grep -qF "$marker"; then
+            echo "curation checklist already on #$number - not repeating it"
+          else
+            gh pr comment "$number" --body-file .github/release-curation-checklist.md
+            echo "posted the curation checklist to #$number"
+          fi
+
           {
             echo "### Release PR #$number is waiting"
             echo ""
