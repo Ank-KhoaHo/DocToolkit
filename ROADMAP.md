@@ -44,6 +44,32 @@ Roughly in order of how often the gap has actually been hit. None is scheduled.
   shape effects — are still dropped silently, and the limitation is documented instead. Offering a
   `ConvertWithReport` there that always returned an empty list would be a documented lie.
 
+## Not built, but cheap — ask if you need one
+
+Separate from the list above, which is ordered by how often a gap has been hit. **Nothing here has
+been asked for even once.** It is listed because this page exists to help you decide whether the
+package fits, and "we could, nobody has" is more useful to you than silence.
+
+Surveyed on 2026-08-15 against what the commercial document libraries sell, then **measured by
+running it**: several of those capabilities are already reachable from the dependency graph this
+package resolves today, at **no new dependency and therefore no change to the four constraints**.
+None is exposed, because the standing rule is that a gap ships when somebody hits it.
+
+The ones that were measured working: **rendering a DOCX, XLSX or PPTX page to PNG/JPEG/SVG**
+(thumbnails and previews — no browser involved), **PDF → DOCX**, **PDF redaction**, **PDF
+encryption with permissions**, **PDF watermarking**, and **opening or writing password-protected
+XLSX and PPTX**.
+
+Two honest caveats, because an unqualified list here would be the sales pitch this page is not.
+The page renderer resolves **direct formatting but not paragraph styles** — a `Heading1` renders
+like body text — so it suits a recognisable thumbnail, not a faithful page image. And all of it was
+measured on Windows only; nothing is proven on Linux or macOS, which is the bar every shipped claim
+here has to clear.
+
+If one of these is the thing you are stuck on, say so in a
+[feature request](https://github.com/Ank-KhoaHo/DocToolkit/issues/new/choose) — that is what moves
+it, and the measurement is already done.
+
 ## Not planned, and why
 
 This section is the useful one.
