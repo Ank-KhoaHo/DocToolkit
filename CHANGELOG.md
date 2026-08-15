@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.27.5](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.4...v0.27.5) (2026-08-15)
+
+
+### Fixed
+
+* make DocumentConversionException messages actionable ([#266](https://github.com/Ank-KhoaHo/DocToolkit/issues/266)) ([d0a281a](https://github.com/Ank-KhoaHo/DocToolkit/commit/d0a281acd683ffba14836dc8f617a4007c5487e1))
+
 ## [0.27.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.3...v0.27.4) (2026-08-15)
 
 
