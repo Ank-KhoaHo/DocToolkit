@@ -112,15 +112,16 @@ Commits must follow [Conventional Commits](https://www.conventionalcommits.org/)
 type(scope)?: description
 ```
 
-CI checks **every commit in your pull request**, not just the title. This repository merges pull
-requests with a real merge commit, so every one of your commits lands on `main` and is read by the
-release tooling. Merge commits themselves are exempt — git writes those subjects and no prefix is
-possible.
+**Title the pull request as a Conventional Commit — it is the only subject that reaches `main`.**
+This repository **squash-merges, and merge commits are disabled**, so your branch becomes exactly
+one commit whose subject is the pull request title and whose body is the pull request description.
+The title is not decoration; it is the commit message `release-please` reads to build the changelog
+and decide the version bump.
 
-**Title the pull request as a Conventional Commit.** This repository squash-merges, and a squash
-commit's subject is the pull request title whenever the branch holds more than one commit. So the
-title is not decoration - it is the commit message that lands on `main` and the one release-please
-reads.
+CI also checks **every commit in your branch**, not just the title. Under squash-merging those
+individual subjects do not reach `main`, so this is a lower-stakes check than the title — it is kept
+because a branch whose commits are already well-formed makes a good title obvious, and because the
+setting could change.
 
 **A title it cannot parse costs you the whole pull request.** release-please discards an
 unparseable commit entirely, body included, so every `feat:` and `fix:` line on your branch
@@ -131,14 +132,22 @@ and the code ships with nothing announcing it.
 > *"Headers and footers on generated documents"*, and 0.19.0's changelog records only an unrelated
 > pull request that happened to share the release. A published release's notes cannot be rewritten.
 
-**This advice used to say the opposite, and the reversal has a reason.** While the repository used
-true merge commits, GitHub copied the pull request title into the merge commit's *body*, beside the
-real commits - so a prefixed title produced two identical changelog lines, which is what happened to
-0.15.0 and 0.16.0. Omitting the prefix was the fix for that. Squash merging inverted it: there is no
-second copy any more, and the title is the only subject there is.
+**This advice used to say the opposite, and the whole reversal is worth knowing because the
+repository spent a while in the worst of both states.** Under true merge commits GitHub copies the
+pull request title into the merge commit's *body*, beside your real commits — so a prefixed title
+produced **two identical changelog lines**, which is what happened to 0.15.0 and 0.16.0. Omitting
+the prefix was the fix for that.
+
+This page then claimed squash-merging had inverted it, and required a prefixed title again — while
+merge commits were still the mode actually in use. Both statements could not be true, and the
+duplicate came straight back: 0.27.2's entry was proposed twice, from the real commit and from the
+merge commit's body. **Settled on 2026-08-15 by changing the repository rather than the prose**:
+merge commits are disabled, squash is the only mode, and the squash body is the pull request
+description — which, unlike a merge commit's body, cannot contain a second copy of the subject.
 
 The `commit message format` check now asserts this on the title as well as on every commit, because
 advice alone had already failed twice.
+
 | Type | Use for | Appears in the public changelog |
 |---|---|---|
 | `feat` | a new capability | yes, under **Added** |
@@ -245,7 +254,7 @@ dotnet restore src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensio
 | `trimmed app publishes and runs` | `tests/TrimProbe` is trim-published over the real dependency closure and **executed**, with every capability asserting on its result. It fails either because a trim warning names `DocToolkit` — the `IsTrimmable` claim would no longer be true — or because the trimmed binary produced a wrong or empty document at runtime. A warning from a dependency (ClosedXML emits one) is reported, not fatal. |
 | `AOT app publishes and runs` | The same shape, one step stronger: `tests/AotProbe` is native-AOT-published and executed. It backs the `IsAotCompatible` claim, which was set only once this job was green. **If it goes red, remove that attribute rather than weakening the job** — AOT breaks at runtime, when a type resolved by name turns out not to be there, so a publish that merely links proves nothing. |
 | `formatting` | `dotnet format --verify-no-changes`, plus several derived guards — the failing step names which. The most common are `check-readme-coverage.py` (a shipped public type not named in the README its package publishes) and `gen-capability-matrix.py --check` (the docs capability table no longer matches the approved API; regenerate and commit). The full list is [below](#which-guard-runs-in-which-check). Note the third-party notices check is **not** here — it runs in `no native binaries / no banned packages`. |
-| `commit message format` | A commit in your branch is not Conventional Commits — **or the pull request title is not**, which is checked separately because this repository can squash-merge and that title would become the commit subject `release-please` parses. Amend, rebase, or retitle. Note that editing the title only re-runs CI because `edited` is in the workflow's `pull_request` types; re-running the job alone replays the old title. |
+| `commit message format` | A commit in your branch is not Conventional Commits — **or the pull request title is not**, which is checked separately because this repository squash-merges, so that title **is** the commit subject `release-please` parses. Amend, rebase, or retitle. Note that editing the title only re-runs CI because `edited` is in the workflow's `pull_request` types; re-running the job alone replays the old title. |
 | `pack & verify .nupkg (core)` / `(extensions)` | The NuGet package no longer builds or verifies. |
 | `build docs site` | The API documentation site failed to build. |
 | `analyze (csharp)` | CodeQL static analysis. A failure here is the job breaking (usually the build step); a *finding* surfaces as a code-scanning alert on the pull request rather than as a red check. |
