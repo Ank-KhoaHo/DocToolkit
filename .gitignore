@@ -25,6 +25,13 @@ docfx/api/
 # ─── Local git worktrees ───────────────────────────────────────────────
 .worktrees/
 
+# Assistant tooling scratch - SDD task briefs and reports, 194 files on 2026-08-15.
+# It WAS already ignored, but only by a nested `.superpowers/sdd/.gitignore` containing `*`,
+# which covers everything under sdd/ and NOTHING ELSE. A sibling directory - `.superpowers/notes/`,
+# say - would have been untracked and visible to `git add -A` in a PUBLIC repository. This rule
+# covers the whole tree whatever is added inside it. Verified with `git check-ignore -v`.
+.superpowers/
+
 # Kept local, never published. These are working material for whoever is developing
 # this package - design docs, the original proof-of-concept spike, and the assistant
 # guidance file - not something a consumer of the NuGet package needs. They still
@@ -33,6 +40,11 @@ docfx/api/
 docs/
 spike/
 CLAUDE.md
+# Paired with CLAUDE.md and ignored for the same reason: it is guidance for whoever
+# develops this package, not for a consumer of the NuGet package. It moved here from
+# docs/ on 2026-08-15 so it sits beside CLAUDE.md, which cites it - and it needs its
+# OWN rule now, because docs/ above is no longer what covers it.
+SOURCE-QUALITY.md
 
 # Mutation-testing reports. Regenerated on every run; the score is the artefact
 # that matters and CI uploads it.
