@@ -30,6 +30,20 @@
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts</PackageOutputPath>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!--
+      Both added 2026-08-15 after auditing the PACKED .nuspec rather than this file - which is the
+      only way to see what a consumer actually receives.
+
+      PublishRepositoryUrl is what puts the repository URL into the nuspec. Without it the SDK
+      still emitted <repository type="git" commit="..."/> - a commit hash with nothing saying which
+      repository it belongs to, which is not a useful thing to hand somebody debugging.
+
+      Copyright is a Microsoft "DO" and was simply absent. A package without one asserts nothing
+      about its own provenance.
+    -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <Copyright>Copyright (c) Khoa Ho 2026</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

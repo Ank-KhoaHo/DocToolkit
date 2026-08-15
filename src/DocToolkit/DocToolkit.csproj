@@ -6,9 +6,21 @@
   -->
   <PropertyGroup>
     <PackageId>Ank.DocToolkit</PackageId>
+    <!--
+      THE FIRST THING A CONSUMER READS on nuget.org, and nothing checks it. This text described a
+      smaller library than shipped for four releases - it named only HTML to DOCX/PDF while
+      Markdown import, the DOCX text exporters, XLSX export and PDF text extraction had all
+      shipped. Exactly the failure that made docfx/guides/capabilities.md a GENERATED page, one
+      surface earlier in a consumer's journey.
+
+      Re-read this whenever a converter is added. `docfx/guides/capabilities.md` is the derived
+      list to check it against.
+    -->
     <Description>
-      Convert HTML to DOCX and PDF, and open/edit DOCX, XLSX and PPTX - pure managed,
-      no native binaries, no browser, no LibreOffice. Runs on Linux.
+      Convert HTML and Markdown to DOCX and PDF; export DOCX to HTML/Markdown and XLSX to CSV/HTML;
+      read text out of a PDF; and create/edit DOCX, XLSX and PPTX - pure managed, no native
+      binaries, no browser, no LibreOffice, no Office interop. Runs on Linux, Windows and macOS,
+      and makes no network calls at runtime.
     </Description>
     <!--
       Three groups, and the ORDER of thought matters more than the list. The old set was eight
