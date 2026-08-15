@@ -51,15 +51,11 @@ internal static class TableRowFinder
 
     private static bool OwnsMarker(TableRow row, string marker)
     {
-        foreach (var cell in row.ChildElements.OfType<TableCell>())
-        {
-            // Still ChildElements, never Descendants: a table nested in this cell must not have
-            // its paragraphs read as if this row owned them. Any() changes the shape, not that.
-            if (cell.ChildElements.OfType<Paragraph>()
-                    .Any(p => p.InnerText.Contains(marker, StringComparison.Ordinal)))
-                return true;
-        }
-
-        return false;
+        // Still ChildElements at BOTH levels, never Descendants: a table nested in one of these
+        // cells must not have its rows or paragraphs read as if this row owned them. Collapsing
+        // the two loops into Any() changes the shape, not the scoping.
+        return row.ChildElements.OfType<TableCell>()
+            .Any(cell => cell.ChildElements.OfType<Paragraph>()
+                .Any(p => p.InnerText.Contains(marker, StringComparison.Ordinal)));
     }
 }
