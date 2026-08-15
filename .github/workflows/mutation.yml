@@ -26,12 +26,23 @@ name: Mutation testing
 # doing and was NOT free, which is the part to remember: the six new files brought
 # 25 survivors with them, and the score fell 97.60% -> 92.87%, under the break
 # threshold. Adding the files and lowering the gate would have been the wrong
-# trade; the tests came first, then the scope. Runtime went 3m56s -> 4m42s locally,
-# so CI stays comfortably inside timeout-minutes: 45.
+# trade; the tests came first, then the scope.
 #
-# Mutating the WHOLE library is still not proposed: 575 of 2827 created mutants are
-# tested today, so it is roughly a 5x step, and it trades a focused signal for a
-# much longer run.
+# RUNTIME, measured on this runner rather than inferred from a laptop: 15m52s for
+# the widened scope, against timeout-minutes: 45. Locally the same run is 4m42s, so
+# CI costs about 3.4x - which is the ratio to use when pricing any further widening,
+# NOT the local number.
+#
+# THE SCORE IS HIGHER ON CI THAN LOCALLY, and the reason is worth knowing before
+# reading a future drop as a regression: 96.72% here against 96.55% locally, because
+# a slower runner produces more TIMEOUTS (15 vs 10) and a timeout counts as killed.
+# So CI is the friendlier environment for this number, and the local measurement is
+# the closer thing to a worst case. A score that falls BELOW the local figure is the
+# signal, not one that sits between them.
+#
+# Mutating the WHOLE library is still not proposed: 576 of 2827 created mutants are
+# tested today, so it is roughly a 5x step - which at 3.4x CI cost would approach the
+# job timeout - and it trades a focused signal for a much longer run.
 
 # THE SURVIVORS THAT REMAIN ARE THE FLOOR, not a backlog. Measured 2026-08-14 at
 # 96.55% on the widened scope: 16 survive, and each was traced by hand rather than
