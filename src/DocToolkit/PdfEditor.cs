@@ -44,8 +44,14 @@ public static class PdfEditor
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
 
-        await using var source = File.OpenRead(path);
-        return await PageCountAsync(source, ct).ConfigureAwait(false);
+        // `await using var source = ...` would leave the DISPOSAL await unconfigured, which is a
+        // second await the declaration form gives no place to put ConfigureAwait on. Configuring
+        // the disposable and scoping it with a block is the only way to reach it.
+        var source = File.OpenRead(path);
+        await using (source.ConfigureAwait(false))
+        {
+            return await PageCountAsync(source, ct).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

@@ -387,7 +387,7 @@ public static class HtmlToDocxConverter
                         : ImageProcessingMode.Embed,
                 };
 
-                await converter.ParseBody(html, ct);
+                await converter.ParseBody(html, ct).ConfigureAwait(false);
 
                 // HtmlToOpenXml emits no w:sectPr of its own - measured, and the reason this
                 // exists: a document that states no page setup renders on whatever paper the
@@ -429,8 +429,8 @@ public static class HtmlToDocxConverter
     public static async Task ConvertToFileAsync(string html, string outputPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        var bytes = await ConvertAsync(html, ct);
-        await File.WriteAllBytesAsync(outputPath, bytes, ct);
+        var bytes = await ConvertAsync(html, ct).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(outputPath, bytes, ct).ConfigureAwait(false);
     }
 
     /// <summary>
