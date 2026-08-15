@@ -170,6 +170,9 @@ dependency injection, and running in production ·
 
 ## Usage
 
+**This is one connected walkthrough of the whole surface, not a script that compiles as pasted** —
+variables such as `logoBytes` and `chartPngBytes` stand in for data you already have.
+
 ```csharp
 using DocToolkit;
 

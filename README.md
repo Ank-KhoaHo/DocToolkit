@@ -152,6 +152,9 @@ reason this package exists, and all four constraints are re-checked by CI on eve
 
 ## Usage
 
+**This is one connected walkthrough, not a script that compiles as pasted** — variables such as
+`lineItems` and `logoBytes` stand in for data you already have.
+
 ```csharp
 using DocToolkit;
 
@@ -182,7 +185,7 @@ byte[] report = DocxEditor.Create(new[]
 });
 
 // Fill a template — handles placeholders split across runs, and headers/footers
-byte[] filled = DocxEditor.ReplaceText(docx, new() { ["{{customer}}"] = "Contoso Ltd" });
+byte[] filled = DocxEditor.ReplaceText(docx, new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" });
 
 // Repeat a table row per record — a row holding {{item.Desc}} becomes one row per line item,
 // each keeping the template row's formatting
@@ -198,7 +201,7 @@ IReadOnlyList<IReadOnlyList<string>> rows = DocxEditor.ReadTable(report, 0);
 // rows[0] is the header row: ["Region", "Revenue"]
 
 // Or work directly with files — no ReadAllBytes/WriteAllBytes dance, and input/output may be the same file
-await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", new() { ["{{customer}}"] = "Contoso Ltd" });
+await DocxEditor.ReplaceTextAsync("invoice.docx", "invoice.docx", new Dictionary<string, string> { ["{{customer}}"] = "Contoso Ltd" });
 
 byte[] xlsx = WorkbookEditor.Create("Sales", new[] { new object?[] { "Region", "Total" } });
 
