@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.27.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.3...v0.27.4) (2026-08-15)
+
+
+### Changed
+
+* describe every converter in the package description ([#262](https://github.com/Ank-KhoaHo/DocToolkit/issues/262)) ([0764ba1](https://github.com/Ank-KhoaHo/DocToolkit/commit/0764ba13cfe77b07b822763e01dcc619480b971f))
+
 ## [0.27.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.2...v0.27.3) (2026-08-15)
 
 
