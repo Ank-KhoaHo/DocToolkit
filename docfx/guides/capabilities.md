@@ -29,10 +29,10 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 
 | Format | Operations |
 |---|---|
-| **DOCX** (`DocxEditor`) | `Create`, `ExtractText`, `FillRows`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount` |
+| **DOCX** (`DocxEditor`) | `Create`, `ExtractText`, `FillRows`, `IsProtected`, `Protect`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect` |
 | **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |
-| **PPTX** (`PresentationEditor`) | `Create`, `ExtractText`, `ReplaceImage`, `ReplaceText`, `SlideCount` |
-| **XLSX** (`WorkbookEditor`) | `AppendRows`, `Create`, `Format`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames` |
+| **PPTX** (`PresentationEditor`) | `Create`, `ExtractText`, `IsProtected`, `Protect`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect` |
+| **XLSX** (`WorkbookEditor`) | `AppendRows`, `Create`, `Format`, `IsProtected`, `Protect`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect` |
 
 Method names only. What each one does, and the traps in it, are in the guides — this table exists to be complete and current, which prose has repeatedly failed to be.
 

@@ -369,6 +369,25 @@ silently erase the author.
 `Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
+## Password-protected DOCX, XLSX and PPTX
+
+Open one you were sent, and produce one. `DocxEditor`, `WorkbookEditor` and `PresentationEditor` all
+carry the same three members, with `Stream` overloads both ways:
+
+```csharp
+byte[] locked = WorkbookEditor.Protect(xlsx, "s3cret");
+byte[] opened = WorkbookEditor.Unprotect(locked, "s3cret");
+bool needsPassword = WorkbookEditor.IsProtected(bytes);   // no password required to ask
+```
+
+**This is file encryption, not the "restrict editing" flag** — Office puts both under one menu and
+only the first actually stops anyone reading the file.
+
+**An encrypted Office file is not a package any more**: a plain `.docx`/`.xlsx`/`.pptx` is a ZIP,
+the encrypted form is a compound file with the package sealed inside. Every other method on these
+classes therefore refuses one — `Unprotect` first. A wrong password and a file that was never
+encrypted are reported as different failures.
+
 ## Telemetry
 
 One `ActivitySource` and one `Meter`, both named `Ank.DocToolkit`:

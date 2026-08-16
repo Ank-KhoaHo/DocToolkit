@@ -120,6 +120,15 @@ public class StreamOverloadTests
     private static readonly byte[] ProtectedPdf =
         PdfEditor.Protect(Pdf, new PdfProtection { UserPassword = "pw" });
 
+    /// <summary>
+    /// Encrypted Office documents, for the three Unprotect overloads. Each must be encrypted with
+    /// the same password the dispatch table passes, or the overload fails for a reason that has
+    /// nothing to do with stream handling.
+    /// </summary>
+    private static readonly byte[] ProtectedDocx = DocxEditor.Protect(Docx, "pw");
+    private static readonly byte[] ProtectedXlsx = WorkbookEditor.Protect(Xlsx, "pw");
+    private static readonly byte[] ProtectedPptx = PresentationEditor.Protect(Pptx, "pw");
+
     /// <summary>Keys for all three formats, so one dictionary drives every ReplaceText overload.</summary>
     private static readonly Dictionary<string, string> Replacements = new()
     {
@@ -181,6 +190,12 @@ public class StreamOverloadTests
         "DocToDocxConverter.ConvertAsync",
         "PdfEditor.ProtectAsync",
         "PdfEditor.UnprotectAsync",
+        "DocxEditor.ProtectAsync",
+        "DocxEditor.UnprotectAsync",
+        "WorkbookEditor.ProtectAsync",
+        "WorkbookEditor.UnprotectAsync",
+        "PresentationEditor.ProtectAsync",
+        "PresentationEditor.UnprotectAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -222,6 +237,12 @@ public class StreamOverloadTests
         "DocToDocxConverter.ExtractTextAsync",
         "PdfEditor.ProtectAsync",
         "PdfEditor.UnprotectAsync",
+        "DocxEditor.ProtectAsync",
+        "DocxEditor.UnprotectAsync",
+        "WorkbookEditor.ProtectAsync",
+        "WorkbookEditor.UnprotectAsync",
+        "PresentationEditor.ProtectAsync",
+        "PresentationEditor.UnprotectAsync",
     };
 
     /// <summary>
@@ -275,6 +296,12 @@ public class StreamOverloadTests
         "DocToDocxConverter.ConvertAsync",
         "PdfEditor.ProtectAsync",
         "PdfEditor.UnprotectAsync",
+        "DocxEditor.ProtectAsync",
+        "DocxEditor.UnprotectAsync",
+        "WorkbookEditor.ProtectAsync",
+        "WorkbookEditor.UnprotectAsync",
+        "PresentationEditor.ProtectAsync",
+        "PresentationEditor.UnprotectAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -864,6 +891,18 @@ public class StreamOverloadTests
     private static Task InvokeAsync(
         string api, Stream? source, Stream? destination, CancellationToken ct = default) => api switch
         {
+            "DocxEditor.ProtectAsync" =>
+                DocxEditor.ProtectAsync(source!, destination!, "pw", ct),
+            "DocxEditor.UnprotectAsync" =>
+                DocxEditor.UnprotectAsync(source!, destination!, "pw", ct),
+            "WorkbookEditor.ProtectAsync" =>
+                WorkbookEditor.ProtectAsync(source!, destination!, "pw", ct),
+            "WorkbookEditor.UnprotectAsync" =>
+                WorkbookEditor.UnprotectAsync(source!, destination!, "pw", ct),
+            "PresentationEditor.ProtectAsync" =>
+                PresentationEditor.ProtectAsync(source!, destination!, "pw", ct),
+            "PresentationEditor.UnprotectAsync" =>
+                PresentationEditor.UnprotectAsync(source!, destination!, "pw", ct),
             "PdfEditor.ProtectAsync" =>
                 PdfEditor.ProtectAsync(source!, destination!, new PdfProtection { UserPassword = "pw" }, ct),
             "PdfEditor.UnprotectAsync" =>
@@ -999,6 +1038,9 @@ public class StreamOverloadTests
         "PptxToPdfConverter.ConvertAsync" => Pptx,
         "PdfEditor.RemovePagesAsync" => TwoPagePdf,
         "PdfEditor.UnprotectAsync" => ProtectedPdf,
+        "DocxEditor.UnprotectAsync" => ProtectedDocx,
+        "WorkbookEditor.UnprotectAsync" => ProtectedXlsx,
+        "PresentationEditor.UnprotectAsync" => ProtectedPptx,
         _ when api.StartsWith("DocToDocxConverter", StringComparison.Ordinal) => LegacyDoc,
         _ when api.StartsWith("XlsxTo", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PdfEditor", StringComparison.Ordinal) => Pdf,
@@ -1027,7 +1069,20 @@ public class StreamOverloadTests
             return;
         }
 
-        // An OOXML package is a ZIP: local file header magic "PK\x03\x04".
+        // An ENCRYPTED Office document is not a package at all: the ZIP is sealed inside a
+        // compound file (D0 CF 11 E0). Asserting "PK" for these would be asserting that the
+        // encryption did not happen - so this checks the compound-file signature instead, which is
+        // still a real shape assertion rather than an exemption.
+        if (api.StartsWith("DocxEditor.Protect", StringComparison.Ordinal)
+            || api.StartsWith("WorkbookEditor.Protect", StringComparison.Ordinal)
+            || api.StartsWith("PresentationEditor.Protect", StringComparison.Ordinal))
+        {
+            Assert.Equal(new byte[] { 0xD0, 0xCF, 0x11, 0xE0 }, written.Take(4).ToArray());
+            return;
+        }
+
+        // An OOXML package is a ZIP: local file header magic "PK\x03\x04". The Unprotect overloads
+        // land here deliberately - taking encryption off must give a real package back.
         Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, written.Take(4).ToArray());
     }
 

@@ -610,6 +610,31 @@ silently erase the author.
 `Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
+## Password-protected DOCX, XLSX and PPTX
+
+Open one someone sent you, and produce one. `DocxEditor`, `WorkbookEditor` and `PresentationEditor`
+each carry the same three members, with `Stream` overloads for both directions:
+
+```csharp
+byte[] locked = WorkbookEditor.Protect(xlsx, "s3cret");   // encrypt the whole file
+byte[] opened = WorkbookEditor.Unprotect(locked, "s3cret");
+bool needsPassword = WorkbookEditor.IsProtected(bytes);   // signature check, no password needed
+```
+
+**This is file encryption, not the "protect workbook / restrict editing" flag.** Office puts both
+under the same menu and they are very different: this scrambles the whole file so nothing can be
+read without the password, while the other kind is a request a reader may ignore. Only the first is
+offered here.
+
+**An encrypted Office file is not a package any more.** A plain `.docx`/`.xlsx`/`.pptx` is a ZIP; the
+encrypted form is a compound file with the package sealed inside. So every other method on these
+classes refuses one — that refusal is honest rather than awkward, because they genuinely cannot read
+the content. Call `Unprotect` first. `IsProtected` answers "would they refuse this?" from the file's
+first bytes, without a password.
+
+A wrong password and a file that was never encrypted are reported as **different** failures, because
+a caller can only act on one of them.
+
 ## How the no-network guarantee is built
 
 `HtmlToOpenXml`, the HTML parser underneath, defaults to downloading every image it sees, and its
