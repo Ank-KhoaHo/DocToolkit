@@ -12,15 +12,16 @@ carry the prose that a generator has no business writing.
 
 <!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
 
-| From ↓ / To → | CSV | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
-|---|---|---|---|---|---|---|---|
-| **CSV** | — | · | · | · | · | · | · |
-| **DOCX** | · | — | **✅** | **✅** | **✅** | · | · |
-| **HTML** | · | **✅** | — | · | **✅** | · | · |
-| **Markdown** | · | **✅** | · | — | **✅** | · | · |
-| **PDF** | · | · | · | · | — | · | · |
-| **PPTX** | · | · | · | · | **✅** | — | · |
-| **XLSX** | **✅** | · | **✅** | · | **✅** | · | — |
+| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
+|---|---|---|---|---|---|---|---|---|
+| **CSV** | — | · | · | · | · | · | · | · |
+| **DOC** | · | — | **✅** | · | · | · | · | · |
+| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
+| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
+| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
+| **PDF** | · | · | · | · | · | — | · | · |
+| **PPTX** | · | · | · | · | · | **✅** | — | · |
+| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
 
 A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
 

@@ -78,6 +78,18 @@ public class StreamOverloadTests
 
     private static readonly byte[] Pptx = PptxFixtures.Sample();
 
+    /// <summary>
+    /// A real Word 97-2003 binary .doc, for the DocToDocxConverter overloads.
+    ///
+    /// <b>The LOSSLESS fixture deliberately, not the one with a table.</b> A .doc holding a table
+    /// carries a binary stream a .docx cannot take, so ConvertAsync refuses it without an explicit
+    /// opt-in - and every theory in this file drives the overload with no options and expects it to
+    /// succeed. Using the blocking fixture would fail them for a reason that has nothing to do with
+    /// stream handling, which is all this suite is about.
+    /// </summary>
+    private static readonly byte[] LegacyDoc =
+        File.ReadAllBytes(Path.Join(AppContext.BaseDirectory, "assets", "legacy-lossless.doc"));
+
     /// <summary>Markdown for MarkdownToDocxConverter.ConvertAsync, which takes no source.</summary>
     private const string Md = """
         # Quarterly Report
@@ -156,6 +168,7 @@ public class StreamOverloadTests
         "PdfEditor.RotatePagesAsync",
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
+        "DocToDocxConverter.ConvertAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -193,6 +206,8 @@ public class StreamOverloadTests
         "PdfEditor.RotatePagesAsync",
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
+        "DocToDocxConverter.ConvertAsync",
+        "DocToDocxConverter.ExtractTextAsync",
     };
 
     /// <summary>
@@ -243,6 +258,7 @@ public class StreamOverloadTests
         "PdfEditor.RotatePagesAsync",
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
+        "DocToDocxConverter.ConvertAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -832,6 +848,10 @@ public class StreamOverloadTests
     private static Task InvokeAsync(
         string api, Stream? source, Stream? destination, CancellationToken ct = default) => api switch
         {
+            "DocToDocxConverter.ConvertAsync" =>
+                DocToDocxConverter.ConvertAsync(source!, destination!, ct),
+            "DocToDocxConverter.ExtractTextAsync" =>
+                DocToDocxConverter.ExtractTextAsync(source!, ct),
             "HtmlToDocxConverter.ConvertAsync" =>
                 HtmlToDocxConverter.ConvertAsync(Html, destination!, ct),
             "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)" =>
@@ -958,6 +978,7 @@ public class StreamOverloadTests
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
         "PdfEditor.RemovePagesAsync" => TwoPagePdf,
+        _ when api.StartsWith("DocToDocxConverter", StringComparison.Ordinal) => LegacyDoc,
         _ when api.StartsWith("XlsxTo", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PdfEditor", StringComparison.Ordinal) => Pdf,
         _ when api.StartsWith("WorkbookEditor", StringComparison.Ordinal) => Xlsx,

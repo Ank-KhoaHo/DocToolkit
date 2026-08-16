@@ -60,6 +60,10 @@ END = "<!-- END GENERATED -->"
 DISPLAY = {
     "Docx": "DOCX", "Pdf": "PDF", "Html": "HTML", "Xlsx": "XLSX",
     "Pptx": "PPTX", "Csv": "CSV", "Markdown": "Markdown",
+    # The legacy binary format. It must sort and read as DOC, not "Doc" - and the comment above
+    # about a new format "showing up looking slightly wrong" is exactly what happened when
+    # DocToDocxConverter landed, which is the design working as intended.
+    "Doc": "DOC",
 }
 
 # The editors do not carry their format in the name the way converters do.

@@ -7,6 +7,7 @@
 # 1743 bytes that way, corrupting its xref offsets. These are test fixtures
 # and cited evidence, so they must round-trip byte-for-byte.
 *.pdf            binary
+*.doc            binary
 *.docx           binary
 *.xlsx           binary
 *.pptx           binary

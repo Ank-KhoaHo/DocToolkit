@@ -61,6 +61,16 @@
     <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.2.2" />
     <PackageReference Include="OfficeIMO.Word.Html" Version="3.2.2" />
     <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.2" />
+
+    <!--
+      Promoted from TRANSITIVE to direct for DocToDocxConverter (legacy .doc import). It arrived
+      transitively through the four packages above, so the resolved closure does not change - this
+      only makes the dependency this code binds against explicit, the same bookkeeping the PDF
+      packages already get. A type used directly should be named directly: a transitive package can
+      stop being pulled in by a minor bump of whatever pulled it, and nothing would say why the
+      build broke.
+    -->
+    <PackageReference Include="OfficeIMO.Word" Version="3.2.2" />
     <!--
       PDF text extraction only. PDFsharp owns the document's STRUCTURE (pages, merge, rotate,
       metadata); PdfPig owns its CONTENT. Neither does the other's job - see the E6 decision.

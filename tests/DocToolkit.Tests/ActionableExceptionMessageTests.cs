@@ -264,4 +264,40 @@ public class ActionableExceptionMessageTests
             + "truncated, or not actually a PDF — check the source bytes.",
             ex.Message);
     }
+
+    // =============================================================================================
+    // Legacy .doc import (DocToDocxConverter). Both messages exist to REPLACE upstream text that
+    // named types a consumer of this package cannot reach, so the exact wording is the feature.
+    // =============================================================================================
+
+    [Fact]
+    public void LegacyDoc_ContentLossMessageIsExact()
+    {
+        var withBinaryPayload = File.ReadAllBytes(
+            Path.Join(AppContext.BaseDirectory, "assets", "legacy.doc"));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocToDocxConverter.Convert(withBinaryPayload));
+
+        Assert.Equal(
+            "This .doc holds content a .docx cannot carry - pictures, drawings or form fields, "
+            + "kept in the legacy binary stream. Text, tables and formatting would convert; those "
+            + "payloads would not. Pass a LegacyDocOptions with AllowContentLoss set to true to "
+            + "accept that, or use ConvertWithReport to see exactly what is dropped.",
+            ex.Message);
+    }
+
+    [Fact]
+    public void LegacyDoc_NotALegacyDocumentMessageIsExact()
+    {
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("a modern package") });
+
+        var ex = Assert.Throws<DocumentConversionException>(() => DocToDocxConverter.Convert(docx));
+
+        Assert.Equal(
+            "The bytes are not a Word 97-2003 binary document. A .docx is a different format that "
+            + "only looks similar - if this file came from a modern Word, use DocxEditor or "
+            + "DocxToPdfConverter instead. This converter reads the pre-2007 binary .doc format.",
+            ex.Message);
+    }
 }
