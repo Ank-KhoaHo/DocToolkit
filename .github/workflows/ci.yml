@@ -611,6 +611,18 @@ jobs:
       - name: Assert every shipped type is named in its package README
         run: python3 scripts/check-readme-coverage.py
 
+      # The same drift, one field further out. The release checklist asks a human "does the
+      # nuget.org Description still describe what ships?" and says outright that nothing can
+      # prove it is TRUE - which was right, and left a hole 0.28.0 walked into twice: the core
+      # description omitted two shipped capabilities, and the extensions one said "six injectable
+      # interfaces" while fifteen shipped.
+      #
+      # This cannot prove a description is complete or reads well - that stays a human step. It
+      # proves the description contains no falsifiable claim that is ALREADY FALSE, which is the
+      # part that broke.
+      - name: Assert no package description contradicts the approved API
+        run: python3 scripts/check-package-description.py
+
       # The guides carry no code of their own - every block is a #region pulled out of a project
       # in samples/, which the build job compiles with -warnaserror on four platforms. So a guide
       # cannot document an API that no longer exists.

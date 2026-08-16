@@ -7,7 +7,8 @@
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
 Convert **HTML and Markdown → DOCX and PDF**, export **DOCX → HTML/Markdown** and
-**XLSX → CSV/HTML**, read text out of a **PDF**, and open/edit **DOCX, XLSX and PPTX**, from .NET.
+**XLSX → CSV/HTML**, read legacy Word 97-2003 **.doc** files, read text out of a **PDF**,
+open/edit **DOCX, XLSX and PPTX**, and **password-protect** any of them, from .NET.
 
 **Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
 Works after `dotnet restore` alone, runs on Linux, macOS, Windows and arm64, and makes

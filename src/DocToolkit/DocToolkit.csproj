@@ -28,9 +28,10 @@
     -->
     <Description>
       Convert HTML and Markdown to DOCX and PDF; render DOCX, XLSX and PPTX to PDF; export DOCX to
-      HTML/Markdown and XLSX to CSV/HTML; read text out of a PDF; and create/edit DOCX, XLSX and
-      PPTX - pure managed, no native binaries, no browser, no LibreOffice, no Office interop. Runs
-      on Linux, Windows and macOS, and makes no network calls at runtime.
+      HTML/Markdown and XLSX to CSV/HTML; read legacy Word 97-2003 .doc files; read text out of a
+      PDF; create/edit DOCX, XLSX and PPTX; and password-protect PDF, DOCX, XLSX and PPTX - pure
+      managed, no native binaries, no browser, no LibreOffice, no Office interop. Runs on Linux,
+      Windows and macOS, and makes no network calls at runtime.
     </Description>
     <!--
       Three groups, and the ORDER of thought matters more than the list. The old set was eight
