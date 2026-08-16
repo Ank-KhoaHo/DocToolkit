@@ -63,7 +63,7 @@ public static class DocToDocxConverter
     /// </exception>
     public static byte[] Convert(byte[] doc) => ConvertCore(doc, options: null).Value;
 
-    /// <inheritdoc cref="Convert(byte[])"/>
+    /// <inheritdoc cref="Convert(byte[])" path="/summary|/remarks|/exception"/>
     /// <param name="doc">The Word 97-2003 binary document to convert.</param>
     /// <param name="options">
     /// How to treat content the .docx cannot carry. <see langword="null"/> means the default:
@@ -84,7 +84,12 @@ public static class DocToDocxConverter
     /// can be lossless and still have something to say, such as quick-save revision history that is
     /// readable but is not carried across as editable revisions.
     /// </remarks>
-    /// <inheritdoc cref="Convert(byte[], LegacyDocOptions?)"/>
+    /// <inheritdoc cref="Convert(byte[], LegacyDocOptions?)" path="/exception"/>
+    /// <param name="doc">The Word 97-2003 binary document to convert.</param>
+    /// <param name="options">
+    /// How to treat content the .docx cannot carry. <see langword="null"/> means the default:
+    /// refuse.
+    /// </param>
     public static ConversionResult<byte[]> ConvertWithReport(byte[] doc, LegacyDocOptions? options = null) =>
         ConvertCore(doc, options);
 
@@ -181,7 +186,7 @@ public static class DocToDocxConverter
     /// Neither stream is disposed, closed or sought, so <paramref name="source"/> may be
     /// forward-only — an HTTP request body, for instance.
     /// </summary>
-    /// <inheritdoc cref="Convert(byte[], LegacyDocOptions?)"/>
+    /// <inheritdoc cref="Convert(byte[], LegacyDocOptions?)" path="/exception"/>
     /// <param name="source">The stream the .doc is read from.</param>
     /// <param name="destination">The stream the .docx package is written to.</param>
     /// <param name="ct">Cancels the read and the write.</param>
@@ -193,7 +198,7 @@ public static class DocToDocxConverter
     public static Task ConvertAsync(Stream source, Stream destination, CancellationToken ct = default) =>
         ConvertAsync(source, destination, options: null, ct);
 
-    /// <inheritdoc cref="ConvertAsync(Stream, Stream, CancellationToken)"/>
+    /// <inheritdoc cref="ConvertAsync(Stream, Stream, CancellationToken)" path="/summary|/exception"/>
     /// <param name="source">The stream the .doc is read from.</param>
     /// <param name="destination">The stream the .docx package is written to.</param>
     /// <param name="options">
@@ -222,7 +227,7 @@ public static class DocToDocxConverter
     ///
     /// <paramref name="source"/> is <b>read</b> to its end and is not disposed, closed or sought.
     /// </summary>
-    /// <inheritdoc cref="ExtractText(byte[])"/>
+    /// <inheritdoc cref="ExtractText(byte[])" path="/exception"/>
     /// <param name="source">The stream the .doc is read from.</param>
     /// <param name="ct">Cancels the read.</param>
     /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
