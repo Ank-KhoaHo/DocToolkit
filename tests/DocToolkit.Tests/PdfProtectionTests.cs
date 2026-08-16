@@ -181,25 +181,96 @@ public class PdfProtectionTests
         Assert.NotEqual(0, p & HighQualityPrintBit);
     }
 
+    [Fact]
+    public void PermissionBits_ReadsTheEncryptionDictionary_NotCiphertextThatLooksLikeIt()
+    {
+        // Pins the HELPER rather than the feature, for the same reason DocumentXml is pinned: every
+        // other use of PermissionBits compares it against a constant, which holds however wrong the
+        // helper is. This is the only test that would notice it reading the wrong part of the file.
+        //
+        // The decoy is placed where ciphertext lives - before the dictionary - because that is what
+        // the previous implementation actually did: it took the first "/P <digits>" ANYWHERE, and
+        // encrypted bytes are random, so it could pick one up.
+        //
+        // Laid out the way PDFsharp actually writes it - /CF nested BEFORE /Filter - because that
+        // ordering broke the first attempt at the fix: "nearest << before /Filter" lands inside
+        // /CF, which has no /P at all. A pin using a tidier layout would have gone green while the
+        // helper read the wrong dictionary.
+        var withDecoy =
+            "%PDF-1.6\nstream\n£×/P 4á\nendstream\n"
+            + "<</CF<</StdCF<</Type/CryptFilter/AuthEvent/DocOpen/CFM/AESV2/Length 16>>>>"
+            + "/Filter/Standard/Length 128/P -24/R 4/StmF/StdCF/StrF/StdCF/V 4>>";
+
+        Assert.Equal(-24, PermissionBits(Encoding.Latin1.GetBytes(withDecoy)));
+    }
+
     // PDF 32000-1, Table 22. The bits are 1-based in the spec; these are the values.
     private const int PrintBit = 1 << 2;              // bit 3
     private const int CopyBit = 1 << 4;               // bit 5
     private const int HighQualityPrintBit = 1 << 11;  // bit 12
 
     /// <summary>
-    /// The <c>/P</c> permission bitfield, read straight out of the file.
+    /// The <c>/P</c> permission bitfield, read out of the <c>/Encrypt</c> dictionary specifically.
     /// </summary>
     /// <remarks>
-    /// Readable as plain text even though the document is encrypted, and necessarily so: a reader
-    /// needs the <c>/Encrypt</c> dictionary before it can decrypt anything, so that dictionary is
-    /// never itself encrypted. Verified 2026-08-16 rather than assumed.
+    /// The dictionary is readable as plain text even though the document is encrypted, and
+    /// necessarily so: a reader needs it before it can decrypt anything, so it is never itself
+    /// encrypted.
+    ///
+    /// <b>It is located rather than searched for, and that is not fussiness.</b> The first version
+    /// of this helper ran <c>/P\s+(-?\d+)</c> over the WHOLE file, which also scans the encrypted
+    /// streams — and ciphertext differs on every run, so it could match random bytes ahead of the
+    /// real entry. It failed CI on linux/net8.0 while the net10.0 leg of the same run passed.
+    /// Measured afterwards: at ~15 KB of ciphertext, <b>1 run in 400</b> produced a file with more
+    /// than one match where the first was wrong. A test that is right 399 times in 400 is not a
+    /// test, it is a coin that usually lands the same way.
+    ///
+    /// So this finds the encryption dictionary by its <c>/Filter /Standard</c> entry and walks
+    /// <c>&lt;&lt;</c>/<c>&gt;&gt;</c> depth to its end — depth matters, because <c>/CF</c> nests a
+    /// dictionary inside it and a naive scan for the first <c>&gt;&gt;</c> stops early.
     /// </remarks>
     private static int PermissionBits(byte[] locked)
     {
-        var match = System.Text.RegularExpressions.Regex.Match(
-            Encoding.Latin1.GetString(locked), @"/P\s+(-?\d+)");
+        var text = Encoding.Latin1.GetString(locked);
 
-        Assert.True(match.Success, "no /P entry found - the assertion below would be vacuous");
+        var filter = System.Text.RegularExpressions.Regex.Match(text, @"/Filter\s*/Standard");
+        Assert.True(filter.Success, "no /Filter /Standard entry - the document is not encrypted, "
+                                    + "so every assertion below would be vacuous");
+
+        // Walk BACKWARDS with depth tracking to find the dictionary that ENCLOSES /Filter, not the
+        // nearest "<<" before it. Those are different: PDFsharp writes the nested /CF crypt-filter
+        // dictionary ahead of /Filter, so "nearest preceding" lands inside /CF and finds no /P at
+        // all. Caught by this test failing rather than by reading the spec.
+        var open = -1;
+        for (int i = filter.Index - 1, depth = 0; i > 0; i--)
+        {
+            if (text[i] == '>' && text[i - 1] == '>') { depth++; i--; }
+            else if (text[i] == '<' && text[i - 1] == '<')
+            {
+                if (depth == 0) { open = i - 1; break; }
+                depth--; i--;
+            }
+        }
+
+        Assert.True(open >= 0, "no dictionary encloses /Filter /Standard");
+
+        var end = -1;
+        for (int i = open, depth = 0; i < text.Length - 1; i++)
+        {
+            if (text[i] == '<' && text[i + 1] == '<') { depth++; i++; }
+            else if (text[i] == '>' && text[i + 1] == '>')
+            {
+                depth--; i++;
+                if (depth == 0) { end = i + 1; break; }
+            }
+        }
+
+        Assert.True(end > open, "the /Encrypt dictionary never closes");
+
+        var dictionary = text[open..end];
+        var match = System.Text.RegularExpressions.Regex.Match(dictionary, @"/P\s+(-?\d+)");
+        Assert.True(match.Success, $"no /P entry in the encryption dictionary: {dictionary}");
+
         return int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
     }
 
