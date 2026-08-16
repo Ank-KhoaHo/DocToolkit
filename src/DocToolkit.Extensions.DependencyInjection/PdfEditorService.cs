@@ -58,4 +58,19 @@ internal sealed class PdfEditorService : IPdfEditor
     public Task InsertPagesAsync(
         Stream target, Stream source, int atPage, Stream destination, CancellationToken ct = default)
         => DocToolkit.PdfEditor.InsertPagesAsync(target, source, atPage, destination, ct);
+
+    public byte[] Protect(byte[] pdf, DocToolkit.PdfProtection protection)
+        => DocToolkit.PdfEditor.Protect(pdf, protection);
+
+    public byte[] Unprotect(byte[] pdf, string password)
+        => DocToolkit.PdfEditor.Unprotect(pdf, password);
+
+    public Task ProtectAsync(
+        Stream source, Stream destination, DocToolkit.PdfProtection protection,
+        CancellationToken ct = default)
+        => DocToolkit.PdfEditor.ProtectAsync(source, destination, protection, ct);
+
+    public Task UnprotectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.UnprotectAsync(source, destination, password, ct);
 }

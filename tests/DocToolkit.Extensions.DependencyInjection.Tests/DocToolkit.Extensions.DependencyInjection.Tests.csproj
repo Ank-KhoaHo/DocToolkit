@@ -33,8 +33,17 @@
     <Content Include="PublicApi\*.approved.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    Linked from the core test project rather than duplicated, the way sample.pptx already is. These
+    are real Word 97-2003 binaries produced by Word itself; a second copy of a binary fixture is a
+    second thing to keep in step, and the pair is meaningless unless both files stay exactly what
+    they are - legacy.doc holds a table and therefore CANNOT convert without an opt-in, while
+    legacy-lossless.doc can.
+  -->
   <ItemGroup>
     <Content Include="..\DocToolkit.Tests\assets\sample.pptx" Link="assets\sample.pptx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\DocToolkit.Tests\assets\legacy.doc" Link="assets\legacy.doc" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\DocToolkit.Tests\assets\legacy-lossless.doc" Link="assets\legacy-lossless.doc" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

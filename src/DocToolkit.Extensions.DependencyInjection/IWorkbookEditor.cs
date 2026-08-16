@@ -259,4 +259,52 @@ public interface IWorkbookEditor
     Task FormatAsync(
         Stream source, string sheetName, DocToolkit.XlsxFormat format, Stream destination,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="xlsx"/> encrypted with <paramref name="password"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>File encryption, not the "restrict editing" flag.</b> The result is a compound file rather
+    /// than a XLSX package, so every other member here refuses it - call
+    /// <see cref="Unprotect(byte[], string)"/> first.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">It could not be read or encrypted.</exception>
+    byte[] Protect(byte[] xlsx, string password);
+
+    /// <summary>A copy of <paramref name="xlsx"/> with its encryption removed.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The password was wrong, the workbook was not encrypted, or it could not be read.
+    /// </exception>
+    byte[] Unprotect(byte[] xlsx, string password);
+
+    /// <summary>
+    /// Whether <paramref name="xlsx"/> is encrypted - that is, whether the other members here
+    /// will refuse it. Reads the file signature; needs no password.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    bool IsProtected(byte[] xlsx);
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/> and writes the encrypted copy to
+    /// <paramref name="destination"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either stream is null, or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">It could not be encrypted.</exception>
+    Task ProtectAsync(Stream source, Stream destination, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reads an encrypted workbook from <paramref name="source"/> and writes the unprotected copy to
+    /// <paramref name="destination"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either stream is null, or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The password was wrong, or it could not be read.</exception>
+    Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default);
 }

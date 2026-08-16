@@ -40,6 +40,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IMarkdownToPdfConverter, MarkdownToPdfConverterService>();
         services.TryAddSingleton<IXlsxToCsvConverter, XlsxToCsvConverterService>();
         services.TryAddSingleton<IXlsxToHtmlConverter, XlsxToHtmlConverterService>();
+        services.TryAddSingleton<IDocToDocxConverter, DocToDocxConverterService>();
 
         return services;
     }
