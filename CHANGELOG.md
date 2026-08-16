@@ -13,10 +13,70 @@ repo-wide tooling (CI, release pipeline).
 ## [0.28.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.5...v0.28.0) (2026-08-16)
 
 
+**Three new capabilities, all additive. Nothing existing changed and no upgrade action is needed.**
+
+> **This entry was expanded after publication, on 2026-08-16.** Nothing published was removed or
+> reworded — the first bullet below was **missing entirely**, and the other two carried only their
+> commit titles. PDF password protection reached this release inside a squash-merged stacked pull
+> request whose title named only the Office formats, so release-please could not see it. Recording
+> the repair here rather than silently rewriting: everything already published is still present
+> below, verbatim.
+
 ### Added
 
+* **core:** **password-protect and unprotect a PDF** ([#271](https://github.com/Ank-KhoaHo/DocToolkit/pull/271), shipped in [e34291e](https://github.com/Ank-KhoaHo/DocToolkit/commit/e34291e77f5986daffce099601042b865e8904b8))
+
+    ```csharp
+    byte[] locked = PdfEditor.Protect(pdf, new PdfProtection { UserPassword = "s3cret" });
+    byte[] opened = PdfEditor.Unprotect(locked, "s3cret");
+    ```
+
+    `PdfProtection` carries both passwords, seven permission flags and the cipher. **The two
+    passwords are not interchangeable**: a *user* password is required to open the file and is
+    enforced by cryptography; an *owner* password leaves the document readable and only asks readers
+    to honour the permissions. If content must not be read, set `UserPassword`.
+
+    Two behaviours worth knowing before relying on them. **`Unprotect` needs the owner password when
+    the document has one**, even if you also know the user password — removing protection is a
+    modification, which the PDF format reserves for the owner. And **every permission defaults to
+    allowed**, so adding a password does not silently stop a document being printed.
+
+    `PdfEncryptionStrength.Aes128` is the default because every reader in service opens it; `Aes256`
+    is available and needs a PDF 2.0 reader (Acrobat X and later).
+
 * **core:** password-protect DOCX, XLSX and PPTX ([#272](https://github.com/Ank-KhoaHo/DocToolkit/issues/272)) ([e34291e](https://github.com/Ank-KhoaHo/DocToolkit/commit/e34291e77f5986daffce099601042b865e8904b8))
+
+    ```csharp
+    byte[] locked = WorkbookEditor.Protect(xlsx, "s3cret");
+    bool needsPassword = WorkbookEditor.IsProtected(bytes);   // no password required to ask
+    ```
+
+    The same three members on `DocxEditor`, `WorkbookEditor` and `PresentationEditor`, with `Stream`
+    overloads both ways. **This is file encryption, not the "restrict editing" flag** — Office puts
+    both under one menu, and only this one stops anyone reading the file.
+
+    **An encrypted Office file is not a package any more**: a plain `.docx`/`.xlsx`/`.pptx` is a ZIP,
+    the encrypted form is a compound file with the package sealed inside. Every other method on those
+    classes therefore refuses one — call `Unprotect` first. A wrong password and a file that was never
+    encrypted are reported as different failures.
+
 * **core:** read and convert legacy Word 97-2003 binary .doc ([#269](https://github.com/Ank-KhoaHo/DocToolkit/issues/269)) ([2ef72c4](https://github.com/Ank-KhoaHo/DocToolkit/commit/2ef72c45022458a0fd3def40d4c0e67901206ed7))
+
+    ```csharp
+    string text = DocToDocxConverter.ExtractText(doc);   // never refuses
+    byte[] docx = DocToDocxConverter.Convert(doc);        // refuses if content would be lost
+    ```
+
+    **Converting refuses by default, and that is the common case rather than a rare one.** A legacy
+    `.doc` keeps pictures, drawings and form fields in a binary stream a `.docx` cannot carry, so
+    `Convert` throws `DocumentConversionException` rather than quietly returning a document with those
+    payloads missing. Measured: any `.doc` containing a **table** has such a stream — plain text, bold
+    runs and headings do not.
+
+    Accept the loss deliberately with `new LegacyDocOptions { AllowContentLoss = true }`, or call
+    `ConvertWithReport` for the same bytes plus a list of exactly what was dropped. Text, tables
+    (every cell) and character formatting survive either way. `ExtractText` takes no options and never
+    refuses. **Reading only** — native `.doc` saving is unsupported upstream, so none is offered.
 
 
 ### Fixed
