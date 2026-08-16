@@ -1,5 +1,6 @@
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
+using PdfSharp.Pdf.Security;
 
 namespace DocToolkit;
 
@@ -529,6 +530,151 @@ public static class PdfEditor
         return Save(document);
     }
 
+    /// <summary>
+    /// A copy of <paramref name="pdf"/> encrypted with the passwords and permissions in
+    /// <paramref name="protection"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Set <see cref="PdfProtection.UserPassword"/> if the content must not be read.</b> An
+    /// owner password alone leaves the document openable by anyone — the permissions are a request
+    /// the reader is asked to honour, not a lock. <see cref="PdfProtection"/> explains the
+    /// distinction; getting it wrong is the usual way a "protected" PDF turns out not to be.
+    ///
+    /// The result cannot be passed back into the other operations on this class: they refuse an
+    /// encrypted document, by design. Use <see cref="Unprotect(byte[], string)"/> first.
+    /// </remarks>
+    /// <param name="pdf">The document to encrypt.</param>
+    /// <param name="protection">The passwords and permissions to apply.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="pdf"/> or <paramref name="protection"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pdf"/> is empty, or <paramref name="protection"/> sets neither password.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The document could not be read or written.</exception>
+    public static byte[] Protect(byte[] pdf, PdfProtection protection)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        ArgumentNullException.ThrowIfNull(protection);
+
+        var user = protection.UserPassword;
+        var owner = protection.OwnerPassword;
+
+        // Checked here rather than left to PDFsharp, which throws a bare PdfSharpException reading
+        // "At least a user or an owner password is required to encrypt the document." That is true
+        // but says nothing about which one a caller actually wants, and the difference is the whole
+        // point of the type.
+        if (string.IsNullOrEmpty(user) && string.IsNullOrEmpty(owner))
+            throw new ArgumentException(
+                "Encrypting a PDF needs at least one password. Set UserPassword to stop the "
+                + "document being opened at all, or OwnerPassword to leave it readable while asking "
+                + "readers to honour the permissions.",
+                nameof(protection));
+
+        using var document = Open(pdf, PdfDocumentOpenMode.Modify, nameof(pdf));
+
+        // Strength must be chosen BEFORE the passwords: SetEncryption resets the handler, so
+        // calling it afterwards discards them and silently writes an unencrypted document.
+        document.SecurityHandler.SetEncryption(protection.Strength == PdfEncryptionStrength.Aes256
+            ? PdfDefaultEncryption.V5
+            : PdfDefaultEncryption.V4UsingAES);
+
+        var settings = document.SecuritySettings;
+        if (!string.IsNullOrEmpty(user)) settings.UserPassword = user;
+        if (!string.IsNullOrEmpty(owner)) settings.OwnerPassword = owner;
+
+        settings.PermitPrint = protection.AllowPrinting;
+        settings.PermitFullQualityPrint = protection.AllowHighQualityPrinting;
+        settings.PermitExtractContent = protection.AllowCopying;
+        settings.PermitModifyDocument = protection.AllowModification;
+        settings.PermitAnnotations = protection.AllowAnnotations;
+        settings.PermitFormsFill = protection.AllowFormFilling;
+        settings.PermitAssembleDocument = protection.AllowAssembly;
+
+        return Save(document);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="pdf"/> with its encryption removed, so the rest of this class can
+    /// work on it.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the one method here that accepts an encrypted document</b>, and that is
+    /// deliberate: threading a password through all nine other operations would put a security
+    /// parameter on methods that have nothing to do with security. Unprotect once, then use the
+    /// result normally.
+    ///
+    /// <b>Which password is needed is not always the obvious one.</b> If the document has an owner
+    /// password, that is the one required here — even if you also know the user password. Removing
+    /// protection is a <i>modification</i>, and the PDF format reserves modification for the owner.
+    /// A document protected with only a user password takes that one. Measured 2026-08-16; the
+    /// exception message names all three ways this can go wrong rather than guessing between them.
+    ///
+    /// <b>The output is not protected in any way</b> — that is what was asked for, but it means the
+    /// bytes this returns are readable by anyone who obtains them.
+    /// </remarks>
+    /// <param name="pdf">The encrypted document.</param>
+    /// <param name="password">The user or owner password.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The password was wrong, or the document could not be read or written.
+    /// </exception>
+    public static byte[] Unprotect(byte[] pdf, string password)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        ArgumentNullException.ThrowIfNull(password);
+
+        using var document = Open(pdf, PdfDocumentOpenMode.Modify, nameof(pdf), password);
+        document.SecurityHandler.SetEncryption(PdfDefaultEncryption.None);
+
+        return Save(document);
+    }
+
+    /// <summary>
+    /// Reads a PDF from <paramref name="source"/> and writes the encrypted copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Protect(byte[], PdfProtection)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the PDF is read from.</param>
+    /// <param name="destination">The stream the encrypted PDF is written to.</param>
+    /// <param name="protection">The passwords and permissions to apply.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task ProtectAsync(
+        Stream source, Stream destination, PdfProtection protection, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(protection);
+
+        var pdf = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(Protect(pdf, protection), destination, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads an encrypted PDF from <paramref name="source"/> and writes the unprotected copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Unprotect(byte[], string)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the encrypted PDF is read from.</param>
+    /// <param name="destination">The stream the unprotected PDF is written to.</param>
+    /// <param name="password">The user or owner password.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task UnprotectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(password);
+
+        var pdf = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(Unprotect(pdf, password), destination, ct).ConfigureAwait(false);
+    }
+
     private static string? Entry(PdfDocumentInformation info, string key) =>
         info.Elements.ContainsKey(key) ? info.Elements.GetString(key) : null;
 
@@ -537,7 +683,11 @@ public static class PdfEditor
     /// exception type — a caller should not have to catch a different type for PDFs than for
     /// everything else here.
     /// </summary>
-    private static PdfDocument Open(byte[] pdf, PdfDocumentOpenMode mode, string paramName)
+    // `password` is null for every caller but Unprotect, and that default is load-bearing: a null
+    // password means the open REFUSES an encrypted PDF, which is what every other operation on
+    // this class relies on to avoid quietly working on a document it could not really read.
+    private static PdfDocument Open(
+        byte[] pdf, PdfDocumentOpenMode mode, string paramName, string? password = null)
     {
         // An empty array is an argument mistake, not a corrupt document, and this is the one
         // place every byte[] path passes through. Until 2026-08-15 only ExtractText checked it,
@@ -556,13 +706,31 @@ public static class PdfEditor
             // afterwards and disposing it here is safe - asserted by the PdfEditor suite, which
             // exercises every open mode. Held in a local rather than inlined so it CAN be disposed.
             using var source = new MemoryStream(pdf, writable: false);
-            return PdfReader.Open(source, mode);
+            return password is null
+                ? PdfReader.Open(source, mode)
+                : PdfReader.Open(source, password, mode);
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
+            // A caller who supplied a password already knows the document is encrypted, so
+            // repeating "it may be password-protected" at them is noise — and it hides the one
+            // thing that actually went wrong.
             throw new DocumentConversionException(
-                "Failed to read the PDF. This usually means the PDF is password-protected, "
-                + "truncated, or not actually a PDF — check the source bytes.", ex);
+                password is null
+                    ? "Failed to read the PDF. This usually means the PDF is password-protected, "
+                      + "truncated, or not actually a PDF — check the source bytes."
+                    // Three candidates, named rather than guessed between. The third is the one
+                    // that costs an afternoon: a correct USER password is refused here, because
+                    // removing protection is a modification and the PDF specification reserves
+                    // that for the owner password. Asserting any single cause would be wrong at
+                    // least a third of the time - the same mistake as a timeout message that
+                    // names a cause the timeout cannot distinguish.
+                    : "Failed to read the PDF with the password supplied. Either the password is "
+                      + "wrong, or the document is not encrypted and needs no password, or it was "
+                      + "the user password when the document also has an owner password — removing "
+                      + "protection needs the owner password, because that is what the PDF format "
+                      + "requires to modify a document.",
+                ex);
         }
     }
 

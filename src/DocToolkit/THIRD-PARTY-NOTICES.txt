@@ -64,13 +64,13 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - Microsoft.Extensions.DependencyInjection.Abstractions 8.0.2 - MIT (transitive) - https://github.com/dotnet/runtime
 - Microsoft.Extensions.Logging.Abstractions 8.0.3 - MIT (transitive) - https://github.com/dotnet/runtime
 - OfficeIMO.Core 3.2.2 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.Excel 3.2.2 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Excel 3.2.2 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Excel.Pdf 3.2.2 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Html 3.2.2 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Markdown 3.2.2 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Markdown.Html 3.2.2 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Pdf 3.2.2 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
-- OfficeIMO.PowerPoint 3.2.2 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.PowerPoint 3.2.2 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.PowerPoint.Pdf 3.2.2 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word 3.2.2 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Html 3.2.2 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
@@ -84,7 +84,7 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 - System.Security.Cryptography.Pkcs 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 
-Totals: 30 packages (12 direct, 18 transitive) - 2 Apache-2.0, 28 MIT.
+Totals: 30 packages (14 direct, 16 transitive) - 2 Apache-2.0, 28 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---

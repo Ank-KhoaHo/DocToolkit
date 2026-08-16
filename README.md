@@ -325,6 +325,25 @@ A PDF that needs a **password to open** raises `DocumentConversionException`. On
 permission flags such as "no copying" is still read — measured, and standard across the
 ecosystem, but stated here rather than left to surprise anyone.
 
+Both kinds can also be **produced**, and taken apart again:
+
+```csharp
+// A user password is required to OPEN the file, and is enforced by cryptography.
+byte[] locked = PdfEditor.Protect(statement, new PdfProtection { UserPassword = "s3cret" });
+
+// An owner password leaves the document readable and only ASKS readers to honour the flags.
+byte[] restricted = PdfEditor.Protect(statement,
+    new PdfProtection { OwnerPassword = "admin", AllowCopying = false });
+
+// The operations above refuse an encrypted document, so take the protection off first.
+byte[] opened = PdfEditor.Unprotect(locked, "s3cret");
+```
+
+If content must not be read, set `UserPassword` — an owner password is a request, not a lock.
+`Unprotect` needs the **owner** password when the document has one, because removing protection
+counts as modifying the document. AES-128 is the default for reader compatibility; `Aes256` needs
+a PDF 2.0 reader.
+
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
 
@@ -349,6 +368,25 @@ silently erase the author.
 
 `Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
+
+## Password-protected DOCX, XLSX and PPTX
+
+Open one you were sent, and produce one. `DocxEditor`, `WorkbookEditor` and `PresentationEditor` all
+carry the same three members, with `Stream` overloads both ways:
+
+```csharp
+byte[] locked = WorkbookEditor.Protect(xlsx, "s3cret");
+byte[] opened = WorkbookEditor.Unprotect(locked, "s3cret");
+bool needsPassword = WorkbookEditor.IsProtected(bytes);   // no password required to ask
+```
+
+**This is file encryption, not the "restrict editing" flag** — Office puts both under one menu and
+only the first actually stops anyone reading the file.
+
+**An encrypted Office file is not a package any more**: a plain `.docx`/`.xlsx`/`.pptx` is a ZIP,
+the encrypted form is a compound file with the package sealed inside. Every other method on these
+classes therefore refuses one — `Unprotect` first. A wrong password and a file that was never
+encrypted are reported as different failures.
 
 ## Telemetry
 

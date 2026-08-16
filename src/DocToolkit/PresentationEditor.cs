@@ -3,6 +3,7 @@ using DocumentFormat.OpenXml.Packaging;
 using A = DocumentFormat.OpenXml.Drawing;
 using P = DocumentFormat.OpenXml.Presentation;
 
+using OfficeIMOPowerPointPowerPointPresentation = OfficeIMO.PowerPoint.PowerPointPresentation;
 namespace DocToolkit;
 
 /// <summary>Opens and edits PowerPoint (.pptx) presentations.</summary>
@@ -720,5 +721,155 @@ public static class PresentationEditor
         var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
         var result = ReplaceImage(bytes, placeholder, image);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> encrypted with <paramref name="password"/>, so it cannot
+    /// be opened without one.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is file encryption, not presentation protection.</b> Office offers both under the same
+    /// menu and they are not the same thing: this scrambles the whole file, so nothing can be read
+    /// without the password. The other kind - a flag asking a reader not to edit - is a request
+    /// rather than a lock, and is deliberately not exposed here.
+    ///
+    /// <b>The result is not a PPTX package any more.</b> An encrypted Office document is a
+    /// compound file with the package sealed inside it, so every other method on this class refuses
+    /// it - call <see cref="Unprotect(byte[], string)"/> first. That refusal is the honest
+    /// behaviour: those methods could not read the content even if they tried.
+    /// </remarks>
+    /// <param name="pptx">The presentation to encrypt.</param>
+    /// <param name="password">The password required to open the result. May not be empty.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be read or encrypted.</exception>
+    public static byte[] Protect(byte[] pptx, string password)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0)
+            throw new ArgumentException("PPTX content was empty.", nameof(pptx));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+
+        return OfficeCrypto.TranslateWrite(() =>
+        {
+            using var source = new MemoryStream(pptx, writable: false);
+            using var document = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+            using var encrypted = new MemoryStream();
+            document.SaveEncrypted(encrypted, password);
+            return encrypted.ToArray();
+        }, "PPTX");
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> with its encryption removed, so the rest of this class
+    /// can work on it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The output is not protected in any way.</b> That is what was asked for, but the bytes
+    /// this returns are readable by anyone who obtains them.
+    ///
+    /// A presentation that was never encrypted is reported as such rather than passed through, because
+    /// silently returning the input would make a broken pipeline look like a working one.
+    /// </remarks>
+    /// <param name="pptx">The encrypted presentation.</param>
+    /// <param name="password">The password the presentation was encrypted with.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The password was wrong, the presentation was not encrypted, or it could not be read.
+    /// </exception>
+    public static byte[] Unprotect(byte[] pptx, string password)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0)
+            throw new ArgumentException("PPTX content was empty.", nameof(pptx));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+
+        return OfficeCrypto.Translate(() =>
+        {
+            using var source = new MemoryStream(pptx, writable: false);
+            using var document = OfficeIMOPowerPointPowerPointPresentation.LoadEncrypted(source, password);
+            using var plain = new MemoryStream();
+            document.Save(plain);
+            return plain.ToArray();
+        }, "PPTX");
+    }
+
+    /// <summary>
+    /// Whether <paramref name="pptx"/> is an encrypted Office document — that is, whether the
+    /// other methods on this class will refuse it.
+    /// </summary>
+    /// <remarks>
+    /// Reads the file signature; it does not try the password and does not need one. A plain PPTX
+    /// is a ZIP package, an encrypted one is a compound file, and the two are distinguishable from
+    /// their first eight bytes.
+    /// </remarks>
+    /// <param name="pptx">The bytes to inspect.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    public static bool IsProtected(byte[] pptx)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+
+        return OfficeCrypto.IsEncrypted(pptx);
+    }
+
+    /// <summary>
+    /// Reads a presentation from <paramref name="source"/> and writes the encrypted copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Protect(byte[], string)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the presentation is read from.</param>
+    /// <param name="destination">The stream the encrypted presentation is written to.</param>
+    /// <param name="password">The password required to open the result. May not be empty.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task ProtectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+        ct.ThrowIfCancellationRequested();
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "PPTX content was empty.", nameof(source),
+                        "Failed to encrypt the PPTX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = new MemoryStream(Protect(buffer.ToArray(), password), writable: false);
+        await StreamPipeline
+            .EmitAsync(result, destination, "Failed to encrypt the PPTX.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads an encrypted presentation from <paramref name="source"/> and writes the unprotected copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Unprotect(byte[], string)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the encrypted presentation is read from.</param>
+    /// <param name="destination">The stream the unprotected presentation is written to.</param>
+    /// <param name="password">The password the presentation was encrypted with.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task UnprotectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+        ct.ThrowIfCancellationRequested();
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "PPTX content was empty.", nameof(source),
+                        "Failed to read the encrypted PPTX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = new MemoryStream(Unprotect(buffer.ToArray(), password), writable: false);
+        await StreamPipeline
+            .EmitAsync(result, destination, "Failed to read the encrypted PPTX.", ct)
+            .ConfigureAwait(false);
     }
 }

@@ -3,6 +3,7 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
+using OfficeIMOWordWordDocument = OfficeIMO.Word.WordDocument;
 namespace DocToolkit;
 
 /// <summary>Creates, reads and edits Word (.docx) documents.</summary>
@@ -1321,5 +1322,155 @@ public static class DocxEditor
 
         var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
         return ExtractText(bytes, includeHeadersAndFooters);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> encrypted with <paramref name="password"/>, so it cannot
+    /// be opened without one.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is file encryption, not document protection.</b> Office offers both under the same
+    /// menu and they are not the same thing: this scrambles the whole file, so nothing can be read
+    /// without the password. The other kind - a flag asking a reader not to edit - is a request
+    /// rather than a lock, and is deliberately not exposed here.
+    ///
+    /// <b>The result is not a DOCX package any more.</b> An encrypted Office document is a
+    /// compound file with the package sealed inside it, so every other method on this class refuses
+    /// it - call <see cref="Unprotect(byte[], string)"/> first. That refusal is the honest
+    /// behaviour: those methods could not read the content even if they tried.
+    /// </remarks>
+    /// <param name="docx">The document to encrypt.</param>
+    /// <param name="password">The password required to open the result. May not be empty.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be read or encrypted.</exception>
+    public static byte[] Protect(byte[] docx, string password)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0)
+            throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+
+        return OfficeCrypto.TranslateWrite(() =>
+        {
+            using var source = new MemoryStream(docx, writable: false);
+            using var document = OfficeIMOWordWordDocument.Load(source);
+            using var encrypted = new MemoryStream();
+            document.SaveEncrypted(encrypted, password);
+            return encrypted.ToArray();
+        }, "DOCX");
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> with its encryption removed, so the rest of this class
+    /// can work on it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The output is not protected in any way.</b> That is what was asked for, but the bytes
+    /// this returns are readable by anyone who obtains them.
+    ///
+    /// A document that was never encrypted is reported as such rather than passed through, because
+    /// silently returning the input would make a broken pipeline look like a working one.
+    /// </remarks>
+    /// <param name="docx">The encrypted document.</param>
+    /// <param name="password">The password the document was encrypted with.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The password was wrong, the document was not encrypted, or it could not be read.
+    /// </exception>
+    public static byte[] Unprotect(byte[] docx, string password)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0)
+            throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+
+        return OfficeCrypto.Translate(() =>
+        {
+            using var source = new MemoryStream(docx, writable: false);
+            using var document = OfficeIMOWordWordDocument.LoadEncrypted(source, password);
+            using var plain = new MemoryStream();
+            document.Save(plain);
+            return plain.ToArray();
+        }, "DOCX");
+    }
+
+    /// <summary>
+    /// Whether <paramref name="docx"/> is an encrypted Office document — that is, whether the
+    /// other methods on this class will refuse it.
+    /// </summary>
+    /// <remarks>
+    /// Reads the file signature; it does not try the password and does not need one. A plain DOCX
+    /// is a ZIP package, an encrypted one is a compound file, and the two are distinguishable from
+    /// their first eight bytes.
+    /// </remarks>
+    /// <param name="docx">The bytes to inspect.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    public static bool IsProtected(byte[] docx)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+
+        return OfficeCrypto.IsEncrypted(docx);
+    }
+
+    /// <summary>
+    /// Reads a document from <paramref name="source"/> and writes the encrypted copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Protect(byte[], string)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="destination">The stream the encrypted document is written to.</param>
+    /// <param name="password">The password required to open the result. May not be empty.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task ProtectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+        ct.ThrowIfCancellationRequested();
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source),
+                        "Failed to encrypt the DOCX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = new MemoryStream(Protect(buffer.ToArray(), password), writable: false);
+        await StreamPipeline
+            .EmitAsync(result, destination, "Failed to encrypt the DOCX.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads an encrypted document from <paramref name="source"/> and writes the unprotected copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Unprotect(byte[], string)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the encrypted document is read from.</param>
+    /// <param name="destination">The stream the unprotected document is written to.</param>
+    /// <param name="password">The password the document was encrypted with.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task UnprotectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+        ct.ThrowIfCancellationRequested();
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source),
+                        "Failed to read the encrypted DOCX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = new MemoryStream(Unprotect(buffer.ToArray(), password), writable: false);
+        await StreamPipeline
+            .EmitAsync(result, destination, "Failed to read the encrypted DOCX.", ct)
+            .ConfigureAwait(false);
     }
 }

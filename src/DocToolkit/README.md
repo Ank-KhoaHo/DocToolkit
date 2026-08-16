@@ -538,6 +538,53 @@ A PDF needing a **password to open** raises `DocumentConversionException`. One c
 permission flags — "no copying" and the like — is still read. That is measured behaviour and is
 what the rest of the ecosystem does, but it is worth knowing rather than discovering.
 
+### Passwords and permissions
+
+`PdfEditor.Protect` encrypts a PDF with a `PdfProtection`; `PdfEditor.Unprotect` takes the
+encryption off again so the operations above can work on it.
+
+<!-- BEGIN SNIPPET: readme-pdf-protection -->
+
+```csharp
+// A password to OPEN the document. Without it the file cannot be read at all.
+byte[] locked = PdfEditor.Protect(statement, new PdfProtection
+{
+    UserPassword = "s3cret",
+    AllowPrinting = false,
+});
+
+// An OWNER password leaves the document readable and asks readers to honour the
+// restrictions. It is not a lock - use UserPassword when content must not be read.
+byte[] restricted = PdfEditor.Protect(statement, new PdfProtection
+{
+    OwnerPassword = "admin",
+    AllowCopying = false,
+});
+
+// The other PdfEditor operations refuse an encrypted document, so unprotect it first.
+// If the document has an owner password, that is the one required here.
+byte[] opened = PdfEditor.Unprotect(locked, "s3cret");
+```
+
+<!-- END SNIPPET -->
+
+**The two passwords are not interchangeable, and this is the usual mistake.** A **user password** is
+required to open the document and is enforced by cryptography. An **owner password** leaves the file
+readable by anyone and merely *asks* a reader to honour the permission flags — a cooperative reader
+greys out printing, an uncooperative one need not. If the content must not be read, set
+`UserPassword`.
+
+Two consequences that are measured rather than assumed:
+
+- **`Unprotect` needs the OWNER password when the document has one**, even if you also know the user
+  password — removing protection is a modification, and the PDF format reserves that for the owner.
+- **Every permission defaults to allowed**, so adding a password does not silently stop a document
+  being printed.
+
+`PdfEncryptionStrength.Aes128` is the default because every reader in service can open it.
+`Aes256` is stronger but needs a PDF 2.0 reader (Acrobat X and later), which is a compatibility
+decision rather than a "more is better" one.
+
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
 
@@ -562,6 +609,31 @@ silently erase the author.
 
 `Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
+
+## Password-protected DOCX, XLSX and PPTX
+
+Open one someone sent you, and produce one. `DocxEditor`, `WorkbookEditor` and `PresentationEditor`
+each carry the same three members, with `Stream` overloads for both directions:
+
+```csharp
+byte[] locked = WorkbookEditor.Protect(xlsx, "s3cret");   // encrypt the whole file
+byte[] opened = WorkbookEditor.Unprotect(locked, "s3cret");
+bool needsPassword = WorkbookEditor.IsProtected(bytes);   // signature check, no password needed
+```
+
+**This is file encryption, not the "protect workbook / restrict editing" flag.** Office puts both
+under the same menu and they are very different: this scrambles the whole file so nothing can be
+read without the password, while the other kind is a request a reader may ignore. Only the first is
+offered here.
+
+**An encrypted Office file is not a package any more.** A plain `.docx`/`.xlsx`/`.pptx` is a ZIP; the
+encrypted form is a compound file with the package sealed inside. So every other method on these
+classes refuses one — that refusal is honest rather than awkward, because they genuinely cannot read
+the content. Call `Unprotect` first. `IsProtected` answers "would they refuse this?" from the file's
+first bytes, without a password.
+
+A wrong password and a file that was never encrypted are reported as **different** failures, because
+a caller can only act on one of them.
 
 ## How the no-network guarantee is built
 

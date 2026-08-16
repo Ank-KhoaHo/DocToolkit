@@ -1,6 +1,7 @@
 using System.Globalization;
 using ClosedXML.Excel;
 
+using OfficeIMOExcelExcelDocument = OfficeIMO.Excel.ExcelDocument;
 namespace DocToolkit;
 
 /// <summary>Creates, reads and edits Excel (.xlsx) workbooks. Legacy .xls is not supported.</summary>
@@ -1197,5 +1198,155 @@ public static class WorkbookEditor
 
         var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
         return ReadSheet(bytes, sheetName);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="xlsx"/> encrypted with <paramref name="password"/>, so it cannot
+    /// be opened without one.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is file encryption, not workbook protection.</b> Office offers both under the same
+    /// menu and they are not the same thing: this scrambles the whole file, so nothing can be read
+    /// without the password. The other kind - a flag asking a reader not to edit - is a request
+    /// rather than a lock, and is deliberately not exposed here.
+    ///
+    /// <b>The result is not a XLSX package any more.</b> An encrypted Office document is a
+    /// compound file with the package sealed inside it, so every other method on this class refuses
+    /// it - call <see cref="Unprotect(byte[], string)"/> first. That refusal is the honest
+    /// behaviour: those methods could not read the content even if they tried.
+    /// </remarks>
+    /// <param name="xlsx">The workbook to encrypt.</param>
+    /// <param name="password">The password required to open the result. May not be empty.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read or encrypted.</exception>
+    public static byte[] Protect(byte[] xlsx, string password)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        if (xlsx.Length == 0)
+            throw new ArgumentException("XLSX content was empty.", nameof(xlsx));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+
+        return OfficeCrypto.TranslateWrite(() =>
+        {
+            using var source = new MemoryStream(xlsx, writable: false);
+            using var document = OfficeIMOExcelExcelDocument.Load(source);
+            using var encrypted = new MemoryStream();
+            document.SaveEncrypted(encrypted, password);
+            return encrypted.ToArray();
+        }, "XLSX");
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="xlsx"/> with its encryption removed, so the rest of this class
+    /// can work on it.
+    /// </summary>
+    /// <remarks>
+    /// <b>The output is not protected in any way.</b> That is what was asked for, but the bytes
+    /// this returns are readable by anyone who obtains them.
+    ///
+    /// A workbook that was never encrypted is reported as such rather than passed through, because
+    /// silently returning the input would make a broken pipeline look like a working one.
+    /// </remarks>
+    /// <param name="xlsx">The encrypted workbook.</param>
+    /// <param name="password">The password the workbook was encrypted with.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The password was wrong, the workbook was not encrypted, or it could not be read.
+    /// </exception>
+    public static byte[] Unprotect(byte[] xlsx, string password)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        if (xlsx.Length == 0)
+            throw new ArgumentException("XLSX content was empty.", nameof(xlsx));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+
+        return OfficeCrypto.Translate(() =>
+        {
+            using var source = new MemoryStream(xlsx, writable: false);
+            using var document = OfficeIMOExcelExcelDocument.LoadEncrypted(source, password);
+            using var plain = new MemoryStream();
+            document.Save(plain);
+            return plain.ToArray();
+        }, "XLSX");
+    }
+
+    /// <summary>
+    /// Whether <paramref name="xlsx"/> is an encrypted Office document — that is, whether the
+    /// other methods on this class will refuse it.
+    /// </summary>
+    /// <remarks>
+    /// Reads the file signature; it does not try the password and does not need one. A plain XLSX
+    /// is a ZIP package, an encrypted one is a compound file, and the two are distinguishable from
+    /// their first eight bytes.
+    /// </remarks>
+    /// <param name="xlsx">The bytes to inspect.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    public static bool IsProtected(byte[] xlsx)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+
+        return OfficeCrypto.IsEncrypted(xlsx);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/> and writes the encrypted copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Protect(byte[], string)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="destination">The stream the encrypted workbook is written to.</param>
+    /// <param name="password">The password required to open the result. May not be empty.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task ProtectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+        ct.ThrowIfCancellationRequested();
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "XLSX content was empty.", nameof(source),
+                        "Failed to encrypt the XLSX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = new MemoryStream(Protect(buffer.ToArray(), password), writable: false);
+        await StreamPipeline
+            .EmitAsync(result, destination, "Failed to encrypt the XLSX.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads an encrypted workbook from <paramref name="source"/> and writes the unprotected copy to
+    /// <paramref name="destination"/>.
+    ///
+    /// Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <inheritdoc cref="Unprotect(byte[], string)" path="/remarks|/exception"/>
+    /// <param name="source">The stream the encrypted workbook is read from.</param>
+    /// <param name="destination">The stream the unprotected workbook is written to.</param>
+    /// <param name="password">The password the workbook was encrypted with.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    public static async Task UnprotectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        OfficeCrypto.RequirePassword(password, nameof(password));
+        ct.ThrowIfCancellationRequested();
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "XLSX content was empty.", nameof(source),
+                        "Failed to read the encrypted XLSX.", ct)
+            .ConfigureAwait(false);
+
+        using var result = new MemoryStream(Unprotect(buffer.ToArray(), password), writable: false);
+        await StreamPipeline
+            .EmitAsync(result, destination, "Failed to read the encrypted XLSX.", ct)
+            .ConfigureAwait(false);
     }
 }

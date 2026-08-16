@@ -63,6 +63,21 @@
     <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.2" />
 
     <!--
+      Promoted from TRANSITIVE to direct alongside OfficeIMO.Word, for the Protect/Unprotect
+      members on WorkbookEditor and PresentationEditor. Same reasoning and same non-effect on the
+      resolved closure: both already arrived through OfficeIMO.Excel.Pdf and
+      OfficeIMO.PowerPoint.Pdf.
+
+      Encryption is per FORMAT, not shared - measured 2026-08-16, no OfficeIMO package exposes a
+      format-agnostic OOXML encryptor - so all three packages are genuinely needed rather than one
+      being enough. Note WorkbookEditor now touches two spreadsheet libraries: ClosedXML owns the
+      workbook's CONTENT and OfficeIMO.Excel owns only the encrypted CONTAINER around it, which is
+      the same structure/content split E6 draws for PDF.
+    -->
+    <PackageReference Include="OfficeIMO.Excel" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.PowerPoint" Version="3.2.2" />
+
+    <!--
       Promoted from TRANSITIVE to direct for DocToDocxConverter (legacy .doc import). It arrived
       transitively through the four packages above, so the resolved closure does not change - this
       only makes the dependency this code binds against explicit, the same bookkeeping the PDF
