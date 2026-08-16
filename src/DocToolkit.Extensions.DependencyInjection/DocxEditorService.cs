@@ -80,4 +80,18 @@ internal sealed class DocxEditorService : IDocxEditor
 
     public Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(Stream source, int index, CancellationToken ct = default)
         => DocToolkit.DocxEditor.ReadTableAsync(source, index, ct);
+
+    public byte[] Protect(byte[] docx, string password)
+        => DocToolkit.DocxEditor.Protect(docx, password);
+
+    public byte[] Unprotect(byte[] docx, string password)
+        => DocToolkit.DocxEditor.Unprotect(docx, password);
+
+    public bool IsProtected(byte[] docx) => DocToolkit.DocxEditor.IsProtected(docx);
+
+    public Task ProtectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.ProtectAsync(source, destination, password, ct);
+
+    public Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.UnprotectAsync(source, destination, password, ct);
 }

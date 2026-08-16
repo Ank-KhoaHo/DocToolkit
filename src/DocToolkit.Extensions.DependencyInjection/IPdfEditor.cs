@@ -192,4 +192,55 @@ public interface IPdfEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     Task InsertPagesAsync(
         Stream target, Stream source, int atPage, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="pdf"/> encrypted with the passwords and permissions in
+    /// <paramref name="protection"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Set <see cref="DocToolkit.PdfProtection.UserPassword"/> if the content must not be
+    /// read.</b> An owner password alone leaves the document openable by anyone - the permissions
+    /// are a request a reader is asked to honour, not a lock.
+    ///
+    /// The result cannot be passed back into the other members here; use
+    /// <see cref="Unprotect(byte[], string)"/> first.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> or <paramref name="protection"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty, or neither password is set.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">It could not be read or written.</exception>
+    byte[] Protect(byte[] pdf, DocToolkit.PdfProtection protection);
+
+    /// <summary>A copy of <paramref name="pdf"/> with its encryption removed.</summary>
+    /// <remarks>
+    /// <b>If the document has an owner password, that is the one required here</b>, even if you also
+    /// know the user password: removing protection is a modification, which the PDF format reserves
+    /// for the owner.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The password was wrong, or it could not be read.</exception>
+    byte[] Unprotect(byte[] pdf, string password);
+
+    /// <summary>
+    /// Reads a PDF from <paramref name="source"/> and writes the encrypted copy to
+    /// <paramref name="destination"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either stream is null, or <paramref name="protection"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or neither password is set.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">It could not be read or written.</exception>
+    Task ProtectAsync(
+        Stream source, Stream destination, DocToolkit.PdfProtection protection,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Reads an encrypted PDF from <paramref name="source"/> and writes the unprotected copy to
+    /// <paramref name="destination"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either stream is null, or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The password was wrong, or it could not be read.</exception>
+    Task UnprotectAsync(
+        Stream source, Stream destination, string password, CancellationToken ct = default);
 }

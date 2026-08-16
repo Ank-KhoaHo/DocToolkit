@@ -60,4 +60,18 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
         Stream source, string sheetName, DocToolkit.XlsxFormat format, Stream destination,
         CancellationToken ct = default)
         => DocToolkit.WorkbookEditor.FormatAsync(source, sheetName, format, destination, ct);
+
+    public byte[] Protect(byte[] xlsx, string password)
+        => DocToolkit.WorkbookEditor.Protect(xlsx, password);
+
+    public byte[] Unprotect(byte[] xlsx, string password)
+        => DocToolkit.WorkbookEditor.Unprotect(xlsx, password);
+
+    public bool IsProtected(byte[] xlsx) => DocToolkit.WorkbookEditor.IsProtected(xlsx);
+
+    public Task ProtectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.ProtectAsync(source, destination, password, ct);
+
+    public Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.UnprotectAsync(source, destination, password, ct);
 }

@@ -208,4 +208,52 @@ public interface IDocxEditor
     /// not have to be seekable.
     /// </remarks>
     Task<IReadOnlyList<IReadOnlyList<string>>> ReadTableAsync(Stream source, int index, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> encrypted with <paramref name="password"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>File encryption, not the "restrict editing" flag.</b> The result is a compound file rather
+    /// than a DOCX package, so every other member here refuses it - call
+    /// <see cref="Unprotect(byte[], string)"/> first.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">It could not be read or encrypted.</exception>
+    byte[] Protect(byte[] docx, string password);
+
+    /// <summary>A copy of <paramref name="docx"/> with its encryption removed.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The password was wrong, the document was not encrypted, or it could not be read.
+    /// </exception>
+    byte[] Unprotect(byte[] docx, string password);
+
+    /// <summary>
+    /// Whether <paramref name="docx"/> is encrypted - that is, whether the other members here
+    /// will refuse it. Reads the file signature; needs no password.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    bool IsProtected(byte[] docx);
+
+    /// <summary>
+    /// Reads a document from <paramref name="source"/> and writes the encrypted copy to
+    /// <paramref name="destination"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either stream is null, or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">It could not be encrypted.</exception>
+    Task ProtectAsync(Stream source, Stream destination, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reads an encrypted document from <paramref name="source"/> and writes the unprotected copy to
+    /// <paramref name="destination"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either stream is null, or <paramref name="password"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="password"/> is empty.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The password was wrong, or it could not be read.</exception>
+    Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default);
 }

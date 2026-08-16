@@ -4,15 +4,18 @@
     "net10.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.26.0, )",
-        "resolved": "0.26.0",
-        "contentHash": "/41p3cm/6H3WpLhD6b0+Dv4QAm7De2g6aiO+IJwtX9/qb4XXRW4Y2TTH5oCv2jPM8kgmGuzBhVVW7f7C4udmYA==",
+        "requested": "[0.28.0, )",
+        "resolved": "0.28.0",
+        "contentHash": "oRGTfARFr7G5ZUoPqT8o2Y3nSCa0DMXxgL/XpofsRJR3tUJ2XRpc6cF7GQmMrO19bWOboLfCvc3UcD95dLaHoA==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
           "HtmlToOpenXml.dll": "3.5.0",
+          "OfficeIMO.Excel": "3.2.2",
           "OfficeIMO.Excel.Pdf": "3.2.2",
+          "OfficeIMO.PowerPoint": "3.2.2",
           "OfficeIMO.PowerPoint.Pdf": "3.2.2",
+          "OfficeIMO.Word": "3.2.2",
           "OfficeIMO.Word.Html": "3.2.2",
           "OfficeIMO.Word.Markdown": "3.2.2",
           "OfficeIMO.Word.Pdf": "3.2.2",
@@ -269,15 +272,18 @@
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.26.0, )",
-        "resolved": "0.26.0",
-        "contentHash": "/41p3cm/6H3WpLhD6b0+Dv4QAm7De2g6aiO+IJwtX9/qb4XXRW4Y2TTH5oCv2jPM8kgmGuzBhVVW7f7C4udmYA==",
+        "requested": "[0.28.0, )",
+        "resolved": "0.28.0",
+        "contentHash": "oRGTfARFr7G5ZUoPqT8o2Y3nSCa0DMXxgL/XpofsRJR3tUJ2XRpc6cF7GQmMrO19bWOboLfCvc3UcD95dLaHoA==",
         "dependencies": {
           "ClosedXML": "0.105.1",
           "DocumentFormat.OpenXml": "3.5.1",
           "HtmlToOpenXml.dll": "3.5.0",
+          "OfficeIMO.Excel": "3.2.2",
           "OfficeIMO.Excel.Pdf": "3.2.2",
+          "OfficeIMO.PowerPoint": "3.2.2",
           "OfficeIMO.PowerPoint.Pdf": "3.2.2",
+          "OfficeIMO.Word": "3.2.2",
           "OfficeIMO.Word.Html": "3.2.2",
           "OfficeIMO.Word.Markdown": "3.2.2",
           "OfficeIMO.Word.Pdf": "3.2.2",

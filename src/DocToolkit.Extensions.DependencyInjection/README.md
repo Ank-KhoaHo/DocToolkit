@@ -115,18 +115,23 @@ app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter 
 });
 ```
 
-All fifteen interfaces — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
+Every interface — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
 `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`,
 `IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`,
-`IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocxEditor`, `IWorkbookEditor`,
-`IPresentationEditor`, `IPdfEditor` — mirror
+`IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocToDocxConverter`, `IDocxEditor`,
+`IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor` — mirrors
 [`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
 `byte[]` and its `Stream`-based async overloads.
 
 **That mirroring is now enforced rather than asserted.** It had gone stale nine times — most
 recently with seven gaps at once, four of them whole interfaces that simply did not exist — because
 the only check was a snippet someone had to remember to run against a hand-written list of pairs.
-A test in this package now derives both sides by reflection and fails naming anything missing. They are registered as singletons (each wraps
+A test in this package now derives both sides by reflection and fails naming anything missing.
+
+**The count is deliberately not written down here any more.** The interface NAMES above are checked
+against the shipped API by `check-readme-coverage.py`, so the list cannot go stale silently — but a
+number never was checked, and this file said "six" while ten shipped. The package `<Description>`
+made the same mistake independently and now says nothing countable either. They are registered as singletons (each wraps
 stateless logic) and are safe to inject and call concurrently. See the core package's README for
 what each one does and the offline/licensing guarantees behind them.
 

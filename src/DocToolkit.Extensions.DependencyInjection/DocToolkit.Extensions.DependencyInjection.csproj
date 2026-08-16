@@ -32,7 +32,14 @@
   <!-- README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by src/Directory.Build.props. -->
 
   <ItemGroup>
-    <PackageReference Include="Ank.DocToolkit" Version="[0.26.0, )" />
+    <!--
+      Bumped to 0.28.0 for the mirror below: DocToDocxConverter, PdfEditor.Protect/Unprotect and the
+      three Office Protect/Unprotect/IsProtected trios. This package references the PUBLISHED core,
+      never a ProjectReference, so it cannot wrap a method until that method has shipped - which is
+      why the mirror lags one release, structurally, and why this bump is the first step rather than
+      an afterthought.
+    -->
+    <PackageReference Include="Ank.DocToolkit" Version="[0.28.0, )" />
 
     <!--
       8.0.2, not 8.0.0, since 0.15.0. PDFsharp raised Microsoft.Extensions.Logging.Abstractions

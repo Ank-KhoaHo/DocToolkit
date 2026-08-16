@@ -35,4 +35,18 @@ internal sealed class PresentationEditorService : IPresentationEditor
         Stream source, string placeholder, byte[] image, Stream destination,
         CancellationToken ct = default)
         => DocToolkit.PresentationEditor.ReplaceImageAsync(source, placeholder, image, destination, ct);
+
+    public byte[] Protect(byte[] pptx, string password)
+        => DocToolkit.PresentationEditor.Protect(pptx, password);
+
+    public byte[] Unprotect(byte[] pptx, string password)
+        => DocToolkit.PresentationEditor.Unprotect(pptx, password);
+
+    public bool IsProtected(byte[] pptx) => DocToolkit.PresentationEditor.IsProtected(pptx);
+
+    public Task ProtectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ProtectAsync(source, destination, password, ct);
+
+    public Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.UnprotectAsync(source, destination, password, ct);
 }
