@@ -154,23 +154,21 @@ public static class DocToDocxConverter
         using var word = Open(doc, nameof(doc));
         try
         {
-            var blocks = new List<string>();
-            foreach (var p in word.Paragraphs)
-            {
-                var text = p.Text;
-                if (!string.IsNullOrEmpty(text)) blocks.Add(text);
-            }
+            var blocks = word.Paragraphs
+                .Select(p => p.Text)
+                .Where(t => !string.IsNullOrEmpty(t))
+                .ToList();
 
-            foreach (var table in word.Tables)
-                foreach (var row in table.Rows)
-                {
-                    var cells = row.Cells
-                        .Select(c => string.Concat(c.Paragraphs.Select(p => p.Text)))
-                        .Where(t => !string.IsNullOrEmpty(t));
-                    var line = string.Join("\t", cells);
-                    if (line.Length > 0) blocks.Add(line);
-                }
+            // Table cells are NOT in Paragraphs, so reading only the list above would drop every
+            // table silently. One line per row, cells tab-separated, matching DocxEditor.
+            var rows = word.Tables
+                .SelectMany(t => t.Rows)
+                .Select(r => string.Join("\t", r.Cells
+                    .Select(c => string.Concat(c.Paragraphs.Select(p => p.Text)))
+                    .Where(cell => !string.IsNullOrEmpty(cell))))
+                .Where(line => line.Length > 0);
 
+            blocks.AddRange(rows);
             return string.Join("\n", blocks);
         }
         catch (Exception ex)

@@ -283,7 +283,8 @@ public class DocToDocxConverterTests
             () => DocToDocxConverter.ConvertAsync(null!, writable));
         await Assert.ThrowsAsync<ArgumentNullException>(
             () => DocToDocxConverter.ConvertAsync(readable, null!));
+        using var empty = new MemoryStream();
         await Assert.ThrowsAsync<ArgumentException>(
-            () => DocToDocxConverter.ConvertAsync(new MemoryStream(), writable));   // empty source
+            () => DocToDocxConverter.ConvertAsync(empty, writable));   // empty source
     }
 }
