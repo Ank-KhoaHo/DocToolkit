@@ -202,6 +202,8 @@ namespace DocToolkit
         public static int PageCount(byte[] pdf) { }
         public static System.Threading.Tasks.Task<int> PageCountAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<int> PageCountAsync(string path, System.Threading.CancellationToken ct = default) { }
+        public static byte[] Protect(byte[] pdf, DocToolkit.PdfProtection protection) { }
+        public static System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, DocToolkit.PdfProtection protection, System.Threading.CancellationToken ct = default) { }
         public static DocToolkit.PdfMetadata ReadMetadata(byte[] pdf) { }
         public static byte[] RemovePages(byte[] pdf, int firstPage, int count) { }
         public static System.Threading.Tasks.Task RemovePagesAsync(System.IO.Stream source, int firstPage, int count, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
@@ -209,7 +211,14 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ReorderPagesAsync(System.IO.Stream source, System.Collections.Generic.IEnumerable<int> order, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static byte[] RotatePages(byte[] pdf, int firstPage, int count, int degrees) { }
         public static System.Threading.Tasks.Task RotatePagesAsync(System.IO.Stream source, int firstPage, int count, int degrees, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static byte[] Unprotect(byte[] pdf, string password) { }
+        public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
         public static byte[] WithMetadata(byte[] pdf, DocToolkit.PdfMetadata metadata) { }
+    }
+    public enum PdfEncryptionStrength
+    {
+        Aes128 = 0,
+        Aes256 = 1,
     }
     public sealed class PdfMetadata
     {
@@ -219,6 +228,20 @@ namespace DocToolkit
         public string? Keywords { get; init; }
         public string? Subject { get; init; }
         public string? Title { get; init; }
+    }
+    public sealed class PdfProtection
+    {
+        public PdfProtection() { }
+        public bool AllowAnnotations { get; init; }
+        public bool AllowAssembly { get; init; }
+        public bool AllowCopying { get; init; }
+        public bool AllowFormFilling { get; init; }
+        public bool AllowHighQualityPrinting { get; init; }
+        public bool AllowModification { get; init; }
+        public bool AllowPrinting { get; init; }
+        public string? OwnerPassword { get; init; }
+        public DocToolkit.PdfEncryptionStrength Strength { get; init; }
+        public string? UserPassword { get; init; }
     }
     public sealed class PptxSlide
     {

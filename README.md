@@ -325,6 +325,25 @@ A PDF that needs a **password to open** raises `DocumentConversionException`. On
 permission flags such as "no copying" is still read — measured, and standard across the
 ecosystem, but stated here rather than left to surprise anyone.
 
+Both kinds can also be **produced**, and taken apart again:
+
+```csharp
+// A user password is required to OPEN the file, and is enforced by cryptography.
+byte[] locked = PdfEditor.Protect(statement, new PdfProtection { UserPassword = "s3cret" });
+
+// An owner password leaves the document readable and only ASKS readers to honour the flags.
+byte[] restricted = PdfEditor.Protect(statement,
+    new PdfProtection { OwnerPassword = "admin", AllowCopying = false });
+
+// The operations above refuse an encrypted document, so take the protection off first.
+byte[] opened = PdfEditor.Unprotect(locked, "s3cret");
+```
+
+If content must not be read, set `UserPassword` — an owner password is a request, not a lock.
+`Unprotect` needs the **owner** password when the document has one, because removing protection
+counts as modifying the document. AES-128 is the default for reader compatibility; `Aes256` needs
+a PDF 2.0 reader.
+
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
 

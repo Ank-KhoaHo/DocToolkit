@@ -113,6 +113,42 @@ public class ReadmeExamples
     }
 
     [Fact]
+    public async Task PdfProtectionExample()
+    {
+        byte[] statement = await PdfAsync("Statement");
+
+        #region readme-pdf-protection
+        // A password to OPEN the document. Without it the file cannot be read at all.
+        byte[] locked = PdfEditor.Protect(statement, new PdfProtection
+        {
+            UserPassword = "s3cret",
+            AllowPrinting = false,
+        });
+
+        // An OWNER password leaves the document readable and asks readers to honour the
+        // restrictions. It is not a lock - use UserPassword when content must not be read.
+        byte[] restricted = PdfEditor.Protect(statement, new PdfProtection
+        {
+            OwnerPassword = "admin",
+            AllowCopying = false,
+        });
+
+        // The other PdfEditor operations refuse an encrypted document, so unprotect it first.
+        // If the document has an owner password, that is the one required here.
+        byte[] opened = PdfEditor.Unprotect(locked, "s3cret");
+        #endregion
+
+        // The assertion that matters: the locked copy really is locked.
+        Assert.Throws<DocumentConversionException>(() => PdfEditor.PageCount(locked));
+
+        // ...and the control, so the line above cannot pass against a converter that breaks
+        // everything: the owner-password copy is still readable, and the unprotected one works.
+        Assert.Equal(1, PdfEditor.PageCount(restricted));
+        Assert.Equal(PdfEditor.PageCount(statement), PdfEditor.PageCount(opened));
+        Assert.Contains("Statement", PdfProbe.ExtractText(opened), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PdfUtilitiesExample()
     {
         byte[] pdf = PdfEditor.Merge([await PdfAsync("Alpha"), await PdfAsync("Bravo")]);

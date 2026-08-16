@@ -538,6 +538,53 @@ A PDF needing a **password to open** raises `DocumentConversionException`. One c
 permission flags — "no copying" and the like — is still read. That is measured behaviour and is
 what the rest of the ecosystem does, but it is worth knowing rather than discovering.
 
+### Passwords and permissions
+
+`PdfEditor.Protect` encrypts a PDF with a `PdfProtection`; `PdfEditor.Unprotect` takes the
+encryption off again so the operations above can work on it.
+
+<!-- BEGIN SNIPPET: readme-pdf-protection -->
+
+```csharp
+// A password to OPEN the document. Without it the file cannot be read at all.
+byte[] locked = PdfEditor.Protect(statement, new PdfProtection
+{
+    UserPassword = "s3cret",
+    AllowPrinting = false,
+});
+
+// An OWNER password leaves the document readable and asks readers to honour the
+// restrictions. It is not a lock - use UserPassword when content must not be read.
+byte[] restricted = PdfEditor.Protect(statement, new PdfProtection
+{
+    OwnerPassword = "admin",
+    AllowCopying = false,
+});
+
+// The other PdfEditor operations refuse an encrypted document, so unprotect it first.
+// If the document has an owner password, that is the one required here.
+byte[] opened = PdfEditor.Unprotect(locked, "s3cret");
+```
+
+<!-- END SNIPPET -->
+
+**The two passwords are not interchangeable, and this is the usual mistake.** A **user password** is
+required to open the document and is enforced by cryptography. An **owner password** leaves the file
+readable by anyone and merely *asks* a reader to honour the permission flags — a cooperative reader
+greys out printing, an uncooperative one need not. If the content must not be read, set
+`UserPassword`.
+
+Two consequences that are measured rather than assumed:
+
+- **`Unprotect` needs the OWNER password when the document has one**, even if you also know the user
+  password — removing protection is a modification, and the PDF format reserves that for the owner.
+- **Every permission defaults to allowed**, so adding a password does not silently stop a document
+  being printed.
+
+`PdfEncryptionStrength.Aes128` is the default because every reader in service can open it.
+`Aes256` is stronger but needs a PDF 2.0 reader (Acrobat X and later), which is a compatibility
+decision rather than a "more is better" one.
+
 Document information — what a file manager shows in its properties panel, and what a search
 indexer reads — is a `PdfMetadata`:
 

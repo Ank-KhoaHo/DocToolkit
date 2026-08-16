@@ -30,7 +30,7 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 | Format | Operations |
 |---|---|
 | **DOCX** (`DocxEditor`) | `Create`, `ExtractText`, `FillRows`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount` |
-| **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `WithMetadata` |
+| **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |
 | **PPTX** (`PresentationEditor`) | `Create`, `ExtractText`, `ReplaceImage`, `ReplaceText`, `SlideCount` |
 | **XLSX** (`WorkbookEditor`) | `AppendRows`, `Create`, `Format`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames` |
 

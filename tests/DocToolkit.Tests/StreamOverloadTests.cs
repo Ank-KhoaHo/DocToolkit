@@ -110,6 +110,16 @@ public class StreamOverloadTests
     /// </summary>
     private static readonly byte[] TwoPagePdf = PdfEditor.Merge(new[] { Pdf, Pdf });
 
+    /// <summary>
+    /// An ENCRYPTED .pdf, for UnprotectAsync — the one overload here whose input must already be
+    /// protected. Feeding it the plain <see cref="Pdf"/> would fail for a reason that has nothing
+    /// to do with stream handling, which is all this suite tests.
+    ///
+    /// Declared after <see cref="Pdf"/> because static field initialisers run in declaration order.
+    /// </summary>
+    private static readonly byte[] ProtectedPdf =
+        PdfEditor.Protect(Pdf, new PdfProtection { UserPassword = "pw" });
+
     /// <summary>Keys for all three formats, so one dictionary drives every ReplaceText overload.</summary>
     private static readonly Dictionary<string, string> Replacements = new()
     {
@@ -169,6 +179,8 @@ public class StreamOverloadTests
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
         "DocToDocxConverter.ConvertAsync",
+        "PdfEditor.ProtectAsync",
+        "PdfEditor.UnprotectAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -208,6 +220,8 @@ public class StreamOverloadTests
         "PdfEditor.InsertPagesAsync",
         "DocToDocxConverter.ConvertAsync",
         "DocToDocxConverter.ExtractTextAsync",
+        "PdfEditor.ProtectAsync",
+        "PdfEditor.UnprotectAsync",
     };
 
     /// <summary>
@@ -259,6 +273,8 @@ public class StreamOverloadTests
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
         "DocToDocxConverter.ConvertAsync",
+        "PdfEditor.ProtectAsync",
+        "PdfEditor.UnprotectAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -848,6 +864,10 @@ public class StreamOverloadTests
     private static Task InvokeAsync(
         string api, Stream? source, Stream? destination, CancellationToken ct = default) => api switch
         {
+            "PdfEditor.ProtectAsync" =>
+                PdfEditor.ProtectAsync(source!, destination!, new PdfProtection { UserPassword = "pw" }, ct),
+            "PdfEditor.UnprotectAsync" =>
+                PdfEditor.UnprotectAsync(source!, destination!, "pw", ct),
             "DocToDocxConverter.ConvertAsync" =>
                 DocToDocxConverter.ConvertAsync(source!, destination!, ct),
             "DocToDocxConverter.ExtractTextAsync" =>
@@ -978,6 +998,7 @@ public class StreamOverloadTests
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
         "PdfEditor.RemovePagesAsync" => TwoPagePdf,
+        "PdfEditor.UnprotectAsync" => ProtectedPdf,
         _ when api.StartsWith("DocToDocxConverter", StringComparison.Ordinal) => LegacyDoc,
         _ when api.StartsWith("XlsxTo", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PdfEditor", StringComparison.Ordinal) => Pdf,
