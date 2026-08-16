@@ -13,9 +13,31 @@ repo-wide tooling (CI, release pipeline).
 ## [0.29.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.28.0...v0.29.0) (2026-08-16)
 
 
+**Extensions package only. The core package is unchanged, and nothing existing behaves
+differently.**
+
 ### Added
 
-* **extensions:** mirror the 0.28.0 core additions ([#276](https://github.com/Ank-KhoaHo/DocToolkit/issues/276)) ([48e5d4a](https://github.com/Ank-KhoaHo/DocToolkit/commit/48e5d4a56ea502869cc59b985973b05404714fda))
+* **Extensions:** everything 0.28.0 added to the core package is now injectable ([#276](https://github.com/Ank-KhoaHo/DocToolkit/issues/276)) ([48e5d4a](https://github.com/Ank-KhoaHo/DocToolkit/commit/48e5d4a56ea502869cc59b985973b05404714fda)).
+
+    ```csharp
+    public sealed class InvoiceService(IPdfEditor pdf, IDocToDocxConverter legacy)
+    {
+        public byte[] Lock(byte[] file) =>
+            pdf.Protect(file, new PdfProtection { UserPassword = "s3cret" });
+    }
+    ```
+
+    New interface `IDocToDocxConverter` (legacy Word 97-2003 `.doc`), and the password members on
+    the ones you already inject: `Protect`/`Unprotect` on `IPdfEditor`, and
+    `Protect`/`Unprotect`/`IsProtected` on `IDocxEditor`, `IWorkbookEditor` and
+    `IPresentationEditor` — `byte[]` for `byte[]` and `Stream` for `Stream`, as everywhere else here.
+    All are registered by `services.AddDocToolkit()`; no new call is needed.
+
+    **One thing to know if you pin versions.** `Ank.DocToolkit.Extensions.DependencyInjection` now
+    requires `Ank.DocToolkit` **>= 0.28.0**, up from 0.26.0 — it cannot wrap a method that has not
+    shipped, so the mirror always lands one release after the core feature. Upgrading the extensions
+    package will bring the core package with it.
 
 ## [0.28.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.5...v0.28.0) (2026-08-16)
 
