@@ -168,6 +168,13 @@ string md        = DocxToMarkdownConverter.Convert(docx);
 byte[] fromMd    = MarkdownToDocxConverter.Convert("# Invoice\n\nTotal: **18,100.00**\n");
 byte[] mdPdf     = MarkdownToPdfConverter.Convert("# Invoice\n\nTotal: **18,100.00**\n");
 
+// Word 97-2003 binary .doc, the format on the old share drive. Reading never refuses;
+// converting refuses by default when the file holds pictures, drawings or form fields,
+// which a .docx cannot carry — in practice, any .doc containing a table.
+string legacyText = DocToDocxConverter.ExtractText(legacyDoc);
+byte[] migrated   = DocToDocxConverter.Convert(legacyDoc,
+                        new LegacyDocOptions { AllowContentLoss = true });
+
 // A sheet as CSV or as an HTML table fragment. Cell text is culture-invariant in both —
 // a decimal comma would collide with the CSV delimiter itself.
 string csv       = XlsxToCsvConverter.Convert(xlsx, "Sales");

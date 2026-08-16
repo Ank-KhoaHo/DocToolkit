@@ -207,6 +207,18 @@ byte[] fromMarkdown = MarkdownToDocxConverter.Convert(markdown);
 // offline guarantee above unchanged because it performs no conversion of its own.
 byte[] markdownPdf = MarkdownToPdfConverter.Convert(markdown);
 
+// Legacy Word 97-2003 binary .doc -> DOCX, for the files sitting on an old share drive.
+// Reading is unconditional; converting REFUSES by default when the .doc holds pictures,
+// drawings or form fields, because a .docx cannot carry them and a silently incomplete
+// document is worse than an exception. In practice any .doc with a table is such a file.
+string docText = DocToDocxConverter.ExtractText(legacyDoc);           // never refuses
+byte[] converted = DocToDocxConverter.Convert(legacyDoc,
+    new LegacyDocOptions { AllowContentLoss = true });                // opt in deliberately
+
+// ConvertWithReport returns the same bytes and names exactly what was dropped.
+ConversionResult<byte[]> docReport = DocToDocxConverter.ConvertWithReport(legacyDoc,
+    new LegacyDocOptions { AllowContentLoss = true });
+
 // XLSX -> CSV and XLSX -> HTML, one named sheet at a time.
 //
 // Cell text is CULTURE-INVARIANT in both - numbers use a dot, dates are ISO 8601 - which is

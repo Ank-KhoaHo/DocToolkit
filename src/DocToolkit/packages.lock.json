@@ -57,6 +57,16 @@
           "OfficeIMO.PowerPoint": "3.2.2"
         }
       },
+      "OfficeIMO.Word": {
+        "type": "Direct",
+        "requested": "[3.2.2, )",
+        "resolved": "3.2.2",
+        "contentHash": "KAP39SC+w4GIn+lduKf2PWHwB4m1cLtBO6k/KhWq6mQEXAqjPtWyb3jhLopyL0B851Oi73DzLDENKC/LipvDFg==",
+        "dependencies": {
+          "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
+          "OfficeIMO.Core": "3.2.2"
+        }
+      },
       "OfficeIMO.Word.Html": {
         "type": "Direct",
         "requested": "[3.2.2, )",
@@ -217,15 +227,6 @@
           "OfficeIMO.Core": "3.2.2"
         }
       },
-      "OfficeIMO.Word": {
-        "type": "Transitive",
-        "resolved": "3.2.2",
-        "contentHash": "KAP39SC+w4GIn+lduKf2PWHwB4m1cLtBO6k/KhWq6mQEXAqjPtWyb3jhLopyL0B851Oi73DzLDENKC/LipvDFg==",
-        "dependencies": {
-          "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
-          "OfficeIMO.Core": "3.2.2"
-        }
-      },
       "RBush.Signed": {
         "type": "Transitive",
         "resolved": "4.0.0",
@@ -296,6 +297,16 @@
           "OfficeIMO.Core": "3.2.2",
           "OfficeIMO.Pdf": "3.2.2",
           "OfficeIMO.PowerPoint": "3.2.2"
+        }
+      },
+      "OfficeIMO.Word": {
+        "type": "Direct",
+        "requested": "[3.2.2, )",
+        "resolved": "3.2.2",
+        "contentHash": "KAP39SC+w4GIn+lduKf2PWHwB4m1cLtBO6k/KhWq6mQEXAqjPtWyb3jhLopyL0B851Oi73DzLDENKC/LipvDFg==",
+        "dependencies": {
+          "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
+          "OfficeIMO.Core": "3.2.2"
         }
       },
       "OfficeIMO.Word.Html": {
@@ -453,15 +464,6 @@
         "type": "Transitive",
         "resolved": "3.2.2",
         "contentHash": "4B5azfMM2pvz8kNOqaWSW1HVhAjaT1nj51G9M4/OvAolIQMtxX3kRHY/rhSQlGpvHWBJxm7Oy/7KEaugsEOf8w==",
-        "dependencies": {
-          "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
-          "OfficeIMO.Core": "3.2.2"
-        }
-      },
-      "OfficeIMO.Word": {
-        "type": "Transitive",
-        "resolved": "3.2.2",
-        "contentHash": "KAP39SC+w4GIn+lduKf2PWHwB4m1cLtBO6k/KhWq6mQEXAqjPtWyb3jhLopyL0B851Oi73DzLDENKC/LipvDFg==",
         "dependencies": {
           "DocumentFormat.OpenXml": "[3.5.1, 4.0.0)",
           "OfficeIMO.Core": "3.2.2"

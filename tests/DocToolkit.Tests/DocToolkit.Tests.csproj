@@ -61,4 +61,25 @@
     <Content Include="assets\sample.pptx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    Two REAL Word 97-2003 binary documents, produced by Word itself (verified CFB/OLE2 magic
+    d0 cf 11 e0, not a renamed .docx). Hand-building a .doc is not a realistic option - the whole
+    question a legacy importer has to answer is whether it copes with files real Word wrote, and a
+    minimal hand-rolled CFB would prove nothing about that.
+
+    The PAIR is the point, and neither is redundant:
+      legacy.doc          heading + paragraphs + a bold run + a 2x2 table. The table makes Word
+                          emit a binary Data stream, so this file CANNOT convert without
+                          LegacyDocOptions.AllowContentLoss. It is the blocking case.
+      legacy-lossless.doc one line of text, no table, no binary stream - converts with no opt-in.
+
+    Measured 2026-08-16: a table is what triggers the block; bold and headings do not. Without the
+    lossless file, every "it refused" assertion would pass just as happily against a converter that
+    refused unconditionally.
+  -->
+  <ItemGroup>
+    <Content Include="assets\legacy.doc" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets\legacy-lossless.doc" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
