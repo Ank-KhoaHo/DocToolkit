@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ank.DocToolkit" Version="*" />
+  </ItemGroup>
+
+  <!--
+    No fixture. Every document this sample protects is produced by the library first, so there is
+    nothing to commit and nothing to keep in step - the same reasoning that removed the linked
+    .pptx from samples/Presentations.
+  -->
+
+</Project>

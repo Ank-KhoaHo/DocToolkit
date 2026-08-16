@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ank.DocToolkit" Version="*" />
+  </ItemGroup>
+
+  <!--
+    This sample DOES carry a fixture, unlike every other one here, and the reason is structural
+    rather than laziness: a Word 97-2003 binary cannot be produced by the library. The import is
+    read-only - AssessLegacyDocWrite reports native .doc saving as unsupported - so there is no
+    "build your own input" path the way samples/Presentations has one.
+
+    It is this sample's OWN copy, not a link into tests/. A sample that reaches into the test
+    project made a moved fixture surface as an opaque MSBuild copy error once already.
+  -->
+  <ItemGroup>
+    <Content Include="assets\quarterly-report.doc" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

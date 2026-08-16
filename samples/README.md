@@ -1,8 +1,12 @@
 # Samples
 
-Thirteen runnable projects, each answering one question. Every one references the **published**
-NuGet packages rather than this repo's source — the same restore an external consumer gets. (This
-line said "Nine" until 2026-08-15. Count them rather than trusting it: `ls -d samples/*/`.)
+Every project here is runnable and answers one question. Each references the **published** NuGet
+packages rather than this repo's source — the same restore an external consumer gets.
+
+**The count is deliberately not written down.** This line said "Nine", then "Thirteen", and while it
+said thirteen the table below listed **eleven** — `Container` and `LargeFileStreaming` were missing
+from it entirely, so two samples were invisible to anyone reading this page. A number and a list are
+two claims that drift apart. `ls -d samples/*/` is the answer, and the table below is now the list.
 
 | Sample | Answers |
 |---|---|
@@ -17,6 +21,10 @@ line said "Nine" until 2026-08-15. Count them rather than trusting it: `ls -d sa
 | [WorkerService](WorkerService/) | How do I generate documents from a background job? |
 | [PdfUtilities](PdfUtilities/) | How do I count, merge, split or label a PDF I already have? |
 | [Telemetry](Telemetry/) | How do I find out whether my remote images are actually arriving, and why one didn't? |
+| [Protection](Protection/) | How do I put a password on a document — and why is my "protected" file still opening for everyone? |
+| [LegacyDoc](LegacyDoc/) | I have a share drive full of Word 97 `.doc` files. How do I read them, and turn them into `.docx`? |
+| [Container](Container/) | Does this really work in a container with no fonts, no ICU and no native libraries — on `runtime-deps`, the smallest official .NET image? |
+| [LargeFileStreaming](LargeFileStreaming/) | How do I convert from a forward-only, non-seekable source — an HTTP request body or a pipe? (The `Stream` overloads are for that, **not** for saving memory.) |
 
 Each folder has its own `README.md` with the command to run it and the one thing about that
 capability that is not obvious.
