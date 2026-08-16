@@ -337,3 +337,59 @@ wrong heading gets noticed while it can still be described properly in **Migrati
 
 Open an issue. If you are unsure whether a change fits the four constraints, ask before writing it
 — that is a cheaper conversation than a rejected pull request.
+
+---
+
+<!--
+    Moved here from README.md on 2026-08-16. The root README is the page a stranger lands on from a
+    search result; none of the three sections below help that reader decide anything, and all three
+    are the first thing somebody who has cloned the repo wants. Moved rather than duplicated - a
+    second copy of build instructions is a second copy to go stale.
+-->
+
+## Design notes
+
+**HTML → PDF goes through DOCX.** No permissively-licensed, NuGet-only, Linux-safe library renders
+HTML to PDF directly — the only free renderers *are* browsers, and a browser is a native binary.
+Pivoting through DOCX keeps the whole chain pure managed.
+
+**ShapeCrawler was removed.** PPTX originally used it, until it turned out to pull SkiaSharp and
+Magick.NET: 38 native `.so`/`.dylib` files, 664 MB of `runtimes/`, and 26 CVE advisories. PPTX now
+sits directly on `DocumentFormat.OpenXml`. The lesson — checking a library's *API* tells you
+nothing about what it drags in — is why the CI guard exists.
+
+**`SixLabors.Fonts` is pinned to an exact 1.0.x version** (currently `[1.0.1]`). Version 2.x switches to the Six Labors Split License,
+Apache-2.0 only under $1M annual revenue. CI asserts the pin holds, so a feed carrying only 2.x
+fails restore loudly rather than silently relicensing you.
+
+## Build and test
+
+```bash
+dotnet build DocToolkit.sln -c Release
+dotnet test  DocToolkit.sln -c Release      # 426 tests x 2 target frameworks = 852 results
+
+docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .   # verify Linux locally
+docker run --rm doctoolkit-linux-test
+
+# samples reference the *published* packages, not this source - the restore a consumer gets
+dotnet run --project samples/HtmlConversion      # one folder per capability - see samples/README.md
+dotnet run --project samples/MinimalApi
+```
+
+Both packages ship at one version, from a single tag.
+[release-please](https://github.com/googleapis/release-please) keeps a Release PR up to date as
+commits land on `main`; merging it is a deliberate, manual decision, and
+[`release.yml`](.github/workflows/release.yml) then publishes, authenticated with
+[Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing) — no
+stored API key. Releases are cut by a maintainer merging a release pull request by hand;
+nothing else publishes.
+
+## Repository layout
+
+```
+src/DocToolkit/                                         the library
+src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
+tests/                                                  the public-API approval guard, Stream-overload proofs, and the air-gap/dependency guards
+samples/                                                twelve runnable samples, each answering one question, on the published packages
+docfx/                                                  API docs source, published to GitHub Pages on release
+```

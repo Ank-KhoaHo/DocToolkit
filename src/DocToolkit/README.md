@@ -720,6 +720,33 @@ The core package `Ank.DocToolkit` is unaffected.
 No behaviour change. CI now runs the full suite on macOS and Linux arm64 as well as Linux x64 and
 Windows, so "runs everywhere .NET does" is measured on each rather than inferred.
 
+### Choosing a page size
+
+Generated documents are **A4 with one-inch margins**. Pass a `PageSetup` for anything else:
+
+<!-- BEGIN SNIPPET: readme-page-setup-options -->
+
+```csharp
+byte[] pdf = await HtmlToPdfConverter.ConvertAsync(
+    html,
+    PageSetup.A4.Landscape().WithMargins(36));
+
+byte[] docx = DocxEditor.Create(blocks, PageSetup.Letter);
+```
+
+<!-- END SNIPPET -->
+
+`PageSetup` is immutable, measured in points, and offers `A4`, `Letter` and
+`Custom(widthPoints, heightPoints)`, plus `Landscape()` and `WithMargins(...)`. Every producer -
+`HtmlToDocxConverter`, `HtmlToPdfConverter` and `DocxEditor.Create` - takes one.
+
+`DocxToPdfConverter` takes no `PageSetup`: it renders a document that already carries its own page
+setup, and honours it.
+
+Page setup and remote images combine: `ConvertAsync(html, page, options)`. Before 0.18.0 they were
+mutually exclusive - `(html, page)` converted offline and `(html, options)` laid out on A4 - so
+asking for both silently dropped one.
+
 ## Headers and footers
 
 Attach them to the `PageSetup`, and every producer honours them:
