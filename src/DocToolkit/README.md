@@ -12,7 +12,8 @@ Generating Word, Excel, PowerPoint or PDF files from .NET usually means one of t
 - or discovering the package downloads fonts or images at runtime, on a machine with no route out.
 
 **DocToolkit exists because all four are avoidable.** Convert HTML to DOCX and PDF, render XLSX and
-PPTX to PDF, turn DOCX into HTML or Markdown, and open/edit DOCX, XLSX and PPTX — from .NET, with:
+PPTX to PDF, turn DOCX into HTML or Markdown, read legacy Word 97-2003 `.doc` files, open/edit DOCX,
+XLSX and PPTX, and password-protect any of them — from .NET, with:
 
 | | |
 |---|---|

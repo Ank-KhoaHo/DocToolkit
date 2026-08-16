@@ -6,11 +6,23 @@
   -->
   <PropertyGroup>
     <PackageId>Ank.DocToolkit.Extensions.DependencyInjection</PackageId>
+    <!--
+      NO NAMES AND NO COUNT IN HERE, deliberately, and it cost a stale nuget.org page to learn.
+      This field said "six injectable interfaces" and then listed those six by name, while FIFTEEN
+      shipped - so the package page advertised a smaller library than the one a consumer got, and
+      nothing detected it. That is the same drift `check-readme-coverage.py` was written for, one
+      field further out.
+
+      A count here cannot be derived, so the fix is to stop making a claim that needs maintaining:
+      describe the SHAPE (one interface per capability) rather than enumerate. The shape stays true
+      as the surface grows. `scripts/check-package-description.py` fails the build if a count or a
+      name is reintroduced here and drifts from the approved API.
+    -->
     <Description>
-      Dependency-injection registration for Ank.DocToolkit. services.AddDocToolkit() registers
-      six injectable interfaces (IHtmlToDocxConverter, IDocxToPdfConverter, IHtmlToPdfConverter,
-      IDocxEditor, IWorkbookEditor, IPresentationEditor) over the same pure-managed HTML/DOCX/
-      PDF/XLSX/PPTX conversion and editing logic, for ASP.NET Core and worker-service consumers.
+      Dependency-injection registration for Ank.DocToolkit. services.AddDocToolkit() registers one
+      injectable interface per capability - conversion between HTML, Markdown, DOCX, PDF, XLSX and
+      PPTX, plus the DOCX/XLSX/PPTX/PDF editors - over the same pure-managed logic, for ASP.NET Core
+      and worker-service consumers.
     </Description>
     <!-- Same three groups as the core package; see its csproj for why. The DI words stay first
          because someone searching for them is already most of the way to this package. -->
