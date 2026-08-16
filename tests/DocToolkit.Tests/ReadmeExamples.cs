@@ -24,6 +24,30 @@ public class ReadmeExamples
     private static async Task<byte[]> PdfAsync(string heading) =>
         await HtmlToPdfConverter.ConvertAsync($"<h1>{heading}</h1>");
 
+    /// <summary>
+    /// The landing page's first code block. Deliberately the smallest thing that shows the shape of
+    /// the whole library: one call in, bytes out, no configuration, no disposal, nothing to wire up.
+    /// A README that opens with setup code loses the reader before the capability appears.
+    /// </summary>
+    [Fact]
+    public async Task QuickStartExample()
+    {
+        #region readme-quickstart
+        // HTML in, a Word document and a PDF out. No browser, no LibreOffice, nothing to install.
+        byte[] docx = await HtmlToDocxConverter.ConvertAsync("<h1>Invoice 2026-114</h1>");
+        byte[] pdf = await HtmlToPdfConverter.ConvertAsync("<h1>Invoice 2026-114</h1>");
+
+        // Read a document back, edit one you were given, and lock it when you are done.
+        string text = DocxEditor.ExtractText(docx);
+        byte[] locked = PdfEditor.Protect(pdf, new PdfProtection { UserPassword = "s3cret" });
+        #endregion
+
+        Assert.Equal("Invoice 2026-114", text);
+        Assert.True(PdfProbe.IsPdf(pdf));
+        // The control that makes "locked" mean something: it can no longer be opened.
+        Assert.Throws<DocumentConversionException>(() => PdfEditor.PageCount(locked));
+    }
+
     [Fact]
     public void PresentationReplaceImageExample()
     {
