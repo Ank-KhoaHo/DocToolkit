@@ -10,6 +10,20 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.28.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.5...v0.28.0) (2026-08-16)
+
+
+### Added
+
+* **core:** password-protect DOCX, XLSX and PPTX ([#272](https://github.com/Ank-KhoaHo/DocToolkit/issues/272)) ([e34291e](https://github.com/Ank-KhoaHo/DocToolkit/commit/e34291e77f5986daffce099601042b865e8904b8))
+* **core:** read and convert legacy Word 97-2003 binary .doc ([#269](https://github.com/Ank-KhoaHo/DocToolkit/issues/269)) ([2ef72c4](https://github.com/Ank-KhoaHo/DocToolkit/commit/2ef72c45022458a0fd3def40d4c0e67901206ed7))
+
+
+### Fixed
+
+* **build:** describe what actually ships on both nuget.org pages ([#273](https://github.com/Ank-KhoaHo/DocToolkit/issues/273)) ([29476c8](https://github.com/Ank-KhoaHo/DocToolkit/commit/29476c8db91a9a98ebb164626d1ae06cfb4434e2))
+* **test:** read /P from the encryption dictionary, not from ciphertext ([#274](https://github.com/Ank-KhoaHo/DocToolkit/issues/274)) ([5b687e5](https://github.com/Ank-KhoaHo/DocToolkit/commit/5b687e516b3a69988f312e824acb7e86d8f1a54c))
+
 ## [0.27.5](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.27.4...v0.27.5) (2026-08-15)
 
 
