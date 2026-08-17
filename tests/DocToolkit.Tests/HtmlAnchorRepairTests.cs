@@ -141,6 +141,106 @@ public class HtmlAnchorRepairTests
         Assert.DoesNotContain("id=\"unused\"", result, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ---- three rules that were wrong on the first pass, each measured -------------------------------
+
+    [Fact]
+    public async Task AnEmptyBlockIsNeverLabelled_BecauseThatTradesOneFailureForAWorseOne()
+    {
+        // Measured: a block with no text of its own does not merely fail to make a bookmark, it makes
+        // the render throw from ThrowNoElementsException - an opaque crash rather than a legible
+        // "target not found". The first version of this class did exactly that to EIGHT corpus pages.
+        var pdf = await HtmlToPdfConverter.ConvertAsync(
+            "<p><a href=\"#c\">Jump</a></p><div><a name=\"c\"></a></div>");
+
+        Assert.True(PdfProbe.IsPdf(pdf));
+    }
+
+    [Fact]
+    public void ABlockHoldingOnlyATableIsNotLabelled()
+    {
+        // Measured: a block whose only content is a table produces no paragraph of its own, so no
+        // bookmark - labelling it leaves the document broken while looking repaired.
+        var result = HtmlAnchorRepair.Apply(
+            Link + "<div><table><tr><td><a name=\"c\">t</a></td></tr></table></div>");
+
+        Assert.DoesNotContain("<div id=\"c\"", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"#c\"", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnEmptyBlockGetsNoStrayId()
+    {
+        // The sibling test above cannot tell whether Promote skipped the block or labelled it
+        // pointlessly, because Satisfied refuses it either way and the link is dropped either way -
+        // mutation testing showed exactly that. An id nobody can use is still an edit to somebody's
+        // document, so it is asserted directly.
+        var result = HtmlAnchorRepair.Apply(Link + "<div><a name=\"c\"></a></div>");
+
+        Assert.DoesNotContain("<div id=\"c\"", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ABlockAlreadyCarryingTheIdIsNotTrusted_IfItCannotYieldABookmark()
+    {
+        // FOUR corpus pages are exactly this shape: the block already has the right id, so a naive
+        // "is the id present" test says the link resolves - and it does not, because a block holding
+        // only a table produces no bookmark. The link has to be dropped or the render fails.
+        //
+        // Nothing else in this file discriminates it: everywhere else the id is absent to begin with,
+        // so both the right and the wrong rule reach the same answer. Mutation testing found that.
+        const string html =
+            "<p><a href=\"#c\">Jump</a></p><div id=\"c\"><table><tr><td>T</td></tr></table></div>";
+
+        var result = HtmlAnchorRepair.Apply(html);
+
+        Assert.NotSame(html, result);
+        Assert.DoesNotContain("href=\"#c\"", result, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ABlockAlreadyCarryingTheIdButHoldingOnlyATableStillRenders()
+    {
+        var pdf = await HtmlToPdfConverter.ConvertAsync(
+            "<p><a href=\"#c\">JUMPTEXT</a></p><div id=\"c\"><table><tr><td>CELL</td></tr></table></div>");
+
+        var text = PdfProbe.ExtractText(pdf);
+        Assert.Contains("JUMPTEXT", text, StringComparison.Ordinal);
+        Assert.Contains("CELL", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task APreIsNotBookmarkable()
+    {
+        // `pre` was in the block list on the first pass and is measurably wrong: an id on it yields
+        // no bookmark. The comment above that list says every entry must be measured; this is the
+        // test that makes the claim falsifiable.
+        var pdf = await HtmlToPdfConverter.ConvertAsync(
+            "<p><a href=\"#c\">Jump</a></p><pre><a name=\"c\">t</a></pre>");
+
+        Assert.True(PdfProbe.IsPdf(pdf));
+    }
+
+    [Fact]
+    public async Task ARelativeUrlCarryingAFragmentIsInternalToo()
+    {
+        // Measured: `page.html#privacy` becomes an internal bookmark link, while
+        // `https://host/page.html#privacy` stays an ordinary external one. Assuming only a bare
+        // `#name` counted left four corpus pages failing with no visible cause.
+        var pdf = await HtmlToPdfConverter.ConvertAsync("<p><a href=\"page.html#gone\">TEXT</a></p>");
+
+        Assert.Contains("TEXT", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnAbsoluteUrlWithAFragmentIsLeftAlone()
+    {
+        // The other half of that boundary. Stripping the href here would break a working external
+        // link to fix a problem that does not exist.
+        const string html = "<p><a href=\"https://example.com/p.html#frag\">x</a></p>";
+
+        Assert.Same(html, HtmlAnchorRepair.Apply(html));
+    }
+
     // ---- every entry point on the PDF path gets it ---------------------------------------------------
 
     /// <summary>
