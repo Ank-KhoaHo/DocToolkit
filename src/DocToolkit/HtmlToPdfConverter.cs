@@ -47,7 +47,7 @@ public static class HtmlToPdfConverter
         string html, PageSetup page, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(html);
-        byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, page, ct).ConfigureAwait(false);
+        byte[] docx = await HtmlToDocxConverter.ConvertAsync(HtmlAnchorRepair.Apply(html), page, ct).ConfigureAwait(false);
         return DocxToPdfConverter.Convert(docx);
     }
 
@@ -69,7 +69,7 @@ public static class HtmlToPdfConverter
         string html, bool allowRemoteImageDownload, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(html);
-        var docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload, ct).ConfigureAwait(false);
+        var docx = await HtmlToDocxConverter.ConvertAsync(HtmlAnchorRepair.Apply(html), allowRemoteImageDownload, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         return DocxToPdfConverter.Convert(docx);
     }
@@ -103,7 +103,7 @@ public static class HtmlToPdfConverter
         ArgumentNullException.ThrowIfNull(html);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
-        var docx = await HtmlToDocxConverter.ConvertAsync(html, options, ct).ConfigureAwait(false);
+        var docx = await HtmlToDocxConverter.ConvertAsync(HtmlAnchorRepair.Apply(html), options, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         return DocxToPdfConverter.Convert(docx);
     }
@@ -285,7 +285,7 @@ public static class HtmlToPdfConverter
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
-        var docx = await HtmlToDocxConverter.ConvertAsync(html, page, options, ct).ConfigureAwait(false);
+        var docx = await HtmlToDocxConverter.ConvertAsync(HtmlAnchorRepair.Apply(html), page, options, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         return DocxToPdfConverter.Convert(docx);
     }
