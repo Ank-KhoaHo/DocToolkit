@@ -1,3 +1,4 @@
+using System.Globalization;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 
@@ -93,13 +94,13 @@ internal static class RowSpanClamp
             for (var i = 0; i < rows.Count; i++)
             {
                 var remaining = rows.Count - i;
-                foreach (var cell in rows[i].Cells)
-                {
-                    if (cell.RowSpan <= remaining) continue;
+                var span = remaining.ToString(CultureInfo.InvariantCulture);
 
+                foreach (var cell in rows[i].Cells.Where(c => c.RowSpan > remaining))
+                {
                     // SetAttribute rather than the RowSpan property: the property is what AngleSharp
                     // computed, and writing the attribute is what the re-parse downstream will read.
-                    cell.SetAttribute("rowspan", remaining.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    cell.SetAttribute("rowspan", span);
                     clamped = true;
                 }
             }
