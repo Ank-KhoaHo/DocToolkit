@@ -623,6 +623,22 @@ jobs:
       - name: Assert no package description contradicts the approved API
         run: python3 scripts/check-package-description.py
 
+      # check-changelog-curated.py itself never runs on a pull request - it reports on the
+      # Release PR, from release-please.yml. What runs HERE is its controls, against two
+      # fixtures: a real untouched release-please entry and the same entry after curation.
+      #
+      # A curation check that reported "curated" because its parser had stopped matching would
+      # be worse than no check and would look identical from the outside - which is the exact
+      # failure mode it exists to catch, one level up. So both verdicts are asserted, and so is
+      # the parser having actually found content in each; a fixture that parsed to nothing would
+      # give the right answer for the wrong reason on the negative case.
+      #
+      # The first version of that check WAS wrong this way and the controls found it: keying on
+      # per-item shape alone, it called 0.29.0 uncurated, because its one item is generated text
+      # with a full stop appended while the curation is a paragraph above the list.
+      - name: Assert the changelog curation check still discriminates
+        run: python3 scripts/check-changelog-curated.py --self-test
+
       # The guides carry no code of their own - every block is a #region pulled out of a project
       # in samples/, which the build job compiles with -warnaserror on four platforms. So a guide
       # cannot document an API that no longer exists.
