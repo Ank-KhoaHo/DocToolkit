@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    OUTSIDE DocToolkit.sln, on purpose, exactly like benchmarks/ and tests/TrimProbe.
+
+    The premise guard runs `find . -path '*/bin/*'` over the WHOLE working tree and fails on any
+    native binary, and the only thing keeping tooling out of its way is that the guard builds
+    DocToolkit.sln and nothing else. A probe that is never part of the solution can never put
+    anything under a bin/ that the guard walks into during a solution build.
+
+    References the PROJECT, not the published package: the whole point is to measure the code as it
+    stands, not the last release.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>corpus-probe</AssemblyName>
+    <RootNamespace>CorpusProbe</RootNamespace>
+    <!-- Probe code is not held to the library's warning bar; it is not shipped. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DocToolkit\DocToolkit.csproj" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>
