@@ -119,13 +119,11 @@ internal static class HtmlAnchorRepair
 
     private static string TextOutsideTables(IElement block)
     {
-        var text = new System.Text.StringBuilder();
-        foreach (var node in block.Descendants<IText>())
-        {
-            if (node.ParentElement?.Closest("table") is not null) continue;
-            text.Append(node.Text);
-        }
-        return text.ToString();
+        // Concat rather than a StringBuilder loop: only emptiness is ever asked of the result, and
+        // the filter is the point of the method - saying it as a Where makes that legible.
+        return string.Concat(block.Descendants<IText>()
+            .Where(node => node.ParentElement?.Closest("table") is null)
+            .Select(node => node.Text));
     }
 
     /// <summary>
