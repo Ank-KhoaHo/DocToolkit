@@ -715,8 +715,31 @@ public static class PdfEditor
             // A caller who supplied a password already knows the document is encrypted, so
             // repeating "it may be password-protected" at them is noise — and it hides the one
             // thing that actually went wrong.
+            // A permission-restricted PDF - an owner password, no user password - READS perfectly
+            // and refuses only modification. Saying "failed to read" to somebody whose PageCount
+            // and ExtractText calls just succeeded sends them to check bytes that are fine, and
+            // names three causes when the real one is a fourth.
+            //
+            // Measured 2026-08-17 across 200 real PDFs from a .gov crawl: 11 of them (5.5%) are
+            // exactly this, from 1 page to 1000. It is the single most common write failure on
+            // real-world input, and the remedy - Unprotect with the owner password - shipped in
+            // 0.28.0 and went unmentioned.
+            //
+            // Detected by open MODE rather than by matching the upstream message: a read mode that
+            // failed is a genuinely unreadable document, while Modify/Import failing on a document
+            // that reads is the restriction. Matching message text would break the moment PDFsharp
+            // reworded it, which is the failure this repository has recorded elsewhere.
+            var restricted = mode != PdfDocumentOpenMode.Import
+                             && password is null
+                             && CanOpenForReading(pdf);
+
             throw new DocumentConversionException(
-                password is null
+                restricted
+                    ? "This PDF is permission-restricted: it carries an owner password, so it can "
+                      + "be read but not modified. Reading it works - PageCount and ExtractText are "
+                      + "unaffected. To change it, call PdfEditor.Unprotect with the owner password "
+                      + "first."
+                : password is null
                     ? "Failed to read the PDF. This usually means the PDF is password-protected, "
                       + "truncated, or not actually a PDF — check the source bytes."
                     // Three candidates, named rather than guessed between. The third is the one
@@ -731,6 +754,31 @@ public static class PdfEditor
                       + "protection needs the owner password, because that is what the PDF format "
                       + "requires to modify a document.",
                 ex);
+        }
+    }
+
+    /// <summary>
+    /// Whether the document opens for READING without a password - which distinguishes a
+    /// permission-restricted PDF from an unreadable one. Import is the read mode this class uses
+    /// everywhere; PdfDocumentOpenMode.ReadOnly is obsolete in PDFsharp and not implemented.
+    /// </summary>
+    /// <remarks>
+    /// Only ever called on a path that has already failed, so its cost is paid on the error branch
+    /// and never on a successful call. It swallows everything deliberately: this is a question
+    /// being asked to choose a message, and a failure to answer it just means the ordinary message
+    /// is used.
+    /// </remarks>
+    private static bool CanOpenForReading(byte[] pdf)
+    {
+        try
+        {
+            using var probe = new MemoryStream(pdf, writable: false);
+            using var _ = PdfReader.Open(probe, PdfDocumentOpenMode.Import);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

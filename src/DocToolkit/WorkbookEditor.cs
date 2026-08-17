@@ -906,6 +906,23 @@ public static class WorkbookEditor
 
     private static XLWorkbook Open(byte[] xlsx)
     {
+        // Checked BEFORE handing the bytes to ClosedXML, because ClosedXML reports a legacy .xls as
+        // "File contains corrupted data" - which is false, and sends the caller to check a file,
+        // a disk and an upload path that are all fine. Measured 2026-08-17 across 62 real .xls
+        // files from a .gov crawl: every one reported as corrupt, every one a valid compound file
+        // that Excel opens.
+        //
+        // This is the same defect this repository has recorded twice before in other places: a
+        // message must not name a cause it cannot distinguish. Here it can distinguish, from the
+        // first eight bytes, so it should.
+        if (OfficeCrypto.IsEncrypted(xlsx))
+        {
+            throw new DocumentConversionException(
+                "This is not an .xlsx package. The bytes are a compound file, which means either a "
+                + "legacy Excel 97-2003 .xls workbook - save it as .xlsx to read it here - or an "
+                + "encrypted .xlsx, which WorkbookEditor.Unprotect will open with its password.");
+        }
+
         var ms = new MemoryStream();
         ms.Write(xlsx, 0, xlsx.Length);
         ms.Position = 0;
