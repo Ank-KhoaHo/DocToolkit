@@ -15,14 +15,59 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** claim legacy .ppt on the PDF path, and refuse .xls there ([#290](https://github.com/Ank-KhoaHo/DocToolkit/issues/290)) ([21cb905](https://github.com/Ank-KhoaHo/DocToolkit/commit/21cb90586d44fb745c81bc4ec932dce1a1ef2eb1))
-* **core:** render Word documents that contain bulleted lists ([#289](https://github.com/Ank-KhoaHo/DocToolkit/issues/289)) ([d68bcdf](https://github.com/Ank-KhoaHo/DocToolkit/commit/d68bcdfc9a80d4db9d6ed938f66a981edd658cbb))
+* **Core: legacy PowerPoint `.ppt` renders to PDF, and is now claimed rather than accidental.**
+  `PptxToPdfConverter` already read the binary format — it worked, was tested nowhere and was
+  documented nowhere. Measured across 15 real `.ppt` files: **11 convert (73%)**, the slowest in
+  1.7 s. It is now tested, documented and bounded. The editors are unchanged and still refuse
+  `.ppt`: `PresentationEditor` is OOXML-only, and claiming the format on the PDF path does not
+  claim it everywhere ([#290](https://github.com/Ank-KhoaHo/DocToolkit/issues/290)).
+
+* **Core: Word documents containing bulleted lists now render to PDF.** They previously could not —
+  at all. Word's default bullet is `U+F0B7`, a Symbol-font glyph in the Unicode private-use area,
+  and the PDF renderer refused to encode it, so any `.docx` or `.doc` with a bulleted list failed.
+  Since a table also carries one, that is most real documents
+  ([#289](https://github.com/Ank-KhoaHo/DocToolkit/issues/289)).
+
+
+### Changed
+
+* **Core: `XlsxToPdfConverter` now REFUSES a legacy `.xls` immediately, where it used to attempt
+  the render.** This is the one behaviour change in this release that can break working code. The
+  renderer underneath does read the binary format, so a `.xls` sometimes succeeded on this one path
+  while every other entry point refused it — but the cost was unbounded: measured, a 101 KB
+  workbook took **10.9 s**, a 2.3 MB one did not finish in **ten minutes**, and a 7.7 MB one spent
+  **161 s** before failing anyway. The supported `.xlsx` path renders 20,000 rows in 3.7 s, so this
+  is the legacy path and not a property of large workbooks. Accepting caller-chosen input that
+  costs minutes of CPU through an endpoint that never claimed the format is not a capability worth
+  keeping.
+
+  **Migrating:** if you were passing `.xls` bytes to `XlsxToPdfConverter`, you now get a
+  `DocumentConversionException` at once, naming the format and telling you to save as `.xlsx`. The
+  same message covers an encrypted `.xlsx` — both are compound files — and points at
+  `WorkbookEditor.Unprotect` for that case.
+
+* **Core: the bullet glyph in a rendered PDF is a Unicode bullet, not the Symbol-font one.** This is
+  the trade the bullet fix makes, and it is on by default: `U+F0B7` becomes `U+2022`, `U+F0A7`
+  becomes `U+00B7`. Visually near-identical, and the alternative is not a faithful conversion but no
+  conversion at all. Only list markers in `word/numbering.xml` are touched — document text is never
+  rewritten, and a document with no list is returned byte-for-byte unchanged.
 
 
 ### Fixed
 
-* **core:** name the HTML failure that real pages hit most often ([#292](https://github.com/Ank-KhoaHo/DocToolkit/issues/292)) ([eba835d](https://github.com/Ank-KhoaHo/DocToolkit/commit/eba835dd82a4ac299cc6366efb5dd2f16fb9e590))
-* **core:** two failure messages now name the cause they can distinguish ([#287](https://github.com/Ank-KhoaHo/DocToolkit/issues/287)) ([3eb372b](https://github.com/Ank-KhoaHo/DocToolkit/commit/3eb372baceef12b441b05ced4c1c06fce2d121ab))
+* **Core: converting HTML now names the failure that real pages hit most often.** Measured across
+  179 real `.gov` pages, **14 of them — 7.7% —** failed with a bare `IndexOutOfRangeException` and
+  the message *"See the inner exception for details"*, which named no table, no cell and no remedy.
+  The cause is a table cell whose `rowspan` reaches past the last row of its table. The message now
+  names the construct, says the markup is **valid** — browsers clamp such a rowspan, so the page
+  renders correctly in a browser — and gives the remedy; the inner exception is unchanged. Those
+  pages still do not convert. They now say why
+  ([#292](https://github.com/Ank-KhoaHo/DocToolkit/issues/292)).
+
+* **Core: two failure messages now name a cause they can actually distinguish.** Both previously
+  asserted one specific reason as fact when the code could not tell which of several had occurred,
+  which sent at least one investigation after a network regression that did not exist. The first
+  sentence of each is unchanged ([#287](https://github.com/Ank-KhoaHo/DocToolkit/issues/287)).
 
 ## [0.29.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.28.0...v0.29.0) (2026-08-16)
 
