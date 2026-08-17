@@ -18,9 +18,15 @@ public static class DocxToPdfConverter
 
         try
         {
+            // Word's default bullet is a Symbol-font glyph in the private-use area, which the PDF
+            // renderer refuses to encode - so a document with a bulleted list could not be
+            // rendered at all. Substituted before loading; see ListMarkerSubstitution for why the
+            // replacements are measured rather than chosen, and why this is a deliberate trade.
+            var renderable = ListMarkerSubstitution.Apply(docx);
+
             // Copy into an expandable stream: OfficeIMO opens the package read/write.
             using var input = new MemoryStream();
-            input.Write(docx, 0, docx.Length);
+            input.Write(renderable, 0, renderable.Length);
             input.Position = 0;
 
             using var word = WordDocument.Load(input);
