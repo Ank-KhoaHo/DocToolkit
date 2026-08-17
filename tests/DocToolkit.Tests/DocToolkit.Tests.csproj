@@ -90,6 +90,7 @@
   -->
   <ItemGroup>
     <Content Include="assets\legacy.xls" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets\legacy.ppt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--
