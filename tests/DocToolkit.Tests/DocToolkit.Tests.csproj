@@ -92,4 +92,18 @@
     <Content Include="assets\legacy.xls" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    Documents produced by WORD, not by this library. Every other DOCX fixture here is built by
+    DocxEditor.Create - by the code under test - so the suite could only ask "can it read back what
+    it wrote?". These ask "can it read what Word wrote", which is where A40 and A41 were found.
+      word-plain.docx     headings, bold, a table - the control, and it converts
+      word-bullets.docx   a default bulleted list, so numbering.xml carries U+F0B7 (A40)
+      word-cyrillic.docx  non-Latin text (A41, still open)
+  -->
+  <ItemGroup>
+    <Content Include="assets\word-plain.docx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets\word-bullets.docx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets\word-cyrillic.docx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

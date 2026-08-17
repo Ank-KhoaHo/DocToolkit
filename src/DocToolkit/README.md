@@ -636,6 +636,24 @@ first bytes, without a password.
 A wrong password and a file that was never encrypted are reported as **different** failures, because
 a caller can only act on one of them.
 
+## Bulleted lists, and the one substitution this library makes
+
+**A Word document containing a bulleted list renders to PDF, and to make that work one character is
+substituted.** Word's default bullet is not `U+2022` — it is `U+F0B7`, a Symbol-font glyph in the
+Unicode private-use area, stored in the document's numbering definitions. The PDF renderer cannot
+encode it, and before this substitution such a document could not be rendered **at all**.
+
+The marker becomes an ordinary `U+2022 BULLET` (or `U+00B7` for a square sub-bullet). Visually
+near-identical; the alternative was no conversion.
+
+**It applies only to list markers.** Document text is never altered, and a document with no lists is
+returned untouched rather than repackaged.
+
+**One limitation this does not fix.** A document containing **non-Latin text** — Cyrillic, Greek,
+CJK — still cannot be rendered to PDF: the renderer's encoding covers roughly WinAnsi, and there is
+no substitution for a script. Smart quotes and em dashes are fine. Reading such a document with
+`DocxEditor.ExtractText` works normally; it is only the PDF rendering that is limited.
+
 ## How the no-network guarantee is built
 
 `HtmlToOpenXml`, the HTML parser underneath, defaults to downloading every image it sees, and its
