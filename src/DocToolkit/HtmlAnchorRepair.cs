@@ -156,18 +156,18 @@ internal static class HtmlAnchorRepair
     /// <summary>Removes the <c>href</c> from a link whose target exists in no form, keeping its text.</summary>
     private static bool DropUnresolvable(IHtmlDocument document)
     {
-        var changed = false;
+        // Materialised before mutating: RemoveAttribute("href") makes an element stop matching the
+        // "a[href]" selector it was found by, and AngleSharp's result is live.
+        var unresolved = document.QuerySelectorAll("a[href]")
+            .Select(link => (link, href: link.GetAttribute("href")))
+            .Where(x => x.href is { Length: > 1 } && x.href[0] == '#')
+            .Where(x => !Satisfied(document, x.href!.Substring(1)))
+            .Select(x => x.link)
+            .ToList();
 
-        foreach (var link in document.QuerySelectorAll("a[href]"))
-        {
-            var href = link.GetAttribute("href");
-            if (href is null || href.Length < 2 || href[0] != '#') continue;
-            if (Satisfied(document, href.Substring(1))) continue;
-
+        foreach (var link in unresolved)
             link.RemoveAttribute("href");
-            changed = true;
-        }
 
-        return changed;
+        return unresolved.Count > 0;
     }
 }
