@@ -647,6 +647,39 @@ is worth knowing before you plan around it.
 | **`.ppt`** (PowerPoint 97-2003) | yes, **to PDF only** | `PptxToPdfConverter` accepts one directly |
 | **`.xls`** (Excel 97-2003) | **no** | refused immediately; save it as `.xlsx` |
 
+### Converting a `.doc` refuses more often than it succeeds
+
+**Expect to pass `AllowContentLoss`.** Measured across 111 real `.doc` files from a public `.gov`
+crawl:
+
+| call | succeeded |
+|---|---|
+| `DocToDocxConverter.ExtractText` | **99 / 111 — 89%** |
+| `DocToDocxConverter.Convert(doc, new LegacyDocOptions { AllowContentLoss = true })` | **99 / 111 — 89%** |
+| `DocToDocxConverter.Convert(doc)` — the default | **12 / 111 — 11%** |
+
+The default refuses whenever the source holds a payload a `.docx` cannot carry — pictures, drawings
+or form fields, kept in a binary stream. On real documents that is **the common case, not the
+exception**, which is worth knowing before you conclude the feature is broken.
+
+**The refusal is deliberate**: it would rather fail than hand back a document quietly missing its
+pictures. But if you are converting a share drive rather than one known file, the useful call is
+`ConvertWithReport`, which returns the same bytes as the opt-in **and** tells you exactly what was
+dropped:
+
+```csharp
+var result = DocToDocxConverter.ConvertWithReport(
+    doc, new LegacyDocOptions { AllowContentLoss = true });
+
+byte[] docx = result.Value;
+foreach (var warning in result.Warnings)
+    logger.LogInformation("{Code}: {Message}", warning.Code, warning.Message);
+```
+
+**Text, tables with every cell, and character formatting survive either way** — what is lost is the
+unprojected binary payload, and nothing else. The ~11% that cannot be read at all are mostly files
+older than the format this reads: two of the twelve were pre-97 Word binaries, not compound files.
+
 **`.ppt` → PDF works but the editors do not accept `.ppt`.** `PresentationEditor` is OOXML-only, so
 `SlideCount`, `ExtractText` and the rest still refuse a `.ppt`. Rendering it to PDF and reading the
 PDF is the way round that.
@@ -673,10 +706,27 @@ near-identical; the alternative was no conversion.
 **It applies only to list markers.** Document text is never altered, and a document with no lists is
 returned untouched rather than repackaged.
 
-**One limitation this does not fix.** A document containing **non-Latin text** — Cyrillic, Greek,
-CJK — still cannot be rendered to PDF: the renderer's encoding covers roughly WinAnsi, and there is
-no substitution for a script. Smart quotes and em dashes are fine. Reading such a document with
-`DocxEditor.ExtractText` works normally; it is only the PDF rendering that is limited.
+### Non-Latin text depends on the fonts the machine has
+
+**Rendering a document containing Cyrillic, Greek or CJK to PDF may fail, and whether it does is a
+property of the host rather than of this library.** Measured 2026-08-17 on the same document: it
+renders on Linux and macOS with its text intact, and is refused on Windows, because the fonts
+available to the renderer differ. That is the same host-dependence that makes PDF output size vary
+about a hundredfold — see *Fonts* under [running in
+production](https://ank-khoaho.github.io/DocToolkit/guides/production.html).
+
+When it is refused, it is refused **loudly**: a `DocumentConversionException` naming the character it
+could not encode. It is never silently dropped, and that guarantee is the one this library actually
+holds you to — a test asserts that either the conversion fails or the text is present in the PDF,
+with no third outcome.
+
+**Latin text is unaffected everywhere**, including smart quotes, em dashes and the rest of the
+WinAnsi range. And **reading is never affected**: `DocxEditor.ExtractText` returns non-Latin text
+correctly on every platform. It is only PDF rendering that depends on fonts.
+
+If you render documents in an unknown script, install fonts covering it on the machine that does the
+rendering, and convert on a host you control rather than assuming the developer machine's behaviour
+carries over.
 
 ## How the no-network guarantee is built
 
