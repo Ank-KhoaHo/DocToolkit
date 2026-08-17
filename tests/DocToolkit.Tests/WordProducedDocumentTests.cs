@@ -124,14 +124,40 @@ public class WordProducedDocumentTests
     }
 
     [Fact]
-    public void KnownLimitation_A41_NonLatinText_CannotBeRenderedToPdf()
+    public void NonLatinText_EitherRendersFaithfullyOrFailsLoudly_ButIsNeverDroppedSilently()
     {
-        var ex = Assert.Throws<DocumentConversionException>(
-            () => DocxToPdfConverter.Convert(Fixture("word-cyrillic.docx")));
+        // A41, and this test had to be rewritten once CI disagreed with the developer machine.
+        //
+        // It was originally pinned as an unconditional failure, because on Windows the PDF
+        // renderer's encoding preflight refuses Cyrillic. On linux and macOS the SAME document
+        // converts - the available fonts differ, and this repository already records that PDF
+        // output varies about 100x with them. So "non-Latin cannot be rendered" is not a property
+        // of the library; it is a property of the host.
+        //
+        // What must hold EVERYWHERE is the weaker, more important claim: the text is never
+        // silently lost. Either the conversion refuses, or it produces a PDF that still contains
+        // the words. A converter that quietly dropped the Cyrillic and returned a plausible
+        // document would satisfy neither branch, and is exactly what this now catches.
+        var cyrillic = Fixture("word-cyrillic.docx");
 
-        Assert.Contains("Preflight", ex.InnerException?.GetType().Name ?? "", StringComparison.Ordinal);
-        // U+041F is the first letter of the Cyrillic word in the fixture.
-        Assert.Contains("U+041F", ex.InnerException?.Message ?? "", StringComparison.Ordinal);
+        // The source really does contain it - otherwise both branches below are vacuous.
+        Assert.Contains("Привет", DocxEditor.ExtractText(cyrillic), StringComparison.Ordinal);
+
+        byte[] pdf;
+        try
+        {
+            pdf = DocxToPdfConverter.Convert(cyrillic);
+        }
+        catch (DocumentConversionException ex)
+        {
+            // The refusing branch. Assert the CAUSE, so an unrelated failure cannot pass as this.
+            Assert.Contains("Preflight", ex.InnerException?.GetType().Name ?? "", StringComparison.Ordinal);
+            Assert.Contains("U+041F", ex.InnerException?.Message ?? "", StringComparison.Ordinal);
+            return;
+        }
+
+        // The rendering branch: if it did not refuse, the text has to actually be in the output.
+        Assert.Contains("Привет", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
     }
 
     [Fact]
