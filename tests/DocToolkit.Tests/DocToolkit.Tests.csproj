@@ -82,4 +82,14 @@
     <Content Include="assets\legacy-lossless.doc" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    A real Excel 97-2003 workbook, saved by Excel itself. It exists to pin a MESSAGE, not a
+    capability: ClosedXML reports this file as "File contains corrupted data", which is false and
+    sends the caller to check a file that is fine. Measured across 62 such files from a .gov crawl.
+    A hand-built compound file would not prove the message appears for a real workbook.
+  -->
+  <ItemGroup>
+    <Content Include="assets\legacy.xls" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
