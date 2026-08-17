@@ -65,7 +65,7 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/init@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
           languages: csharp
           # Manual rather than build-mode: none. Buildless C# analysis skips code it
@@ -90,6 +90,6 @@ jobs:
           dotnet build "$SOLUTION" -c Release --no-restore
 
       - name: Analyze
-        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/analyze@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
           category: "/language:csharp"
