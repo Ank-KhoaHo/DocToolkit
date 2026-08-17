@@ -1,0 +1,113 @@
+name: Real-world corpus
+
+# Converts real documents this project did not write, and reports the rates.
+#
+# WHY THIS EXISTS. Every DOCX/XLSX/PPTX/HTML fixture in the test suite is built by the code under
+# test, so the suite could only ever find defects in constructs it already knew how to produce.
+# Measured 2026-08-17: 1,284 tests were green while HTML to PDF succeeded on 58.6% of real .gov
+# pages. Five changes later it was 87.8%, and NONE of the defects behind that gap was visible to any
+# test in the repository.
+#
+# WHY IT IS NOT A PULL-REQUEST CHECK, and not a gate at all. A rate moves with the corpus slice as
+# much as with the code - a chunk holding more legacy files scores lower for reasons that have
+# nothing to do with a change. A threshold here would be switched off the first time that happened.
+# The per-PR net is tests/DocToolkit.Tests/assets/realworld/, four real pages committed as
+# regression fixtures, one per defect already fixed. This job is for DISCOVERY: finding the next
+# defect nobody has thought of. The two want opposite things, which is why they are separate.
+#
+# WHY A DOWNLOAD RATHER THAN A COMMITTED CORPUS. govdocs1 chunks are ~465 MB. A curated committed
+# set stops finding things the moment it stops growing, which is exactly how the suite reached the
+# state described above.
+#
+# IT NEVER FAILS ON A DEAD DOWNLOAD. The corpus is a third-party host this project does not control,
+# and a red run on somebody else's outage teaches nothing and trains people to ignore the job.
+
+on:
+  schedule:
+    # Monthly. The rates move when the CODE moves, and a scheduled run exists to catch the drift
+    # nobody looked for - not to re-measure the same thing weekly.
+    - cron: "0 4 1 * *"
+  workflow_dispatch:
+    inputs:
+      chunk:
+        description: "govdocs1 chunk to sample (000-999)"
+        required: false
+        default: "000"
+      limit:
+        description: "Maximum files per conversion (blank = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus
+  cancel-in-progress: false
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          # Pinned to the exact band global.json requires - rollForward: latestPatch does not cross
+          # feature bands, so a floating 10.0.x can install one this repo cannot build with.
+          dotnet-version: 10.0.302
+
+      - name: Fetch a corpus chunk
+        id: fetch
+        env:
+          CHUNK: ${{ github.event.inputs.chunk || '000' }}
+        run: |
+          url="https://digitalcorpora.s3.amazonaws.com/corpora/files/govdocs1/zipfiles/${CHUNK}.zip"
+          echo "fetching $url"
+
+          # --fail so an HTML error page is never mistaken for a zip, and a generous retry because
+          # this is somebody else's host.
+          if curl --fail --location --silent --show-error \
+                  --retry 3 --retry-delay 20 --max-time 1800 \
+                  --output corpus.zip "$url"; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            ls -lh corpus.zip
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Could not fetch $url - the corpus host is third-party and this job does not fail on its outages."
+          fi
+
+      - name: Extract the formats this package converts
+        if: steps.fetch.outputs.available == 'true'
+        run: |
+          mkdir -p corpus
+          # Only what the probe can act on. The chunk also holds pdf, jpg, xml and much else.
+          unzip -q -j corpus.zip \
+            '*.html' '*.htm' '*.doc' '*.ppt' '*.pptx' '*.xlsx' \
+            -d corpus 2>/dev/null || true
+          rm -f corpus.zip
+          echo "extracted: $(find corpus -type f | wc -l) files"
+          find corpus -type f | sed 's/.*\.//' | sort | uniq -c | sort -rn
+
+      - name: Convert everything and report
+        if: steps.fetch.outputs.available == 'true'
+        env:
+          LIMIT: ${{ github.event.inputs.limit }}
+        run: |
+          args="corpus"
+          if [ -n "$LIMIT" ]; then args="$args --limit $LIMIT"; fi
+          # Never fails the job on a conversion rate - the probe writes the summary and exits 0.
+          dotnet run --project tools/CorpusProbe -c Release -- $args
+
+      - name: Say nothing was measured, rather than looking green
+        if: steps.fetch.outputs.available != 'true'
+        run: |
+          {
+            echo "## Real-world corpus"
+            echo ""
+            echo "**Not measured.** The corpus could not be downloaded, so this run proves nothing"
+            echo "about conversion rates - it is green because a third-party outage is not this"
+            echo "project's failure, not because anything passed."
+          } >> "$GITHUB_STEP_SUMMARY"

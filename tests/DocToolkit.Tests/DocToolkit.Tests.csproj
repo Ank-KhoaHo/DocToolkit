@@ -107,4 +107,17 @@
     <Content Include="assets\word-cyrillic.docx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    Real pages from the govdocs1 .gov crawl, kept whole. Every OTHER fixture in this project is
+    built by the code under test, so the suite could only find defects in things it already knew how
+    to produce - 1,284 tests were green while HTML to PDF succeeded on 58.6% of real pages.
+
+    Globbed rather than listed, deliberately: a hand-maintained list is the thing that goes stale,
+    and dropping a file in is exactly how this set is meant to grow. assets/realworld/README.txt
+    carries the provenance and says why they must not be edited.
+  -->
+  <ItemGroup>
+    <Content Include="assets\realworld\*.html" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
