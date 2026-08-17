@@ -53,7 +53,7 @@ transitive arrival through OfficeIMO.Word - and claimed nineteen packages where 
 eighteen. Everything outside the markers is hand-written and stays that way.
 
 --- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---
-- AngleSharp 1.7.1 - MIT (transitive) - https://github.com/AngleSharp/AngleSharp
+- AngleSharp 1.7.1 - MIT (direct) - https://github.com/AngleSharp/AngleSharp
 - AngleSharp.Css 1.0.1 - MIT (transitive) - https://github.com/AngleSharp/AngleSharp.Css
 - ClosedXML 0.105.1 - MIT (direct) - https://github.com/ClosedXML/ClosedXML
 - ClosedXML.Parser 2.0.0 - MIT (transitive) - https://github.com/ClosedXML/ClosedXML.Parser
@@ -84,7 +84,7 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 - System.Security.Cryptography.Pkcs 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
 
-Totals: 30 packages (14 direct, 16 transitive) - 2 Apache-2.0, 28 MIT.
+Totals: 30 packages (15 direct, 15 transitive) - 2 Apache-2.0, 28 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---

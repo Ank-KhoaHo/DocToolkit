@@ -1,123 +1,102 @@
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
+using HtmlToOpenXml;
+
 namespace DocToolkit.Tests;
 
 /// <summary>
-/// The HTML failure that real pages hit most often, and the message that now names it.
+/// The message that names an overrunning <c>rowspan</c>, and — more importantly — the failures it
+/// must NOT appear on.
 ///
-/// <b>Measured 2026-08-17 across 179 real `.gov` pages: 14 of them - 7.7% - fail on a table cell
-/// whose `rowspan` reaches past the last row of its table.</b> That was the single most frequent
-/// conversion failure in the corpus, and what a caller was told about it was
-/// <i>"See the inner exception for details"</i> over a bare <see cref="IndexOutOfRangeException"/>
-/// naming no table, no cell and no remedy.
+/// <b>This is a safety net now, not the primary answer.</b> <see cref="RowSpanClamp"/> repairs the
+/// markup before the parser sees it, so no ordinary document reaches this message any more. It is
+/// kept because the clamp is a heuristic over a parser's view of a document and can be wrong in ways
+/// that are hard to enumerate: input AngleSharp cannot parse is handed on untouched, and a table
+/// shape where its section view disagrees with the converter's would slip through. If either
+/// happens, the caller gets a message naming the construct rather than a bare
+/// <see cref="IndexOutOfRangeException"/>.
 ///
-/// <b>The tests below are as much about what is NOT claimed as what is.</b> A message naming a
-/// specific cause is only worth having if it cannot appear on a failure it does not describe, so
-/// the negative controls carry the weight: an index error from somewhere else must still get the
-/// generic wrapper, and markup whose rowspan fits must still convert.
+/// <b>The underlying parser defect is unchanged</b> — the clamp stops callers reaching it, it does
+/// not fix it. So the genuine exception is still obtainable by driving the parser directly, which is
+/// how the message below is tested rather than being asserted against a copy of itself.
 /// </summary>
 public class HtmlFailureDiagnosisTests
 {
-    private const string Overhanging = "<table><tr><td rowspan=\"2\"></td></tr></table>";
+    private const string Overrunning = "<table><tr><td rowspan=\"2\"></td></tr></table>";
 
-    // ---- the diagnosis ---------------------------------------------------------------------------
+    /// <summary>
+    /// The real exception, from the real parser, bypassing the clamp.
+    /// </summary>
+    /// <remarks>
+    /// <b>This test goes red on its own if the parser is ever fixed upstream</b>, which is the
+    /// intent: the day <c>ParseBody</c> stops throwing here, the diagnosis has nothing left to
+    /// describe and both it and <see cref="RowSpanClamp"/> should be reconsidered. A test that
+    /// quietly passed in that world would hide the news.
+    /// </remarks>
+    private static Exception RealParserFailure()
+    {
+        try
+        {
+            using var stream = new MemoryStream();
+            using var doc = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document);
+            var main = doc.AddMainDocumentPart();
+            main.Document = new Document(new Body());
+            new HtmlConverter(main).ParseBody(Overrunning).GetAwaiter().GetResult();
+        }
+        catch (IndexOutOfRangeException ex)
+        {
+            return ex;
+        }
+
+        throw new InvalidOperationException(
+            "The parser no longer throws on an overrunning rowspan. If it was fixed upstream, "
+            + "RowSpanClamp and HtmlFailureDiagnosis both have nothing left to do.");
+    }
+
+    // ---- what the message says --------------------------------------------------------------------
 
     [Fact]
-    public async Task AnOverhangingRowSpan_IsNamed_RatherThanLeftAsSeeTheInnerException()
+    public void ItNamesTheConstructAndTheRemedy()
     {
-        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
-            () => HtmlToDocxConverter.ConvertAsync(Overhanging));
+        var message = HtmlFailureDiagnosis.Describe(RealParserFailure());
 
-        // The construct, so the reader knows WHERE to look...
-        Assert.Contains("rowspan", ex.Message, StringComparison.OrdinalIgnoreCase);
-        // ...and the remedy, so they know what to do about it. A message that named the cause and
-        // stopped would be the failure mode this package already corrected once.
-        Assert.Contains("reduce the rowspan", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task TheOriginalExceptionIsStillTheInnerOne_SoNothingIsHidden()
-    {
-        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
-            () => HtmlToDocxConverter.ConvertAsync(Overhanging));
-
-        // Naming the cause must not cost the evidence. Someone debugging still needs the frame.
-        Assert.IsType<IndexOutOfRangeException>(ex.InnerException);
-        Assert.Contains("GuessColumnsCount", ex.InnerException!.StackTrace, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ItSaysTheMarkupIsValid_BecauseItIs()
-    {
-        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
-            () => HtmlToDocxConverter.ConvertAsync(Overhanging));
-
-        // Worth stating explicitly in the message: a reader who is told only "cannot read that"
-        // will go looking for a mistake in their HTML, and there isn't one - browsers clamp it.
-        Assert.Contains("browsers clamp", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // ---- the boundary: exactly "span exceeds the rows that remain" ----------------------------------
-
-    [Theory]
-    [InlineData(1, 1)]   // fits
-    [InlineData(2, 1)]
-    [InlineData(2, 2)]
-    [InlineData(3, 2)]
-    [InlineData(3, 3)]
-    [InlineData(4, 4)]
-    public async Task ARowSpanThatFitsStillConverts(int rows, int span)
-    {
-        // The control that stops the diagnosis being reached by refusing every table with a rowspan.
-        // Measured boundary: it breaks only when span > rows remaining, so all of these must pass.
-        var docx = await HtmlToDocxConverter.ConvertAsync(Table(rows, span));
-
-        Assert.NotEmpty(docx);
-    }
-
-    [Theory]
-    [InlineData(1, 2)]
-    [InlineData(1, 3)]
-    [InlineData(2, 3)]
-    [InlineData(3, 4)]
-    public async Task ARowSpanThatOverrunsIsDiagnosed(int rows, int span)
-    {
-        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
-            () => HtmlToDocxConverter.ConvertAsync(Table(rows, span)));
-
-        Assert.Contains("rowspan", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(message);
+        Assert.Contains("rowspan", message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reduce the rowspan", message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task AColSpanIsNotAffected_HoweverLarge()
+    public void ItSaysTheMarkupIsValid_BecauseItIs()
     {
-        // Pins that the diagnosis is about rowspan specifically. colspan was measured unaffected at
-        // every value tried, so a message firing here would be over-claiming.
-        var docx = await HtmlToDocxConverter.ConvertAsync(
-            "<table><tr><td colspan=\"9\"></td></tr></table>");
+        // A reader told only "cannot read that" goes looking for a mistake they did not make.
+        var message = HtmlFailureDiagnosis.Describe(RealParserFailure());
 
-        Assert.NotEmpty(docx);
+        Assert.Contains("browsers clamp", message!, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string Table(int rows, int span)
+    [Fact]
+    public void TheFrameIsWhatIdentifiesIt()
     {
-        var sb = new System.Text.StringBuilder("<table>");
-        for (var r = 0; r < rows; r++)
-            sb.Append(r == 0 ? $"<tr><td rowspan=\"{span}\"></td></tr>" : "<tr><td></td></tr>");
-        return sb.Append("</table>").ToString();
+        // Guards the premise of every negative control below: the real exception really does carry
+        // the frame the check looks for. If the parser's internals were renamed, the diagnosis would
+        // silently stop firing and only this assertion would notice.
+        Assert.Contains("GuessColumnsCount", RealParserFailure().StackTrace!, StringComparison.Ordinal);
     }
 
-    // ---- negative controls: the message must not appear on failures it does not describe -----------
+    // ---- the boundaries: what must NOT get this message --------------------------------------------
 
     [Fact]
     public void AnIndexErrorFromSomewhereElse_GetsNoDiagnosis()
     {
-        // A REAL IndexOutOfRangeException with a REAL stack trace that simply does not contain the
-        // frame. This is what discriminates "the frame identifies it" from "the exception type
-        // identifies it" - and the second would put a table message on any index error at all.
+        // A REAL IndexOutOfRangeException with a REAL stack that does not contain the frame. This
+        // discriminates "the frame identifies it" from "the exception type identifies it" — and the
+        // second would put a table message on any index error anywhere in the conversion.
         Exception caught;
         try
         {
             var empty = Array.Empty<int>();
-            _ = empty[5];
+            _ = empty[3];
             throw new InvalidOperationException("unreachable");
         }
         catch (IndexOutOfRangeException ex)
@@ -129,10 +108,26 @@ public class HtmlFailureDiagnosisTests
         Assert.Null(HtmlFailureDiagnosis.Describe(caught));
     }
 
+    /// <summary>An exception carrying a stack we choose, to test the type half of the conjunction.</summary>
+    private sealed class Staged(string stack) : Exception
+    {
+        public override string StackTrace { get; } = stack;
+    }
+
+    [Fact]
+    public void TheFrameAloneIsNotEnough_TheTypeMustMatchToo()
+    {
+        // The mirror of the test above. Without it, dropping the `ex is IndexOutOfRangeException`
+        // check would survive every other test here, because nothing else carries the frame.
+        // IndexOutOfRangeException is sealed, so the two halves have to be probed from opposite
+        // directions: the frame from a staged exception of the wrong type, the type from a real one.
+        Assert.Null(HtmlFailureDiagnosis.Describe(new Staged(
+            "   at HtmlToOpenXml.Expressions.TableExpression.GuessColumnsCount(IHtmlTableElement t)")));
+    }
+
     [Fact]
     public void AnExceptionWithNoStackAtAll_GetsNoDiagnosis()
     {
-        // Fails closed rather than throwing on a null StackTrace.
         Assert.Null(HtmlFailureDiagnosis.Describe(new IndexOutOfRangeException()));
     }
 
@@ -142,32 +137,34 @@ public class HtmlFailureDiagnosisTests
         Assert.Null(HtmlFailureDiagnosis.Describe(new InvalidOperationException("anything")));
     }
 
-    /// <summary>
-    /// An exception carrying a stack we choose. <see cref="IndexOutOfRangeException"/> is
-    /// <b>sealed</b>, so the two halves of the conjunction have to be tested from opposite
-    /// directions: the frame comes from a staged exception of the wrong TYPE, and the type comes
-    /// from a real <see cref="IndexOutOfRangeException"/> with a real stack lacking the FRAME
-    /// (<see cref="AnIndexErrorFromSomewhereElse_GetsNoDiagnosis"/>).
-    /// </summary>
-    private sealed class Staged(string stack) : Exception
+    // ---- the call site still falls back, and still preserves the evidence ---------------------------
+
+    [Fact]
+    public async Task AnUnrecognisedFailureKeepsTheGenericWrapper()
     {
-        public override string StackTrace { get; } = stack;
+        // A vertical tab is not valid in XML, so this fails inside the writer — a real conversion
+        // failure of a completely different kind. It proves the `?? generic` fallback is live: a
+        // change that put the rowspan message on every failure would fail here.
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync("<p>ab</p>"));
+
+        Assert.Contains("See the inner exception", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("rowspan", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void TheFrameAloneIsNotEnough_TheTypeMustMatchToo()
+    public async Task AnUnrecognisedFailureStillCarriesItsInnerException()
     {
-        // Without this, dropping the `ex is IndexOutOfRangeException` check would survive every
-        // other test here: none of their exceptions has a stack containing the frame, so the type
-        // check never decides the answer. This makes it decide.
-        Assert.Null(HtmlFailureDiagnosis.Describe(new Staged(
-            "   at HtmlToOpenXml.Expressions.TableExpression.GuessColumnsCount(IHtmlTableElement t)")));
+        // Naming a cause must never cost the evidence, on either branch.
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync("<p>ab</p>"));
+
+        Assert.NotNull(ex.InnerException);
     }
 
     [Fact]
     public async Task OrdinaryHtmlStillConverts()
     {
-        // The broadest control: the change is on a failure path and must not touch the happy one.
         var docx = await HtmlToDocxConverter.ConvertAsync(
             "<h1>Title</h1><p>Body</p><table><tr><td>a</td><td>b</td></tr></table>");
 

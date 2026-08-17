@@ -395,7 +395,11 @@ public static class HtmlToDocxConverter
                         : ImageProcessingMode.Embed,
                 };
 
-                await converter.ParseBody(html, ct).ConfigureAwait(false);
+                // Repair a rowspan that reaches past the last row of its table before the parser
+                // sees it. Returns the same string unless a cell actually overruns, and every
+                // document containing one throws today - so this cannot change a conversion that
+                // already works. See RowSpanClamp.
+                await converter.ParseBody(RowSpanClamp.Apply(html), ct).ConfigureAwait(false);
 
                 // HtmlToOpenXml emits no w:sectPr of its own - measured, and the reason this
                 // exists: a document that states no page setup renders on whatever paper the
