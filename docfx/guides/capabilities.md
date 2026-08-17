@@ -38,6 +38,21 @@ Method names only. What each one does, and the traps in it, are in the guides �
 
 <!-- END GENERATED -->
 
+## Legacy binary formats, which the grid above does not show
+
+The grid is generated from the shipped converter names, so it can only describe the modern formats.
+Two pre-2007 binary formats are also accepted, and one deliberately is not:
+
+| input | supported | how |
+|---|---|---|
+| **`.doc`** | yes | `DocToDocxConverter` — text, or conversion to `.docx` |
+| **`.ppt`** | yes, **to PDF only** | `PptxToPdfConverter` accepts one directly; `PresentationEditor` does not |
+| **`.xls`** | **no** | refused immediately, with a message saying to save it as `.xlsx` |
+
+`.xls` is refused for **cost**, not capability: measured on real files, a 101 KB workbook took 10.9
+seconds and a 2.3 MB one did not finish in ten minutes, while the supported `.xlsx` path renders
+20,000 rows in under four. See the package README for the full numbers.
+
 ## Where the detail is
 
 - [HTML to Word and PDF](html-to-word-and-pdf.md) — page setup, remote images, the network guard

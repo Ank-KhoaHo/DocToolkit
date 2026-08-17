@@ -636,6 +636,30 @@ first bytes, without a password.
 A wrong password and a file that was never encrypted are reported as **different** failures, because
 a caller can only act on one of them.
 
+## Legacy binary Office files (.ppt, .xls, .doc)
+
+**`.doc` and `.ppt` are read; `.xls` is not.** That split is measured rather than arbitrary, and it
+is worth knowing before you plan around it.
+
+| input | supported | how |
+|---|---|---|
+| **`.doc`** (Word 97-2003) | yes | `DocToDocxConverter` — read its text, or convert it to `.docx` |
+| **`.ppt`** (PowerPoint 97-2003) | yes, **to PDF only** | `PptxToPdfConverter` accepts one directly |
+| **`.xls`** (Excel 97-2003) | **no** | refused immediately; save it as `.xlsx` |
+
+**`.ppt` → PDF works but the editors do not accept `.ppt`.** `PresentationEditor` is OOXML-only, so
+`SlideCount`, `ExtractText` and the rest still refuse a `.ppt`. Rendering it to PDF and reading the
+PDF is the way round that.
+
+**Not every `.ppt` converts.** Measured across real files from a public `.gov` crawl, roughly half to
+three-quarters succeed; the rest fail with a stated reason rather than producing a damaged document.
+
+**`.xls` is refused for cost, not capability.** The renderer underneath can read it, but measured on
+real files a 101 KB workbook took 10.9 seconds, a 2.3 MB one did not finish in ten minutes, and a
+7.7 MB one spent 161 seconds before failing anyway — while the supported `.xlsx` path renders 20,000
+rows in under four. Accepting that on a path a caller can feed arbitrary uploads to is a cost nobody
+chose, and no cheap bound exists because the work tracks content rendered rather than input size.
+
 ## Bulleted lists, and the one substitution this library makes
 
 **A Word document containing a bulleted list renders to PDF, and to make that work one character is

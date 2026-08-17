@@ -43,6 +43,27 @@ public static class XlsxToPdfConverter
         if (xlsx.Length == 0)
             throw new ArgumentException("XLSX content was empty.", nameof(xlsx));
 
+        // A legacy .xls is refused HERE, immediately, and the reason is cost rather than capability.
+        //
+        // The renderer underneath can in fact read the binary format, so before this check a .xls
+        // silently "worked" on this one path while every other entry point refused it. That was not
+        // a decision anybody made, and it was expensive: measured 2026-08-17, a 101 KB .xls took
+        // 10.9 s, a 2.3 MB one did not finish in ten minutes, and a 7.7 MB one spent 161 s before
+        // failing anyway. The supported .xlsx path renders 20,000 rows in 3.7 s, so this is specific
+        // to the legacy path and not a property of large workbooks.
+        //
+        // That shape - unbounded work on input a caller can choose - is worth refusing outright: a
+        // service accepting uploads could be made to burn minutes of CPU per request through an
+        // endpoint that never claimed to support the format. No cheap bound exists either, because
+        // the cost tracks content rendered rather than input size.
+        if (OfficeCrypto.IsEncrypted(xlsx))
+        {
+            throw new DocumentConversionException(
+                "This is not an .xlsx package. The bytes are a compound file, which means either a "
+                + "legacy Excel 97-2003 .xls workbook - save it as .xlsx to render it - or an "
+                + "encrypted .xlsx, which WorkbookEditor.Unprotect will open with its password.");
+        }
+
         try
         {
             // Expandable copy: the loader opens the package read/write, exactly as
