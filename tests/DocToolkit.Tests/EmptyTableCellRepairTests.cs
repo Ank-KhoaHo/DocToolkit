@@ -143,9 +143,10 @@ public class EmptyTableCellRepairTests
         // This used to use an empty link in a table cell, which ImageLinkRepair now fixes - so the
         // test went green-by-success and had to be re-aimed. A vertical tab is not valid in XML, so
         // this fails in the DOCX stage before any PDF repair could apply, and no repair claims it.
-        // U+000B is written as an ESCAPE, not as a literal character: an invisible control
-        // source is exactly the kind of thing an editor or a patch silently drops, and this test
-        // passes vacuously the moment it does.
+        // U+000B is written as an ESCAPE, not as a literal character. An invisible control
+        // character in source is exactly the kind of thing an editor or a patch silently drops,
+        // and this test passes vacuously the moment it does - which happened twice while writing
+        // it, in both directions.
         var ex = await Assert.ThrowsAsync<DocumentConversionException>(
             () => HtmlToPdfConverter.ConvertAsync("<p>a\u000Bb</p>"));
 
