@@ -37,34 +37,65 @@ internal static class HtmlForPdf
     internal static string Prepare(string html) => HtmlAnchorRepair.Apply(html);
 
     /// <summary>
-    /// Renders <paramref name="html"/> to PDF, retrying once with a repair if it fails in a way that
-    /// repair is known to address.
+    /// Repairs applied only when the render fails in the way each one addresses.
+    /// </summary>
+    /// <remarks>
+    /// Each is tried <b>at most once per render</b>, which is what bounds the loop below: a repair
+    /// that runs and does not help cannot be selected again, so the worst case is one attempt per
+    /// entry plus the first.
+    /// </remarks>
+    private static readonly (Func<Exception, bool> Matches, Func<string, string> Repair)[] Retryable =
+    [
+        (EmptyTableCellRepair.WouldHelp, EmptyTableCellRepair.Apply),
+        (ImageLinkRepair.WouldHelp, ImageLinkRepair.Apply),
+    ];
+
+    /// <summary>
+    /// Renders <paramref name="html"/> to PDF, repairing and retrying when it fails in a way one of
+    /// the repairs above is known to address.
     /// </summary>
     /// <param name="html">The markup to render.</param>
     /// <param name="toDocx">Converts prepared HTML to a .docx, carrying whatever options and
     /// cancellation token the calling overload was given.</param>
     /// <remarks>
-    /// <b>The retry costs a second full conversion, and only a document that already failed pays
+    /// <b>A retry costs a full second conversion, and only a document that already failed pays
     /// it.</b> That is the right way round: the alternative is editing every document in the hope
     /// that some of them needed it.
-    ///
-    /// A repair that returns its input unchanged means there was nothing of its kind to fix, so the
-    /// original failure is rethrown rather than re-running an identical conversion to fail again.
     /// </remarks>
     internal static async Task<byte[]> RenderAsync(string html, Func<string, Task<byte[]>> toDocx)
     {
-        var prepared = Prepare(html);
+        var current = Prepare(html);
+        var used = new HashSet<int>();
 
-        try
+        while (true)
         {
-            return DocxToPdfConverter.Convert(await toDocx(prepared).ConfigureAwait(false));
-        }
-        catch (DocumentConversionException ex) when (EmptyTableCellRepair.WouldHelp(ex))
-        {
-            var repaired = EmptyTableCellRepair.Apply(prepared);
-            if (ReferenceEquals(repaired, prepared)) throw;
+            try
+            {
+                return DocxToPdfConverter.Convert(await toDocx(current).ConfigureAwait(false));
+            }
+            catch (DocumentConversionException ex)
+            {
+                // A real page can need more than one of these: fixing its empty cells reveals that
+                // its image links are also unlabelled. So this loops rather than retrying once,
+                // taking whichever repair matches the failure actually raised.
+                var index = -1;
+                for (var i = 0; i < Retryable.Length; i++)
+                {
+                    if (used.Contains(i) || !Retryable[i].Matches(ex)) continue;
+                    index = i;
+                    break;
+                }
 
-            return DocxToPdfConverter.Convert(await toDocx(repaired).ConfigureAwait(false));
+                if (index < 0) throw;
+                used.Add(index);
+
+                var repaired = Retryable[index].Repair(current);
+                // Nothing of that kind to fix, so re-running would fail identically. Rethrow the
+                // original rather than paying for a second conversion to learn nothing.
+                if (ReferenceEquals(repaired, current)) throw;
+
+                current = repaired;
+            }
         }
     }
 }
