@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 
@@ -44,8 +45,14 @@ internal static class HtmlAnchorRepair
     /// Only documents that actually contain an internal link are parsed. A bare '#' test would be
     /// useless - every page with a CSS colour has one - so this looks for the href specifically.
     /// </summary>
+    /// <remarks>
+    /// <b>The fragment need not be at the start of the href</b>, and matching only <c>href="#</c>
+    /// made this gate narrower than <see cref="Fragment"/> - so <c>page.html#name</c> was recognised
+    /// as internal by the logic and then never reached it, because the document was rejected here
+    /// first. Caught by a test rather than by the corpus, which is the cheaper way round.
+    /// </remarks>
     private static readonly Regex InternalLink =
-        new(@"href\s*=\s*[""']?#", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        new(@"href\s*=\s*(""[^""]*#|'[^']*#|[^\s>""']*#)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
     /// Returns <paramref name="html"/> with its internal links made resolvable, or the same string
@@ -84,7 +91,42 @@ internal static class HtmlAnchorRepair
     /// </remarks>
     private static bool Satisfied(IHtmlDocument document, string target) =>
         document.QuerySelectorAll(BlockSelector)
-            .Any(b => string.Equals(b.Id, target, StringComparison.Ordinal));
+            .Any(b => string.Equals(b.Id, target, StringComparison.Ordinal) && YieldsBookmark(b));
+
+    /// <summary>
+    /// Whether a block carrying an id would actually produce a bookmark.
+    /// </summary>
+    /// <remarks>
+    /// <b>Being a block is not enough, and the two ways it is not enough have opposite costs.</b>
+    /// Measured 2026-08-17:
+    ///
+    /// <list type="bullet">
+    /// <item><description>A block holding <b>no text of its own</b> - an empty <c>&lt;div&gt;</c>, or
+    /// one containing only an <c>&lt;a name&gt;</c> - does not merely fail to make a bookmark, it
+    /// makes the render throw <c>InvalidOperationException</c> from
+    /// <c>ThrowNoElementsException</c>. So labelling one turns a legible "target not found" into an
+    /// opaque crash, which is a worse document than the one we started with. <b>This is not
+    /// hypothetical: the first version of this class did exactly that to eight corpus pages.</b>
+    /// </description></item>
+    /// <item><description>A block whose only content is a <b>table</b> produces no paragraph of its
+    /// own, so no bookmark - it simply stays broken.</description></item>
+    /// </list>
+    ///
+    /// Both are avoided by the same test: the block must have text that is not inside a nested table.
+    /// </remarks>
+    private static bool YieldsBookmark(IElement block) =>
+        !string.IsNullOrWhiteSpace(TextOutsideTables(block));
+
+    private static string TextOutsideTables(IElement block)
+    {
+        var text = new System.Text.StringBuilder();
+        foreach (var node in block.Descendants<IText>())
+        {
+            if (node.ParentElement?.Closest("table") is not null) continue;
+            text.Append(node.Text);
+        }
+        return text.ToString();
+    }
 
     /// <summary>
     /// Elements a bookmark is actually created from. <b>Measured, not assumed</b>, because the
@@ -101,7 +143,7 @@ internal static class HtmlAnchorRepair
     /// silently produces a document that still fails.
     /// </remarks>
     private static readonly string[] BookmarkableBlocks =
-        ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "pre"];
+        ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote"];
 
     private static readonly string BlockSelector = string.Join(",", BookmarkableBlocks);
 
@@ -124,9 +166,9 @@ internal static class HtmlAnchorRepair
         // Only targets something actually links to. Relabelling a block nobody points at would be
         // an edit with no purpose, and every edit here is a liberty taken with somebody's document.
         var wanted = document.QuerySelectorAll("a[href]")
-            .Select(a => a.GetAttribute("href"))
-            .Where(h => h is { Length: > 1 } && h[0] == '#')
-            .Select(h => h!.Substring(1))
+            .Select(a => Fragment(a.GetAttribute("href")))
+            .Where(t => t is not null)
+            .Select(t => t!)
             .ToHashSet(StringComparer.Ordinal);
 
         if (wanted.Count == 0) return false;
@@ -145,6 +187,7 @@ internal static class HtmlAnchorRepair
 
             var block = declaring.Closest(BlockSelector);
             if (block is null || !string.IsNullOrEmpty(block.Id)) continue;
+            if (!YieldsBookmark(block)) continue;
 
             block.Id = target;
             changed = true;
@@ -153,15 +196,36 @@ internal static class HtmlAnchorRepair
         return changed;
     }
 
+    /// <summary>
+    /// The bookmark a link points at, or <see langword="null"/> when it points outside the document.
+    /// </summary>
+    /// <remarks>
+    /// <b>A bare <c>#name</c> is not the only internal form, and assuming it was left four corpus
+    /// pages failing with no visible cause.</b> Measured: <c>page.html#privacy</c> - a RELATIVE url
+    /// carrying a fragment - is turned into an internal bookmark link too, while
+    /// <c>https://host/page.html#privacy</c> is left as an ordinary external link. So the test is the
+    /// presence of a fragment on anything that is not absolute, which is what the converter itself
+    /// does.
+    /// </remarks>
+    private static string? Fragment(string? href)
+    {
+        if (string.IsNullOrEmpty(href)) return null;
+        if (Uri.TryCreate(href, UriKind.Absolute, out _)) return null;
+
+        var hash = href.IndexOf('#');
+        if (hash < 0 || hash == href.Length - 1) return null;
+        return href.Substring(hash + 1);
+    }
+
     /// <summary>Removes the <c>href</c> from a link whose target exists in no form, keeping its text.</summary>
     private static bool DropUnresolvable(IHtmlDocument document)
     {
         // Materialised before mutating: RemoveAttribute("href") makes an element stop matching the
         // "a[href]" selector it was found by, and AngleSharp's result is live.
         var unresolved = document.QuerySelectorAll("a[href]")
-            .Select(link => (link, href: link.GetAttribute("href")))
-            .Where(x => x.href is { Length: > 1 } && x.href[0] == '#')
-            .Where(x => !Satisfied(document, x.href!.Substring(1)))
+            .Select(link => (link, target: Fragment(link.GetAttribute("href"))))
+            .Where(x => x.target is not null)
+            .Where(x => !Satisfied(document, x.target!))
             .Select(x => x.link)
             .ToList();
 
