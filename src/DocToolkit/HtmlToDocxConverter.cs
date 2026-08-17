@@ -415,7 +415,12 @@ public static class HtmlToDocxConverter
         catch (Exception ex)
         {
             ms.Dispose();
-            throw new DocumentConversionException("Failed to convert HTML to DOCX. See the inner exception for details.", ex);
+            // A recognised cause gets named; everything else keeps the generic wrapper. See
+            // HtmlFailureDiagnosis for why the test is a stack frame rather than an exception type.
+            throw new DocumentConversionException(
+                HtmlFailureDiagnosis.Describe(ex)
+                ?? "Failed to convert HTML to DOCX. See the inner exception for details.",
+                ex);
         }
 
         ms.Position = 0;
