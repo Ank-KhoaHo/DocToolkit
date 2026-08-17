@@ -136,14 +136,21 @@ public class EmptyTableCellRepairTests
     }
 
     [Fact]
-    public async Task AFailureTheRepairCannotHelpIsRethrownUnchanged()
+    public async Task AFailureNoRepairClaimsIsRethrownUnchanged()
     {
         // The retry must not swallow or relabel a failure it has no answer for.
+        //
+        // This used to use an empty link in a table cell, which ImageLinkRepair now fixes - so the
+        // test went green-by-success and had to be re-aimed. A vertical tab is not valid in XML, so
+        // this fails in the DOCX stage before any PDF repair could apply, and no repair claims it.
+        // U+000B is written as an ESCAPE, not as a literal character: an invisible control
+        // source is exactly the kind of thing an editor or a patch silently drops, and this test
+        // passes vacuously the moment it does.
         var ex = await Assert.ThrowsAsync<DocumentConversionException>(
-            () => HtmlToPdfConverter.ConvertAsync(
-                "<table><tr><td><a href=\"https://e.com\"></a></td></tr></table>"));
+            () => HtmlToPdfConverter.ConvertAsync("<p>a\u000Bb</p>"));
 
-        Assert.Contains("linkContents", ex.InnerException!.Message, StringComparison.Ordinal);
+        Assert.NotNull(ex.InnerException);
+        Assert.DoesNotContain("positive text width", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
