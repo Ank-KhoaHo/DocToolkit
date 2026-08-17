@@ -97,6 +97,34 @@ public class RealWorldRegressionTests
     }
 
     /// <summary>
+    /// The pages are byte-for-byte what the crawl served.
+    /// </summary>
+    /// <remarks>
+    /// <b>README.txt says these must not be edited, and this is what makes that enforceable rather
+    /// than a request.</b> A hand-maintained list of hashes is normally the thing this repository
+    /// avoids - but here immutability IS the property, exactly as with the approved API files, so
+    /// pinning them is the point rather than a maintenance cost. A hash changing means somebody
+    /// edited evidence.
+    ///
+    /// <b>Git nearly rewrote them on the way in.</b> <c>* text=auto</c> normalised two of the four
+    /// from CRLF to LF - they came from .gov servers of the 2000s - so the committed blobs were not
+    /// what the crawl served until <c>.gitattributes</c> marked this directory binary. That was
+    /// invisible until the bytes were compared against the originals.
+    /// </remarks>
+    [Theory]
+    [InlineData("image-only-link.html", "cd0acb6fe6e384e6d406cae07998e0af877598523c0763658d890ba00e3f1e0b")]
+    [InlineData("old-style-name-anchor.html", "fe8d83e8e6b32091dc79badc8cb56e96857028147d99280d65d60f3f72a80bf6")]
+    [InlineData("rowspan-past-last-row.html", "e6903ce52264e194a22466e75e8ffd2443be0e89e2c38c95104f72d34555ee1b")]
+    [InlineData("spacer-cell.html", "d587ad6570ea15ef4339b272321701535822e694a63e3b13a6bd6928f4368187")]
+    public void EachPageIsUnmodified(string name, string sha256)
+    {
+        var actual = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Join(Dir, name))));
+
+        Assert.Equal(sha256, actual.ToLowerInvariant());
+    }
+
+    /// <summary>
     /// Each page still contains the construct it was kept for.
     /// </summary>
     /// <remarks>

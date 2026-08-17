@@ -16,6 +16,15 @@
 *.nupkg          binary
 *.snupkg         binary
 
+# Real pages from the govdocs1 crawl, kept as regression fixtures and as cited evidence. They are
+# TEXT, but `* text=auto` normalises them - two of the four arrived with CRLF from the .gov servers
+# that served them in the 2000s and were rewritten to LF on the way into the index. Nothing about
+# the defects they exercise depends on that, but assets/realworld/README.txt says they are kept
+# whole and must not be edited, and a file git rewrote on commit is not kept whole.
+#
+# Same reasoning as the PDFs above: fixtures that are evidence must round-trip byte-for-byte.
+tests/DocToolkit.Tests/assets/realworld/*.html binary
+
 # Shell scripts must keep LF even when checked out on Windows: `* text=auto`
 # above would give them CRLF, and bash on Linux then fails with
 # `$'\r': command not found`. scripts/ runs in CI on ubuntu-latest.
