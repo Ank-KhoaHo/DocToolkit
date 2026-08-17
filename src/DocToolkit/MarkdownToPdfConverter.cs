@@ -30,7 +30,36 @@ public static class MarkdownToPdfConverter
     {
         ArgumentNullException.ThrowIfNull(markdown);
 
-        return DocxToPdfConverter.Convert(MarkdownToDocxConverter.Convert(markdown));
+        return Render(markdown, () => DocxToPdfConverter.Convert(MarkdownToDocxConverter.Convert(markdown)));
+    }
+
+    /// <summary>
+    /// Runs a Markdown-to-PDF render and re-describes the one failure the PDF stage cannot explain.
+    /// </summary>
+    /// <remarks>
+    /// <b>An ordered list starting below 1 is refused by the PDF renderer, and the message a caller
+    /// gets says only that a DOCX could not be rendered.</b> That is accurate and useless: they
+    /// wrote Markdown, the DOCX is an implementation detail of this path, and the construct at fault
+    /// is <c>0. item</c> - which converts to DOCX perfectly well, so it is genuinely a PDF-only
+    /// limit rather than something wrong with their document.
+    ///
+    /// <see cref="DocxToPdfConverter"/> cannot say any of that: it has never seen the Markdown. So
+    /// it is said here, where the source is still in scope, and only for a cause that can be told
+    /// apart - everything else propagates exactly as it did.
+    /// </remarks>
+    private static byte[] Render(string markdown, Func<byte[]> render)
+    {
+        try
+        {
+            return render();
+        }
+        catch (DocumentConversionException ex) when (
+            ex.InnerException is not null
+            && MarkdownFailureDiagnosis.Describe(ex.InnerException, markdown) is not null)
+        {
+            throw new DocumentConversionException(
+                MarkdownFailureDiagnosis.Describe(ex.InnerException!, markdown)!, ex.InnerException!);
+        }
     }
 
     /// <summary>
@@ -97,6 +126,7 @@ public static class MarkdownToPdfConverter
         ArgumentNullException.ThrowIfNull(markdown);
 
         var docx = MarkdownToDocxConverter.ConvertWithReport(markdown);
-        return new ConversionResult<byte[]>(DocxToPdfConverter.Convert(docx.Value), docx.Warnings);
+        return new ConversionResult<byte[]>(
+            Render(markdown, () => DocxToPdfConverter.Convert(docx.Value)), docx.Warnings);
     }
 }

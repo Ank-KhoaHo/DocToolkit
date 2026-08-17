@@ -115,7 +115,10 @@ public static class MarkdownToDocxConverter
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
-            throw new DocumentConversionException(FailureMessage, ex);
+            // A recognised cause gets named; everything else keeps the generic wrapper. See
+            // MarkdownFailureDiagnosis for why the input is needed as well as the frame.
+            throw new DocumentConversionException(
+                MarkdownFailureDiagnosis.Describe(ex, markdown) ?? FailureMessage, ex);
         }
     }
 }
