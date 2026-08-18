@@ -10,6 +10,22 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.31.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.30.0...v0.31.0) (2026-08-18)
+
+
+### Added
+
+* **core:** convert HTML whose tables carry an overrunning rowspan ([#293](https://github.com/Ank-KhoaHo/DocToolkit/issues/293)) ([5ca8453](https://github.com/Ank-KhoaHo/DocToolkit/commit/5ca84532d140613003ed5d585a30273315c6ffbb))
+* **core:** label an image-only link so its table cell can be rendered ([#299](https://github.com/Ank-KhoaHo/DocToolkit/issues/299)) ([ec33e18](https://github.com/Ank-KhoaHo/DocToolkit/commit/ec33e18891f93edcf67f58f5ec4869a54660918b))
+
+
+### Fixed
+
+* **core:** correct three rules in the anchor repair, and stop it causing a crash ([#297](https://github.com/Ank-KhoaHo/DocToolkit/issues/297)) ([791b544](https://github.com/Ank-KhoaHo/DocToolkit/commit/791b544f947de7096a2a7dc819667d5711df7d66))
+* **core:** name the two things Markdown conversion rejects ([#301](https://github.com/Ank-KhoaHo/DocToolkit/issues/301)) ([c180657](https://github.com/Ank-KhoaHo/DocToolkit/commit/c180657f780c46aab15c0f1a11d88e4374665ff8))
+* **core:** render pages whose internal links use old-style anchors ([#296](https://github.com/Ank-KhoaHo/DocToolkit/issues/296)) ([b762ec0](https://github.com/Ank-KhoaHo/DocToolkit/commit/b762ec097e4ccc3ce9cd9127dfe708451c4f22de))
+* **core:** render tables whose spacer cells collapse to nothing ([#298](https://github.com/Ank-KhoaHo/DocToolkit/issues/298)) ([14f49c8](https://github.com/Ank-KhoaHo/DocToolkit/commit/14f49c8cfac03f9f0af7080dc2fa4a5a3f3a7e7d))
+
 ## [0.30.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.29.0...v0.30.0) (2026-08-17)
 
 
