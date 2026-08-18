@@ -183,56 +183,13 @@ jobs:
             echo "defaulting to A4, filed under Added."
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # WHETHER IT IS CURATED RIGHT NOW, not merely a reminder to curate.
+          # The curation STATE is reported by release-curation-state.yml, not here.
           #
-          # The checklist above is posted ONCE and then never changes, so it cannot say
-          # anything about the entry's current state - and the state is the whole problem.
-          # Every push to main regenerates this entry, so a curation applied an hour ago may
-          # already be gone, silently, with the PR looking entirely normal. That has now
-          # happened three times: twice on 0.28.0 and again on 0.30.0, the third time with the
-          # checklist already posted to the pull request.
+          # It lived in this step and was wrong for a specific reason worth keeping: this workflow
+          # triggers on push to `main`, and curating means pushing to the RELEASE BRANCH. So the
+          # comment kept whatever it said when the entry was last regenerated - "NOTHING HAS BEEN
+          # CURATED" - and was therefore wrong at exactly the moment somebody reads it, on a
+          # curated Release PR immediately before merging. Measured 2026-08-18 on 0.31.0.
           #
-          # This comment is UPDATED on every run, so it always describes the entry as it stands.
-          #
-          # The changelog is read from the RELEASE BRANCH, not from the checked-out main - the
-          # pending entry only exists there.
-          curl -fsSL -H "Authorization: token $GH_TOKEN" \
-            -H "Accept: application/vnd.github.raw" \
-            "https://api.github.com/repos/$GH_REPO/contents/CHANGELOG.md?ref=release-please--branches--main" \
-            -o /tmp/pending-changelog.md \
-            || { echo "::warning::could not read CHANGELOG.md from the release branch - skipping the curation report"; exit 0; }
-
-          set +e
-          curation=$(python3 scripts/check-changelog-curated.py --changelog /tmp/pending-changelog.md 2>&1)
-          curated=$?
-          set -e
-
-          if [ "$curated" -eq 0 ]; then
-            state="**This entry has been curated.**"
-          else
-            state="**This entry is still release-please's generated text.**"
-          fi
-
-          marker='<!-- release-curation-state -->'
-          body=$(printf '%s\n%s\n\n```\n%s\n```\n\n_Updated on every push to `main`. Re-read it immediately before merging: any merge to `main` regenerates this entry and discards curation already applied._\n' \
-            "$marker" "$state" "$curation")
-
-          existing=$(gh api "repos/$GH_REPO/issues/$number/comments" \
-            --jq "[.[] | select(.body | startswith(\"$marker\"))] | .[0].id // empty")
-
-          if [ -n "$existing" ]; then
-            gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" -f body="$body" >/dev/null
-            echo "updated the curation-state comment on #$number"
-          else
-            gh api -X POST "repos/$GH_REPO/issues/$number/comments" -f body="$body" >/dev/null
-            echo "posted the curation-state comment to #$number"
-          fi
-
-          {
-            echo ""
-            echo "### Curation state"
-            echo ""
-            echo '```'
-            echo "$curation"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          # The two have genuinely different triggers, which is why bundling them produced that:
+          # this workflow regenerates the entry, and the entry's state changes elsewhere.
