@@ -227,6 +227,43 @@ public class XlsxPptxToPdfTests
     ///
     /// Derived rather than listed, so a fourth path is covered the day its factory appears.
     /// </remarks>
+    /// <summary>
+    /// There is deliberately no Word options factory, and this is what stops one coming back
+    /// unmeasured.
+    /// </summary>
+    /// <remarks>
+    /// <b>One was added on 2026-08-18 and reverted the same day.</b> Measured over 99 real
+    /// documents, assigning a <c>ResourcePolicy</c> to <c>WordPdfSaveOptions</c> dropped DOCX to PDF
+    /// from <b>71/99 to 57/99</b>, and the failures were text-encoding preflight errors rather than
+    /// anything about resources - it puts the Word renderer into a mode that cannot find fonts.
+    ///
+    /// <b>The flag values are not the cause</b>, which is the part that makes this worth pinning:
+    /// both flags <c>true</c>, both <c>false</c>, and a default-constructed policy all give 57/99,
+    /// while no policy at all and an empty options object both give 71/99. Assigning the object is
+    /// the change.
+    ///
+    /// <b>This asserts a DECISION, not a behaviour</b>, and deliberately so. The behaviour is
+    /// host-dependent - which glyphs are encodable depends on the fonts a machine has, which this
+    /// repository already records as varying PDF size a hundredfold - so an assertion on rendering
+    /// would be a flake. What can be asserted is that nobody has quietly reintroduced the factory.
+    /// If this test fails, re-run the table above before deleting it.
+    /// </remarks>
+    [Fact]
+    public void ThereIsNoWordOptionsFactory_AndThatIsMeasured()
+    {
+        var wordFactories = typeof(PdfRenderPolicy)
+            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(m => m.ReturnType.Name.Contains("Word", StringComparison.Ordinal))
+            .Select(m => m.Name)
+            .ToList();
+
+        Assert.True(wordFactories.Count == 0,
+            "PdfRenderPolicy has gained a Word options factory: " + string.Join(", ", wordFactories)
+            + ". Assigning a ResourcePolicy to WordPdfSaveOptions was measured to drop DOCX to PDF "
+            + "from 71/99 to 57/99 on real documents, with font-encoding failures. Re-run that "
+            + "measurement before keeping it.");
+    }
+
     [Fact]
     public void EveryRenderPolicyFactorySetsThePolicy()
     {
@@ -237,8 +274,13 @@ public class XlsxPptxToPdfTests
             .ToList();
 
         // Non-vacuity: reflection that matched nothing would pass while asserting nothing at all.
-        Assert.True(factories.Count >= 3,
-            $"expected a factory per PDF path, found {factories.Count} - has one been renamed?");
+        //
+        // TWO, not three. The Word path deliberately has no factory - assigning a ResourcePolicy to
+        // WordPdfSaveOptions was measured to drop DOCX to PDF from 71/99 to 57/99 on real documents,
+        // for font reasons rather than resource ones. ThereIsNoWordOptionsFactory_AndThatIsMeasured
+        // pins that; this floor only has to stop the reflection silently matching nothing.
+        Assert.True(factories.Count >= 2,
+            $"expected a factory for the XLSX and PPTX paths, found {factories.Count} - renamed?");
 
         foreach (var factory in factories)
         {

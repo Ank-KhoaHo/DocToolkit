@@ -75,11 +75,17 @@ def check_factories(text: str) -> list[str]:
     return problems
 
 
+# Measured exemption, not an oversight - see the module docstring.
+EXEMPT = {"DocxToPdfConverter.cs"}
+
+
 def check_calls(files: list[pathlib.Path]) -> list[str]:
     problems = []
     seen = 0
 
     for path in files:
+        if path.name in EXEMPT:
+            continue
         text = path.read_text(encoding="utf-8")
         for method, args in RENDER_CALL.findall(text):
             seen += 1
@@ -118,6 +124,12 @@ def self_test() -> int:
     quiet = not check_factories(stated)
     print(f"{'PASS' if quiet else 'FAIL'}  a factory that states it is not flagged")
     failures += 0 if quiet else 1
+
+    # The exemption must be real: without it this check would demand a change measured to break
+    # 14 of 99 real documents.
+    exempt_ok = "DocxToPdfConverter.cs" in EXEMPT
+    print(f"{'PASS' if exempt_ok else 'FAIL'}  the Word path is exempt, for the measured reason")
+    failures += 0 if exempt_ok else 1
 
     print("\nself-test:", "all controls pass" if not failures else f"{failures} FAILED")
     return 0 if not failures else 1
