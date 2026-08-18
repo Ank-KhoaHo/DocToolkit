@@ -1,0 +1,98 @@
+name: Release curation state
+
+# Reports whether the pending release entry has been curated, on the Release PR itself.
+#
+# WHY THIS IS ITS OWN WORKFLOW. It started inside release-please.yml, which triggers on push to
+# `main` - and that is the wrong event, in a way that made the check WORSE than the silence it
+# replaced.
+#
+# Curating means pushing to the RELEASE BRANCH. That triggers nothing on main, so the comment kept
+# whatever it said when release-please last regenerated the entry: "NOTHING HAS BEEN CURATED". It
+# was therefore wrong at precisely the moment somebody reads it - sitting on a curated Release PR,
+# telling the maintainer the entry is raw generated text, immediately before they decide whether to
+# merge. Measured 2026-08-18 on 0.31.0, the first release after the check shipped.
+#
+# The two things genuinely have different triggers, which is why bundling them produced this:
+# release-please REGENERATES the entry on pushes to main, and the entry's STATE changes on pushes to
+# the release branch. So this watches the release branch and release-please.yml no longer reports.
+#
+# HOW THE ORIGINAL CHECK PASSED ITS OWN VERIFICATION. What was tested was that the comment appears
+# and reads correctly on a GENERATED entry, which it did, on the very next Release PR. Nothing
+# exercised the transition - generated, then curated, then read - because that needs a real release
+# curated at the right moment. A control that only ever sees one of two states cannot tell you it
+# distinguishes them.
+#
+# REPORTS, NEVER GATES. See scripts/check-changelog-curated.py for why: release.yml's non-empty
+# guard already covers the unrecoverable case at publish time, and a blocking version here would be
+# switched off the first time somebody legitimately wanted to ship generated text.
+
+on:
+  push:
+    branches:
+      - release-please--branches--main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  # Per-branch rather than a constant: this only ever runs on one branch, and cancelling a
+  # superseded run is right - the later push describes the entry more recently than the earlier one.
+  group: release-curation-state
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      # Checked out for scripts/, not for the changelog: the entry is read from the branch that
+      # triggered this, which is the same branch, but reading it explicitly keeps this identical to
+      # how it behaved inside release-please.yml and independent of what the checkout contains.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Report the curation state on the Release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          number=$(gh pr list --base main --head release-please--branches--main \
+            --state open --json number --jq '.[0].number // empty')
+
+          if [ -z "$number" ]; then
+            echo "no open Release PR - nothing to report on"
+            exit 0
+          fi
+
+          set +e
+          curation=$(python3 scripts/check-changelog-curated.py 2>&1)
+          curated=$?
+          set -e
+
+          if [ "$curated" -eq 0 ]; then
+            state="**This entry has been curated.**"
+          else
+            state="**This entry is still release-please's generated text.**"
+          fi
+
+          marker='<!-- release-curation-state -->'
+          body=$(printf '%s\n%s\n\n```\n%s\n```\n\n_Updated whenever this branch changes - by release-please regenerating the entry, or by a curation being pushed. Re-read it immediately before merging._\n' \
+            "$marker" "$state" "$curation")
+
+          existing=$(gh api "repos/$GH_REPO/issues/$number/comments" \
+            --jq "[.[] | select(.body | startswith(\"$marker\"))] | .[0].id // empty")
+
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" -f body="$body" >/dev/null
+            echo "updated the curation-state comment on #$number"
+          else
+            gh api -X POST "repos/$GH_REPO/issues/$number/comments" -f body="$body" >/dev/null
+            echo "posted the curation-state comment to #$number"
+          fi
+
+          {
+            echo "### Curation state"
+            echo ""
+            echo '```'
+            echo "$curation"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
