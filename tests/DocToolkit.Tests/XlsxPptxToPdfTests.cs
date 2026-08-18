@@ -203,4 +203,55 @@ public class XlsxPptxToPdfTests
         Assert.False(remote, "AllowRemoteResourceResolution must be false - this package never fetches.");
         Assert.False(local, "AllowLocalFileAccess must be false - a document must not read the host's disk.");
     }
+
+    /// <summary>
+    /// EVERY options factory sets the policy, found by reflection rather than by a list.
+    /// </summary>
+    /// <remarks>
+    /// <b>This asserts the EFFECTIVE policy, and deliberately no longer claims more than that.</b>
+    /// It was written to catch a factory that forgets to set <c>ResourcePolicy</c>, and measured
+    /// 2026-08-18 it does NOT: mutating both <c>ForDocument</c> and <c>ForWorkbook</c> to
+    /// <c>new()</c> left every assertion here green.
+    ///
+    /// The reason is the one <c>PdfRenderPolicy</c>'s own comment gives - the upstream defaults
+    /// already match, and the flags are stated anyway because a default is a policy somebody may
+    /// revisit. <b>The consequence nobody had drawn is that no runtime test can tell the two
+    /// apart.</b> Options built without the policy behave identically today, which is precisely
+    /// what makes the omission survivable and invisible.
+    ///
+    /// So what this test is worth is the effective guarantee: whatever a factory returns, remote
+    /// resolution and local file access are off. <b>Whether it was STATED rather than inherited is
+    /// checked in source</b>, by <c>scripts/check-render-policy.py</c> - which does catch both
+    /// mutants, and caught the real one: <c>DocxToPdfConverter</c> called a bare <c>ToPdf()</c> for
+    /// as long as <c>PdfRenderPolicy</c> has existed.
+    ///
+    /// Derived rather than listed, so a fourth path is covered the day its factory appears.
+    /// </remarks>
+    [Fact]
+    public void EveryRenderPolicyFactorySetsThePolicy()
+    {
+        var factories = typeof(PdfRenderPolicy)
+            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(m => m.GetParameters().Length == 0
+                     && m.ReturnType.Name.EndsWith("PdfSaveOptions", StringComparison.Ordinal))
+            .ToList();
+
+        // Non-vacuity: reflection that matched nothing would pass while asserting nothing at all.
+        Assert.True(factories.Count >= 3,
+            $"expected a factory per PDF path, found {factories.Count} - has one been renamed?");
+
+        foreach (var factory in factories)
+        {
+            var options = factory.Invoke(null, null);
+            var policy = options!.GetType().GetProperty("ResourcePolicy")!.GetValue(options);
+
+            Assert.True(policy is not null, $"{factory.Name} left ResourcePolicy null");
+
+            var remoteFlag = (bool)policy!.GetType().GetProperty("AllowRemoteResourceResolution")!.GetValue(policy)!;
+            var localFlag = (bool)policy.GetType().GetProperty("AllowLocalFileAccess")!.GetValue(policy)!;
+
+            Assert.False(remoteFlag, $"{factory.Name} allows remote resource resolution");
+            Assert.False(localFlag, $"{factory.Name} allows local file access");
+        }
+    }
 }

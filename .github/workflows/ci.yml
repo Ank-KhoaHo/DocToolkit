@@ -639,6 +639,25 @@ jobs:
       - name: Assert the changelog curation check still discriminates
         run: python3 scripts/check-changelog-curated.py --self-test
 
+      # The offline guarantee on the PDF paths, checked where it is decidable: in SOURCE.
+      #
+      # PdfRenderPolicy states its flags explicitly even though the upstream defaults already match,
+      # because a default is a policy somebody may revisit in a patch release. The consequence
+      # nobody had drawn is that NO RUNTIME TEST CAN TELL THE TWO APART - options built without the
+      # policy behave identically today. Measured 2026-08-18: a reflection test written to catch a
+      # forgetful factory missed both mutants.
+      #
+      # It was not hypothetical. DocxToPdfConverter called a bare ToPdf() for as long as
+      # PdfRenderPolicy has existed, so the one path a Word document takes inherited the guarantee
+      # while the XLSX and PPTX paths stated it. Nothing leaked - AirGapGuardTests covers it - but
+      # what stood between the guarantee and a dependency changing its mind was a behavioural test
+      # whose timing half is the one that flakes on macOS.
+      - name: Assert every PDF render call states its resource policy
+        run: python3 scripts/check-render-policy.py
+
+      - name: Assert the render-policy check still discriminates
+        run: python3 scripts/check-render-policy.py --self-test
+
       # The guides carry no code of their own - every block is a #region pulled out of a project
       # in samples/, which the build job compiles with -warnaserror on four platforms. So a guide
       # cannot document an API that no longer exists.
