@@ -34,7 +34,9 @@ public static class DocxToPdfConverter
         }
         catch (Exception ex)
         {
-            throw new DocumentConversionException(FailureMessage, ex);
+            // A recognised cause gets named; everything else keeps the generic wrapper.
+            // See DocxPdfFailureDiagnosis.
+            throw new DocumentConversionException(DocxPdfFailureDiagnosis.Describe(ex) ?? FailureMessage, ex);
         }
     }
 
@@ -115,7 +117,9 @@ public static class DocxToPdfConverter
         }
         catch (Exception ex)
         {
-            throw new DocumentConversionException(FailureMessage, ex);
+            // A recognised cause gets named; everything else keeps the generic wrapper.
+            // See DocxPdfFailureDiagnosis.
+            throw new DocumentConversionException(DocxPdfFailureDiagnosis.Describe(ex) ?? FailureMessage, ex);
         }
     }
 
