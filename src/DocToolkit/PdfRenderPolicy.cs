@@ -1,4 +1,5 @@
 using OfficeIMO.Excel.Pdf;
+using OfficeIMO.Word.Pdf;
 using OfficeIMO.Pdf;
 using OfficeIMO.PowerPoint.Pdf;
 
@@ -29,6 +30,23 @@ internal static class PdfRenderPolicy
         AllowRemoteResourceResolution = false,
         AllowLocalFileAccess = false,
     };
+
+    /// <summary>
+    /// The Word path's options.
+    /// </summary>
+    /// <remarks>
+    /// <b>Added 2026-08-18, and its absence is the more interesting half.</b> The XLSX and PPTX
+    /// paths stated this policy from the start while <c>DocxToPdfConverter</c> called a bare
+    /// <c>ToPdf()</c> - so the one path a Word document actually takes was the one inheriting the
+    /// guarantee from a dependency default, which is precisely what the class comment above rejects.
+    ///
+    /// Nothing was leaking: <c>AirGapGuardTests</c> covers this path, including a DOCX carrying
+    /// external references, and it passed throughout. But what stood between the guarantee and a
+    /// dependency changing its mind was a behavioural test whose timing half is the one that flakes
+    /// on macOS - a real guard, and a poor last line for something that can instead be said in a
+    /// line of code.
+    /// </remarks>
+    public static WordPdfSaveOptions ForDocument() => new() { ResourcePolicy = Policy() };
 
     public static ExcelPdfSaveOptions ForWorkbook() => new() { ResourcePolicy = Policy() };
 
