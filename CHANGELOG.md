@@ -13,18 +13,68 @@ repo-wide tooling (CI, release pipeline).
 ## [0.31.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.30.0...v0.31.0) (2026-08-18)
 
 
+**Core: HTML → PDF now converts most real-world pages.** Measured over **181 genuine `.gov` pages**
+from a public crawl, before and after:
+
+| | before | after |
+|---|---|---|
+| HTML → PDF | 106 / 181 — **58.6%** | 159 / 181 — **87.8%** |
+| HTML → DOCX | 163 / 181 — 90.1% | 177 / 181 — **97.8%** |
+
+Every one of the five repairs below has the same shape: the page was **valid**, browsers render it
+correctly, and the converter refused it over something the author had no reason to think was a
+problem. **None of them can change a document that converts today** — each is applied only to input
+that already fails, and the tests assert that by reference rather than by argument.
+
 ### Added
 
-* **core:** convert HTML whose tables carry an overrunning rowspan ([#293](https://github.com/Ank-KhoaHo/DocToolkit/issues/293)) ([5ca8453](https://github.com/Ank-KhoaHo/DocToolkit/commit/5ca84532d140613003ed5d585a30273315c6ffbb))
-* **core:** label an image-only link so its table cell can be rendered ([#299](https://github.com/Ank-KhoaHo/DocToolkit/issues/299)) ([ec33e18](https://github.com/Ank-KhoaHo/DocToolkit/commit/ec33e18891f93edcf67f58f5ec4869a54660918b))
+* **Core: a `rowspan` reaching past the last row of its table no longer fails the conversion.** It
+  raised an unhandled index error naming nothing. Browsers clamp such a rowspan to the rows that
+  exist, so this markup is common — the sample held spans of 2, 3, 14, 100 and 103 against tables of
+  one to three rows — and it is now clamped the same way
+  ([#293](https://github.com/Ank-KhoaHo/DocToolkit/issues/293)).
+
+* **Core: a table cell holding a link that wraps only an image now renders.** A logo linking home, a
+  "skip navigation" button. The link is labelled with the image's `alt` text, so the navigation
+  survives; an image with no usable `alt` has the link unwrapped instead, because there is nothing to
+  label it with ([#299](https://github.com/Ank-KhoaHo/DocToolkit/issues/299)).
 
 
 ### Fixed
 
-* **core:** correct three rules in the anchor repair, and stop it causing a crash ([#297](https://github.com/Ank-KhoaHo/DocToolkit/issues/297)) ([791b544](https://github.com/Ank-KhoaHo/DocToolkit/commit/791b544f947de7096a2a7dc819667d5711df7d66))
-* **core:** name the two things Markdown conversion rejects ([#301](https://github.com/Ank-KhoaHo/DocToolkit/issues/301)) ([c180657](https://github.com/Ank-KhoaHo/DocToolkit/commit/c180657f780c46aab15c0f1a11d88e4374665ff8))
-* **core:** render pages whose internal links use old-style anchors ([#296](https://github.com/Ank-KhoaHo/DocToolkit/issues/296)) ([b762ec0](https://github.com/Ank-KhoaHo/DocToolkit/commit/b762ec097e4ccc3ce9cd9127dfe708451c4f22de))
-* **core:** render tables whose spacer cells collapse to nothing ([#298](https://github.com/Ank-KhoaHo/DocToolkit/issues/298)) ([14f49c8](https://github.com/Ank-KhoaHo/DocToolkit/commit/14f49c8cfac03f9f0af7080dc2fa4a5a3f3a7e7d))
+* **Core: internal links whose targets use the obsolete `<a name="x">` form now resolve.** HTML5
+  replaced `name` with `id` and browsers honour both, so these pages navigate correctly everywhere
+  else while the converter produced a link to a bookmark it never created. The identity is moved to
+  the nearest block that can carry one; a target that exists in no usable form has its link dropped
+  and its text kept ([#296](https://github.com/Ank-KhoaHo/DocToolkit/issues/296),
+  [#297](https://github.com/Ank-KhoaHo/DocToolkit/issues/297)).
+
+* **Core: a table whose spacer cell collapses to nothing now renders.** An empty cell beside a cell
+  of long text was given a near-zero width by automatic layout, which the renderer then refused —
+  with no width specified anywhere in the document
+  ([#298](https://github.com/Ank-KhoaHo/DocToolkit/issues/298)).
+
+* **Core: the two things Markdown conversion rejects now say what they are.** A line feed written as
+  `&#10;` raised a bare `NullReferenceException`, and an ordered list starting below 1 — which
+  CommonMark permits — an `ArgumentOutOfRangeException`. Both messages now name the construct and the
+  remedy. **The behaviour is unchanged and deliberately so**: both repairs would alter what the
+  document says. Worth knowing that the ordered-list limit is **PDF-only** — `0. item` converts to
+  DOCX perfectly well ([#301](https://github.com/Ank-KhoaHo/DocToolkit/issues/301)).
+
+
+### Changed
+
+* **Nothing that converted before behaves differently.** Stated explicitly because the last release
+  did contain such a change: every repair here is reached only by input that already failed.
+
+* **A failing HTML → PDF conversion can now take up to twice as long.** Two of the repairs cannot
+  tell in advance whether a document needs them, so the render retries once with the repair that
+  matches the failure raised. Only a conversion that already failed pays this; a successful one is
+  unaffected.
+
+* **`AngleSharp` is now a direct dependency.** It was already in the resolved graph — it is the
+  parser the HTML converter uses underneath — so **nothing new ships**: the same 30 packages, the
+  same licences. Noted for anyone auditing direct references.
 
 ## [0.30.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.29.0...v0.30.0) (2026-08-17)
 
