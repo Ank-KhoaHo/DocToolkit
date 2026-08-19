@@ -77,9 +77,11 @@ internal static class DocxPdfFailureDiagnosis
         + "renderer can encode - typically non-Latin text such as Cyrillic, Greek or CJK. "
         + "IMPORTANT: this depends on the machine. The same document renders on a host whose "
         + "installed fonts cover the script, so it can pass in development and fail in production. "
-        + "To remove the machine from the answer, pass a PdfFontOptions carrying a font that covers "
-        + "the text - the bytes come from you, so nothing is fetched. See the inner exception for "
-        + "the character and the fallbacks that were tried.";
+        + "To remove the machine from the answer, pass a PdfFontOptions carrying fonts that cover "
+        + "the text - the bytes come from you, so nothing is fetched. Supply fonts covering "
+        + "EVERYTHING the document uses, not only the script that failed: the fonts you pass "
+        + "replace the host's own fallbacks rather than adding to them, so too few is worse than "
+        + "none. See the inner exception for the character and the fallbacks that were tried.";
 
     private const string HeaderFooterMessage =
         "Failed to convert DOCX to PDF: the header or footer is wider than the page content area, or "

@@ -739,9 +739,21 @@ why this works on an air-gapped host. **No font ships inside this package**, del
 covering Cyrillic, Greek and CJK is measured in megabytes against a package measured in tens of
 kilobytes, and every consumer would pay for it to serve the few converting non-Latin text.
 
-**One effect worth knowing before you use it.** Supplying a fallback font changes how fonts are
-embedded generally: measured on an ordinary Latin document, output went from 128,755 bytes to 1,306.
-Both render correctly — the smaller one leans on the standard fonts every PDF reader already has.
+**Supply fonts covering everything your documents use, not just the script that failed.** The fonts
+you pass **replace** the host's own fallbacks rather than adding to them, so supplying too few is
+worse than supplying none. Measured over 99 real documents:
+
+| fonts supplied | rendered |
+|---|---|
+| none | 71 / 99 |
+| one (Arial) | **63 / 99** — fixed the 4 needing Cyrillic, broke 12 the host had been covering |
+| four | **77 / 99** |
+
+The refusal names the character it could not encode, which tells you what is still missing.
+
+**It also changes how fonts are embedded generally**: measured on an ordinary Latin document, output
+went from 128,755 bytes to 1,306. Both render correctly — the smaller one leans on the standard
+fonts every PDF reader already has.
 
 Otherwise, install fonts covering the script on the machine that does the rendering, and convert on
 a host you control rather than assuming the developer machine's behaviour carries over.
