@@ -10,6 +10,15 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.31.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.0...v0.31.1) (2026-08-19)
+
+
+### Fixed
+
+* **core:** name the two commonest DOCX-to-PDF refusals ([#303](https://github.com/Ank-KhoaHo/DocToolkit/issues/303)) ([a132edb](https://github.com/Ank-KhoaHo/DocToolkit/commit/a132edb1342bf5e294b585f85d8250e96762d66c))
+* **core:** revert the DOCX resource policy - it cost 14% of real documents ([#306](https://github.com/Ank-KhoaHo/DocToolkit/issues/306)) ([4254c99](https://github.com/Ank-KhoaHo/DocToolkit/commit/4254c99e15d449f74c297fa7a2fbfef1fe41ca3e))
+* **core:** state the resource policy on the DOCX-to-PDF path ([#305](https://github.com/Ank-KhoaHo/DocToolkit/issues/305)) ([83d49ba](https://github.com/Ank-KhoaHo/DocToolkit/commit/83d49ba3dc654a2a6968b9c1e1c65a1ab76d5ada))
+
 ## [0.31.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.30.0...v0.31.0) (2026-08-18)
 
 
