@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.32.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.1...v0.32.0) (2026-08-19)
+
+
+### Added
+
+* **core:** clamp a negative paragraph indent so the document renders ([#310](https://github.com/Ank-KhoaHo/DocToolkit/issues/310)) ([5a016ae](https://github.com/Ank-KhoaHo/DocToolkit/commit/5a016ae8f6d902b3e0035ac15acc9cdf3112168f))
+* **core:** let the caller supply fonts for characters the renderer cannot encode ([#307](https://github.com/Ank-KhoaHo/DocToolkit/issues/307)) ([b6ecea2](https://github.com/Ank-KhoaHo/DocToolkit/commit/b6ecea221ebd3dd30bba93d29bf0ee28367c0f1e))
+
 ## [0.31.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.0...v0.31.1) (2026-08-19)
 
 
