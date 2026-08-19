@@ -23,6 +23,49 @@ public static class HtmlToPdfConverter
     /// The document is laid out on <see cref="PageSetup.A4"/>. Use
     /// <see cref="ConvertAsync(string, PageSetup, CancellationToken)"/> for anything else.
     /// </remarks>
+    /// <summary>
+    /// Converts <paramref name="html"/> straight to PDF bytes, using <paramref name="fonts"/> for
+    /// characters the renderer cannot otherwise encode.
+    /// </summary>
+    /// <remarks>
+    /// <b>Whether a page containing non-Latin text renders otherwise depends on the machine.</b> The
+    /// renderer falls back to whatever fonts the host happens to have, so the same page converts on
+    /// one and is refused on another - measured, a Windows box offers fallbacks that do not cover
+    /// Cyrillic. Supplying the font takes the machine out of the answer.
+    ///
+    /// Nothing is fetched, exactly as with <see cref="ConvertAsync(string, CancellationToken)"/>:
+    /// the font comes from the caller as bytes. See <see cref="PdfFontOptions"/> for the one side
+    /// effect worth knowing about.
+    /// </remarks>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="fonts">Fonts to fall back to.</param>
+    /// <param name="ct">Cancels the conversion.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="fonts"/> is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task<byte[]> ConvertAsync(
+        string html, PdfFontOptions fonts, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(fonts);
+
+        return await HtmlForPdf.RenderAsync(
+            html, h => HtmlToDocxConverter.ConvertAsync(h, PageSetup.A4, ct), fonts).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Converts <paramref name="html"/> straight to PDF bytes, laid out on
+    /// <see cref="PageSetup.A4"/>.
+    ///
+    /// <b>No network access, and safe in an air-gapped environment</b> - nothing the markup
+    /// references is fetched. See <see cref="ConvertAsync(string, RemoteImageOptions, CancellationToken)"/>
+    /// to opt in.
+    /// </summary>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="ct">Cancels the conversion.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
     public static Task<byte[]> ConvertAsync(string html, CancellationToken ct = default)
         => ConvertAsync(html, allowRemoteImageDownload: false, ct);
 
@@ -166,7 +209,7 @@ public static class HtmlToPdfConverter
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, ct).ConfigureAwait(false);
+        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -209,7 +252,7 @@ public static class HtmlToPdfConverter
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, ct).ConfigureAwait(false);
+        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -261,7 +304,7 @@ public static class HtmlToPdfConverter
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, ct).ConfigureAwait(false);
+        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -319,7 +362,7 @@ public static class HtmlToPdfConverter
             .ConfigureAwait(false);
 
         ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, ct).ConfigureAwait(false);
+        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
     }
 
     /// <summary>Converts <paramref name="html"/> and writes the PDF to <paramref name="outputPath"/>.</summary>

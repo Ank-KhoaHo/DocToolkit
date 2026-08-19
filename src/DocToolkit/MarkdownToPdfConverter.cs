@@ -104,7 +104,7 @@ public static class MarkdownToPdfConverter
         using var package = new MemoryStream();
         package.Write(docx, 0, docx.Length);
         package.Position = 0;
-        await DocxToPdfConverter.RenderAsync(package, destination, ct).ConfigureAwait(false);
+        await DocxToPdfConverter.RenderAsync(package, destination, null, ct).ConfigureAwait(false);
     }
 
     /// <summary>
