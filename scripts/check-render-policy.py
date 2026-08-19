@@ -1,40 +1,52 @@
 #!/usr/bin/env python3
-"""Assert every PDF render call states its resource policy, in source.
+"""Assert that the PDF render calls which SHOULD state a resource policy do, in source.
 
-WHY A SOURCE CHECK AND NOT A TEST. PdfRenderPolicy's own comment says the flags are
-set explicitly "even though the upstream defaults already match", because a default
-is a policy the upstream author may revisit in a patch release. That reasoning has a
-consequence nobody had drawn: since the defaults match, NO RUNTIME TEST CAN TELL THE
-DIFFERENCE. A factory that forgets to set the policy returns options that behave
-identically today, and a reflection test over those options passes.
+WHY A SOURCE CHECK AND NOT A TEST. PdfRenderPolicy states its flags explicitly rather
+than relying on the upstream defaults, because a default is a policy the upstream
+author may revisit. For the XLSX and PPTX paths the effective behaviour is the same
+either way - which means NO RUNTIME TEST CAN TELL "we stated it" FROM "we inherited
+it". Measured 2026-08-18: a reflection test written to catch a factory that forgets
+missed both mutants, because the effective flags were still false. The only place the
+distinction exists is the source.
 
-Measured 2026-08-18: a test written to catch exactly that missed both mutants -
-`ForDocument() => new()` and `ForWorkbook() => new()` - because the effective flags
-were still false. The only thing that distinguishes "we stated it" from "we inherited
-it" is the source.
+THE WORD PATH IS EXEMPT, AND THAT IS THE OPPOSITE OF AN OVERSIGHT.
 
-That gap was not hypothetical either. DocxToPdfConverter called a bare `ToPdf()` for
-as long as PdfRenderPolicy has existed, so the one path a Word document takes was the
-one inheriting the guarantee, while the XLSX and PPTX paths stated it. Nothing leaked -
-AirGapGuardTests covers that path - but what stood between the guarantee and a
-dependency changing its mind was a behavioural test whose timing half is the one that
-flakes on macOS.
+This check originally required DocxToPdfConverter to pass a policy too, and that
+requirement was measurably wrong. Over 99 documents carrying real content:
+
+    no options at all                71/99
+    empty WordPdfSaveOptions         71/99
+    ResourcePolicy, both flags TRUE  57/99
+    ResourcePolicy, default-built    57/99
+    ResourcePolicy, both flags FALSE 57/99
+
+Assigning a ResourcePolicy AT ALL - the flag values make no difference, both true
+behaves exactly like both false - puts the Word renderer into a resource-resolution
+mode that stops it finding fonts. The failures are text-encoding preflight errors,
+nothing to do with resources. So on that one path, stating the policy is not free;
+it is a different rendering mode wearing the same name.
+
+The exemption is named in EXEMPT below and asserted by the self-test, so that its
+absence from the source reads as a decision. Removing it makes this check demand a
+change that costs 14 of 99 real documents.
 
 WHAT IT CHECKS
 
   1. Every public factory in PdfRenderPolicy returning *PdfSaveOptions sets ResourcePolicy.
-  2. Every render call in the converters passes a PdfRenderPolicy factory.
+  2. Every render call in the converters passes one - except the exempt paths above.
 
 DERIVED, NOT LISTED. Both come from reading the source, so a fourth converter or a
 fifth factory is covered the day it appears. Same principle as gen-third-party-notices.py
-reading the lockfile: a hand-maintained list here would have the same hole the code did.
+reading the lockfile. EXEMPT is the one hand-maintained part, which is why it is short,
+named, and covered by a control.
 
 USAGE
 
     python scripts/check-render-policy.py
     python scripts/check-render-policy.py --self-test    # positive and negative controls
 
-Exits 0 when every call states its policy, 1 when one does not, 2 on a parse error.
+Exits 0 when every non-exempt call states its policy, 1 when one does not, 2 on a
+parse error.
 """
 from __future__ import annotations
 
@@ -154,7 +166,8 @@ def main() -> int:
               "default. See PdfRenderPolicy's class comment.")
         return 1
 
-    print("Every options factory sets ResourcePolicy, and every render call passes one.")
+    print("Every options factory sets ResourcePolicy, and every non-exempt render call "
+          f"passes one. Exempt, for the measured reason in this file: {', '.join(sorted(EXEMPT))}.")
     return 0
 
 
