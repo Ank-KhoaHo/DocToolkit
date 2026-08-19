@@ -18,6 +18,12 @@ namespace DocToolkit.Tests;
 /// author put it outside of; shrinking a header changes a layout somebody chose. Unlike the HTML
 /// repairs, no browser behaviour says what the right answer is — these are decisions, and they are
 /// filed rather than taken.
+///
+/// <b>A third message was added later, and it is the one with a remedy.</b> A character no font on
+/// the machine can encode now says so, says that this DEPENDS ON THE MACHINE — the same document
+/// renders on a host whose fonts cover the script, so it can pass in development and fail in
+/// production — and points at <see cref="PdfFontOptions"/>, which did not exist when the other two
+/// were written.
 /// </summary>
 public class DocxPdfFailureDiagnosisTests
 {
@@ -108,6 +114,7 @@ public class DocxPdfFailureDiagnosisTests
     [InlineData("PDF footer zone content must fit inside the page content width.", "wider than the page content area")]
     [InlineData("Combined PDF header/footer content must fit inside the page content width.", "wider than the page content area")]
     [InlineData("PDF header zones must not overlap.", "wider than the page content area")]
+    [InlineData("Text contains character U+0421 that is not covered by any embedded font fallback candidate.", "depends on the machine")]
     public void EachRecognisedMessageMapsToItsDiagnosis(string rendererMessage, string expected)
     {
         // The renderer's exact wording, taken from the corpus run rather than invented. If it ever
@@ -135,6 +142,19 @@ public class DocxPdfFailureDiagnosisTests
         // The third case matters too: it is a real refusal from the same renderer that a DIFFERENT
         // repair handles, so a looser match would put the wrong remedy in front of the reader.
         Assert.Null(DocxPdfFailureDiagnosis.Describe(new ArgumentException(rendererMessage)));
+    }
+
+    [Fact]
+    public void TheMissingGlyphMessagePointsAtTheRemedy()
+    {
+        // The renderer's own message says "add a fallback font" without saying this package now
+        // takes one, so a reader hits a wall the API can already get them past.
+        var described = DocxPdfFailureDiagnosis.Describe(
+            new ArgumentException("Text contains character U+0421 that is not covered by any embedded font."));
+
+        Assert.NotNull(described);
+        Assert.Contains("PdfFontOptions", described, StringComparison.Ordinal);
+        Assert.Contains("depends on the machine", described, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

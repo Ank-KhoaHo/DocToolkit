@@ -46,6 +46,9 @@ internal static class DocxPdfFailureDiagnosis
             || message.Contains("header zones must not overlap", StringComparison.OrdinalIgnoreCase))
             return HeaderFooterMessage;
 
+        if (message.Contains("not covered by any embedded font", StringComparison.OrdinalIgnoreCase))
+            return MissingGlyphMessage;
+
         return null;
     }
 
@@ -56,6 +59,27 @@ internal static class DocxPdfFailureDiagnosis
         + "or a pull-quote is often laid out. An ordinary hanging indent is unaffected and converts "
         + "normally. To render this document, set the negative indent to 0. See the inner exception "
         + "for the renderer's own error.";
+
+    /// <summary>
+    /// A character no font on this machine can encode.
+    /// </summary>
+    /// <remarks>
+    /// <b>The renderer's own message is good - it names the character and the fallbacks it tried -
+    /// and stops one step short of the useful part.</b> It says "add a fallback font" without saying
+    /// that this package now takes one, so a reader hits a wall the API can already get them past.
+    ///
+    /// <b>It also does not say that this is host-dependent</b>, which is the thing most likely to
+    /// mislead: the same document renders on a machine whose fonts happen to cover the script, so
+    /// somebody testing on Linux and deploying to Windows meets it only in production.
+    /// </remarks>
+    private const string MissingGlyphMessage =
+        "Failed to convert DOCX to PDF: the document contains a character no font available to the "
+        + "renderer can encode - typically non-Latin text such as Cyrillic, Greek or CJK. "
+        + "IMPORTANT: this depends on the machine. The same document renders on a host whose "
+        + "installed fonts cover the script, so it can pass in development and fail in production. "
+        + "To remove the machine from the answer, pass a PdfFontOptions carrying a font that covers "
+        + "the text - the bytes come from you, so nothing is fetched. See the inner exception for "
+        + "the character and the fallbacks that were tried.";
 
     private const string HeaderFooterMessage =
         "Failed to convert DOCX to PDF: the header or footer is wider than the page content area, or "

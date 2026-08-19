@@ -724,9 +724,27 @@ with no third outcome.
 WinAnsi range. And **reading is never affected**: `DocxEditor.ExtractText` returns non-Latin text
 correctly on every platform. It is only PDF rendering that depends on fonts.
 
-If you render documents in an unknown script, install fonts covering it on the machine that does the
-rendering, and convert on a host you control rather than assuming the developer machine's behaviour
-carries over.
+**You can now take the machine out of the answer by supplying the font yourself.** `PdfFontOptions`
+carries font bytes you already license, and the converters that render PDF accept it:
+
+```csharp
+var fonts = new PdfFontOptions("Noto Sans", File.ReadAllBytes("NotoSans-Regular.ttf"));
+
+byte[] pdf     = DocxToPdfConverter.Convert(docx, fonts);
+byte[] fromWeb = await HtmlToPdfConverter.ConvertAsync(html, fonts);
+```
+
+Nothing is fetched and nothing is read from disk by this library — the bytes come from you, which is
+why this works on an air-gapped host. **No font ships inside this package**, deliberately: one
+covering Cyrillic, Greek and CJK is measured in megabytes against a package measured in tens of
+kilobytes, and every consumer would pay for it to serve the few converting non-Latin text.
+
+**One effect worth knowing before you use it.** Supplying a fallback font changes how fonts are
+embedded generally: measured on an ordinary Latin document, output went from 128,755 bytes to 1,306.
+Both render correctly — the smaller one leans on the standard fonts every PDF reader already has.
+
+Otherwise, install fonts covering the script on the machine that does the rendering, and convert on
+a host you control rather than assuming the developer machine's behaviour carries over.
 
 ## How the no-network guarantee is built
 

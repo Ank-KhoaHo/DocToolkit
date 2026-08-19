@@ -10,7 +10,26 @@ public static class DocxToPdfConverter
     /// <example>
     /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="DocxToPdf"/>
     /// </example>
-    public static byte[] Convert(byte[] docx)
+    public static byte[] Convert(byte[] docx) => Convert(docx, null);
+
+    /// <summary>
+    /// Renders the .docx in <paramref name="docx"/>, using <paramref name="fonts"/> for characters
+    /// the renderer cannot otherwise encode.
+    /// </summary>
+    /// <remarks>
+    /// <b>Whether a document containing non-Latin text renders otherwise depends on the machine.</b>
+    /// The renderer falls back to whatever fonts the host happens to have, and a Windows box offers
+    /// ones that do not cover Cyrillic - so the same document converts on one machine and is refused
+    /// on another. Supplying the font removes the machine from the answer.
+    ///
+    /// See <see cref="PdfFontOptions"/> for the one side effect worth knowing about.
+    /// </remarks>
+    /// <param name="docx">The document to render.</param>
+    /// <param name="fonts">Fonts to fall back to, or <see langword="null"/> for none.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be rendered.</exception>
+    public static byte[] Convert(byte[] docx, PdfFontOptions? fonts)
     {
         ArgumentNullException.ThrowIfNull(docx);
         if (docx.Length == 0)
@@ -31,7 +50,8 @@ public static class DocxToPdfConverter
 
             using var word = WordDocument.Load(input);
             // NO ResourcePolicy, and that is measured rather than an oversight. See PdfRenderPolicy.
-            return word.ToPdf();
+            var options = SaveOptions(fonts);
+            return options is null ? word.ToPdf() : word.ToPdf(options);
         }
         catch (Exception ex)
         {
@@ -77,7 +97,27 @@ public static class DocxToPdfConverter
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The DOCX could not be rendered.</exception>
-    public static async Task ConvertAsync(Stream source, Stream destination, CancellationToken ct = default)
+    public static Task ConvertAsync(Stream source, Stream destination, CancellationToken ct = default)
+        => ConvertAsync(source, destination, null, ct);
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and writes the rendered PDF to
+    /// <paramref name="destination"/>, using <paramref name="fonts"/> for characters the renderer
+    /// cannot otherwise encode.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="destination">The stream the PDF is written to.</param>
+    /// <param name="fonts">Fonts to fall back to, or <see langword="null"/> for none.</param>
+    /// <param name="ct">Cancels the read, the render and the write.</param>
+    /// <exception cref="ArgumentNullException">Either stream is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be rendered.</exception>
+    public static async Task ConvertAsync(
+        Stream source, Stream destination, PdfFontOptions? fonts, CancellationToken ct = default)
     {
         StreamPipeline.RequireReadable(source, nameof(source));
         StreamPipeline.RequireWritable(destination, nameof(destination));
@@ -87,7 +127,26 @@ public static class DocxToPdfConverter
             .DrainAsync(source, "DOCX content was empty.", nameof(source), FailureMessage, ct)
             .ConfigureAwait(false);
 
-        await RenderAsync(docx, destination, ct).ConfigureAwait(false);
+        await RenderAsync(docx, destination, fonts, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The renderer's options, or <see langword="null"/> when the caller supplied no fonts.
+    /// </summary>
+    /// <remarks>
+    /// <b>Null, not an empty options object, and the difference is measured.</b> Handing the Word
+    /// renderer an options instance is not neutral - assigning a <c>ResourcePolicy</c> to one cost
+    /// 14 of 99 real documents, for font reasons rather than resource ones (see
+    /// <see cref="PdfRenderPolicy"/>). An empty instance was measured to behave like no instance,
+    /// but "measured equivalent today" is exactly the assumption that failed last time, so the
+    /// no-fonts path stays literally the call it always was.
+    /// </remarks>
+    private static WordPdfSaveOptions? SaveOptions(PdfFontOptions? fonts)
+    {
+        var fallbacks = fonts?.ToFallbackSet();
+        return fallbacks is null
+            ? null
+            : new WordPdfSaveOptions { PdfOptions = new OfficeIMO.Pdf.PdfOptions { EmbeddedFontFallbacks = fallbacks } };
     }
 
     /// <summary>
@@ -98,7 +157,8 @@ public static class DocxToPdfConverter
     /// reading it back. <paramref name="docx"/> is a scratch buffer this library owns; it is read
     /// from its start and left to the caller to dispose.
     /// </summary>
-    internal static async Task RenderAsync(MemoryStream docx, Stream destination, CancellationToken ct)
+    internal static async Task RenderAsync(
+        MemoryStream docx, Stream destination, PdfFontOptions? fonts, CancellationToken ct)
     {
         docx.Position = 0;
 
@@ -111,7 +171,11 @@ public static class DocxToPdfConverter
             // Writes directly onto the caller's destination. OfficeIMO's writer emits the PDF in
             // pieces as it lays it out, so nothing here ever holds the whole rendered document.
             // NO ResourcePolicy - see PdfRenderPolicy for the measurement.
-            await word.SaveAsPdfAsync(destination, cancellationToken: ct).ConfigureAwait(false);
+            var options = SaveOptions(fonts);
+            if (options is null)
+                await word.SaveAsPdfAsync(destination, cancellationToken: ct).ConfigureAwait(false);
+            else
+                await word.SaveAsPdfAsync(destination, options, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

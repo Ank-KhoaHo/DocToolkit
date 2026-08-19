@@ -80,7 +80,7 @@ public static class PptxToPdfConverter
     /// <b>written</b>; neither is disposed or closed, and <paramref name="destination"/> is never
     /// sought or read back, so both may be sockets, files or HTTP message bodies.
     ///
-    /// As with <see cref="DocxToPdfConverter.ConvertAsync"/>, the PDF is written straight through as
+    /// As with <see cref="DocxToPdfConverter.ConvertAsync(System.IO.Stream, System.IO.Stream, System.Threading.CancellationToken)"/>, the PDF is written straight through as
     /// the renderer produces it rather than assembled into an array first — so a failure part-way
     /// leaves whatever had already been produced on <paramref name="destination"/>.
     /// </summary>

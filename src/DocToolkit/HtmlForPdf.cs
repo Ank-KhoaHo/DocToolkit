@@ -57,12 +57,14 @@ internal static class HtmlForPdf
     /// <param name="html">The markup to render.</param>
     /// <param name="toDocx">Converts prepared HTML to a .docx, carrying whatever options and
     /// cancellation token the calling overload was given.</param>
+    /// <param name="fonts">Fonts to fall back to when rendering, or <see langword="null"/> for none.</param>
     /// <remarks>
     /// <b>A retry costs a full second conversion, and only a document that already failed pays
     /// it.</b> That is the right way round: the alternative is editing every document in the hope
     /// that some of them needed it.
     /// </remarks>
-    internal static async Task<byte[]> RenderAsync(string html, Func<string, Task<byte[]>> toDocx)
+    internal static async Task<byte[]> RenderAsync(
+        string html, Func<string, Task<byte[]>> toDocx, PdfFontOptions? fonts = null)
     {
         var current = Prepare(html);
         var used = new HashSet<int>();
@@ -71,7 +73,7 @@ internal static class HtmlForPdf
         {
             try
             {
-                return DocxToPdfConverter.Convert(await toDocx(current).ConfigureAwait(false));
+                return DocxToPdfConverter.Convert(await toDocx(current).ConfigureAwait(false), fonts);
             }
             catch (DocumentConversionException ex)
             {
