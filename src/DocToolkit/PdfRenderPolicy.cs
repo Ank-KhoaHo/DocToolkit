@@ -31,22 +31,32 @@ internal static class PdfRenderPolicy
         AllowLocalFileAccess = false,
     };
 
-    /// <summary>
-    /// The Word path's options.
-    /// </summary>
-    /// <remarks>
-    /// <b>Added 2026-08-18, and its absence is the more interesting half.</b> The XLSX and PPTX
-    /// paths stated this policy from the start while <c>DocxToPdfConverter</c> called a bare
-    /// <c>ToPdf()</c> - so the one path a Word document actually takes was the one inheriting the
-    /// guarantee from a dependency default, which is precisely what the class comment above rejects.
-    ///
-    /// Nothing was leaking: <c>AirGapGuardTests</c> covers this path, including a DOCX carrying
-    /// external references, and it passed throughout. But what stood between the guarantee and a
-    /// dependency changing its mind was a behavioural test whose timing half is the one that flakes
-    /// on macOS - a real guard, and a poor last line for something that can instead be said in a
-    /// line of code.
-    /// </remarks>
-    public static WordPdfSaveOptions ForDocument() => new() { ResourcePolicy = Policy() };
+    // THERE IS DELIBERATELY NO ForDocument().
+    //
+    // One was added on 2026-08-18 and reverted the same day, because it broke 14 of 99 real
+    // documents - DOCX to PDF fell from 71/99 to 57/99 - and the failures were TEXT ENCODING
+    // preflight errors, nothing to do with resources.
+    //
+    // The cause is not the flag values. Measured over the same 99 documents:
+    //
+    //     no options at all                71/99
+    //     empty WordPdfSaveOptions         71/99
+    //     ResourcePolicy, both flags TRUE  57/99
+    //     ResourcePolicy, default-built    57/99
+    //     ResourcePolicy, both flags FALSE 57/99
+    //
+    // Assigning a ResourcePolicy AT ALL switches the Word renderer into a resource-resolution mode
+    // that stops it finding fonts, so glyphs the document needs stop being encodable. Both flags
+    // true behaves exactly like both flags false, which is what rules out the policy's contents as
+    // the cause.
+    //
+    // So the sentence at the top of this file - that the flags are stated even though the upstream
+    // defaults already match - is NOT TRUE OF THE WORD PATH. Stating them is not free there; it is
+    // a different rendering mode wearing the same name.
+    //
+    // Do not add ForDocument() back without re-running that table. scripts/check-render-policy.py
+    // encodes this exemption so the absence reads as a decision rather than an omission, and
+    // DocxToPdfResourcePolicyTests pins the regression itself.
 
     public static ExcelPdfSaveOptions ForWorkbook() => new() { ResourcePolicy = Policy() };
 

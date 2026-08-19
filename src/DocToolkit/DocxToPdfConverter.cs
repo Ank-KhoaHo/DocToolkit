@@ -30,7 +30,8 @@ public static class DocxToPdfConverter
             input.Position = 0;
 
             using var word = WordDocument.Load(input);
-            return word.ToPdf(PdfRenderPolicy.ForDocument());
+            // NO ResourcePolicy, and that is measured rather than an oversight. See PdfRenderPolicy.
+            return word.ToPdf();
         }
         catch (Exception ex)
         {
@@ -109,7 +110,8 @@ public static class DocxToPdfConverter
 
             // Writes directly onto the caller's destination. OfficeIMO's writer emits the PDF in
             // pieces as it lays it out, so nothing here ever holds the whole rendered document.
-            await word.SaveAsPdfAsync(destination, PdfRenderPolicy.ForDocument(), ct).ConfigureAwait(false);
+            // NO ResourcePolicy - see PdfRenderPolicy for the measurement.
+            await word.SaveAsPdfAsync(destination, cancellationToken: ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
