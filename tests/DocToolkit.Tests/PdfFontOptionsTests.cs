@@ -24,17 +24,15 @@ public class PdfFontOptionsTests
     /// <summary>A font with Cyrillic coverage, if this machine has one.</summary>
     private static byte[]? FindFont()
     {
-        foreach (var path in new[]
-                 {
-                     @"C:\Windows\Fonts\arial.ttf",
-                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                     "/Library/Fonts/Arial.ttf",
-                     "/System/Library/Fonts/Supplemental/Arial.ttf",
-                 })
+        var found = new[]
         {
-            if (File.Exists(path)) return File.ReadAllBytes(path);
-        }
-        return null;
+            @"C:\Windows\Fonts\arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/Library/Fonts/Arial.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+        }.FirstOrDefault(File.Exists);
+
+        return found is null ? null : File.ReadAllBytes(found);
     }
 
     private static byte[] Cyrillic() =>
