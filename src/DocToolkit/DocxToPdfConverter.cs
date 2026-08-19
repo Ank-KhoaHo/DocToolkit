@@ -41,17 +41,33 @@ public static class DocxToPdfConverter
             // renderer refuses to encode - so a document with a bulleted list could not be
             // rendered at all. Substituted before loading; see ListMarkerSubstitution for why the
             // replacements are measured rather than chosen, and why this is a deliberate trade.
-            var renderable = ListMarkerSubstitution.Apply(docx);
+            return Render(ListMarkerSubstitution.Apply(docx), fonts);
+        }
+        catch (DocumentConversionException) { throw; }
+        catch (Exception ex) when (DocxPdfFailureDiagnosis.IsNegativeIndent(ex))
+        {
+            // A negative paragraph indent is refused at any magnitude and is legal in Word, so it
+            // is clamped and retried - on the maintainer's decision, and see NegativeIndentClamp
+            // for what that costs and buys.
+            //
+            // ON FAILURE ONLY, so the ordinary path never pays for it. The clamp has to open the
+            // package to find out whether there is anything to clamp, and doing that on every
+            // conversion would tax the 71 documents in 99 that never needed it. The retry costs a
+            // second render, and only a document that already failed pays it - the same shape as
+            // HtmlForPdf's repairs, for the same reason.
+            var clamped = NegativeIndentClamp.Apply(ListMarkerSubstitution.Apply(docx));
+            if (ReferenceEquals(clamped, docx)) throw new DocumentConversionException(
+                DocxPdfFailureDiagnosis.Describe(ex) ?? FailureMessage, ex);
 
-            // Copy into an expandable stream: OfficeIMO opens the package read/write.
-            using var input = new MemoryStream();
-            input.Write(renderable, 0, renderable.Length);
-            input.Position = 0;
-
-            using var word = WordDocument.Load(input);
-            // NO ResourcePolicy, and that is measured rather than an oversight. See PdfRenderPolicy.
-            var options = SaveOptions(fonts);
-            return options is null ? word.ToPdf() : word.ToPdf(options);
+            try
+            {
+                return Render(clamped, fonts);
+            }
+            catch (Exception second)
+            {
+                throw new DocumentConversionException(
+                    DocxPdfFailureDiagnosis.Describe(second) ?? FailureMessage, second);
+            }
         }
         catch (Exception ex)
         {
@@ -128,6 +144,20 @@ public static class DocxToPdfConverter
             .ConfigureAwait(false);
 
         await RenderAsync(docx, destination, fonts, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Loads a package and renders it. The one place the renderer is actually called.</summary>
+    private static byte[] Render(byte[] docx, PdfFontOptions? fonts)
+    {
+        // Copy into an expandable stream: OfficeIMO opens the package read/write.
+        using var input = new MemoryStream();
+        input.Write(docx, 0, docx.Length);
+        input.Position = 0;
+
+        using var word = WordDocument.Load(input);
+        // NO ResourcePolicy, and that is measured rather than an oversight. See PdfRenderPolicy.
+        var options = SaveOptions(fonts);
+        return options is null ? word.ToPdf() : word.ToPdf(options);
     }
 
     /// <summary>

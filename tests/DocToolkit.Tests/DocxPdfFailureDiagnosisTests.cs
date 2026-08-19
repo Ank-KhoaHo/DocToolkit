@@ -56,31 +56,42 @@ public class DocxPdfFailureDiagnosisTests
         return ms.ToArray();
     }
 
-    // ---- the negative indent -----------------------------------------------------------------------
+    // ---- the negative indent: now CLAMPED, so these documents render ------------------------------
 
     [Theory]
     [InlineData("w:left=\"-360\"")]
     [InlineData("w:right=\"-360\"")]
-    [InlineData("w:right=\"-7\"")]                       // tiny values fail too - magnitude is irrelevant
+    [InlineData("w:right=\"-7\"")]                       // tiny values were refused too
     [InlineData("w:left=\"-360\" w:right=\"-360\"")]
-    public void ANegativeIndentIsNamed(string attributes)
+    public void ANegativeIndentNowRenders(string attributes)
     {
-        var ex = Assert.Throws<DocumentConversionException>(
-            () => DocxToPdfConverter.Convert(WithIndent(attributes)));
-
-        Assert.Contains("negative left or right indent", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("set the negative indent to 0", ex.Message, StringComparison.OrdinalIgnoreCase);
+        // These asserted the DIAGNOSIS until the clamp shipped. The message was right and the
+        // document still did not render; now it does, so the assertion moves from "says why it
+        // failed" to "did not fail". Measured across the corpus: 71/99 to 75/99.
+        Assert.True(PdfProbe.IsPdf(DocxToPdfConverter.Convert(WithIndent(attributes))));
     }
 
     [Fact]
-    public void TheMessageSaysTheDocumentIsNotInvalid()
+    public void TheClampKeepsTheDocumentsText()
     {
-        // The whole point. Word allows a paragraph outside the margin, so a reader told only
-        // "must be non-negative" goes looking for a mistake that is not there.
-        var ex = Assert.Throws<DocumentConversionException>(
-            () => DocxToPdfConverter.Convert(WithIndent("w:right=\"-360\"")));
+        // A clamp that rendered by dropping the paragraph would satisfy the theory above. What is
+        // given up is the overhang past the margin, not the content.
+        var pdf = DocxToPdfConverter.Convert(WithIndent("w:right=\"-720\""));
 
-        Assert.Contains("not invalid", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("second line", PdfProbe.ExtractText(pdf), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TheDiagnosisIsKeptAsASafetyNet()
+    {
+        // Unreachable from ordinary input now, and kept for the same reason as the rowspan one: the
+        // clamp rewrites a package, and input it cannot rewrite - or a shape it does not match -
+        // should still say what happened rather than surfacing a bare renderer error.
+        var described = DocxPdfFailureDiagnosis.Describe(
+            new ArgumentException("Paragraph right indent must be a non-negative finite value."));
+
+        Assert.NotNull(described);
+        Assert.Contains("not invalid", described, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

@@ -35,6 +35,15 @@ internal static class DocxPdfFailureDiagnosis
     /// <see cref="HtmlFailureDiagnosis"/> - name only a cause that can be told apart, and let
     /// anything unrecognised keep the generic wrapper.
     /// </remarks>
+    /// <summary>Whether this is the negative-indent refusal, which is repairable.</summary>
+    /// <remarks>
+    /// Exposed separately from <see cref="Describe"/> because the caller needs to act on this one
+    /// rather than only report it - it is the single failure here with a repair, and matching it in
+    /// two places would be two things to keep in step.
+    /// </remarks>
+    internal static bool IsNegativeIndent(Exception ex) =>
+        (ex.Message ?? string.Empty).Contains("indent must be a non-negative", StringComparison.OrdinalIgnoreCase);
+
     internal static string? Describe(Exception ex)
     {
         var message = ex.Message ?? string.Empty;
