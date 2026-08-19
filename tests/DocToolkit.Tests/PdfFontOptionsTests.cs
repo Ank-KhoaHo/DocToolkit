@@ -157,6 +157,19 @@ public class PdfFontOptionsTests
     }
 
     [Fact]
+    public void TheRefusalWarnsThatFontsREPLACETheHostsOwn()
+    {
+        // Measured over 99 real documents: one font took them from 71/99 to 63/99, fixing the four
+        // needing Cyrillic and breaking twelve the host's own fallbacks had been covering. Somebody
+        // reading the refusal is about to supply exactly one font, so the message has to say this.
+        var described = DocxPdfFailureDiagnosis.Describe(
+            new ArgumentException("Text contains character U+0421 that is not covered by any embedded font."));
+
+        Assert.Contains("replace", described!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("too few is worse than none", described, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TheFallbackSetCarriesEveryFontInOrder()
     {
         // The conversion into the renderer's own type, checked directly - the last step before the

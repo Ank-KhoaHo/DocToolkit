@@ -17,11 +17,27 @@ namespace DocToolkit;
 /// this repository has never audited. So the bytes come from the caller, who already licenses the
 /// typeface their documents are written in and knows which one that is.
 ///
-/// <b>This is opt-in and changes nothing for anybody who does not use it.</b> There is one effect
-/// worth knowing before you do: supplying a fallback font changes how the renderer embeds fonts
-/// generally. Measured on an ordinary Latin document, output went from 128,755 bytes to 1,306 — the
-/// same base-14 swing this project already records as varying PDF size a hundredfold. Both render
-/// correctly; the smaller one leans on the standard fonts every reader has.
+/// <b>This is opt-in and changes nothing for anybody who does not use it.</b> Two effects are worth
+/// knowing before you do.
+///
+/// <b>1. The fonts you supply REPLACE the host's own fallbacks; they do not add to them.</b> That
+/// makes supplying too few actively worse than supplying none, which is the opposite of what the
+/// name suggests. Measured over 99 real documents:
+///
+/// <list type="bullet">
+/// <item><description>no font supplied — <b>71/99</b></description></item>
+/// <item><description>one font (Arial) — <b>63/99</b>: it fixed the 4 documents needing Cyrillic and
+/// broke 12 that the host's own fallbacks had been covering</description></item>
+/// <item><description>four fonts — <b>77/99</b></description></item>
+/// </list>
+///
+/// So supply fonts covering <i>everything your documents use</i>, not just the script that failed.
+/// The refusal names the character it could not encode, which tells you what is still missing.
+///
+/// <b>2. It changes how fonts are embedded generally.</b> Measured on an ordinary Latin document,
+/// output went from 128,755 bytes to 1,306 — the same base-14 swing this project already records as
+/// varying PDF size a hundredfold. Both render correctly; the smaller leans on the standard fonts
+/// every reader has.
 ///
 /// <b>There is deliberately no compiled example for this type</b>, which is worth explaining
 /// because every other public type here has one. This project's examples are real tests, so they
