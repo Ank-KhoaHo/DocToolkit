@@ -10,6 +10,43 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.31.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.0...v0.31.1) (2026-08-19)
+
+
+**A patch release with one change in it.** Three commits appear below; two of them are a change and
+its revert, and net to nothing.
+
+### Fixed
+
+* **Core: the two commonest reasons a Word document will not render to PDF now name themselves.**
+  Measured over 99 documents carrying real content, DOCX → PDF succeeds on **71.7%**, and 15 of the
+  28 failures are a negative paragraph indent (8) or header/footer content wider than the page (7).
+
+  **Both are legal in Word**, which is what the messages now say. The renderer's own wording is
+  accurate — *"Paragraph right indent must be a non-negative finite value"* — and leaves a reader
+  hunting for a mistake in a document that does not contain one. Content set outside the margin, and
+  a wide header, are ordinary in a letterhead.
+
+  **An ordinary hanging indent is unaffected**, and the message says so: `w:hanging` and a negative
+  `w:firstLine` both convert. Only a negative `w:left` or `w:right` is refused, at any magnitude
+  ([#303](https://github.com/Ank-KhoaHo/DocToolkit/issues/303)).
+
+
+### Changed
+
+* **Nothing else behaves differently, and the other two entries are why that needs saying.**
+  A resource policy was added to the DOCX → PDF path and reverted the same day
+  ([#305](https://github.com/Ank-KhoaHo/DocToolkit/issues/305),
+  [#306](https://github.com/Ank-KhoaHo/DocToolkit/issues/306)). It never reached a release.
+
+  It is recorded rather than hidden because the measurement is worth having: assigning a resource
+  policy to the Word renderer — **with any flag values, including permissive ones** — drops DOCX →
+  PDF from 71/99 to 57/99 on real documents, because it stops the renderer resolving **fonts**. The
+  XLSX and PPTX paths are unaffected and keep theirs.
+
+  If you have been passing `WordPdfSaveOptions` with a `ResourcePolicy` in your own code, that is
+  worth knowing: the flags are not what matters, the presence of the object is.
+
 ## [0.31.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.30.0...v0.31.0) (2026-08-18)
 
 
