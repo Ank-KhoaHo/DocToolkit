@@ -796,10 +796,21 @@ public static class PresentationEditor
     }
 
     /// <summary>
-    /// Whether <paramref name="pptx"/> is an encrypted Office document — that is, whether the
-    /// other methods on this class will refuse it.
+    /// Whether <paramref name="pptx"/> is an ENCRYPTED Office document.
     /// </summary>
     /// <remarks>
+    /// <b>This is not a validity check, and a <see langword="false"/> is not a promise that
+    /// anything else will succeed.</b> It distinguishes an encrypted document from a plain one;
+    /// input that is neither — an image, a PDF, a text file, random bytes — is not encrypted, so
+    /// this answers <see langword="false"/> for it, while every other method on this class refuses
+    /// it. Measured over real files: a JPEG and a PDF both return <see langword="false"/> here and
+    /// both throw from <c>ExtractText</c>.
+    ///
+    /// <b>The summary used to say "that is, whether the other methods on this class will refuse
+    /// it".</b> That reads as a guard — test it, and if false, proceed — and takes the wrong branch
+    /// for every input that is not a document at all. The behaviour was always right and only the
+    /// sentence was wrong, which is why the fix is here and not in the code.
+    ///
     /// Reads the file signature; it does not try the password and does not need one. A plain PPTX
     /// is a ZIP package, an encrypted one is a compound file, and the two are distinguishable from
     /// their first eight bytes.
