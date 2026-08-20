@@ -252,8 +252,13 @@ public class DocxEditorCreateTests
         using var doc = WordprocessingDocument.Open(ms, false);
         var table = doc.MainDocumentPart!.Document!.Body!.Elements<Table>().Single();
 
-        Assert.All(table.Elements<TableRow>(),
-            r => Assert.Equal(3, r.Elements<TableCell>().Count()));
+        // NotEmpty first: Assert.All passes over an empty sequence, and CLAUDE.md records that a
+        // w:tbl with NO w:tr is schema-valid - so AssertValid would not catch a rowless table
+        // either, and this test would go green on a Create that emitted no rows at all.
+        var createdRows = table.Elements<TableRow>().ToList();
+        Assert.Equal(2, createdRows.Count);          // the header, and the one short row
+
+        Assert.All(createdRows, r => Assert.Equal(3, r.Elements<TableCell>().Count()));
     }
 
     /// <summary>

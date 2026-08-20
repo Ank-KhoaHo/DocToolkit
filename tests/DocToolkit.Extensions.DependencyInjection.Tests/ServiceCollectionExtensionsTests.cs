@@ -150,16 +150,27 @@ public class ServiceCollectionExtensionsTests
     [Fact]
     public void AddDocToolkit_RegistersEachInterfaceAsASingleton()
     {
+        // DERIVED, not listed - for the reason its sibling above already gives, and which this
+        // test spent five interfaces proving. It asserted a hand-written array of ELEVEN while
+        // sixteen shipped: IDocToDocxConverter, IMarkdownToDocxConverter, IMarkdownToPdfConverter,
+        // IXlsxToCsvConverter and IXlsxToHtmlConverter were never checked. They are contiguous at
+        // the end of the registration, which is the tell - the list went stale as things were
+        // added to the file beside it, exactly as ResolvesEveryPublicInterfaceItShips warns.
+        //
+        // Nothing was actually broken: all sixteen are TryAddSingleton. What was missing was
+        // anything that would NOTICE if one were not. The lifetime matters because CLAUDE.md
+        // records IOptionsMonitor being read per call PRECISELY BECAUSE these are singletons, so
+        // a scoped registration would change when options are observed.
         var services = new ServiceCollection().AddDocToolkit();
 
-        var registeredTypes = new[]
-        {
-            typeof(IHtmlToDocxConverter), typeof(IDocxToPdfConverter), typeof(IHtmlToPdfConverter),
-            typeof(IDocxEditor), typeof(IWorkbookEditor), typeof(IPresentationEditor),
-            typeof(IXlsxToPdfConverter), typeof(IPptxToPdfConverter),
-            typeof(IDocxToHtmlConverter), typeof(IDocxToMarkdownConverter),
-            typeof(IPdfEditor),
-        };
+        var registeredTypes = typeof(IDocxEditor).Assembly.GetExportedTypes()
+            .Where(t => t.IsInterface)
+            .OrderBy(t => t.Name)
+            .ToList();
+
+        // Without this the test passes by finding nothing, which is the failure mode the whole
+        // derive-don't-list argument exists to avoid.
+        Assert.NotEmpty(registeredTypes);
 
         foreach (var serviceType in registeredTypes)
         {
