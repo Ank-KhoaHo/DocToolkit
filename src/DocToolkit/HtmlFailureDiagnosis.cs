@@ -24,6 +24,7 @@ internal static class HtmlFailureDiagnosis
     internal static string? Describe(Exception ex)
     {
         if (OverhangingRowSpan(ex)) return OverhangingRowSpanMessage;
+        if (InvalidCharacter(ex, out var character)) return InvalidCharacterMessage(character);
         return null;
     }
 
@@ -67,4 +68,70 @@ internal static class HtmlFailureDiagnosis
     private static bool OverhangingRowSpan(Exception ex) =>
         ex is IndexOutOfRangeException
         && (ex.StackTrace ?? string.Empty).Contains(RowSpanFrame, StringComparison.Ordinal);
+
+    /// <summary>
+    /// A character the XML writer refuses, which is what a caller gets for handing this converter
+    /// something that is not text.
+    /// </summary>
+    /// <remarks>
+    /// <b>Measured 2026-08-20 over govdocs1: 8 of 8 JPEGs and 1 of 12 .txt files fail this way</b>,
+    /// and the caller was told only <i>"See the inner exception"</i> over
+    /// <i>"'', hexadecimal value 0x10, is an invalid character"</i> - a message about a character
+    /// nobody typed, in a document they never wrote.
+    ///
+    /// <b>This one matches the MESSAGE, not a stack frame, and that is the opposite of the rowspan
+    /// case above for a reason.</b> There the exception is a bare
+    /// <see cref="IndexOutOfRangeException"/> whose message says nothing, so only the frame can
+    /// identify it. Here the message is itself the discriminator - that exact wording is produced
+    /// only when an XML writer is handed a character XML cannot represent - while the frame is an
+    /// <c>internal</c> writer class whose name differs between the UTF-8 and UTF-16 implementations.
+    /// Matching the more stable of the two available discriminators is the same judgement, not a
+    /// departure from it.
+    ///
+    /// <b>The message names two candidates and picks neither</b>, because the exception cannot tell
+    /// them apart: binary content passed to this converter, and a stray control character inside
+    /// genuine HTML, produce byte-identical failures. Verified - a JPEG and
+    /// <c>&lt;p&gt;before[U+0010]after&lt;/p&gt;</c> are indistinguishable here. Asserting the
+    /// first as fact would repeat the timeout message this class's remarks already record.
+    ///
+    /// <b>Ordinary markup is unaffected</b>, measured rather than assumed: tabs, CR/LF, character
+    /// entities including <c>&amp;#10;</c>, accented Latin, CJK and astral-plane emoji all convert.
+    /// Only C0 control characters are refused, which is XML's rule and not this package's.
+    /// </remarks>
+    private static string InvalidCharacterMessage(string character) =>
+        $"Failed to convert HTML to DOCX: the content contains {character}, a control character that "
+        + "is not legal in a Word document, so the XML writer refuses it. TWO THINGS COMMONLY CAUSE "
+        + "THIS, and the error cannot tell them apart. Either the content is not HTML at all - "
+        + "passing the bytes of an image, a PDF or an Office file to this converter produces exactly "
+        + "this, and each of those has its own reader on DocToolkit - or it is genuine HTML carrying "
+        + "a stray control character, in which case strip characters below U+0020 other than tab, "
+        + "carriage return and line feed. Ordinary markup is unaffected: tabs, newlines, character "
+        + "entities, accented text, CJK and emoji all convert. See the inner exception for the "
+        + "writer's own error.";
+
+    /// <summary>
+    /// The writer's wording, which is stable across .NET versions and carries the character itself.
+    /// </summary>
+    /// <remarks>
+    /// Both halves are required. <see cref="ArgumentException"/> alone is far too broad - a great
+    /// deal of this pipeline throws it, and a real one does: U+FFFE is refused by the same writer,
+    /// as the same type, with a different message. The phrase alone could in principle arrive on
+    /// some other type. Matching the pair fails closed, which is this class's standing rule.
+    /// </remarks>
+    private static bool InvalidCharacter(Exception ex, out string character)
+    {
+        character = "a character";
+        if (ex is not ArgumentException) return false;
+
+        var message = ex.Message ?? string.Empty;
+        if (!message.Contains("hexadecimal value 0x", StringComparison.Ordinal)
+            || !message.Contains("is an invalid character", StringComparison.Ordinal)) return false;
+
+        // Quote the character back rather than making the reader re-read the inner exception.
+        const string Marker = "hexadecimal value ";
+        var at = message.IndexOf(Marker, StringComparison.Ordinal) + Marker.Length;
+        var end = message.IndexOf(',', at);
+        if (end > at) character = message[at..end].Trim();
+        return true;
+    }
 }
