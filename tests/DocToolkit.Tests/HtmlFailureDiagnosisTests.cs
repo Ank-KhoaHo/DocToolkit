@@ -142,14 +142,25 @@ public class HtmlFailureDiagnosisTests
     [Fact]
     public async Task AnUnrecognisedFailureKeepsTheGenericWrapper()
     {
-        // A vertical tab is not valid in XML, so this fails inside the writer — a real conversion
-        // failure of a completely different kind. It proves the `?? generic` fallback is live: a
-        // change that put the rowspan message on every failure would fail here.
+        // U+FFFE is a NONCHARACTER: legal in a C# string, refused by the XML writer with
+        // "String contains invalid Unicode code points" - a real conversion failure of a third
+        // kind. It proves the `?? generic` fallback is live: a change that put any diagnosis on
+        // every failure would fail here.
+        //
+        // This used to be a vertical tab, and that stopped working the moment the invalid-character
+        // diagnosis shipped: a control character is now RECOGNISED, so it can no longer play the
+        // part of an unrecognised failure. Replacing it rather than deleting these two tests is
+        // the point - the fallback still needs proving, and it needs a REAL failure to prove it
+        // with, not a staged exception.
         var ex = await Assert.ThrowsAsync<DocumentConversionException>(
-            () => HtmlToDocxConverter.ConvertAsync("<p>ab</p>"));
+            () => HtmlToDocxConverter.ConvertAsync("<p>a\uFFFEb</p>"));
 
-        Assert.Contains("See the inner exception", ex.Message, StringComparison.Ordinal);
+        // "for details" is the GENERIC wrapper's wording, and the discrimination is deliberate:
+        // both diagnoses also end with "See the inner exception", so asserting that phrase alone
+        // would pass whether or not one of them had fired. This assertion has to be able to fail.
+        Assert.Contains("See the inner exception for details", ex.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("rowspan", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("control character", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -157,7 +168,7 @@ public class HtmlFailureDiagnosisTests
     {
         // Naming a cause must never cost the evidence, on either branch.
         var ex = await Assert.ThrowsAsync<DocumentConversionException>(
-            () => HtmlToDocxConverter.ConvertAsync("<p>ab</p>"));
+            () => HtmlToDocxConverter.ConvertAsync("<p>a\uFFFEb</p>"));
 
         Assert.NotNull(ex.InnerException);
     }
@@ -169,5 +180,103 @@ public class HtmlFailureDiagnosisTests
             "<h1>Title</h1><p>Body</p><table><tr><td>a</td><td>b</td></tr></table>");
 
         Assert.NotEmpty(docx);
+    }
+
+    // ---- the control character: what a caller gets for passing something that is not HTML ----------
+    //
+    // Measured 2026-08-20 over govdocs1: 8 of 8 JPEGs and 1 of 12 .txt files fail this way, and the
+    // caller was told only "See the inner exception" over "hexadecimal value 0x10 is an invalid
+    // character" - a message about a character nobody typed.
+
+    [Theory]
+    [InlineData("\u000B")]  // vertical tab
+    [InlineData("\u0010")]  // what a JPEG's bytes produce first
+    [InlineData("\u0001")]  // what a PDF's bytes produce first
+    [InlineData("\u001F")]  // the top of the C0 range
+    public async Task AControlCharacterIsNamedRatherThanLeftToTheInnerException(string control)
+    {
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync($"<p>before{control}after</p>"));
+
+        Assert.Contains("control character", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("rowspan", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ItQuotesTheCharacterBack()
+    {
+        // So the reader does not have to open the inner exception to learn which one it was.
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync("<p>a\u0010b</p>"));
+
+        Assert.Contains("0x10", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ItNamesBothCausesAndAssertsNeither()
+    {
+        // The exception CANNOT tell binary content from a stray control byte in real HTML - both
+        // arrive here byte-identical. Claiming either as fact is the mistake this class's remarks
+        // already record about the old timeout message, so the test pins that it does not.
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync("<p>a\u0010b</p>"));
+
+        Assert.Contains("not HTML at all", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("genuine HTML", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("cannot tell them apart", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RealBinaryContentGetsIt()
+    {
+        // The case that motivated the row, exercised end to end rather than through a staged string:
+        // a real PNG's bytes, read as text and handed to the HTML converter.
+        var png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync(System.Text.Encoding.Latin1.GetString(png)));
+
+        Assert.Contains("control character", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ---- the boundaries, which is where this earns its place -----------------------------------------
+
+    [Theory]
+    [InlineData("<p>a\tb</p>")]                       // tab
+    [InlineData("<p>a\r\nb</p>")]                     // CR LF
+    [InlineData("<p>&amp; &lt; &#233; &#10;</p>")]    // entities, including a numeric line feed
+    [InlineData("<p>café naïve</p>")]       // accented Latin
+    [InlineData("<p>漢字</p>")]               // CJK
+    [InlineData("<p>hi \U0001F600</p>")]              // astral plane
+    public async Task OrdinaryTextIsUnaffected(string html)
+    {
+        // The message claims all of these convert. Without this, that claim is prose nothing checks
+        // - and a matcher widened to any ArgumentException would still pass every test above.
+        Assert.NotEmpty(await HtmlToDocxConverter.ConvertAsync(html));
+    }
+
+    [Fact]
+    public async Task ADifferentArgumentException_GetsNoDiagnosis()
+    {
+        // The type half is not sufficient, proved with a REAL failure rather than a staged one:
+        // U+FFFE is a noncharacter, refused by the same writer, same exception type, different
+        // message - "String contains invalid Unicode code points". A matcher testing only
+        // `ex is ArgumentException` would put a control-character message on it.
+        var thrown = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => HtmlToDocxConverter.ConvertAsync("<p>a\uFFFEb</p>"));
+        var caught = thrown.InnerException;
+
+        Assert.IsType<ArgumentException>(caught);
+        Assert.DoesNotContain("hexadecimal value 0x", caught!.Message, StringComparison.Ordinal);
+        Assert.Null(HtmlFailureDiagnosis.Describe(caught));
+    }
+
+    [Fact]
+    public void TheMessageAloneIsNotEnough_TheTypeMustMatchToo()
+    {
+        // The mirror. Without it, dropping `ex is ArgumentException` survives every test here.
+        Assert.Null(HtmlFailureDiagnosis.Describe(
+            new InvalidOperationException("'x', hexadecimal value 0x10, is an invalid character.")));
     }
 }
