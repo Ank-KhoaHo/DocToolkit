@@ -125,6 +125,11 @@ public class XlsxPptxToPdfTests
     {
         var boxes = PdfProbe.MediaBoxes(PptxToPdfConverter.Convert(Deck(2)));
 
+        // A MediaBoxes returning nothing would satisfy Assert.All silently. The sibling test
+        // above asserts the count for a different reason; this one needs its own, because a
+        // broken probe and a correctly-sized deck are indistinguishable without it.
+        Assert.Equal(2, boxes.Count);
+
         Assert.All(boxes, box =>
         {
             Assert.Equal(960, box.Width, 0);
