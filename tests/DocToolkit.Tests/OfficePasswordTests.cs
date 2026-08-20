@@ -166,6 +166,32 @@ public class OfficePasswordTests
         Assert.False(IsProtected(format, Array.Empty<byte>()));
     }
 
+    /// <summary>
+    /// <c>IsProtected</c> answering <see langword="false"/> does NOT mean the other methods will
+    /// accept the input, and the doc comment now says so.
+    /// </summary>
+    /// <remarks>
+    /// The summary used to read <i>"whether <c>docx</c> is an encrypted Office document — that is,
+    /// whether the other methods on this class will refuse it"</i>. The clause after "that is" was
+    /// false for every input that is not a document at all: a JPEG is not encrypted, so
+    /// <c>IsProtected</c> says <see langword="false"/>, while <c>ExtractText</c> refuses it.
+    ///
+    /// That reads as a guard - test it, and if false, proceed - so it took the wrong branch in
+    /// exactly the situation it was written for. **The behaviour is correct and deliberate; only
+    /// the sentence was wrong.** This test exists so the corrected sentence is a checkable claim
+    /// rather than more prose, which is the failure mode this repository keeps correcting.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(Formats))]
+    public void IsProtectedIsNotAValidityCheck(string format)
+    {
+        var notADocument = System.Text.Encoding.UTF8.GetBytes("this is plainly not an Office file");
+
+        // Both halves together are the point. Either alone is satisfied by a weaker contract.
+        Assert.False(IsProtected(format, notADocument));
+        Assert.ThrowsAny<DocumentConversionException>(() => TextOf(format, notADocument));
+    }
+
     // ---- the Stream overloads ------------------------------------------------------------------
 
     [Theory]
