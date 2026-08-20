@@ -41,6 +41,11 @@ Reading PDFs is stronger: across **200 real PDFs, 4,588 pages, a dozen producers
 succeeded on every file it did not refuse — and the refusals were 11 permission-restricted
 documents, reported as exactly that rather than as a failure.
 
+**Legacy PowerPoint 97-2003 `.ppt` also converts to PDF**, through the same
+`PptxToPdfConverter.Convert` call — **at 60.2%** over 88 real binary decks, which is a lower bar
+than the OOXML path and is stated rather than rounded up. The refusals are dominated by one
+upstream limitation and none produced a corrupt PDF.
+
 **Published because they are unflattering and still useful.** A rate below 100% is what real input
 looks like, and the alternative is telling you what is *supported* and letting you discover the
 rest.

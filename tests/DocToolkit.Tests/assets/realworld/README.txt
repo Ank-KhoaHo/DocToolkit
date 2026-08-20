@@ -14,6 +14,14 @@ project wrote, which is the property being avoided.
   old-style-name-anchor.html   internal links whose targets are <a name> (000814)
   spacer-cell.html             a whitespace-only cell beside long text (000415)
   image-only-link.html         a link wrapping only an image, in a cell (000061)
+  legacy-powerpoint-97.ppt     a real PowerPoint 97-2003 binary deck (000712)
+
+The .ppt is the odd one out: it is here to prove a CAPABILITY rather than to pin a
+defect. Nothing in this repository can write a legacy binary deck - DocToolkit only
+produces OOXML - so a real one is the only way to test reading them at all, and a
+hand-built substitute would be a file this project wrote, which is the whole property
+these fixtures exist to avoid. It is the smallest deck in the corpus that converts and
+carries readable text: 31,232 bytes, 2 slides.
 
 PROVENANCE AND LICENCE. govdocs1 is a public corpus of documents crawled from the
 .gov domain, published by Digital Corpora for exactly this kind of format and

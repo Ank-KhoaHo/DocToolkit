@@ -195,13 +195,30 @@ against a run rather than taken on trust.
 
 **What is deliberately not in that table.** The corpus predates `.pptx`, so there is no measured
 PPTX → PDF rate here — quoting the legacy `.ppt` figure in its place would be measuring one thing
-and labelling it another.
+and labelling it another. That figure has a section of its own instead.
+
+### Legacy PowerPoint 97-2003
+
+`PptxToPdfConverter.Convert` also reads **binary `.ppt` decks**, the format PowerPoint used before
+2007. No separate call: hand it the bytes.
+
+**It succeeds on 60.2% of them** — measured over the 88 genuine legacy decks in govdocs1 chunk
+`000`, producing 988 pages, 51 of 53 carrying extractable text. **That is a lower bar than the
+OOXML path and is stated rather than rounded up to "supported".**
+
+The refusals are not random, which is what makes the number usable. Twenty of the thirty-five are
+one upstream limitation — a shape group with no drawable child. Nine are text-encoding failures,
+the same family a font can fix elsewhere in this package. Five are control characters in the deck's
+own text. **None produced a corrupt PDF**; every failure was a clean refusal.
+
+So: worth trying on an archive of old decks, and worth checking the result rather than assuming it.
+If a deck is refused, converting it once in PowerPoint remains the reliable route.
 
 ## What it does
 
 | | |
 |---|---|
-| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX |
+| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX; legacy PowerPoint 97-2003 `.ppt` to PDF ([at a measured rate](#legacy-powerpoint-97-2003)) |
 | **Edit** | create and edit DOCX, XLSX and PPTX; fill templates, including one row per record; insert images; read text back out |
 | **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
 | **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
