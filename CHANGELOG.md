@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.33.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.32.0...v0.33.0) (2026-08-20)
+
+
+### Added
+
+* **core:** claim legacy PowerPoint 97-2003 .ppt to PDF, at its measured rate ([#319](https://github.com/Ank-KhoaHo/DocToolkit/issues/319)) ([9e82c3a](https://github.com/Ank-KhoaHo/DocToolkit/commit/9e82c3a9da3da21556f4826c9cc09cb59474abd0))
+
 ## [0.32.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.1...v0.32.0) (2026-08-19)
 
 
