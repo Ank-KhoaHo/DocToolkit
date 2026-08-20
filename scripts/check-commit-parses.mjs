@@ -75,6 +75,46 @@ function check(message, parser) {
   }
 }
 
+/**
+ * GITHUB RE-WRAPS THE PULL REQUEST BODY WHEN IT BUILDS THE SQUASH COMMIT MESSAGE, so the text
+ * this check is handed is NOT the text git receives. Checking only the authored form is a hole,
+ * and it cost a second dropped release the day after this script shipped.
+ *
+ * #315 was a `fix:` whose body contained an inline code span reading DoesNotContain("control
+ * character"). Authored, it parsed. Committed, GitHub had folded the line so the span ended a
+ * line at the open bracket, and release-please reported `commit could not be parsed` again.
+ * Proved by isolating the two differences between body and commit: adding the `(#315)` suffix
+ * to the subject still parses, re-wrapping the body alone reproduces the failure exactly.
+ *
+ * The observed commit wrapped to 89 columns. THE WIDTH IS UNDOCUMENTED AND NOT RELIED ON - a
+ * body that only survives one particular fold is a body waiting to break, so several widths are
+ * tried and any failure fails the check.
+ */
+function wrapLine(line, width) {
+  if (line.length <= width) return [line];
+  const out = [];
+  let current = '';
+  for (const word of line.split(' ')) {
+    if (current === '') current = word;
+    else if ((current + ' ' + word).length <= width) current += ' ' + word;
+    else { out.push(current); current = word; }
+  }
+  if (current !== '') out.push(current);
+  return out;
+}
+
+function wrapBody(message, width) {
+  const split = message.indexOf('\n\n');
+  if (split < 0) return message;
+  const subject = message.slice(0, split);
+  const body = message.slice(split + 2);
+  const folded = body.split('\n').flatMap(l => wrapLine(l, width)).join('\n');
+  return subject + '\n\n' + folded;
+}
+
+/** Widths to fold at. 89 is what GitHub was measured doing; the rest bracket it. */
+const WIDTHS = [72, 80, 89, 100];
+
 const parser = await loadParser();
 
 if (process.argv.includes('--self-test')) {
@@ -99,9 +139,34 @@ if (process.argv.includes('--self-test')) {
     'Measured over 99 documents: 71/99 to 75/99.',
   ].join('\n');
 
+  // The fold-only control: #315's own body, reduced. It PARSES as authored and BREAKS once
+  // folded, which is precisely the case the first version of this script could not see. Without
+  // it, reverting the folding logic passes the whole self-test.
+  const foldOnly = [
+    'fix(core): name the control character instead of leaving it to the inner exception',
+    '',
+    'diagnoses also end with that phrase, so it could no longer fail. It now asserts the generic',
+    'wrapper own wording, `"See the inner exception for details"`, plus `DoesNotContain("control',
+    'character")`.',
+  ].join('\n');
+
   const b = check(bad, parser);
   const g = check(good, parser);
+  const fAuthored = check(foldOnly, parser);
+  const fFolded = WIDTHS.map(w => check(wrapBody(foldOnly, w), parser));
   let failed = false;
+
+  if (!fAuthored.ok) {
+    console.error('SELF-TEST FAILED: the fold-only control was expected to parse as authored.');
+    failed = true;
+  } else if (fFolded.every(r => r.ok)) {
+    console.error('SELF-TEST FAILED: the fold-only control still parses at every width, so this');
+    console.error('check cannot see the failure that dropped #315. The folding logic is not working.');
+    failed = true;
+  } else {
+    const w = WIDTHS[fFolded.findIndex(r => !r.ok)];
+    console.log(`ok   fold-only control: parses as authored, breaks folded at ${w} columns`);
+  }
 
   if (b.ok) {
     console.error('SELF-TEST FAILED: the #312 message parsed, so this check would not have caught it.');
@@ -129,11 +194,30 @@ if (!message.trim()) {
   process.exit(2);
 }
 
-const result = check(message, parser);
+// As authored, then as GitHub will fold it. Any failure is a failure.
+let result = check(message, parser);
+let foldedAt = null;
 
 if (result.ok) {
-  console.log('the squashed commit message parses as release-please reads it');
+  for (const width of WIDTHS) {
+    const attempt = check(wrapBody(message, width), parser);
+    if (!attempt.ok) { result = attempt; foldedAt = width; break; }
+  }
+}
+
+if (result.ok) {
+  console.log(`the squashed commit message parses as release-please reads it, `
+    + `as authored and folded at ${WIDTHS.join(', ')} columns`);
   process.exit(0);
+}
+
+if (foldedAt !== null) {
+  console.error(`::error::This parses as you wrote it and BREAKS once GitHub folds it to ${foldedAt} columns.`);
+  console.error('::error::GitHub re-wraps the pull request body when it builds the squash commit');
+  console.error('::error::message, so the text release-please sees is not the text you typed. This is');
+  console.error('::error::not hypothetical - it dropped #315 from its own release the day after this');
+  console.error('::error::check shipped, and the check passed because it only looked at the authored form.');
+  console.error('::error::');
 }
 
 console.error(`::error::release-please cannot parse the commit message this pull request will create: ${result.error.message}`);
