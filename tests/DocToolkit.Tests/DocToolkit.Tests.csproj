@@ -115,9 +115,13 @@
     Globbed rather than listed, deliberately: a hand-maintained list is the thing that goes stale,
     and dropping a file in is exactly how this set is meant to grow. assets/realworld/README.txt
     carries the provenance and says why they must not be edited.
+
+    The .ppt glob is the same principle applied to a CAPABILITY rather than a defect: nothing here
+    can write a legacy binary deck, so a real one is the only way to test reading them at all.
   -->
   <ItemGroup>
     <Content Include="assets\realworld\*.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="assets\realworld\*.ppt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

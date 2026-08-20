@@ -10,6 +10,7 @@
 *.doc            binary
 *.docx           binary
 *.xlsx           binary
+*.ppt            binary
 *.pptx           binary
 *.png            binary
 *.jpg            binary
