@@ -81,4 +81,40 @@ public sealed class DocToolkitOptions
     }
 
     private PageSetup _page = PageSetup.A4;
+
+    /// <summary>
+    /// Fonts supplied for characters the PDF renderer cannot otherwise encode, applied to every
+    /// conversion this container performs. <see langword="null"/> - the default - supplies none.
+    /// </summary>
+    /// <remarks>
+    /// <b>Configured once rather than passed per call, which is a decision this layer makes rather
+    /// than a signature it copies.</b> The core API takes fonts per conversion; needing them is a
+    /// property of the deployment, not of the document - somebody converting Cyrillic needs the font
+    /// for every document, not for some. That is the same reasoning that turned the core's per-call
+    /// <c>allowRemoteImageDownload</c> into <see cref="AllowRemoteImageDownload"/> here.
+    ///
+    /// <b>Assigned rather than configured in place</b>, unlike <see cref="RemoteImage"/>, and for the
+    /// opposite reason: <see cref="PdfFontOptions"/> is immutable and carries no defaults that could
+    /// be lost by replacing it wholesale. There is nothing to protect.
+    ///
+    /// <code>
+    /// services.AddDocToolkit(o =>
+    ///     o.Fonts = new PdfFontOptions("Noto Sans", File.ReadAllBytes("NotoSans-Regular.ttf"))
+    ///                   .Add("Noto Sans CJK", File.ReadAllBytes("NotoSansCJK-Regular.ttf")));
+    /// </code>
+    ///
+    /// <b>Supply fonts covering everything your documents use, not only the script that failed.</b>
+    /// They REPLACE the host's own fallbacks rather than adding to them, so too few is worse than
+    /// none - measured over 99 real documents, one font rendered 63 where none rendered 71 and four
+    /// rendered 77. See <see cref="PdfFontOptions"/> for the whole of that.
+    ///
+    /// <b>Applies to <see cref="IDocxToPdfConverter"/> only, for now.</b>
+    /// <see cref="IHtmlToPdfConverter"/> composes page setup and the remote-image settings, and the
+    /// core package has no overload taking all three - so wiring fonts there would either need new
+    /// overloads upstream or would apply them only when no page and no remote-image setting were in
+    /// play, which is worse than not applying them at all: a setting that silently stops taking
+    /// effect depending on unrelated configuration is the kind of thing this package has already had
+    /// to fix once, in this very class. The limitation is stated rather than hidden, and filed.
+    /// </remarks>
+    public PdfFontOptions? Fonts { get; set; }
 }

@@ -46,6 +46,32 @@ next conversion fetching, rather than the next deployment.
 
 The services remain singletons; only the option read is live.
 
+### Fonts for non-Latin text
+
+Whether a document containing Cyrillic, Greek or CJK renders to PDF is otherwise a property of the
+**machine** — the renderer falls back to whatever fonts the host has, so the same document converts
+on one and is refused on another. `Fonts` takes that out of the answer:
+
+```csharp
+services.AddDocToolkit(o =>
+    o.Fonts = new PdfFontOptions("Noto Sans", File.ReadAllBytes("NotoSans-Regular.ttf"))
+                  .Add("Noto Sans CJK", File.ReadAllBytes("NotoSansCJK-Regular.ttf")));
+```
+
+Configured once rather than passed per call, because needing a font is a property of the deployment
+rather than of the document: somebody converting Cyrillic needs it for every document, not for some.
+Nothing is fetched and nothing is read from disk by this library — the bytes come from you.
+
+**Supply fonts covering everything your documents use, not only the script that failed.** They
+*replace* the host's own fallbacks rather than adding to them, so too few is worse than none —
+measured over 99 real documents, one font rendered 63 where none rendered 71, and four rendered 77.
+
+**`Fonts` applies to `IDocxToPdfConverter` only for now.** `IHtmlToPdfConverter` composes page setup
+and the remote-image settings, and the core package has no overload taking all three; wiring it there
+would make the setting apply only when no page and no remote-image setting were in play, which is
+worse than not applying it — a setting that silently stops taking effect depending on unrelated
+configuration is exactly the bug this package already fixed once here.
+
 ### Bounding the remote-image opt-in
 
 `AllowRemoteImageDownload` is the only switch that decides *whether* anything is fetched. When it

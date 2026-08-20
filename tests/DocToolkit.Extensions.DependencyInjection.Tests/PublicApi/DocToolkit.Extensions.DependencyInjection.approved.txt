@@ -4,6 +4,7 @@ namespace DocToolkit.Extensions.DependencyInjection
     {
         public DocToolkitOptions() { }
         public bool AllowRemoteImageDownload { get; set; }
+        public DocToolkit.PdfFontOptions? Fonts { get; set; }
         public DocToolkit.PageSetup Page { get; set; }
         public DocToolkit.RemoteImageOptions RemoteImage { get; }
     }
