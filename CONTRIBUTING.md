@@ -148,6 +148,26 @@ description — which, unlike a merge commit's body, cannot contain a second cop
 The `commit message format` check now asserts this on the title as well as on every commit, because
 advice alone had already failed twice.
 
+### Your pull request description is parsed too
+
+Because the squash body **is** your description, it is part of the commit message release-please
+reads — and it can break the parse on its own, while your title is perfectly correct.
+
+> Measured on 2026-08-20. PR #312 merged under the title
+> `feat(extensions): configure PDF fonts once, on DocToolkitOptions`, which every check passed. Its
+> description contained a ```` ```csharp ```` block opening with `services.AddDocToolkit(o =>`, and
+> that one unclosed bracket made release-please abandon the entire commit. It was the only
+> version-bumping commit at the time, so **no release was proposed at all** and the feature sat
+> unreleased with nothing reporting a problem.
+
+`commit message format` now builds the exact message your merge will create — title, blank line,
+description — and parses it with release-please's own parser. If it fails you get the line, the
+column and a caret pointing at the character. **Fix the description and push, or re-run the job.**
+
+In practice this only bites on unbalanced `(`, `[` or `{` inside fenced code. Prose is fine, and so
+is complete, compiling code. Over the last 40 merged pull requests this check fires on exactly
+one — the one above.
+
 | Type | Use for | Appears in the public changelog |
 |---|---|---|
 | `feat` | a new capability | yes, under **Added** |
@@ -254,7 +274,7 @@ dotnet restore src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensio
 | `trimmed app publishes and runs` | `tests/TrimProbe` is trim-published over the real dependency closure and **executed**, with every capability asserting on its result. It fails either because a trim warning names `DocToolkit` — the `IsTrimmable` claim would no longer be true — or because the trimmed binary produced a wrong or empty document at runtime. A warning from a dependency (ClosedXML emits one) is reported, not fatal. |
 | `AOT app publishes and runs` | The same shape, one step stronger: `tests/AotProbe` is native-AOT-published and executed. It backs the `IsAotCompatible` claim, which was set only once this job was green. **If it goes red, remove that attribute rather than weakening the job** — AOT breaks at runtime, when a type resolved by name turns out not to be there, so a publish that merely links proves nothing. |
 | `formatting` | `dotnet format --verify-no-changes`, plus several derived guards — the failing step names which. The most common are `check-readme-coverage.py` (a shipped public type not named in the README its package publishes) and `gen-capability-matrix.py --check` (the docs capability table no longer matches the approved API; regenerate and commit). The full list is [below](#which-guard-runs-in-which-check). Note the third-party notices check is **not** here — it runs in `no native binaries / no banned packages`. |
-| `commit message format` | A commit in your branch is not Conventional Commits — **or the pull request title is not**, which is checked separately because this repository squash-merges, so that title **is** the commit subject `release-please` parses. Amend, rebase, or retitle. Note that editing the title only re-runs CI because `edited` is in the workflow's `pull_request` types; re-running the job alone replays the old title. |
+| `commit message format` | A commit in your branch is not Conventional Commits — **or the pull request title is not**, which is checked separately because this repository squash-merges, so that title **is** the commit subject `release-please` parses. Amend, rebase, or retitle. Note that editing the title only re-runs CI because `edited` is in the workflow's `pull_request` types; re-running the job alone replays the old title. **Or your pull request description does not parse** — it becomes the commit body, so unbalanced brackets in a code fence fail it; the error names the line and column. |
 | `pack & verify .nupkg (core)` / `(extensions)` | The NuGet package no longer builds or verifies. |
 | `build docs site` | The API documentation site failed to build. |
 | `analyze (csharp)` | CodeQL static analysis. A failure here is the job breaking (usually the build step); a *finding* surfaces as a code-scanning alert on the pull request rather than as a red check. |

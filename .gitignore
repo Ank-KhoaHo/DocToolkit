@@ -62,3 +62,11 @@ TestResults/
 
 # Architecture decision records. Kept on disk alongside CLAUDE.md and docs/, not published.
 adr/
+
+# Node modules, from the one CI check that needs a JavaScript parser.
+# `commit-format` runs `npm install --no-save @conventional-commits/parser` to read a commit
+# message exactly as release-please does (see scripts/check-commit-parses.mjs). Reproducing
+# that check locally leaves this directory in the working tree of a .NET repository, where a
+# `git add -A` would sweep five packages into a commit - the same reasoning as TestResults/
+# above. It is build-time only and reaches neither shipped package.
+node_modules/

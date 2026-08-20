@@ -574,6 +574,46 @@ jobs:
           fi
           echo "all non-merge commits in this PR match Conventional Commits format"
 
+      # THE PULL REQUEST DESCRIPTION IS ALSO PART OF THE COMMIT MESSAGE, and both checks above
+      # look only at subjects.
+      #
+      # `squash_merge_commit_message` is PR_BODY, so the description becomes the commit body -
+      # arbitrary markdown, written for a human, handed to a machine parser. On 2026-08-20 that
+      # cost a shipped feature. #312 merged under a flawless subject that both checks above
+      # passed, and release-please reported:
+      #
+      #     commit could not be parsed: 0b546a2 feat(extensions): configure PDF fonts once ...
+      #     error message: Error: unexpected token '\n' at 8:28, valid tokens [)]
+      #     No user facing commits found since 65bb53b - skipping
+      #
+      # Line 8 of the body was `services.AddDocToolkit(o =>` inside a ```csharp fence. One
+      # unclosed bracket made the parser abandon the WHOLE commit, and because that feat: was
+      # the only bumping commit since 0.32.0, NO RELEASE PR WAS OPENED AT ALL.
+      #
+      # A spurious changelog entry gets caught while curating a Release PR. A missing one does
+      # not, because there is no Release PR to read - which is why this has to be a check and
+      # cannot be a habit.
+      - name: Assert the squashed commit message parses as release-please reads it
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # The parser release-please 17.6.0 itself depends on, pinned exactly. Using its own
+          # parser rather than a second implementation of the grammar is the same principle as
+          # gen-third-party-notices.py reading the lockfile: one source of truth, no drift.
+          #
+          # Build-time only. It is never restored into either package, appears in no
+          # packages.lock.json, and so touches none of the four premise constraints.
+          npm install --no-save --no-audit --no-fund @conventional-commits/parser@0.4.1
+
+          # Controls BEFORE the real check. A guard whose parser stopped loading would
+          # otherwise report success on every pull request, which is the exact failure this
+          # repo has already had to correct in check-changelog-curated.py.
+          node scripts/check-commit-parses.mjs --self-test
+
+          # Env vars, never interpolated into the script: the body is untrusted input.
+          printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" | node scripts/check-commit-parses.mjs
+
   # Proves the docs site actually builds before it can reach docs.yml, which only
   # runs after an irreversible nuget publish - a bad docfx.json edit or doc-comment
   # regression should fail here, not surface after release.
