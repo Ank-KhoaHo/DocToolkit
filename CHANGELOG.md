@@ -13,10 +13,46 @@ repo-wide tooling (CI, release pipeline).
 ## [0.32.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.1...v0.32.0) (2026-08-19)
 
 
+**Both entries below are about the same thing: rendering documents whose text or layout the PDF
+renderer would otherwise refuse.** Measured over 99 documents carrying real content, DOCX → PDF went
+from **71.7% to 75.8%**, and to **77.8%** when the caller supplies fonts.
+
 ### Added
 
-* **core:** clamp a negative paragraph indent so the document renders ([#310](https://github.com/Ank-KhoaHo/DocToolkit/issues/310)) ([5a016ae](https://github.com/Ank-KhoaHo/DocToolkit/commit/5a016ae8f6d902b3e0035ac15acc9cdf3112168f))
-* **core:** let the caller supply fonts for characters the renderer cannot encode ([#307](https://github.com/Ank-KhoaHo/DocToolkit/issues/307)) ([b6ecea2](https://github.com/Ank-KhoaHo/DocToolkit/commit/b6ecea221ebd3dd30bba93d29bf0ee28367c0f1e))
+* **Core: supply your own fonts for characters the renderer cannot otherwise encode.** Whether a
+  document containing Cyrillic, Greek or CJK renders has been a property of the **machine** — the
+  renderer falls back to whatever fonts the host happens to have, so the same document converts on
+  one and is refused on another.
+
+  ```csharp
+  var fonts = new PdfFontOptions("Noto Sans", File.ReadAllBytes("NotoSans-Regular.ttf"));
+  byte[] pdf = DocxToPdfConverter.Convert(docx, fonts);
+  byte[] web = await HtmlToPdfConverter.ConvertAsync(html, fonts);
+  ```
+
+  Nothing is fetched and nothing is read from disk by this library — the bytes come from you, so it
+  works air-gapped. **No font ships inside the package**: one covering Cyrillic, Greek and CJK is
+  measured in megabytes against a package measured in tens of kilobytes.
+
+  **Read this before using it — supplying too few fonts is worse than supplying none.** The fonts you
+  pass **replace** the host's own fallbacks rather than adding to them. Measured over 99 documents:
+  none → 71/99, **one font → 63/99**, four fonts → 77/99. One font fixed the four documents needing
+  Cyrillic and broke twelve the host had been covering. Supply fonts covering everything your
+  documents use, not only the script that failed; the refusal names the character still missing.
+  It also changes how fonts are embedded generally — an ordinary Latin document went from 128,755
+  bytes to 1,306, both rendering correctly
+  ([#307](https://github.com/Ank-KhoaHo/DocToolkit/issues/307),
+  [#309](https://github.com/Ank-KhoaHo/DocToolkit/issues/309)).
+
+* **Core: a document whose paragraphs have a negative indent now renders.** The PDF renderer refuses
+  any negative left or right paragraph indent at any magnitude — a 0.35pt value fails exactly as a
+  36pt one does — while Word honours it, which is how content is deliberately set outside the margin
+  in a letterhead or pull-quote.
+
+  **This one changes the layout slightly**, and is the only repair in this package that does: the
+  indent is clamped to zero, so content that overhung the margin now stops at it. Ordinary hanging
+  indents are untouched. Recovered 4 documents in 99
+  ([#310](https://github.com/Ank-KhoaHo/DocToolkit/issues/310)).
 
 ## [0.31.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.0...v0.31.1) (2026-08-19)
 
