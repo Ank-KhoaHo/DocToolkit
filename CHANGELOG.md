@@ -15,7 +15,42 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** claim legacy PowerPoint 97-2003 .ppt to PDF, at its measured rate ([#319](https://github.com/Ank-KhoaHo/DocToolkit/issues/319)) ([9e82c3a](https://github.com/Ank-KhoaHo/DocToolkit/commit/9e82c3a9da3da21556f4826c9cc09cb59474abd0))
+* **Extensions: configure PDF fonts once, on `DocToolkitOptions`.** The `PdfFontOptions` added in
+  0.32.0 could only be passed per call, which is the wrong shape for dependency injection - needing
+  a font is a property of the deployment, not of the document.
+
+  ```csharp
+  services.AddDocToolkit(o =>
+      o.Fonts = new PdfFontOptions("Noto Sans", File.ReadAllBytes("NotoSans-Regular.ttf")));
+  ```
+
+  Configure it once at registration and every resolved converter uses it. Nothing is fetched and
+  nothing is read from disk - the bytes come from you. ([#312](https://github.com/Ank-KhoaHo/DocToolkit/issues/312))
+
+  **Known limitation:** this reaches `IDocxToPdfConverter` but not yet `IHtmlToPdfConverter`, whose
+  service composes page setup and remote-image settings and has no core overload taking all three.
+  Callers needing fonts on the HTML path can use the static `HtmlToPdfConverter.ConvertAsync`
+  overload directly.
+
+* **Core: legacy PowerPoint 97-2003 `.ppt` to PDF is now a supported, tested capability.**
+  `PptxToPdfConverter.Convert` already read binary decks; that was inherited from a dependency,
+  undocumented and uncovered. **The behaviour is unchanged** - what is new is that it is claimed,
+  pinned by tests against a real deck, and published with its rate.
+
+  **It succeeds on 60.2%** of 88 real decks from a government crawl - a lower bar than the OOXML
+  path, stated rather than rounded up. Twenty of the thirty-five refusals are a single upstream
+  limitation; none produced a corrupt PDF. ([#319](https://github.com/Ank-KhoaHo/DocToolkit/issues/319))
+
+### Fixed
+
+* **Core: passing something that is not HTML to `HtmlToDocxConverter` now says so.** The refusal
+  was correct and unreadable - *"See the inner exception for details"*, wrapping *"hexadecimal
+  value 0x10, is an invalid character"*, which is a message about a character you never typed.
+
+  It now names the character and both causes it cannot distinguish between: content that is not
+  HTML at all (an image, a PDF, an Office file - each has its own reader here), or genuine HTML
+  carrying a stray control character. Ordinary markup is unaffected: tabs, newlines, character
+  entities, accented text, CJK and emoji all convert. ([#315](https://github.com/Ank-KhoaHo/DocToolkit/issues/315))
 
 ## [0.32.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.31.1...v0.32.0) (2026-08-19)
 
