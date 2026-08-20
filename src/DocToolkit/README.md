@@ -20,9 +20,30 @@ XLSX and PPTX, and password-protect any of them — from .NET, with:
 | **Permissive licences only** | MIT / Apache-2.0. No revenue thresholds, no per-seat fees, nothing to read twice. |
 | **No native binaries** | `dotnet restore` is the whole install. No browser, no LibreOffice, no Office interop. |
 | **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** — measured on each, not inferred. |
-| **No runtime network I/O** | Nothing opens a socket by default. Proven by 37 air-gap tests. |
+| **No runtime network I/O** | Nothing opens a socket by default. Proven by an air-gap suite that points markup at a loopback listener sixteen ways and asserts **zero** connections — including tests that assert a fetch *does* happen, so the zero can never pass vacuously. |
 
 All four are properties of the *resolved dependency graph*, so CI re-checks every one on every push.
+
+## How often it works on files it has never seen
+
+A test suite proves only that a library agrees with itself — every fixture in this repository was
+produced by the code under test. So the conversions are also run against
+[govdocs1](https://digitalcorpora.org/corpora/file-corpora/files/), a public crawl of real `.gov`
+documents. Measured on chunk `000`, 2026-08-20:
+
+| conversion | succeeded | of |
+|---|---|---|
+| HTML → DOCX | **97.8%** | 181 real pages |
+| legacy `.doc` → DOCX | **89.2%** | 111 real documents |
+| HTML → PDF | **88.4%** | 181 real pages |
+
+Reading PDFs is stronger: across **200 real PDFs, 4,588 pages, a dozen producers**, every operation
+succeeded on every file it did not refuse — and the refusals were 11 permission-restricted
+documents, reported as exactly that rather than as a failure.
+
+**Published because they are unflattering and still useful.** A rate below 100% is what real input
+looks like, and the alternative is telling you what is *supported* and letting you discover the
+rest.
 
 ## Measured against the alternatives
 

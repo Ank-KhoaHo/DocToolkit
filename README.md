@@ -6,13 +6,15 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.svg)](https://www.nuget.org/packages/Ank.DocToolkit/)
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
-Convert **HTML and Markdown → DOCX and PDF**, export **DOCX → HTML/Markdown** and
-**XLSX → CSV/HTML**, read legacy Word 97-2003 **.doc** files, read text out of a **PDF**,
-open/edit **DOCX, XLSX and PPTX**, and **password-protect** any of them, from .NET.
+**A C# library to convert HTML to PDF without a headless browser** — and to convert HTML and
+Markdown → DOCX and PDF, export **DOCX → HTML/Markdown** and **XLSX → CSV/HTML**, read legacy
+Word 97-2003 **.doc** files, read text out of a **PDF**, open/edit **DOCX, XLSX and PPTX**, and
+**password-protect** any of them, from .NET.
 
-**Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
-Works after `dotnet restore` alone, runs on Linux, macOS, Windows and arm64, and makes
-**no network calls at runtime**.
+**Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.** No Chromium
+to install, no `wkhtmltopdf`, no Word on the server. Works after `dotnet restore` alone, runs on
+Linux, macOS, Windows and arm64 — including inside a container — and makes **no network calls at
+runtime**.
 
 ```bash
 dotnet add package Ank.DocToolkit
@@ -164,6 +166,36 @@ SkiaSharp and Magick.NET, pulled in transitively for image rendering.
 What the table is for is the case where **both** columns matter at once — a Linux container that has
 to stay small, with a licence you can clear without asking anybody. That combination is the whole
 reason this package exists, and all four constraints are re-checked by CI on every push.
+
+## Fidelity, measured on documents nobody here wrote
+
+Most conversion libraries tell you what they support. This one tells you **how often it works on
+files it has never seen**, because a test suite proves only that a library agrees with itself —
+every fixture in this repository was produced by the code under test.
+
+So the conversions are run against **[govdocs1](https://digitalcorpora.org/corpora/file-corpora/files/)**,
+a public crawl of real `.gov` documents, by
+[`corpus.yml`](.github/workflows/corpus.yml). Measured on chunk `000`, 2026-08-20:
+
+| conversion | succeeded | of |
+|---|---|---|
+| HTML → DOCX | **97.8%** | 181 real pages |
+| legacy `.doc` → DOCX | **89.2%** | 111 real documents |
+| HTML → PDF | **88.4%** | 181 real pages |
+
+Reading PDFs is separate and stronger: over **200 real PDFs — 4,588 pages from a dozen producers —
+every operation succeeded on every file it did not refuse**, and the only refusals were 11
+permission-restricted documents, reported as exactly that. Text extraction returned text for 198 of
+200; the two exceptions have no text layer to extract.
+
+**These numbers are published because they are unflattering and still useful.** HTML → PDF began
+well below where it is now and improved by fixing what the corpus exposed, not by changing how it
+was counted. The workflow is scheduled monthly, so the figures move on their own and can be checked
+against a run rather than taken on trust.
+
+**What is deliberately not in that table.** The corpus predates `.pptx`, so there is no measured
+PPTX → PDF rate here — quoting the legacy `.ppt` figure in its place would be measuring one thing
+and labelling it another.
 
 ## What it does
 
