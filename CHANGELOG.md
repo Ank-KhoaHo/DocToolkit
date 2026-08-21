@@ -10,6 +10,25 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.33.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.2...v0.33.3) (2026-08-21)
+
+
+### Changed
+
+* **Core: a replaced image is stored once, however many times its placeholder appears.**
+  `DocxEditor.ReplaceImage` added a fresh copy of the image bytes for every occurrence, so a
+  logo repeated down a document was embedded once per match.
+
+  Measured with a 40 KB image: three occurrences produced three byte-identical media parts and a
+  **122,483-byte** package. The same document is now **42,026 bytes**. The saving grows with the
+  number of occurrences and with the size of the image.
+
+  **Nothing changes about where the parts live.** An image still belongs to the container that
+  owns its paragraph - a header image to the header part - because a relationship id resolving in
+  the wrong scope opens in Word showing nothing. Only duplication *within* one container is
+  removed. Each occurrence keeps its own drawing id, which is what Word requires.
+  ([#326](https://github.com/Ank-KhoaHo/DocToolkit/issues/326))
+
 ## [0.33.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.1...v0.33.2) (2026-08-21)
 
 
