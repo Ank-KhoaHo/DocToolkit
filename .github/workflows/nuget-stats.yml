@@ -2,7 +2,7 @@ name: nuget stats
 
 # Records this package's nuget.org download counts daily, so real adoption is
 # visible against the noise our own CI generates. See
-# docs/2026-08-08-nuget-usage-tracking-design.md.
+# docs/superpowers/specs/2026-08-08-nuget-usage-tracking-design.md.
 #
 # 13:17 rather than 13:00 deliberately: GitHub queues scheduled workflows
 # globally and the round hours are heavily oversubscribed, so :00 jobs routinely

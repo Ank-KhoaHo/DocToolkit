@@ -748,7 +748,7 @@ public class WorkbookEditorTests
         var edited = WorkbookEditor.SetCell(xlsx, "Sheet1", "B1", XlsxFormula.From("=A1+A2"));
 
         // ClosedXML evaluates on demand, so this package's own reader returns the computed value.
-        // Measured 2026-08-08; see docs/2026-08-08-xlsx-multisheet-design.md.
+        // Measured 2026-08-08; see docs/superpowers/specs/2026-08-08-xlsx-multisheet-design.md.
         Assert.Equal("3", WorkbookEditor.ReadCell(edited, "Sheet1", "B1"));
     }
 

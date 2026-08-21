@@ -6,7 +6,7 @@ namespace DocToolkit.Tests;
 /// Real image bytes, without an image library.
 ///
 /// The whole point of the design is that this repo takes no image-decoding dependency — see
-/// <c>docs/2026-08-03-image-placeholders-design.md</c> — so the tests cannot quietly take one
+/// <c>docs/superpowers/specs/2026-08-03-image-placeholders-design.md</c> — so the tests cannot quietly take one
 /// either. The PNG is hand-built; the JPEG is lifted from a fixture already committed here.
 /// </summary>
 internal static class ImageFixtures

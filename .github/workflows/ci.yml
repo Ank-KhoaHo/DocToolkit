@@ -731,6 +731,20 @@ jobs:
       - name: Assert every guide snippet resolves to a real region
         run: python3 scripts/check-doc-snippets.py
 
+      # THE DOCUMENTATION LAYOUT, and it runs here knowing CI can only see half of it.
+      #
+      # BACKLOG.html and docs/ are gitignored - this repository is public and a backlog is not a
+      # consumer's business, which PUBLIC.md sets out. So on a runner the backlog is simply
+      # absent, and the check falls to its CI mode: no COMMITTED file may reference a path that
+      # no longer exists. The full check - every backlog row, spec link and markdown link
+      # resolving - runs on a maintainer's machine, where the files exist.
+      #
+      # It reports which mode it took, and refuses to pass vacuously in either: a walk that
+      # scanned nothing is a failure, and a file it cannot read is a failure rather than a skip.
+      # Nine deliberate sabotages were caught nine times before it was trusted.
+      - name: Assert the documentation layout is consistent
+        run: python3 scripts/check-docs-layout.py
+
       # CLAUDE.md states the *Core convention as "the one real implementation that BOTH the byte[]
       # and Stream overloads call, so the two can never drift apart". Measured 2026-08-14, two of
       # seventeen were called once - their byte[] overloads had re-implemented the same

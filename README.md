@@ -279,6 +279,7 @@ the package page.
 | **[Package README](src/DocToolkit/README.md)** | Full usage, page setup, passwords, telemetry, known limitations, and the migration notes per release |
 | **[Extensions README](src/DocToolkit.Extensions.DependencyInjection/README.md)** | `services.AddDocToolkit()` and the injectable interfaces |
 | **[CHANGELOG](CHANGELOG.md)** | What changed, per release |
+| **[PUBLIC.md](PUBLIC.md)** | Why the design docs, ADRs and backlog are **not** in your clone, and what would have to change for them to be |
 | **[CONTRIBUTING](CONTRIBUTING.md)** | Build, test, commit rules, repository layout, and the four constraints a pull request must not break |
 | **[SECURITY](SECURITY.md)** | Reporting a vulnerability, the scope, and the documented limits that are not findings |
 
