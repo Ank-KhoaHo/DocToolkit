@@ -75,6 +75,53 @@ public class DocxEditorReplaceImageTests
     // the suite would catch them.
     // =====================================================================================
 
+    /// <summary>
+    /// The same image embedded once, however many times its placeholder appears.
+    /// </summary>
+    /// <remarks>
+    /// <b>It was embedded once per OCCURRENCE.</b> Measured 2026-08-20 with a 40 KB image: one
+    /// occurrence produced one media part and a 41,983-byte package; three produced
+    /// <c>media/image.png</c>, <c>media/image2.png</c> and <c>media/image3.png</c> - three
+    /// identical copies - and 122,483 bytes. Linear in occurrences, and a letterhead logo repeated
+    /// down a document is the ordinary case rather than a contrived one.
+    ///
+    /// <b>The count is what discriminates, not the size.</b> Asserting the package merely got
+    /// smaller would pass on a change that compressed better while still storing three copies.
+    /// </remarks>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(5)]
+    public void ReplaceImage_EmbedsTheImageOnce_HoweverManyOccurrences(int occurrences)
+    {
+        var paragraphs = Enumerable.Range(1, occurrences)
+            .Select(i => DocxFixtures.P(DocxFixtures.R($"Line {i} {{{{logo}}}} end")))
+            .ToArray();
+
+        var filled = DocxEditor.ReplaceImage(DocxFixtures.Build(paragraphs), "{{logo}}", ImageFixtures.Png());
+
+        AssertValid(filled);
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var main = doc.MainDocumentPart!;
+
+        // Every occurrence still becomes a drawing...
+        Assert.Equal(occurrences, main.Document!.Body!.Descendants<Drawing>().Count());
+
+        // ...all pointing at ONE part.
+        Assert.Single(main.ImageParts);
+
+        // And they really do all resolve to it: a shared relationship id is the point, and a
+        // drawing left holding a stale id would open in Word showing nothing.
+        var partId = main.GetIdOfPart(main.ImageParts.Single());
+        var referenced = main.Document.Body.Descendants<DocumentFormat.OpenXml.Drawing.Blip>()
+            .Select(b => b.Embed?.Value)
+            .ToList();
+        Assert.Equal(occurrences, referenced.Count);
+        Assert.All(referenced, id => Assert.Equal(partId, id));
+    }
+
     [Fact]
     public void ReplaceImage_PutsAHeaderImageInTheHeaderPart()
     {
@@ -99,8 +146,22 @@ public class DocxEditorReplaceImageTests
         AssertValid(filled);
     }
 
+    /// <summary>
+    /// Every occurrence gets its own <c>wp:docPr</c> id.
+    /// </summary>
+    /// <remarks>
+    /// <b>Renamed 2026-08-20, from <c>...ItsOwnIdAndImagePart</c>.</b> It never asserted the part
+    /// count - only that the ids differ - and the "AndImagePart" half became false when occurrences
+    /// started sharing one part. A test name is a claim, and this one would have been read as
+    /// licensing the duplication it was silently sitting beside.
+    ///
+    /// The ids must still be distinct, and that half is unchanged: a duplicate <c>wp:docPr/@id</c>
+    /// is what makes Word declare the file corrupt. Sharing a relationship id is fine; sharing a
+    /// drawing id is not. <see cref="ReplaceImage_EmbedsTheImageOnce_HoweverManyOccurrences"/> holds
+    /// the other half.
+    /// </remarks>
     [Fact]
-    public void ReplaceImage_GivesEveryOccurrenceItsOwnIdAndImagePart()
+    public void ReplaceImage_GivesEveryOccurrenceItsOwnDrawingId()
     {
         var docx = DocxFixtures.Build(
             DocxFixtures.P(DocxFixtures.R("{{logo}} first")),
