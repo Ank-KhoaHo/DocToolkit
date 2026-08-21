@@ -15,7 +15,19 @@ repo-wide tooling (CI, release pipeline).
 
 ### Fixed
 
-* **core:** skip JPEG fill bytes, which are legal and were rejecting valid images ([#324](https://github.com/Ank-KhoaHo/DocToolkit/issues/324)) ([22acffb](https://github.com/Ank-KhoaHo/DocToolkit/commit/22acffbd013ded5e56fe03b3b28bc65eb94f8ac0))
+* **Core: JPEG images with fill bytes are no longer refused.** JPEG permits any number of 0xFF
+  padding bytes before a marker, and encoders emit them when aligning to a boundary. The size
+  scanner treated one as a marker, misread the next real marker as a segment length, and skipped
+  the frame header - so a **valid** image could not be embedded at all.
+
+  Measured: **one fill byte was enough**. Affected images failed in `DocxBlock.Image` and
+  `DocxEditor.ReplaceImage` with a message blaming the file - that it "is truncated, or not
+  actually a well-formed JPEG" - which sent you to check two things that were both fine.
+
+  Every `.docx` image needs an explicit size and this package deliberately carries no
+  image-decoding dependency, so that scanner is the only thing that can supply it; there was no
+  workaround short of re-encoding the image.
+  ([#324](https://github.com/Ank-KhoaHo/DocToolkit/issues/324))
 
 ## [0.33.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.0...v0.33.1) (2026-08-21)
 
