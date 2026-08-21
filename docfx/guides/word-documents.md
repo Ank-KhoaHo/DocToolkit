@@ -124,9 +124,18 @@ As Markdown  : 147 chars, first line "# Invoice for Contoso Ltd"
 And @DocToolkit.DocxToPdfConverter for the PDF:
 
 ```csharp
-byte[] pdf = DocxToPdfConverter.Convert(invoice);
-DocxToPdfConverter.ConvertFile("invoice.docx", "invoice.pdf");
+byte[] pdf = DocxToPdfConverter.Convert(invoice);           // bytes in, bytes out
+File.WriteAllBytes("invoice.pdf", pdf);                     // ...and onto disk, if that is where it goes
+
+DocxToPdfConverter.ConvertFile("invoice.docx", "invoice.pdf");   // or path to path, no array
 ```
+
+> The second line is plain .NET rather than anything from this library, and it is spelled out
+> because leaving it implicit was confusing enough to be
+> [reported](https://github.com/Ank-KhoaHo/DocToolkit/issues/321). Every converter here stops at a
+> `byte[]` on purpose — see
+> [Getting the bytes out](getting-started.md#getting-the-bytes-out) for the three forms and when
+> each is the right one.
 
 Two things to know before you wire these into something:
 

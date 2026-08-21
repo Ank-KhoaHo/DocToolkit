@@ -33,11 +33,46 @@ renders that. This is why the PDF from `HtmlToPdfConverter` and the PDF from `Do
 above are the same size — they are the same document.
 
 **Nothing was written to disk.** The default overloads take and return `byte[]`, which is usually
-what a web handler wants. File and `Stream` overloads exist for when it isn't.
+what a web handler wants. File and `Stream` overloads exist for when it isn't — see
+[Getting the bytes out](#getting-the-bytes-out) immediately below.
 
 **Nothing reached the network.** An `<img src="https://…">` in that HTML would have been dropped,
 not fetched. See [Remote images](html-to-word-and-pdf.md#images-the-html-points-at) for how to opt
 in for specific hosts.
+
+## Getting the bytes out
+
+A `byte[]` is where every conversion stops, because this library does not decide where your
+document goes. Turning one into a file is a single line:
+
+[!code-csharp[](../../samples/HtmlConversion/Program.cs#save)]
+
+Three forms, and which one you want depends on what you already have:
+
+| you have | you want | use |
+|---|---|---|
+| a `byte[]` | a file | `File.WriteAllBytes(path, bytes)` — plain .NET, nothing from this library |
+| HTML or a document | a file | the `Stream` overload, writing to `File.Create(path)` |
+| a path | a path | `ConvertFile(in, out)` or `…ToFileAsync(in, out, ct)` |
+
+**The second form never materialises the array**, which is the reason it exists: the destination
+can be a file, a socket, or an HTTP response body, and it is never disposed, closed or sought — it
+stays yours.
+
+**A `byte[]` is not only a file-in-waiting.** The same array is what you return from a web
+endpoint, put in a blob store or a database column, or hand straight back to this library:
+
+```csharp
+byte[] docx = await HtmlToDocxConverter.ConvertAsync(html);
+
+string text  = DocxEditor.ExtractText(docx);          // read it back
+byte[] pdf   = DocxToPdfConverter.Convert(docx);      // convert it onward
+byte[] locked = DocxEditor.Protect(docx, "s3cret");   // or protect it
+
+return File(pdf, "application/pdf", "invoice.pdf");   // ASP.NET, no temp file anywhere
+```
+
+Nothing about the result is a file until you make it one.
 
 ## The shape of the API
 
