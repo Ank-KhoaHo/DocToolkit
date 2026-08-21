@@ -1038,6 +1038,25 @@ public static class DocxEditor
     {
         var inserted = 0;
 
+        // ONE image part per owner, created on first use, shared by every occurrence in it.
+        //
+        // This used to be added inside the per-offset loop, so the same bytes were embedded once
+        // per placeholder occurrence. Measured 2026-08-20 with a 40 KB image: one occurrence gave
+        // one media part and a 41,983-byte package; THREE gave media/image.png, media/image2.png
+        // and media/image3.png, three identical copies, and 122,483 bytes. It grows linearly with
+        // occurrences, and a letterhead logo repeated across a body, a header and a footer is the
+        // ordinary case rather than a contrived one.
+        //
+        // PER OWNER, not once per document, and that is the constraint that decides where this
+        // line goes. An image part must belong to the container that owns the paragraph - a
+        // header's image added to the main document part yields a relationship id that resolves in
+        // the wrong scope, and Word then opens the file and silently shows nothing. So callers hand
+        // this method one owner at a time and each gets its own part; what is removed is the
+        // duplication WITHIN an owner, not the separation BETWEEN them.
+        //
+        // Lazy, so a root containing no occurrence does not gain an orphan part.
+        string? relationshipId = null;
+
         foreach (var paragraph in root.Descendants<Paragraph>().ToList())
         {
             // Same scoping as ReplaceInParagraph: only the text this paragraph directly owns, so a
@@ -1060,7 +1079,7 @@ public static class DocxEditor
             // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
             for (var i = offsets.Count - 1; i >= 0; i--)
             {
-                var relationshipId = AddImagePart(owner, image, info);
+                relationshipId ??= AddImagePart(owner, image, info);
                 // The placeholder-derived name doubles as the alt text here, deliberately and as
                 // shipped: "{{logo}}" gives "logo", which is a genuine if terse description. That is
                 // NOT true of the create path, whose names are generated ("Image 1"), so it passes
