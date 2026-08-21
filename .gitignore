@@ -40,6 +40,14 @@ docfx/api/
 docs/
 spike/
 CLAUDE.md
+# BACKLOG.html sits at the repository root so a maintainer sees it first, which is exactly
+# why it needs its OWN rule: the docs/ line above stopped covering it the moment it moved out
+# of docs/. Maintainer working material, ignored for the same reason as everything else in
+# this block - see PUBLIC.md.
+#
+# Do not describe what it contains here. A .gitignore is published, and a comment inventorying
+# a withheld file tells a reader exactly what was withheld.
+BACKLOG.html
 # Paired with CLAUDE.md and ignored for the same reason: it is guidance for whoever
 # develops this package, not for a consumer of the NuGet package. It moved here from
 # docs/ on 2026-08-15 so it sits beside CLAUDE.md, which cites it - and it needs its
@@ -60,8 +68,9 @@ BenchmarkDotNet.Artifacts/
 # cobertura XML into a commit.
 TestResults/
 
-# Architecture decision records. Kept on disk alongside CLAUDE.md and docs/, not published.
-adr/
+# Architecture decision records moved to docs/adr/ on 2026-08-22 and are covered by the
+# docs/ rule above. The top-level adr/ rule is gone rather than kept 'just in case' - a
+# rule matching nothing is a claim about a path that no longer exists.
 
 # Node modules, from the one CI check that needs a JavaScript parser.
 # `commit-format` runs `npm install --no-save @conventional-commits/parser` to read a commit
