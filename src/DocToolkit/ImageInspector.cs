@@ -187,6 +187,24 @@ internal static class ImageInspector
 
             var marker = image[i + 1];
 
+            // A FILL BYTE IS NOT A MARKER. JPEG allows any number of 0xFF bytes before a marker -
+            // ITU T.81, B.1.1.2 - so 0xFF 0xFF 0xFF 0xC0 is a perfectly ordinary SOF0 preceded by
+            // two fill bytes, and encoders emit them when padding to a boundary.
+            //
+            // Without this, `marker` is itself 0xFF, matches none of the branches below, and falls
+            // through to the length arithmetic - which reads the NEXT REAL MARKER as a big-endian
+            // length and jumps clean past the frame header. Measured: one fill byte before SOF0 is
+            // enough, and the caller is then told the file "is truncated, or not actually a
+            // well-formed JPEG", sending them to check two things that are both fine.
+            //
+            // The image cannot be embedded at all when this happens: every .docx image needs an
+            // explicit size, and this scanner is the only thing that supplies it.
+            if (marker == 0xFF)
+            {
+                i++;
+                continue;
+            }
+
             if (marker is >= 0xC0 and <= 0xCF && marker is not (0xC4 or 0xC8 or 0xCC))
             {
                 if (i + 9 > image.Length)

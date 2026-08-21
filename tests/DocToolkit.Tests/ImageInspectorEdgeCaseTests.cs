@@ -42,6 +42,63 @@ public class ImageInspectorEdgeCaseTests
         (byte)(width >> 8), (byte)(width & 0xFF),
     };
 
+    /// <summary><paramref name="count"/> fill bytes, which JPEG allows before any marker.</summary>
+    /// <remarks>
+    /// ITU T.81, B.1.1.2: any number of 0xFF bytes may precede a marker, and encoders emit them
+    /// when padding to a boundary. They are part of a WELL-FORMED file, which is what makes this
+    /// different from every other case in this class - the rest test malformed input, and this
+    /// tests input that is valid and was refused anyway.
+    /// </remarks>
+    private static byte[] Fill(int count) => Enumerable.Repeat((byte)0xFF, count).ToArray();
+
+    /// <summary>Fill bytes before the frame header must not hide it.</summary>
+    /// <remarks>
+    /// <b>Measured 2026-08-20: ONE fill byte was enough to break this.</b> The scanner read
+    /// <c>marker</c> as 0xFF, matched no branch, and fell through to the length arithmetic - which
+    /// reads the next real marker as a big-endian length and jumps past the frame header entirely.
+    /// The caller was then told the file "is truncated, or not actually a well-formed JPEG", which
+    /// sends them to check two things that are both fine.
+    ///
+    /// <b>Zero is the control and is load-bearing.</b> A fix that special-cased a single fill byte,
+    /// or one that skipped 0xFF unconditionally and so lost an ordinary marker, would fail one of
+    /// these rows.
+    /// </remarks>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(7)]
+    public void FillBytesBeforeTheFrameHeaderAreSkipped(int fill)
+    {
+        var info = ImageInspector.Inspect(Jpeg(Fill(fill), Sof(128, 64)));
+
+        Assert.Equal(ImageFormat.Jpeg, info.Format);
+        Assert.Equal(128, info.WidthPx);
+        Assert.Equal(64, info.HeightPx);
+    }
+
+    [Fact]
+    public void FillBytesBeforeAnEarlierSegmentAreSkippedToo()
+    {
+        // The frame header is not the only marker a fill byte can precede. Padding before an
+        // APP0 must not derail the walk to the SOF that follows it.
+        var info = ImageInspector.Inspect(Jpeg(Fill(3), Segment(0xE0, 12), Fill(2), Sof(200, 100)));
+
+        Assert.Equal(200, info.WidthPx);
+        Assert.Equal(100, info.HeightPx);
+    }
+
+    [Fact]
+    public void TrailingFillBytesWithNoMarkerStillReportNoFrameHeader()
+    {
+        // The boundary: skipping fill must not turn "there is no SOF" into a hang or an
+        // out-of-range read. Padding that never reaches a marker is still a file with no size.
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => ImageInspector.Inspect(Jpeg(Fill(64))));
+
+        Assert.Contains("no Start-Of-Frame", ex.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>A length-carrying segment of <paramref name="payload"/> zero bytes.</summary>
     private static byte[] Segment(byte marker, int payload)
     {
