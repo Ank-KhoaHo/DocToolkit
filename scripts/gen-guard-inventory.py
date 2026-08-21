@@ -74,7 +74,16 @@ MATRIX = re.compile(r"\$\{\{[^}]*\}\}")
 # figures on a schedule; it decides nothing and gates nothing. Excluded by name
 # rather than by heuristic, because a heuristic that silently dropped a real guard
 # would be the same class of bug this script exists to catch.
-NOT_A_GUARD = {"nuget-stats.py"}
+# Scripts that are not guards, each for a stated reason. An entry here is a hole in the
+# inventory, so argue for one rather than adding it to make this script quiet.
+#
+#   nuget-stats.py        reports download figures; asserts nothing.
+#   gen-backlog-index.py  regenerates BACKLOG.html from the ticket specs. It CANNOT be wired into
+#                         a workflow: both its input (docs/superpowers/specs/) and its output
+#                         (BACKLOG.html) are gitignored, so CI never sees either. What guards its
+#                         output is check-docs-layout.py's LOCAL mode, which compares the index
+#                         against the specs and names this script in the failure message.
+NOT_A_GUARD = {"nuget-stats.py", "gen-backlog-index.py"}
 
 
 def guards() -> list[str]:
