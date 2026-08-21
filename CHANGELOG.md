@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.33.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.1...v0.33.2) (2026-08-21)
+
+
+### Fixed
+
+* **core:** skip JPEG fill bytes, which are legal and were rejecting valid images ([#324](https://github.com/Ank-KhoaHo/DocToolkit/issues/324)) ([22acffb](https://github.com/Ank-KhoaHo/DocToolkit/commit/22acffbd013ded5e56fe03b3b28bc65eb94f8ac0))
+
 ## [0.33.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.0...v0.33.1) (2026-08-21)
 
 
