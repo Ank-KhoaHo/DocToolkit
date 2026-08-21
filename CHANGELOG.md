@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.33.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.2...v0.33.3) (2026-08-21)
+
+
+### Changed
+
+* **core:** embed a replaced image once per owner, not once per occurrence ([#326](https://github.com/Ank-KhoaHo/DocToolkit/issues/326)) ([f72306b](https://github.com/Ank-KhoaHo/DocToolkit/commit/f72306bb26c409d37e0da34c0fde27b7aa19e8c6))
+
 ## [0.33.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.1...v0.33.2) (2026-08-21)
 
 
