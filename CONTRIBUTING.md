@@ -387,7 +387,7 @@ fails restore loudly rather than silently relicensing you.
 
 ```bash
 dotnet build DocToolkit.sln -c Release
-dotnet test  DocToolkit.sln -c Release      # 426 tests x 2 target frameworks = 852 results
+dotnet test  DocToolkit.sln -c Release      # every test runs once per target framework
 
 docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .   # verify Linux locally
 docker run --rm doctoolkit-linux-test

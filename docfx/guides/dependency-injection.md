@@ -16,7 +16,8 @@ It brings the core package with it transitively — you do not need to reference
 
 [!code-csharp[](../../samples/MinimalApi/Program.cs#register)]
 
-One call registers fifteen interfaces, each a thin wrapper over the matching static class:
+One call registers every interface the package ships, each a thin wrapper over the matching
+static class:
 
 | Interface | Wraps |
 |---|---|
@@ -31,6 +32,7 @@ One call registers fifteen interfaces, each a thin wrapper over the matching sta
 | @DocToolkit.Extensions.DependencyInjection.IMarkdownToPdfConverter | `MarkdownToPdfConverter` |
 | @DocToolkit.Extensions.DependencyInjection.IXlsxToCsvConverter | `XlsxToCsvConverter` |
 | @DocToolkit.Extensions.DependencyInjection.IXlsxToHtmlConverter | `XlsxToHtmlConverter` |
+| @DocToolkit.Extensions.DependencyInjection.IDocToDocxConverter | `DocToDocxConverter` |
 | @DocToolkit.Extensions.DependencyInjection.IDocxEditor | `DocxEditor` |
 | @DocToolkit.Extensions.DependencyInjection.IWorkbookEditor | `WorkbookEditor` |
 | @DocToolkit.Extensions.DependencyInjection.IPresentationEditor | `PresentationEditor` |

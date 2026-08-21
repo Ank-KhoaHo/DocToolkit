@@ -57,8 +57,15 @@ Most .NET document stacks fail at least one of these. This one satisfies all fou
 | **Works offline** | No runtime network I/O. Proven by 40 air-gap tests. |
 
 All four are properties of the *resolved dependency graph*, so a single upstream bump can break
-them silently — which is why CI re-checks every one on every push. That has happened once already
-(see [Design notes](#design-notes)).
+them silently — which is why CI re-checks every one on every push.
+
+**That has happened once already.** PowerPoint support originally used ShapeCrawler, whose *API*
+was checked and whose *dependencies* were not. It pulls in SkiaSharp and Magick.NET, which put
+**38 native `.so`/`.dylib` files and 664 MB of `runtimes/`** into build output — breaking two of
+the four constraints at once, on a package that restored and built perfectly well. It was replaced
+with raw `DocumentFormat.OpenXml`, and the check that would have caught it now runs on every push.
+The [comparison table](#measured-against-the-alternatives) below is the same measurement, applied
+to the alternatives.
 
 ### Trimming and native AOT
 

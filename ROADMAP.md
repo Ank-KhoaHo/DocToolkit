@@ -13,7 +13,10 @@ only with no native binaries, runs on Linux (x64 and arm64), Windows and macOS, 
 network I/O by default.
 
 Current capabilities: HTML → DOCX and PDF; **Markdown → DOCX and PDF**; DOCX → PDF, HTML and
-Markdown; XLSX → PDF, **CSV and HTML**; PPTX → PDF; create and edit DOCX, XLSX and PPTX;
+Markdown; XLSX → PDF, **CSV and HTML**; PPTX → PDF; **legacy Word 97-2003 `.doc` → DOCX and legacy
+PowerPoint 97-2003 `.ppt` → PDF**, both at published rates rather than as a tick; create and edit
+DOCX, XLSX and PPTX; **supplying your own fonts** for characters the PDF renderer cannot otherwise
+encode, which takes the host machine out of the answer;
 **sheet formatting** — bold header, frozen header, auto-fit, number formats; template filling with
 repeating rows and image placeholders; page setup with headers and footers; reading an existing
 PDF — page count, **text extraction**, merge, page extraction and metadata; **conversion loss
