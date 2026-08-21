@@ -147,6 +147,20 @@ The same fidelity limit applies as everywhere else: features the rendering engin
 warning channel on the public API. The PDF is valid; it just will not have the chart in it. If a
 chart is the point of the document, render it to an image yourself and place that.
 
+### Legacy `.ppt` decks
+
+`PptxToPdfConverter.Convert` also reads **PowerPoint 97-2003 binary decks**. No separate call and no
+conversion step — hand it the bytes.
+
+**It succeeds on 60.2% of them**, measured over 88 real decks from a government crawl, which is a
+lower bar than the OOXML path and is published rather than rounded up to "supported". The refusals
+are dominated by one upstream limitation, and **none of them produces a corrupt PDF** — a deck that
+cannot be read is refused, not rendered blank.
+
+So it is worth pointing at an archive of old decks, and worth checking the result rather than
+assuming it. `XlsxToPdfConverter` has no equivalent: a legacy `.xls` workbook is **refused**, with a
+message saying so.
+
 ## Choosing a starting point
 
 | You have | Use |

@@ -55,9 +55,16 @@ Three forms, and which one you want depends on what you already have:
 | HTML or a document | a file | the `Stream` overload, writing to `File.Create(path)` |
 | a path | a path | `ConvertFile(in, out)` or `…ToFileAsync(in, out, ct)` |
 
-**The second form never materialises the array**, which is the reason it exists: the destination
-can be a file, a socket, or an HTTP response body, and it is never disposed, closed or sought — it
-stays yours.
+**The second form saves *you* from holding the array**, which is not quite the same as nobody
+holding it. The destination can be a file, a socket or an HTTP response body — forward-only and
+write-only are both fine — and it is never disposed, closed or sought. It stays yours.
+
+**It is not a memory optimisation, and the numbers say so**: the same edit costs 238 MB through the
+`Stream` overload against 233 MB through the `byte[]` one, because the source is drained into a
+buffer either way. On the PDF paths the library also renders the document whole before writing a
+byte — deliberately, since a repair that retries a failed render cannot un-write bytes already sent.
+The upside of that is worth knowing: **a failed conversion leaves your destination untouched**
+rather than carrying half a PDF.
 
 **A `byte[]` is not only a file-in-waiting.** The same array is what you return from a web
 endpoint, put in a blob store or a database column, or hand straight back to this library:
