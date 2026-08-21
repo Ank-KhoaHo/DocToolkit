@@ -698,18 +698,33 @@ public class StreamOverloadTests
     // =====================================================================================
 
     /// <summary>
-    /// The PDF is handed to the destination as it is produced, not assembled into one buffer and
-    /// posted at the end.
-    ///
-    /// This is the assertion that a <c>byte[]</c> round trip wearing a <c>Stream</c> parameter
-    /// cannot pass: writing a finished array costs exactly one write, whereas OfficeIMO's writer
-    /// emits a document of this size in scores of them. It is also why
-    /// <see cref="DocxToPdfConverter"/> is absent from <see cref="BufferedDestinationWriters"/> —
-    /// those writes are synchronous, because OfficeIMO's stream writer is, and buffering the whole
-    /// PDF to make them asynchronous would give up precisely the property under test here.
+    /// The PDF is rendered whole and then emitted, and the destination is only ever touched by a
+    /// conversion that succeeded.
     /// </summary>
+    /// <remarks>
+    /// <b>This test asserted the opposite until 2026-08-20, and it was right about the old
+    /// contract.</b> It required the PDF to reach the destination in many writes, because a
+    /// <c>byte[]</c> round trip wearing a <c>Stream</c> signature costs exactly one - a real hazard
+    /// this file exists to catch.
+    ///
+    /// <b>The contract changed on measurement, not on taste.</b> Writing straight through means a
+    /// repair cannot retry a failed render - you cannot un-write bytes already on somebody's
+    /// response body - so the stream overloads applied NO repairs. Measured over real files: 4 of
+    /// 99 real Word documents converted through <c>Convert(byte[])</c> and were refused here, and
+    /// on the HTML path a construct present in 27 of 181 real .gov pages did the same. The
+    /// maintainer chose parity over streaming.
+    ///
+    /// <b>So the assertion is inverted rather than deleted</b>, and the write count is still
+    /// load-bearing - it now pins the buffering that makes the repairs possible. What replaces the
+    /// old guarantee is stronger for a caller: a failure leaves the destination untouched instead
+    /// of carrying a truncated PDF. <see cref="StreamPathParityTests"/> holds that half.
+    ///
+    /// <b>This does not license buffering elsewhere.</b> Every other <c>Stream</c> overload in this
+    /// suite is still held to <see cref="BufferedDestinationWriters"/>' rules; the PDF render is the
+    /// one place a documented property was traded, with a number attached.
+    /// </remarks>
     [Fact]
-    public async Task DocxToPdf_StreamsThePdfToTheDestinationInPieces_RatherThanBufferingItWhole()
+    public async Task DocxToPdf_RendersWholeThenEmits_SoARetryCanRepairAFailedRender()
     {
         var body = new StringBuilder();
         for (var i = 0; i < 2500; i++)
@@ -722,9 +737,8 @@ public class StreamOverloadTests
         await DocxToPdfConverter.ConvertAsync(source, sink);
 
         Assert.True(sink.ToArray().Length > 100_000, $"expected a sizeable PDF, got {sink.ToArray().Length} bytes");
-        Assert.True(sink.Writes > 10,
-            $"The PDF reached the destination in {sink.Writes} write(s). One write means it was " +
-            "materialised in full first, which is the byte[] behaviour these overloads exist to avoid.");
+        Assert.True(PdfProbe.IsPdf(sink.ToArray()));
+        Assert.False(sink.IsDisposed, "ConvertAsync disposed a destination it does not own");
     }
 
     // =====================================================================================

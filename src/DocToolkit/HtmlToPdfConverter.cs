@@ -186,8 +186,11 @@ public static class HtmlToPdfConverter
     /// to <paramref name="destination"/>. Remote images are not downloaded.
     ///
     /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
-    /// <b>not</b> disposed, closed or sought. As with the other PDF paths it is handed to
-    /// OfficeIMO's own writer rather than buffered whole.
+    /// The PDF is rendered whole and then written, so a failure leaves
+    /// <paramref name="destination"/> UNTOUCHED rather than carrying a truncated document.
+    /// Until 2026-08-20 it was written straight through as the renderer produced it; that
+    /// prevented the repair-and-retry the array overloads apply, and measurably diverged from
+    /// them - see HtmlToPdfConverter's private EmitAsync for the numbers.
     /// </summary>
     /// <param name="html">The markup to convert.</param>
     /// <param name="page">The page size, orientation and margins.</param>
@@ -204,12 +207,39 @@ public static class HtmlToPdfConverter
         StreamPipeline.RequireWritable(destination, nameof(destination));
         ct.ThrowIfCancellationRequested();
 
-        using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, null, page, ct)
-            .ConfigureAwait(false);
+        await EmitAsync(
+            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, ct))
+                .ConfigureAwait(false),
+            destination, ct).ConfigureAwait(false);
+    }
 
-        ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
+    /// <summary>
+    /// Writes a finished PDF onto a caller's stream.
+    /// </summary>
+    /// <remarks>
+    /// <b>The reason every <c>Stream</c> overload here buffers rather than writing straight
+    /// through.</b> Until 2026-08-20 they handed the package to OfficeIMO's writer directly, which
+    /// meant they could not go through <see cref="HtmlForPdf"/> at all: its repairs retry a failed
+    /// render, and a retry cannot un-write bytes already on somebody's HTTP response body. So the
+    /// <c>byte[]</c> overloads got the repairs and these did not.
+    ///
+    /// <b>That was a real divergence, not a theoretical one.</b> Measured over real files: a page
+    /// whose internal links use <c>&lt;a name&gt;</c> - 27 of 181 real .gov pages - converted
+    /// through <c>ConvertAsync(html)</c> and was refused through <c>ConvertAsync(html,
+    /// destination)</c>, and 4 of 99 real Word documents did the same on the DOCX path.
+    ///
+    /// <b>Buffering costs one PDF of memory and buys two things.</b> Every overload now answers
+    /// identically, and a failure leaves <c>destination</c> UNTOUCHED rather than carrying a
+    /// truncated PDF - which is better than what the old doc comments promised. The
+    /// <c>Stream</c> overloads were never a memory optimisation anyway: <c>DrainAsync</c> buffers
+    /// the source whatever happens, measured at 238 MB against 233 MB for the array path.
+    /// </remarks>
+    private static async Task EmitAsync(byte[] pdf, Stream destination, CancellationToken ct)
+    {
+        using var scratch = new MemoryStream(pdf, writable: false);
+        await StreamPipeline
+            .EmitAsync(scratch, destination, "Failed to write the PDF. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -219,9 +249,11 @@ public static class HtmlToPdfConverter
     ///
     /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
     /// <b>not</b> disposed, closed or sought - it belongs to the caller, and may be write-only and
-    /// forward-only, such as an HTTP response body. The PDF is written straight through as the
-    /// renderer produces it, so a failure part-way leaves whatever had already been produced on
-    /// <paramref name="destination"/>.
+    /// The PDF is rendered whole and then written, so a failure leaves
+    /// <paramref name="destination"/> UNTOUCHED rather than carrying a truncated document.
+    /// Until 2026-08-20 it was written straight through as the renderer produced it; that
+    /// prevented the repair-and-retry the array overloads apply, and measurably diverged from
+    /// them - see HtmlToPdfConverter's private EmitAsync for the numbers.
     ///
     /// Passing <c>true</c> for <paramref name="allowRemoteImageDownload"/> still succeeds in an
     /// air-gapped or otherwise offline environment; see
@@ -243,16 +275,14 @@ public static class HtmlToPdfConverter
         StreamPipeline.RequireWritable(destination, nameof(destination));
         ct.ThrowIfCancellationRequested();
 
-        // Still a composition of the other two converters, not a third conversion: the HTML stage
-        // builds the package and the DOCX stage renders it. The difference from the byte[] path is
-        // that the package is handed over as the buffer it already is, so the intermediate .docx is
-        // never serialised to an array and read back, and the PDF is never buffered at all.
-        using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, allowRemoteImageDownload ? new RemoteImageOptions() : null, PageSetup.A4, ct)
-            .ConfigureAwait(false);
-
-        ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
+        // Still a composition of the other two converters, not a third conversion, and it now goes
+        // through the SAME funnel the byte[] overloads use - see EmitAsync for why that means
+        // buffering, and what it was costing not to.
+        await EmitAsync(
+            await HtmlForPdf.RenderAsync(
+                html, h => HtmlToDocxConverter.ConvertAsync(h, allowRemoteImageDownload, ct))
+                .ConfigureAwait(false),
+            destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -262,9 +292,11 @@ public static class HtmlToPdfConverter
     ///
     /// <paramref name="destination"/> is <b>written</b>, from its current position, and is
     /// <b>not</b> disposed, closed or sought - it belongs to the caller, and may be write-only and
-    /// forward-only, such as an HTTP response body. The PDF is written straight through as the
-    /// renderer produces it, so a failure part-way leaves whatever had already been produced on
-    /// <paramref name="destination"/>.
+    /// The PDF is rendered whole and then written, so a failure leaves
+    /// <paramref name="destination"/> UNTOUCHED rather than carrying a truncated document.
+    /// Until 2026-08-20 it was written straight through as the renderer produced it; that
+    /// prevented the repair-and-retry the array overloads apply, and measurably diverged from
+    /// them - see HtmlToPdfConverter's private EmitAsync for the numbers.
     ///
     /// <b>This still succeeds in an air-gapped or otherwise offline environment</b>: an
     /// unreachable host is skipped, not fatal; see
@@ -299,12 +331,10 @@ public static class HtmlToPdfConverter
         StreamPipeline.RequireWritable(destination, nameof(destination));
         ct.ThrowIfCancellationRequested();
 
-        using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, options, PageSetup.A4, ct)
-            .ConfigureAwait(false);
-
-        ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
+        await EmitAsync(
+            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, options, ct))
+                .ConfigureAwait(false),
+            destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -357,12 +387,10 @@ public static class HtmlToPdfConverter
         StreamPipeline.RequireWritable(destination, nameof(destination));
         ct.ThrowIfCancellationRequested();
 
-        using var docx = await HtmlToDocxConverter
-            .BuildPackageAsync(html, options, page, ct)
-            .ConfigureAwait(false);
-
-        ct.ThrowIfCancellationRequested();
-        await DocxToPdfConverter.RenderAsync(docx, destination, null, ct).ConfigureAwait(false);
+        await EmitAsync(
+            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, options, ct))
+                .ConfigureAwait(false),
+            destination, ct).ConfigureAwait(false);
     }
 
     /// <summary>Converts <paramref name="html"/> and writes the PDF to <paramref name="outputPath"/>.</summary>

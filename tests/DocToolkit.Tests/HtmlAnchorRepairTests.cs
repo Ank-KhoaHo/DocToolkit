@@ -244,19 +244,51 @@ public class HtmlAnchorRepairTests
     // ---- every entry point on the PDF path gets it ---------------------------------------------------
 
     /// <summary>
-    /// <b>The repair is applied at four separate call sites, and nothing structural keeps them in
-    /// step.</b> That is the same hand-maintained-inventory hazard that let all eight
+    /// <b>The repair is applied at several separate call sites, and nothing structural keeps them
+    /// in step.</b> That is the same hand-maintained-inventory hazard that let all eight
     /// <c>PdfEditor</c> stream overloads go unguarded, so every public HTML-to-PDF entry point is
-    /// exercised here rather than trusting the four to stay complete.
+    /// exercised here rather than trusting the list to stay complete.
     /// </summary>
-    public static TheoryData<string, Func<string, Task<byte[]>>> EveryPdfEntryPoint() => new()
+    /// <remarks>
+    /// <b>This list said "four call sites" while omitting the five that were broken, and the
+    /// omission was structural rather than careless.</b> Its element type was
+    /// <c>Func&lt;string, Task&lt;byte[]&gt;&gt;</c>, which the <c>Stream</c>-destination overloads
+    /// cannot satisfy - they return <c>Task</c>. So the four entry points that applied NO repair at
+    /// all were the exact four this inventory could not express, and the suite stayed green while
+    /// roughly one real page in seven converted through one overload and was refused through
+    /// another.
+    ///
+    /// <b>The signature is now the fix.</b> Every entry point is adapted to
+    /// <c>Func&lt;string, Task&lt;byte[]&gt;&gt;</c> here - the stream ones by writing to a
+    /// <see cref="MemoryStream"/> and returning what landed - so an overload can no longer be
+    /// omitted because the inventory has nowhere to put it. Measured 2026-08-20: before the fix
+    /// the four stream rows failed this theory; after it, all nine pass.
+    /// </remarks>
+    public static TheoryData<string, Func<string, Task<byte[]>>> EveryPdfEntryPoint()
     {
-        { "ConvertAsync(html)", h => HtmlToPdfConverter.ConvertAsync(h) },
-        { "ConvertAsync(html, page)", h => HtmlToPdfConverter.ConvertAsync(h, PageSetup.A4) },
-        { "ConvertAsync(html, bool)", h => HtmlToPdfConverter.ConvertAsync(h, false) },
-        { "ConvertAsync(html, options)", h => HtmlToPdfConverter.ConvertAsync(h, new RemoteImageOptions()) },
-        { "ConvertAsync(html, page, options)", h => HtmlToPdfConverter.ConvertAsync(h, PageSetup.A4, new RemoteImageOptions()) },
-    };
+        static Func<string, Task<byte[]>> ToBuffer(Func<string, Stream, Task> write) => async h =>
+        {
+            using var destination = new MemoryStream();
+            await write(h, destination);
+            return destination.ToArray();
+        };
+
+        return new()
+        {
+            { "ConvertAsync(html)", h => HtmlToPdfConverter.ConvertAsync(h) },
+            { "ConvertAsync(html, page)", h => HtmlToPdfConverter.ConvertAsync(h, PageSetup.A4) },
+            { "ConvertAsync(html, bool)", h => HtmlToPdfConverter.ConvertAsync(h, false) },
+            { "ConvertAsync(html, options)", h => HtmlToPdfConverter.ConvertAsync(h, new RemoteImageOptions()) },
+            { "ConvertAsync(html, page, options)", h => HtmlToPdfConverter.ConvertAsync(h, PageSetup.A4, new RemoteImageOptions()) },
+
+            // The four that applied no repair at all until 2026-08-20.
+            { "ConvertAsync(html, destination)", ToBuffer((h, d) => HtmlToPdfConverter.ConvertAsync(h, d)) },
+            { "ConvertAsync(html, page, destination)", ToBuffer((h, d) => HtmlToPdfConverter.ConvertAsync(h, PageSetup.A4, d)) },
+            { "ConvertAsync(html, bool, destination)", ToBuffer((h, d) => HtmlToPdfConverter.ConvertAsync(h, false, d)) },
+            { "ConvertAsync(html, options, destination)", ToBuffer((h, d) => HtmlToPdfConverter.ConvertAsync(h, new RemoteImageOptions(), d)) },
+            { "ConvertAsync(html, page, options, destination)", ToBuffer((h, d) => HtmlToPdfConverter.ConvertAsync(h, PageSetup.A4, new RemoteImageOptions(), d)) },
+        };
+    }
 
     [Theory]
     [MemberData(nameof(EveryPdfEntryPoint))]

@@ -126,8 +126,28 @@ public static class XlsxToPdfConverter
             .DrainAsync(source, "XLSX content was empty.", nameof(source), FailureMessage, ct)
             .ConfigureAwait(false);
 
+        // THE SAME GUARD Convert(byte[]) applies, and it was missing here until 2026-08-20.
+        //
+        // That is not a tidiness point: the comment above the guard in Convert records a legacy
+        // .xls that "did not finish in ten minutes". This overload is the one an upload endpoint
+        // reaches for - source and destination straight off the request and response - so the
+        // denial of service the byte[] path refuses in under two seconds was reachable here by
+        // POSTing a file the API never claimed to accept.
+        //
+        // Deliberately NOT fixed by routing through Convert(byte[]) as the DOCX and HTML paths now
+        // are: there is no repair or retry on this path, so the only divergence was the guard, and
+        // rendering onto the destination keeps the cancellation token observed DURING the render.
+        if (OfficeCrypto.IsEncrypted(xlsx.GetBuffer().AsSpan(0, (int)xlsx.Length).ToArray()))
+        {
+            throw new DocumentConversionException(
+                "This is not an .xlsx package. The bytes are a compound file, which means either a "
+                + "legacy Excel 97-2003 .xls workbook - save it as .xlsx to render it - or an "
+                + "encrypted .xlsx, which WorkbookEditor.Unprotect will open with its password.");
+        }
+
         try
         {
+            xlsx.Position = 0;
             using var workbook = ExcelDocument.Load(xlsx);
             await workbook
                 .SaveAsPdfAsync(destination, PdfRenderPolicy.ForWorkbook(), ct)

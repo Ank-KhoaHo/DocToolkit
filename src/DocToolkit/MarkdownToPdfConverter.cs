@@ -89,22 +89,28 @@ public static class MarkdownToPdfConverter
         StreamPipeline.RequireWritable(destination, nameof(destination));
         ct.ThrowIfCancellationRequested();
 
-        var docx = MarkdownToDocxConverter.Convert(markdown);
+        // THROUGH Convert - this converter's own byte[] path, not a re-composition of the stages.
+        //
+        // This used to hand the package to OfficeIMO's writer, which skipped ListMarkerSubstitution
+        // and the negative-indent clamp. Same divergence measured across the DOCX and HTML paths on
+        // 2026-08-20; see HtmlToPdfConverter.EmitAsync for the numbers.
+        //
+        // AND CALLING Convert(markdown) IS THE POINT, rather than composing
+        // MarkdownToDocxConverter + DocxToPdfConverter here. The first attempt did compose them and
+        // was still wrong: it picked up the PDF repairs and missed Render(), the wrapper that
+        // re-describes an ordered list starting below 1. `0. item` got "Failed to render DOCX to
+        // PDF. See the inner exception" while the byte[] path named the construct. The parity test
+        // caught it. Re-composing a pipeline is how the two paths drift; calling the sibling is how
+        // they cannot.
+        //
+        // It also retires the expandable-vs-read-only question this comment used to argue about:
+        // Convert owns the copy OfficeIMO's read/write open needs, in the one place that decides it.
+        var pdf = Convert(markdown);
 
         ct.ThrowIfCancellationRequested();
 
-        // EXPANDABLE, not a read-only view over `docx`. RenderAsync documents that it "takes an
-        // expandable MemoryStream rather than a read-only view over someone else's buffer"
-        // because OfficeIMO opens the package read/write, and DocxToPdfConverter.Convert pays a
-        // full document copy on that basis. This call site passed `writable: false` and its test
-        // passed anyway, which left two contradictory claims shipping at once - either the
-        // invariant was false and several methods copy for nothing, or this path was one OfficeIMO
-        // patch release from throwing. Honouring the documented contract is the cheap side of that
-        // bet; if the invariant is ever shown to be unnecessary, relax it in ONE place.
-        using var package = new MemoryStream();
-        package.Write(docx, 0, docx.Length);
-        package.Position = 0;
-        await DocxToPdfConverter.RenderAsync(package, destination, null, ct).ConfigureAwait(false);
+        using var scratch = new MemoryStream(pdf, writable: false);
+        await StreamPipeline.EmitAsync(scratch, destination, FailureMessage, ct).ConfigureAwait(false);
     }
 
     /// <summary>
