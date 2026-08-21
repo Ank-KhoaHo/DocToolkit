@@ -299,6 +299,63 @@ def inspect_markup(html, where):
     return index
 
 
+SPEC_STATUS = re.compile(r"^\*\*Status:\*\*\s*(.+?)\s*·\s*(\S+)\s*$", re.M)
+
+
+def check_index_matches_specs():
+    """The index is a VIEW over the specs. A view that disagrees with its source is worse than
+    no view, because it is the page a maintainer actually reads.
+
+    THIS IS THE ASSERTION THAT WAS MISSING, and its absence was measured rather than suspected:
+    a spec was flipped from OPEN to DONE, the index left alone, and the guard reported
+    "documentation layout is consistent". Every other check here looks INWARD at the page - do
+    its counts match its rows, are its classes styled - so all six passed while the one page
+    somebody reads showed a status that was no longer true.
+
+    Green and wrong is the failure this whole file exists to prevent, so it should not have been
+    reachable through the file itself.
+    """
+    html = read(BACKLOG)
+    if html is None or not os.path.isdir(SPECS):
+        return
+
+    index = {}
+    for m in re.finditer(r"<tr data-id=\"([^\"]+)\" data-status=\"([^\"]*)\"", html):
+        index[m.group(1)] = m.group(2)
+
+    specs = {}
+    for name in sorted(os.listdir(SPECS)):
+        if not name.endswith(".md") or not re.match(r"^[A-Z]+[0-9][A-Za-z0-9-]*-", name):
+            continue
+        text = read(os.path.join(SPECS, name))
+        if text is None:
+            continue
+        heading = HEADING.search(text.split("\n", 1)[0].strip())
+        status = SPEC_STATUS.search(text)
+        if heading and status:
+            specs[heading.group(1)] = status.group(2)
+
+    if not specs:
+        fail("docs/superpowers/specs", "no ticket specs parsed - nothing to compare the index to")
+        return
+
+    missing = sorted(set(specs) - set(index))
+    extra = sorted(set(index) - set(specs))
+    if missing:
+        fail("BACKLOG.html", "%d ticket(s) have a spec but no index row - regenerate with "
+             "scripts/gen-backlog-index.py: %s" % (len(missing), ", ".join(missing[:8])))
+    if extra:
+        fail("BACKLOG.html", "%d index row(s) have no spec - regenerate with "
+             "scripts/gen-backlog-index.py: %s" % (len(extra), ", ".join(extra[:8])))
+
+    stale = sorted(t for t in set(specs) & set(index) if specs[t] != index[t])
+    if stale:
+        fail("BACKLOG.html", "%d row(s) show a status the spec no longer says - the index is "
+             "stale, regenerate with scripts/gen-backlog-index.py: %s"
+             % (len(stale), ", ".join("%s (index %s, spec %s)" % (t, index[t], specs[t])
+                                      for t in stale[:5])))
+
+
 def check_backlog_renders():
     """Read the page and inspect it. Split from inspect_markup so the self-test can drive the
     assertions against a sample string without needing a file on disk."""
@@ -422,6 +479,7 @@ def main():
     if local:
         check_backlog()
         check_backlog_renders()
+        check_index_matches_specs()
         check_specs()
     check_markdown_links(tracked_only=not local)
     check_path_references(tracked_only=not local)
