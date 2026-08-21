@@ -91,8 +91,13 @@ public class MarkdownToPdfConverterTests
     /// <c>StreamOverloadTests.DocxToPdf_StreamsThePdfToTheDestinationInPieces</c>.
     /// </summary>
     [Fact]
-    public async Task ConvertAsync_StreamsThePdfInPieces_RatherThanBufferingItWhole()
+    public async Task ConvertAsync_RendersWholeThenEmits_MatchingTheByteArrayPath()
     {
+        // Inverted on 2026-08-20 along with its sibling in StreamOverloadTests, which carries the
+        // full reasoning. In short: writing straight through meant this overload could apply none
+        // of the PDF repairs and none of the diagnosis wrapping, so `0. item` got the generic "see
+        // the inner exception" here while the byte[] path named the construct. Parity was chosen
+        // over streaming, with measurements behind it.
         var body = new StringBuilder("# Long report\n\n");
         for (var i = 0; i < 2500; i++)
             body.Append("Line ").Append(i).Append(" of a report long enough to need many pages.\n\n");
@@ -103,10 +108,22 @@ public class MarkdownToPdfConverterTests
         var written = sink.ToArray();
         Assert.True(PdfProbe.IsPdf(written));
         Assert.True(written.Length > 100_000, $"expected a sizeable PDF, got {written.Length} bytes");
-        Assert.True(sink.Writes > 10,
-            $"The PDF reached the destination in {sink.Writes} write(s). One write means it was "
-            + "materialised in full first, which is the behaviour these overloads exist to avoid.");
         Assert.False(sink.IsDisposed, "ConvertAsync disposed a destination it does not own");
+    }
+
+    [Fact]
+    public async Task ConvertAsync_NamesTheConstruct_LikeTheByteArrayPath()
+    {
+        // The concrete thing the old straight-through write cost. An ordered list starting below 1
+        // is refused by the renderer, and only the byte[] path's Render() wrapper re-described it.
+        var fromBytes = Assert.Throws<DocumentConversionException>(
+            () => MarkdownToPdfConverter.Convert("0. first\n0. second\n"));
+
+        var sink = new ForwardOnlySink();
+        var fromStream = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => MarkdownToPdfConverter.ConvertAsync("0. first\n0. second\n", sink));
+
+        Assert.Equal(fromBytes.Message, fromStream.Message);
     }
 
     [Fact]

@@ -94,11 +94,11 @@ public static class DocxToPdfConverter
     /// sought or read back, so both may be sockets, files or HTTP message bodies. Neither has to be
     /// seekable.
     ///
-    /// The PDF is written straight through to <paramref name="destination"/> as the renderer
-    /// produces it rather than being assembled into an array first, so a large document is
-    /// delivered without ever existing in full in memory. The consequence of streaming is that a
-    /// failure part-way through leaves whatever had already been produced on
-    /// <paramref name="destination"/>.
+    /// The PDF is rendered whole and then written, so a failure leaves
+    /// <paramref name="destination"/> UNTOUCHED rather than carrying a truncated document.
+    /// Until 2026-08-20 it was written straight through as the renderer produced it; that
+    /// prevented the repair-and-retry the array overloads apply, and measurably diverged from
+    /// them - see HtmlToPdfConverter's private EmitAsync for the numbers.
     ///
     /// <b>No network access, and safe in an air-gapped environment</b>, as for
     /// <see cref="Convert(byte[])"/>.
@@ -143,7 +143,23 @@ public static class DocxToPdfConverter
             .DrainAsync(source, "DOCX content was empty.", nameof(source), FailureMessage, ct)
             .ConfigureAwait(false);
 
-        await RenderAsync(docx, destination, fonts, ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+
+        // THROUGH Convert, not RenderAsync, and that is the whole point of this line.
+        //
+        // RenderAsync writes onto the caller's stream as OfficeIMO lays the PDF out, which reads
+        // like a virtue and cost correctness: it applies neither ListMarkerSubstitution nor the
+        // negative-indent clamp, because a clamp-and-retry cannot un-write bytes already sent.
+        // Measured 2026-08-20 over 99 real Word documents: FOUR converted through Convert(byte[])
+        // and were refused here, every one of them a negative indent the clamp recovers.
+        //
+        // Buffering costs one PDF of memory. It is not a memory regression against the array path -
+        // DrainAsync above has already buffered the source - and it means a failure now leaves
+        // destination untouched instead of carrying a truncated PDF.
+        var pdf = Convert(docx.ToArray(), fonts);
+
+        using var scratch = new MemoryStream(pdf, writable: false);
+        await StreamPipeline.EmitAsync(scratch, destination, FailureMessage, ct).ConfigureAwait(false);
     }
 
     /// <summary>Loads a package and renders it. The one place the renderer is actually called.</summary>
