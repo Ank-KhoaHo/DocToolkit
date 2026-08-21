@@ -15,7 +15,30 @@ repo-wide tooling (CI, release pipeline).
 
 ### Fixed
 
-* **core:** apply the PDF repairs on the Stream overloads too ([#322](https://github.com/Ank-KhoaHo/DocToolkit/issues/322)) ([1477643](https://github.com/Ank-KhoaHo/DocToolkit/commit/147764371b220bcc569a14570a08e9efe7510624))
+* **Core: the `Stream` overloads now convert everything the `byte[]` ones do.** If you write PDFs
+  to a stream - an HTTP response body, a file, a pipe - this is worth reading, because those
+  overloads were refusing documents their array siblings converted.
+
+  They wrote the PDF straight through as the renderer produced it, which meant they could not
+  apply the repairs that retry a failed render. **Measured over real files: 4 of 99 real Word
+  documents converted through `DocxToPdfConverter.Convert` and were refused through its stream
+  overload**, and on the HTML path a construct present in 27 of 181 real `.gov` pages did the
+  same. `AddDocToolkit`'s `IHtmlToPdfConverter` routes to the stream path, so ASP.NET callers
+  streaming to the response body had the worse behaviour by default.
+
+  **What changes for you.** Affected documents now convert. The PDF is rendered whole and then
+  written, so a failure leaves your destination **untouched** rather than carrying a truncated
+  PDF - previously documented as the expected behaviour and now no longer the case. Peak memory
+  rises by one rendered PDF; this was never a memory optimisation, since the source was already
+  buffered either way.
+
+  Streams are still never disposed, closed or sought, and may still be forward-only.
+  ([#322](https://github.com/Ank-KhoaHo/DocToolkit/issues/322))
+
+* **Core: `XlsxToPdfConverter.ConvertAsync` refuses a legacy `.xls` workbook**, as its `byte[]`
+  sibling already did. A binary Excel 97-2003 file could previously reach the renderer through the
+  stream overload and consume minutes of CPU on input the API never claimed to support - which
+  matters most for the upload endpoints that overload exists for.
 
 ## [0.33.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.32.0...v0.33.0) (2026-08-20)
 
