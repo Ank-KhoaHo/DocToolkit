@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.33.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.0...v0.33.1) (2026-08-21)
+
+
+### Fixed
+
+* **core:** apply the PDF repairs on the Stream overloads too ([#322](https://github.com/Ank-KhoaHo/DocToolkit/issues/322)) ([1477643](https://github.com/Ank-KhoaHo/DocToolkit/commit/147764371b220bcc569a14570a08e9efe7510624))
+
 ## [0.33.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.32.0...v0.33.0) (2026-08-20)
 
 
