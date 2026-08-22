@@ -11,13 +11,45 @@ name: Install smoke test
 # Deliberately does NOT check out the repository. A clean-machine test that uses repo files is not
 # a clean-machine test: it would pick up global.json, Directory.Build.props and NuGet.config, none
 # of which a consumer has. Everything below is created from nothing.
+#
+# ---------------------------------------------------------------------------------------------
+# It verified the PREVIOUS release, every time, until 2026-08-23. Measured across the last eight:
+#
+#   v0.33.4 installed 0.33.3 · v0.33.3 installed 0.33.2 · v0.33.2 installed 0.33.1
+#   v0.33.1 installed 0.33.0 · v0.33.0 installed 0.32.0 · v0.32.0 installed 0.31.1
+#   v0.31.1 installed 0.31.0 · v0.31.0 installed 0.30.0
+#
+# Eight for eight — structural, not a flaky race. Both this workflow and release.yml fired on
+# `release: published`, so they started together, and release.yml has to build, test, run every
+# premise guard, pack and verify BEFORE it pushes. On v0.33.4 this job finished at 05:23:41 and
+# the push happened at 05:25:34. This job could not win that race and never did.
+#
+# Two changes close it, and the second is the load-bearing one:
+#
+#   1. It now triggers on the Release workflow COMPLETING SUCCESSFULLY, not on the release event.
+#      docs.yml already does exactly this, for the same reason.
+#   2. It resolves the version it is supposed to verify and asserts it installed THAT — because
+#      trigger order alone leaves it timing-dependent: nuget.org indexing lags the push by
+#      minutes, so without the assertion it could still quietly fall back to the previous version
+#      and go green. Without part 2 the fix would be unverifiable in the same way the original was.
+#
+# The weakness that produced this was not the race, it was that a green run never said WHICH
+# version it tested. Every run now prints that to the job summary, pass or fail.
+# ---------------------------------------------------------------------------------------------
 
 on:
-  # After a release, because that is when this can newly break.
-  release:
-    types: [published]
+  # After the Release workflow finishes successfully, so the packages are actually pushed by the
+  # time this starts. See the header for why `release: published` was wrong.
+  #
+  # Known gotcha, identical to docs.yml's: workflow_run fires based on this file's state on the
+  # default branch when Release completes, so the first release after this merges is the first
+  # one it can fire for. It cannot retroactively verify an earlier release.
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   # Weekly, because it can also break without us doing anything — a delisted transitive dependency,
-  # or a package validation change at nuget.org.
+  # or a package validation change at nuget.org. A scheduled run has no particular version to
+  # verify and checks whatever is newest, which is the right question to ask on a timer.
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
@@ -30,9 +62,69 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Which version must this run verify? Split into its own job so the install job's steps stay
+  # linear rather than every one of them carrying an `if:`.
+  #
+  # release.yml triggers on BOTH `push: tags` and `release: published`, so one release can produce
+  # two Release runs and therefore two of these. That is safe — everything below is read-only
+  # against nuget.org — and the concurrency group above cancels the older run anyway.
+  resolve:
+    name: resolve the version under test
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.expect.outputs.run }}
+      version: ${{ steps.expect.outputs.version }}
+    steps:
+      - name: Resolve
+        id: expect
+        env:
+          EVENT: ${{ github.event_name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT" != "workflow_run" ]; then
+            # Scheduled or manual: no particular version is under test, verify whatever is newest.
+            echo "run=true"    >> "$GITHUB_OUTPUT"
+            echo "version="    >> "$GITHUB_OUTPUT"
+            echo "No specific version under test ($EVENT) - will verify the newest published."
+            exit 0
+          fi
+
+          if [ "$CONCLUSION" != "success" ]; then
+            echo "::notice::Release concluded '$CONCLUSION', so nothing was published. Nothing to verify."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # For a tag build, workflow_run.head_branch carries the TAG name. A manual dry run of
+          # release.yml carries a branch name instead, and publishes nothing - so there is no
+          # version to verify and this correctly declines to invent one. A manual release WITH
+          # publish ticked also lands here and is skipped; the weekly run covers it. Stated
+          # rather than hidden, because a skip that looks like a pass is the failure this whole
+          # workflow was just repaired for.
+          case "$HEAD_BRANCH" in
+            v[0-9]*)
+              echo "run=true"                       >> "$GITHUB_OUTPUT"
+              echo "version=${HEAD_BRANCH#v}"       >> "$GITHUB_OUTPUT"
+              echo "Verifying ${HEAD_BRANCH#v}, from tag $HEAD_BRANCH."
+              ;;
+            *)
+              echo "::notice::Release ran on '$HEAD_BRANCH', which is not a v* tag - no package was published for this run, so there is nothing to install."
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
   install:
     name: install from nuget.org and run
+    needs: resolve
+    if: needs.resolve.outputs.run == 'true'
     runs-on: ubuntu-24.04
+    env:
+      # Empty means "whatever is newest" - a scheduled or manual run. Non-empty means this run
+      # must install exactly that version and fail if it cannot.
+      EXPECTED: ${{ needs.resolve.outputs.version }}
     steps:
       # NuGet caching is deliberately NOT enabled here, and could not be: this job never
       # checks out the repository - see the header comment for why that is the point - so
@@ -51,32 +143,65 @@ jobs:
       - name: Use an empty NuGet cache
         run: echo "NUGET_PACKAGES=${{ runner.temp }}/empty-nuget-cache" >> "$GITHUB_ENV"
 
-      # On `release: published` the tag exists but nuget.org may not have indexed the package yet -
-      # measured on 0.12.0, indexing lagged the workflow by minutes. Waiting is not flakiness
-      # tolerance; the alternative is a job that fails for a reason that resolves itself.
-      - name: Wait for the package to be indexed
+      # nuget.org indexing lags the push by minutes - measured on 0.12.0. Waiting is not
+      # flakiness tolerance; the alternative is a job that fails for a reason that resolves
+      # itself.
+      #
+      # It now waits for the EXACT version under test, on BOTH packages, rather than for the
+      # feed to answer at all. That difference is the whole repair: the old loop was satisfied
+      # by any version being present, which the previous release always satisfied instantly.
+      - name: Wait for the packages to be indexed
         run: |
+          set -uo pipefail
+
+          index() { curl -sf "https://api.nuget.org/v3-flatcontainer/$1/index.json"; }
+
+          if [ -n "$EXPECTED" ]; then
+            echo "Waiting for $EXPECTED to appear for both packages."
+          else
+            echo "No specific version under test; waiting for the feed to answer."
+          fi
+
           for attempt in $(seq 1 30); do
-            if curl -sf https://api.nuget.org/v3-flatcontainer/ank.doctoolkit/index.json | grep -q '"[0-9]'; then
+            core=$(index ank.doctoolkit || true)
+            ext=$(index ank.doctoolkit.extensions.dependencyinjection || true)
+
+            if [ -n "$EXPECTED" ]; then
+              if printf '%s' "$core" | grep -q "\"$EXPECTED\"" \
+                 && printf '%s' "$ext" | grep -q "\"$EXPECTED\""; then
+                echo "both packages carry $EXPECTED after $attempt attempt(s)"
+                exit 0
+              fi
+            elif printf '%s' "$core" | grep -q '"[0-9]'; then
               echo "index reachable after $attempt attempt(s)"
-              curl -sf https://api.nuget.org/v3-flatcontainer/ank.doctoolkit/index.json | tail -c 200
+              printf '%s' "$core" | tail -c 200
               exit 0
             fi
             sleep 20
           done
-          echo "::error::ank.doctoolkit is not on nuget.org after 10 minutes."
+
+          if [ -n "$EXPECTED" ]; then
+            echo "::error::$EXPECTED is not on nuget.org for both packages after 10 minutes. This job must not fall back to an older version - that is the defect it was repaired for."
+          else
+            echo "::error::ank.doctoolkit is not on nuget.org after 10 minutes."
+          fi
           exit 1
 
       # `dotnet new console` in a temp directory, outside any checkout, is what a consumer starting
       # from nothing actually does.
       - name: Create an empty project and install the DI package alone
         run: |
+          set -euo pipefail
           mkdir -p "${{ runner.temp }}/consumer" && cd "${{ runner.temp }}/consumer"
           dotnet new console -o app
           cd app
           # Added ALONE, deliberately: the core package must arrive transitively. Adding both at
           # once would hide a broken dependency range in the .nuspec.
-          dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
+          if [ -n "$EXPECTED" ]; then
+            dotnet add package Ank.DocToolkit.Extensions.DependencyInjection --version "$EXPECTED"
+          else
+            dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
+          fi
 
       # Two different claims, and only the first is about transitivity.
       #
@@ -96,6 +221,7 @@ jobs:
       # fails only if core does not arrive at all, which IS a broken .nuspec.
       - name: Assert the core package arrives transitively, and report which version
         run: |
+          set -uo pipefail
           cd "${{ runner.temp }}/consumer/app"
           dotnet list package --include-transitive > graph.txt
           cat graph.txt
@@ -132,12 +258,67 @@ jobs:
       # Now add the core package explicitly, so the program below can exercise the CURRENT API.
       # Without this it would compile against whatever the floor resolved to, and a test of the
       # newest release would silently be testing an older one.
-      - name: Add the core package explicitly, at its newest published version
+      - name: Add the core package explicitly
         run: |
+          set -euo pipefail
           cd "${{ runner.temp }}/consumer/app"
-          dotnet add package Ank.DocToolkit
+          if [ -n "$EXPECTED" ]; then
+            dotnet add package Ank.DocToolkit --version "$EXPECTED"
+          else
+            dotnet add package Ank.DocToolkit
+          fi
           dotnet add package Microsoft.Extensions.DependencyInjection
           dotnet list package
+
+      # The load-bearing half of the repair. Everything above can succeed against the WRONG
+      # version - that is exactly what happened eight releases running - so the versions actually
+      # resolved are read back and compared to the one this run exists to verify.
+      #
+      # It reports what it tested on every run, including scheduled ones where there is nothing
+      # to compare against. A green check that does not say which artefact it tested is the
+      # failure this workflow already shipped once.
+      - name: Assert it installed the version this run is verifying
+        run: |
+          set -uo pipefail
+          cd "${{ runner.temp }}/consumer/app"
+          dotnet list package > top.txt
+          cat top.txt
+
+          # Top-level entries have three columns after the marker: package, requested, resolved.
+          core=$(awk '$2 == "Ank.DocToolkit" { print $NF }' top.txt | head -1)
+          ext=$(awk '$2 == "Ank.DocToolkit.Extensions.DependencyInjection" { print $NF }' top.txt | head -1)
+
+          {
+            echo "### Versions actually installed"
+            echo
+            echo "| Package | Installed |"
+            echo "|---|---|"
+            echo "| \`Ank.DocToolkit\` | \`${core:-none}\` |"
+            echo "| \`Ank.DocToolkit.Extensions.DependencyInjection\` | \`${ext:-none}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "$EXPECTED" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "No specific version under test (scheduled or manual run), so nothing is asserted about which version this is - only that it installs and runs." >> "$GITHUB_STEP_SUMMARY"
+            echo "Scheduled/manual run: installed core $core, extensions $ext."
+            exit 0
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verifying release \`$EXPECTED\`." >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          if [ "$core" != "$EXPECTED" ]; then
+            echo "::error::Expected to verify core $EXPECTED but installed '${core:-none}'. This job must test the release it ran for."
+            failed=1
+          fi
+          if [ "$ext" != "$EXPECTED" ]; then
+            echo "::error::Expected to verify extensions $EXPECTED but installed '${ext:-none}'. Both packages publish at the same version from one release run."
+            failed=1
+          fi
+          [ "$failed" -eq 0 ] || exit 1
+
+          echo "Both packages installed at $EXPECTED, which is the release this run was triggered by."
 
       - name: Write a program that uses every capability
         run: |
