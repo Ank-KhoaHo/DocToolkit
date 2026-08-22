@@ -883,7 +883,7 @@ public static class WorkbookEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = AppendRows(bytes, sheetName, rows);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
@@ -1126,7 +1126,7 @@ public static class WorkbookEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = SetCell(bytes, sheetName, cellRef, value);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
@@ -1156,7 +1156,7 @@ public static class WorkbookEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return ReadCell(bytes, sheetName, cellRef);
     }
 
@@ -1180,7 +1180,7 @@ public static class WorkbookEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return SheetNames(bytes);
     }
 
@@ -1213,7 +1213,7 @@ public static class WorkbookEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return ReadSheet(bytes, sheetName);
     }
 

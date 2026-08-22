@@ -545,7 +545,7 @@ public static class DocxEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return TableCount(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
+        return TableCount(await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false));
     }
 
     /// <inheritdoc cref="ReadTable(byte[], int)"/>
@@ -573,7 +573,7 @@ public static class DocxEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return ReadTable(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false), index);
+        return ReadTable(await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false), index);
     }
 
     private static int TableCountCore(Stream ms)
@@ -1224,7 +1224,7 @@ public static class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         ArgumentNullException.ThrowIfNull(replacements);
 
-        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceText(bytes, replacements);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
@@ -1260,7 +1260,7 @@ public static class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = FillRows(bytes, collection, rows);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
@@ -1298,7 +1298,7 @@ public static class DocxEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceImage(bytes, placeholder, image, widthPoints, heightPoints);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
@@ -1339,7 +1339,7 @@ public static class DocxEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return ExtractText(bytes, includeHeadersAndFooters);
     }
 
