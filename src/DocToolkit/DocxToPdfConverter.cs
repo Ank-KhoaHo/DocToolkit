@@ -35,13 +35,19 @@ public static class DocxToPdfConverter
         if (docx.Length == 0)
             throw new ArgumentException("DOCX content was empty.", nameof(docx));
 
+        // Word's default bullet is a Symbol-font glyph in the private-use area, which the PDF
+        // renderer refuses to encode - so a document with a bulleted list could not be rendered at
+        // all. Substituted before loading; see ListMarkerSubstitution for why the replacements are
+        // measured rather than chosen, and why this is a deliberate trade.
+        //
+        // HELD IN A LOCAL because the retry below needs THIS array, not a second substitution of
+        // the same input. See the comment there.
+        byte[]? prepared = null;
+
         try
         {
-            // Word's default bullet is a Symbol-font glyph in the private-use area, which the PDF
-            // renderer refuses to encode - so a document with a bulleted list could not be
-            // rendered at all. Substituted before loading; see ListMarkerSubstitution for why the
-            // replacements are measured rather than chosen, and why this is a deliberate trade.
-            return Render(ListMarkerSubstitution.Apply(docx), fonts);
+            prepared = ListMarkerSubstitution.Apply(docx);
+            return Render(prepared, fonts);
         }
         catch (DocumentConversionException) { throw; }
         catch (Exception ex) when (DocxPdfFailureDiagnosis.IsNegativeIndent(ex))
@@ -55,8 +61,15 @@ public static class DocxToPdfConverter
             // conversion would tax the 71 documents in 99 that never needed it. The retry costs a
             // second render, and only a document that already failed pays it - the same shape as
             // HtmlForPdf's repairs, for the same reason.
-            var clamped = NegativeIndentClamp.Apply(ListMarkerSubstitution.Apply(docx));
-            if (ReferenceEquals(clamped, docx)) throw new DocumentConversionException(
+            //
+            // ClampOrNull takes the array that was actually rendered and answers about THAT one,
+            // so there is no second array here to compare against by mistake. See its remarks for
+            // what the mistake was and why no test can see it from outside.
+            //
+            // Reusing `prepared` also drops a second full ZIP rewrite: this line used to run
+            // ListMarkerSubstitution.Apply again, on every negative-indent retry.
+            var clamped = NegativeIndentClamp.ClampOrNull(prepared ?? docx);
+            if (clamped is null) throw new DocumentConversionException(
                 DocxPdfFailureDiagnosis.Describe(ex) ?? FailureMessage, ex);
 
             try

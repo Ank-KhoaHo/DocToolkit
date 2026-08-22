@@ -48,6 +48,29 @@ internal static class NegativeIndentClamp
         @"\b(w:(?:left|right|start|end))=""-\d+""", RegexOptions.Compiled);
 
     /// <summary>
+    /// The clamped copy, or <see langword="null"/> when there was nothing to clamp.
+    /// </summary>
+    /// <remarks>
+    /// <b>This exists so the caller cannot compare against the wrong array, which it did until
+    /// 2026-08-22.</b> <see cref="Apply"/> returns its input unchanged when it finds nothing, and
+    /// that reference equality is what tells the retry "rendering this again would render
+    /// byte-for-byte what just failed". The caller was comparing the result against the ORIGINAL
+    /// document while clamping a list-substituted copy of it - so for any document containing a
+    /// list the two could never be the same object, the guard could not fire, and the doomed
+    /// second render it exists to prevent was paid anyway.
+    ///
+    /// <para>Taking one array and answering about that array removes the second thing there was to
+    /// get wrong. No test can catch the old mistake from outside - both paths raise the same
+    /// exception with the same message, and only the wasted work differs - so the fix is to make
+    /// it unwritable rather than to watch for it.</para>
+    /// </remarks>
+    internal static byte[]? ClampOrNull(byte[] docx)
+    {
+        var clamped = Apply(docx);
+        return ReferenceEquals(clamped, docx) ? null : clamped;
+    }
+
+    /// <summary>
     /// Returns <paramref name="docx"/> with negative paragraph indents clamped to zero, or the same
     /// array when there are none.
     /// </summary>
