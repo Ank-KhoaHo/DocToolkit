@@ -1,3 +1,7 @@
+---
+description: Every conversion DocToolkit supports, generated from the shipped public API rather than written by hand.
+---
+
 # What it can convert
 
 The complete list, in two tables. **Both are generated** from

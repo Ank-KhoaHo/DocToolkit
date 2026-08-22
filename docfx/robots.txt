@@ -1,0 +1,12 @@
+# Everything published here is meant to be found - this file exists for the Sitemap line
+# below rather than to restrict anything. Without it a crawler has to discover the sitemap
+# by guessing, or by a Search Console submission nobody re-does after a redeploy.
+#
+# Kept in the `resource` list in docfx.json so it lands at the site root. It is NOT copied
+# automatically: DocFX only emits files it is told about, and a robots.txt that never
+# reaches _site looks exactly like one that did.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://ank-khoaho.github.io/DocToolkit/sitemap.xml

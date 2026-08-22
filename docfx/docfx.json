@@ -27,7 +27,8 @@
     "resource": [
       {
         "files": [
-          "images/**"
+          "images/**",
+          "robots.txt"
         ]
       }
     ],
@@ -36,6 +37,11 @@
       "default",
       "modern"
     ],
+    "sitemap": {
+      "baseUrl": "https://ank-khoaho.github.io/DocToolkit/",
+      "priority": 0.5,
+      "changefreq": "weekly"
+    },
     "globalMetadata": {
       "_appName": "DocToolkit",
       "_appTitle": "DocToolkit",

@@ -1,3 +1,7 @@
+---
+description: Create and edit DOCX in .NET - replace text, fill repeating table rows, swap images and read tables back.
+---
+
 # Word documents
 
 @DocToolkit.DocxEditor is the whole DOCX surface: fill a template somebody made in Word, build a

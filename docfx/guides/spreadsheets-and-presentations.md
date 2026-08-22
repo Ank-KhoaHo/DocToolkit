@@ -1,3 +1,7 @@
+---
+description: Read and write XLSX and PPTX from .NET, and render either to PDF, without Excel or PowerPoint installed.
+---
+
 # Spreadsheets and presentations
 
 @DocToolkit.WorkbookEditor covers XLSX and @DocToolkit.PresentationEditor covers PPTX. Both follow

@@ -1,5 +1,7 @@
 ---
 _layout: landing
+title: Convert HTML to PDF and DOCX in .NET without a browser
+description: A .NET library that converts HTML and Markdown to DOCX and PDF and edits DOCX, XLSX and PPTX. Pure managed, no native binaries, no browser, runs on Linux and offline.
 ---
 
 # DocToolkit
