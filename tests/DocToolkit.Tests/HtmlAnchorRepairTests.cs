@@ -306,4 +306,37 @@ public class HtmlAnchorRepairTests
 
         Assert.Contains("Title", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Two wanted targets declared inside the SAME block: the first is promoted onto it, and the
+    /// second cannot be, because a block already carrying an id must not be given a second one.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the case that keeps the satisfied-id set honest.</b> Since 2026-08-22 that set is
+    /// collected once and MAINTAINED across the promotion loop rather than recomputed per target,
+    /// which is only sound because the loop's single edit adds an id and never removes one. A page
+    /// where one promotion changes what the next one sees is the shape that would expose it if that
+    /// reasoning were wrong, so it is pinned rather than left to the corpus.
+    /// </remarks>
+    [Fact]
+    public void TwoTargetsInOneBlock_PromoteTheFirstAndDropTheSecond()
+    {
+        const string html =
+            "<html><body>" +
+            "<a href=\"#alpha\">to alpha</a><a href=\"#beta\">to beta</a>" +
+            "<p><a name=\"alpha\"></a><a name=\"beta\"></a>The only block, with text.</p>" +
+            "</body></html>";
+
+        var repaired = HtmlAnchorRepair.Apply(html);
+
+        // The first target owns the block...
+        Assert.Contains("id=\"alpha\"", repaired);
+        Assert.DoesNotContain("id=\"beta\"", repaired);
+
+        // ...so the link to it still resolves, and the one that cannot be satisfied loses its href
+        // rather than being left pointing at nothing.
+        Assert.Contains("href=\"#alpha\"", repaired);
+        Assert.DoesNotContain("href=\"#beta\"", repaired);
+        Assert.Contains("to beta", repaired);
+    }
 }
