@@ -58,22 +58,44 @@ internal static class HtmlForPdf
     /// <param name="toDocx">Converts prepared HTML to a .docx, carrying whatever options and
     /// cancellation token the calling overload was given.</param>
     /// <param name="fonts">Fonts to fall back to when rendering, or <see langword="null"/> for none.</param>
+    /// <param name="ct">Observed before each attempt and between the two stages of one.</param>
     /// <remarks>
     /// <b>A retry costs a full second conversion, and only a document that already failed pays
     /// it.</b> That is the right way round: the alternative is editing every document in the hope
     /// that some of them needed it.
     /// </remarks>
     internal static async Task<byte[]> RenderAsync(
-        string html, Func<string, Task<byte[]>> toDocx, PdfFontOptions? fonts = null)
+        string html, Func<string, Task<byte[]>> toDocx, PdfFontOptions? fonts = null,
+        CancellationToken ct = default)
     {
         var current = Prepare(html);
         var used = new HashSet<int>();
 
         while (true)
         {
+            // BEFORE EACH ATTEMPT, because a repair costs a whole further conversion and this
+            // loop can run several. A caller who cancelled during attempt one should not pay for
+            // attempt two.
+            ct.ThrowIfCancellationRequested();
+
             try
             {
-                return DocxToPdfConverter.Convert(await toDocx(current).ConfigureAwait(false), fonts);
+                var docx = await toDocx(current).ConfigureAwait(false);
+
+                // BETWEEN THE STAGES, and this is the check the whole parameter exists for.
+                // DocxToPdfConverter.Convert is synchronous, CPU-bound and the expensive half; it
+                // takes no token and cannot be interrupted once entered. Until 2026-08-22 the
+                // token reached only the HTML to DOCX stage, so every HTML to PDF overload
+                // documented an OperationCanceledException it could not raise over most of its
+                // own runtime.
+                //
+                // An already-cancelled token could never have caught that: the first stage
+                // refuses immediately, so the suite went green either way. Same shape as the
+                // seven PdfEditor overloads that passed the cancellation suite only because
+                // destination.WriteAsync refused at the end.
+                ct.ThrowIfCancellationRequested();
+
+                return DocxToPdfConverter.Convert(docx, fonts);
             }
             catch (DocumentConversionException ex)
             {
