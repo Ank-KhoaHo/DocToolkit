@@ -91,15 +91,11 @@ public class ArgumentExceptionNamesADeclaredParameterTests
                         p => p.ParameterType == typeof(string) && p.Name is "path" or "inputPath");
                     if (victim is null) continue;
 
-                    object?[] args;
-                    try
-                    {
-                        args = parameters.Select(p => Placeholder(p, emptyFile, outFile)).ToArray();
-                    }
-                    catch
-                    {
-                        continue;   // cannot build a call for this shape
-                    }
+                    // NOT wrapped in a try that skips on failure. A shape this cannot build must
+                    // fail the test and name itself: silently skipping is how a coverage walk
+                    // quietly stops covering things, which is the vacuity the two assertions at
+                    // the bottom exist to prevent, arriving through a different door.
+                    var args = parameters.Select(p => Placeholder(p, emptyFile, outFile)).ToArray();
 
                     exercised++;
                     var declared = parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
