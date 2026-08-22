@@ -72,8 +72,8 @@ public class ArgumentExceptionNamesADeclaredParameterTests
             .OrderBy(t => t.Name);
 
         var dir = Directory.CreateTempSubdirectory("doctoolkit-paramname");
-        var emptyFile = Path.Combine(dir.FullName, "empty.bin");
-        var outFile = Path.Combine(dir.FullName, "out.bin");
+        var emptyFile = Path.Join(dir.FullName, "empty.bin");
+        var outFile = Path.Join(dir.FullName, "out.bin");
         await File.WriteAllBytesAsync(emptyFile, Array.Empty<byte>());
 
         var exercised = 0;
@@ -83,45 +83,45 @@ public class ArgumentExceptionNamesADeclaredParameterTests
         try
         {
             foreach (var type in types)
-            foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                         .OrderBy(m => m.Name).ThenBy(m => m.GetParameters().Length))
-            {
-                var parameters = method.GetParameters();
-                var victim = parameters.FirstOrDefault(
-                    p => p.ParameterType == typeof(string) && p.Name is "path" or "inputPath");
-                if (victim is null) continue;
-
-                object?[] args;
-                try
+                foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                             .OrderBy(m => m.Name).ThenBy(m => m.GetParameters().Length))
                 {
-                    args = parameters.Select(p => Placeholder(p, emptyFile, outFile)).ToArray();
-                }
-                catch
-                {
-                    continue;   // cannot build a call for this shape
-                }
+                    var parameters = method.GetParameters();
+                    var victim = parameters.FirstOrDefault(
+                        p => p.ParameterType == typeof(string) && p.Name is "path" or "inputPath");
+                    if (victim is null) continue;
 
-                exercised++;
-                var declared = parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
-
-                try
-                {
-                    var returned = method.Invoke(null, args);
-                    if (returned is Task task) await task;
-                }
-                catch (Exception ex)
-                {
-                    var real = ex is TargetInvocationException tie ? tie.InnerException! : ex;
-                    if (real is not ArgumentException arg) continue;
-
-                    observed++;
-                    if (arg.ParamName is null || !declared.Contains(arg.ParamName))
+                    object?[] args;
+                    try
                     {
-                        wrong.Add($"{type.Name}.{method.Name}({string.Join(", ", declared)}) "
-                            + $"threw ArgumentException naming '{arg.ParamName}', which it does not declare");
+                        args = parameters.Select(p => Placeholder(p, emptyFile, outFile)).ToArray();
+                    }
+                    catch
+                    {
+                        continue;   // cannot build a call for this shape
+                    }
+
+                    exercised++;
+                    var declared = parameters.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+
+                    try
+                    {
+                        var returned = method.Invoke(null, args);
+                        if (returned is Task task) await task;
+                    }
+                    catch (Exception ex)
+                    {
+                        var real = ex is TargetInvocationException tie ? tie.InnerException! : ex;
+                        if (real is not ArgumentException arg) continue;
+
+                        observed++;
+                        if (arg.ParamName is null || !declared.Contains(arg.ParamName))
+                        {
+                            wrong.Add($"{type.Name}.{method.Name}({string.Join(", ", declared)}) "
+                                + $"threw ArgumentException naming '{arg.ParamName}', which it does not declare");
+                        }
                     }
                 }
-            }
         }
         finally
         {
