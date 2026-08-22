@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.33.5](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.4...v0.33.5) (2026-08-22)
+
+
+### Changed
+
+* make both packages findable by capability, not just by name ([#341](https://github.com/Ank-KhoaHo/DocToolkit/issues/341)) ([28aaddf](https://github.com/Ank-KhoaHo/DocToolkit/commit/28aaddfb9d997c6f6ebf11b72e596795c83ac619))
+
 ## [0.33.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.3...v0.33.4) (2026-08-22)
 
 
