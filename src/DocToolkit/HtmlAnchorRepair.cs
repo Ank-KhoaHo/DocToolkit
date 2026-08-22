@@ -122,7 +122,9 @@ internal static class HtmlAnchorRepair
     {
         return document.QuerySelectorAll(BlockSelector)
             .Where(b => !string.IsNullOrEmpty(b.Id) && YieldsBookmark(b))
-            .Select(b => b.Id)
+            // `!` because the Where above guarantees it, which the flow analysis cannot see
+            // across a lambda boundary.
+            .Select(b => b.Id!)
             .ToHashSet(StringComparer.Ordinal);
     }
 
