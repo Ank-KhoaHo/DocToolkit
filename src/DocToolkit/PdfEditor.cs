@@ -45,14 +45,11 @@ public static class PdfEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        // `await using var source = ...` would leave the DISPOSAL await unconfigured, which is a
-        // second await the declaration form gives no place to put ConfigureAwait on. Configuring
-        // the disposable and scoping it with a block is the only way to reach it.
-        var source = File.OpenRead(path);
-        await using (source.ConfigureAwait(false))
-        {
-            return await PageCountAsync(source, ct).ConfigureAwait(false);
-        }
+        // Reads the bytes rather than handing a FileStream to the Stream overload, so an empty
+        // file is reported against `path` and not against that overload's `source`. Nothing is
+        // lost by it: the Stream overload drains its source into an array before doing anything,
+        // so this was never the streaming path it looked like.
+        return PageCount(await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -110,7 +107,7 @@ public static class PdfEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return ExtractText(await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false));
+        return ExtractText(await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false));
     }
 
     /// <summary>

@@ -96,8 +96,6 @@ public static class DocToDocxConverter
     private static ConversionResult<byte[]> ConvertCore(byte[] doc, LegacyDocOptions? options)
     {
         ArgumentNullException.ThrowIfNull(doc);
-        if (doc.Length == 0)
-            throw new ArgumentException("DOC content was empty.", nameof(doc));
 
         using var word = Open(doc, nameof(doc));
 
@@ -148,8 +146,6 @@ public static class DocToDocxConverter
     public static string ExtractText(byte[] doc)
     {
         ArgumentNullException.ThrowIfNull(doc);
-        if (doc.Length == 0)
-            throw new ArgumentException("DOC content was empty.", nameof(doc));
 
         using var word = Open(doc, nameof(doc));
         try
@@ -248,7 +244,13 @@ public static class DocToDocxConverter
     /// </summary>
     private static WordDocument Open(byte[] doc, string paramName)
     {
-        _ = paramName;
+        // paramName was accepted and DISCARDED until 2026-08-22 - `_ = paramName;` - while both
+        // callers repeated this check themselves. Centralised here for the reason PdfEditor.Open
+        // records beside the identical check: when each entry point carries its own, one of them
+        // eventually does not, and the same input gets answered two different ways by one class.
+        // That is not hypothetical there, and there is no reason to wait for it here.
+        if (doc.Length == 0)
+            throw new ArgumentException("DOC content was empty.", paramName);
 
         // Not writable: nothing here edits the source, and the import reads it whole.
         using var input = new MemoryStream(doc, writable: false);

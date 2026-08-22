@@ -82,7 +82,7 @@ public static class DocxToPdfConverter
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
-        File.WriteAllBytes(outputPath, Convert(File.ReadAllBytes(inputPath)));
+        File.WriteAllBytes(outputPath, Convert(FilePipeline.Read(inputPath, nameof(inputPath))));
     }
 
     /// <summary>

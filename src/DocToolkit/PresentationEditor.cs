@@ -612,7 +612,7 @@ public static class PresentationEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return SlideCount(bytes);
     }
 
@@ -637,7 +637,7 @@ public static class PresentationEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var bytes = await File.ReadAllBytesAsync(path, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return ExtractText(bytes);
     }
 
@@ -673,7 +673,7 @@ public static class PresentationEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceText(bytes, replacements);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
@@ -718,7 +718,7 @@ public static class PresentationEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var bytes = await File.ReadAllBytesAsync(inputPath, ct).ConfigureAwait(false);
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceImage(bytes, placeholder, image);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }

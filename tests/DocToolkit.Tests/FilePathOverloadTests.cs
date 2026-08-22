@@ -158,12 +158,26 @@ public class FilePathOverloadTests
 
     /// <summary>
     /// A zero-byte input file (an interrupted download, a pre-created placeholder) is not a blank
-    /// path, so it does not fail the path validation the docs lead with — it reaches the byte[]
-    /// overload's own empty-content check instead, and surfaces that overload's
-    /// <see cref="ArgumentException.ParamName"/> ("docx"), not the file-path parameter the caller
-    /// actually passed. This is documented behaviour, not a bug, so it is pinned here rather than
-    /// left to be "fixed" into a different exception later.
+    /// path, so it does not fail the path validation the docs lead with. It must still be reported
+    /// against the parameter the caller actually passed.
     /// </summary>
+    /// <remarks>
+    /// <b>THIS TEST USED TO PIN THE OPPOSITE, and the pin was wrong.</b> It asserted
+    /// <c>ParamName == "docx"</c> and called that "documented behaviour, not a bug … pinned here
+    /// rather than left to be 'fixed' into a different exception later".
+    ///
+    /// <para>The documentation says the opposite. This overload's own
+    /// <c>&lt;exception cref="ArgumentException"&gt;</c> tag reads <i>"<c>path</c> is blank, or the
+    /// file it names is empty"</i> — and twelve more file-path overloads attribute the empty-file
+    /// case to <c>path</c> or <c>inputPath</c> the same way. So the behaviour disagreed with the
+    /// XML docs that ship and render on the API site, rather than implementing them.</para>
+    ///
+    /// <para>Nineteen overloads across six types did this. The review that filed it had found two;
+    /// the rest came from walking the public surface, which is what
+    /// <see cref="ArgumentExceptionNamesADeclaredParameterTests"/> now does on every run. The pin
+    /// is kept — pointed the other way — because the case still deserves an explicit assertion
+    /// rather than only a generated one.</para>
+    /// </remarks>
     [Fact]
     public async Task AZeroByteInputFile_ThrowsArgumentException_OnAReadOverload()
     {
@@ -173,10 +187,11 @@ public class FilePathOverloadTests
         var ex = await Assert.ThrowsAsync<ArgumentException>(
             () => DocxEditor.ExtractTextAsync(input.Path));
 
-        Assert.Equal("docx", ex.ParamName);
+        Assert.Equal("path", ex.ParamName);
     }
 
-    /// <summary>Same pin as above, for a transform rather than a pure read.</summary>
+    /// <summary>Same as above, for a transform rather than a pure read — so the parameter named
+    /// is <c>inputPath</c>, which is what that signature calls it.</summary>
     [Fact]
     public async Task AZeroByteInputFile_ThrowsArgumentException_OnATransform()
     {
@@ -187,7 +202,7 @@ public class FilePathOverloadTests
         var ex = await Assert.ThrowsAsync<ArgumentException>(
             () => DocxEditor.ReplaceTextAsync(input.Path, output.Path, Replacements()));
 
-        Assert.Equal("docx", ex.ParamName);
+        Assert.Equal("inputPath", ex.ParamName);
     }
 
     [Fact]
