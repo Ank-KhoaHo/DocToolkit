@@ -2,7 +2,7 @@
 description: Running DocToolkit in production - Linux and containers, air-gapped hosts, fonts, cancellation and telemetry.
 ---
 
-# Running in production
+# Run document conversion in production: Linux, Docker and air-gapped hosts
 
 The things that stop being theoretical once this is serving traffic: memory, containers, fonts,
 trimming, and knowing when a document came out wrong.

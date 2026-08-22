@@ -2,7 +2,7 @@
 description: Convert Markdown to DOCX and PDF in .NET, and export DOCX back to Markdown - including what a conversion drops.
 ---
 
-# Markdown, and what a conversion drops
+# Convert Markdown to DOCX and PDF in .NET, and what a conversion drops
 
 Markdown is the format that documentation, changelogs, release notes and model output already
 arrive in. @DocToolkit.MarkdownToDocxConverter and @DocToolkit.MarkdownToPdfConverter take it

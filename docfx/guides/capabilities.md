@@ -2,7 +2,7 @@
 description: Every conversion DocToolkit supports, generated from the shipped public API rather than written by hand.
 ---
 
-# What it can convert
+# Supported conversions: HTML, Markdown, DOCX, XLSX, PPTX and PDF
 
 The complete list, in two tables. **Both are generated** from
 `tests/DocToolkit.Tests/PublicApi/DocToolkit.approved.txt` — the reviewed record of what the package
