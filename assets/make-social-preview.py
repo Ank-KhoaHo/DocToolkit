@@ -13,13 +13,26 @@ package icon read as one thing.
 
 Rendered at 3x and box-downsampled; hard edges at this size look cheap otherwise.
 
+Two outputs, ONE design. The README banner is the same artwork on a shorter canvas rather than a
+second file to keep in step - see YOFF below.
+
 Usage:
-    python make-social-preview.py social-preview.png
+    python make-social-preview.py social-preview.png       # 1280x640, the social preview
+    python make-social-preview.py --banner banner.png      # 1280x360, the README banner
 """
 import zlib, struct, sys
 
 S = 3                                   # supersample factor
 W, H = 1280, 640                        # GitHub's recommended size
+
+# The README banner is the SAME artwork on a shorter canvas, not a second design. Every layout
+# constant below is in card coordinates; YOFF slides that content up so a 360-tall canvas frames
+# it. Two designs would drift apart, which is the whole reason this is one file.
+#
+# The numbers are derived, not guessed: content runs from y=196 (top of the wordmark) to y=476
+# (bottom of the second subtitle), so 280px of content. On a 360 canvas a 155 shift leaves 41
+# above and 39 below. Change a layout constant and re-derive rather than nudging this.
+YOFF = 0
 
 NAVY   = (0x1B, 0x2A, 0x4E)
 PAGE   = (0xFF, 0xFF, 0xFF)
@@ -114,7 +127,7 @@ RULE_Y, RULE_H, RULE_W = 356, 6, text_w(TAG, TG_S)
 
 
 def shade(px, py):
-    x, y = px / S, py / S
+    x, y = px / S, py / S + YOFF
     xi, yi = int(x), int(y)
     if (xi, yi) in wm:
         return PAGE
@@ -161,4 +174,10 @@ def main(path):
     print("wrote %s: %d bytes, %dx%d RGB (GitHub cap is 1 MB)" % (path, len(png), W, H))
 
 
-main(sys.argv[1] if len(sys.argv) > 1 else "social-preview.png")
+if "--banner" in sys.argv:
+    # Same artwork, README aspect. Written as a separate invocation rather than a second script.
+    H, YOFF = 360, 155
+    args = [a for a in sys.argv[1:] if a != "--banner"]
+    main(args[0] if args else "banner.png")
+else:
+    main(sys.argv[1] if len(sys.argv) > 1 else "social-preview.png")
