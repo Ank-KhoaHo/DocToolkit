@@ -923,10 +923,17 @@ public static class WorkbookEditor
                 + "encrypted .xlsx, which WorkbookEditor.Unprotect will open with its password.");
         }
 
-        var ms = new MemoryStream();
-        ms.Write(xlsx, 0, xlsx.Length);
-        ms.Position = 0;
-        return new XLWorkbook(ms);
+        // Zero-copy and disposed, matching every other call site in this file. It used to copy the
+        // whole workbook into a growable MemoryStream and never dispose it - on the 1.9 MB,
+        // 40,000-row workbook this repository has measured at ~120 MB peak, a full extra copy plus
+        // the doubling garbage a growable stream makes, for no benefit.
+        //
+        // Disposing here is safe for the reason PdfEditor.Open records for PdfSharp: ClosedXML
+        // reads the whole package during construction, so the stream is not needed afterwards.
+        // Asserted by the WorkbookEditor suite rather than assumed - every read, write and export
+        // path goes through this method.
+        using var source = new MemoryStream(xlsx, writable: false);
+        return new XLWorkbook(source);
     }
 
     private static IXLWorksheet Sheet(XLWorkbook workbook, string sheetName)

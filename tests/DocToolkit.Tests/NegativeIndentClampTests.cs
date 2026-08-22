@@ -153,4 +153,50 @@ public class NegativeIndentClampTests
         Assert.Contains("TITLE", text, StringComparison.Ordinal);
         Assert.Contains("BODY", text, StringComparison.Ordinal);
     }
+
+    // ---- ClampOrNull, and the premise the retry guard rests on -------------------------------
+
+    /// <summary>
+    /// Nothing to clamp is reported as <c>null</c>, and it is reported about the array it was
+    /// GIVEN - not about whatever the caller started with.
+    /// </summary>
+    /// <remarks>
+    /// <b>This pins the premise that the caller got wrong.</b> Until 2026-08-22
+    /// <c>DocxToPdfConverter</c> clamped a list-substituted copy of the document and then compared
+    /// the result against the ORIGINAL, so for any document containing a list the references could
+    /// never match, the "nothing to clamp" guard could not fire, and a doomed second render was
+    /// paid anyway.
+    ///
+    /// <para>Both assertions below are that premise: substitution really does hand back a
+    /// different object, and the clamp really does hand back the same one. Neither is obvious, and
+    /// the bug lived in the gap between them.</para>
+    /// </remarks>
+    [Fact]
+    public void ClampOrNull_NothingToClamp_IsNull_EvenWhenTheInputIsNotTheOriginalDocument()
+    {
+        // The real fixture, not a stand-in: substitution only acts on a package that has a
+        // numbering part, which DocxEditor.Create does not produce.
+        var original = File.ReadAllBytes(Path.Join("assets", "word-bullets.docx"));
+        var prepared = ListMarkerSubstitution.Apply(original);
+
+        // The premise that broke the old comparison: substitution returns a NEW array.
+        Assert.NotSame(original, prepared);
+
+        // And the premise the guard needs: nothing to clamp means null, about `prepared`.
+        Assert.Null(NegativeIndentClamp.ClampOrNull(prepared));
+    }
+
+    [Fact]
+    public void ClampOrNull_SomethingToClamp_ReturnsTheClampedCopy()
+    {
+        // The positive control. Without it, a ClampOrNull that returned null unconditionally would
+        // pass the test above and look correct.
+        var docx = WithIndent("w:left=\"-360\"");
+
+        var clamped = NegativeIndentClamp.ClampOrNull(docx);
+
+        Assert.NotNull(clamped);
+        Assert.NotSame(docx, clamped);
+        Assert.DoesNotContain("-360", DocumentXml(clamped!));
+    }
 }
