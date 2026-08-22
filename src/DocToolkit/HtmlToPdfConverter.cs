@@ -50,7 +50,8 @@ public static class HtmlToPdfConverter
         ArgumentNullException.ThrowIfNull(fonts);
 
         return await HtmlForPdf.RenderAsync(
-            html, h => HtmlToDocxConverter.ConvertAsync(h, PageSetup.A4, ct), fonts).ConfigureAwait(false);
+            html, h => HtmlToDocxConverter.ConvertAsync(h, PageSetup.A4, ct), fonts, ct)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -90,7 +91,7 @@ public static class HtmlToPdfConverter
         string html, PageSetup page, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(html);
-        return await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, ct)).ConfigureAwait(false);
+        return await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, ct), ct: ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -111,12 +112,7 @@ public static class HtmlToPdfConverter
         string html, bool allowRemoteImageDownload, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(html);
-        return await HtmlForPdf.RenderAsync(html, async h =>
-        {
-            var d = await HtmlToDocxConverter.ConvertAsync(h, allowRemoteImageDownload, ct).ConfigureAwait(false);
-            ct.ThrowIfCancellationRequested();
-            return d;
-        }).ConfigureAwait(false);
+        return await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, allowRemoteImageDownload, ct), ct: ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -148,12 +144,7 @@ public static class HtmlToPdfConverter
         ArgumentNullException.ThrowIfNull(html);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
-        return await HtmlForPdf.RenderAsync(html, async h =>
-        {
-            var d = await HtmlToDocxConverter.ConvertAsync(h, options, ct).ConfigureAwait(false);
-            ct.ThrowIfCancellationRequested();
-            return d;
-        }).ConfigureAwait(false);
+        return await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, options, ct), ct: ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -208,7 +199,7 @@ public static class HtmlToPdfConverter
         ct.ThrowIfCancellationRequested();
 
         await EmitAsync(
-            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, ct))
+            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, ct), ct: ct)
                 .ConfigureAwait(false),
             destination, ct).ConfigureAwait(false);
     }
@@ -280,7 +271,7 @@ public static class HtmlToPdfConverter
         // buffering, and what it was costing not to.
         await EmitAsync(
             await HtmlForPdf.RenderAsync(
-                html, h => HtmlToDocxConverter.ConvertAsync(h, allowRemoteImageDownload, ct))
+                html, h => HtmlToDocxConverter.ConvertAsync(h, allowRemoteImageDownload, ct), ct: ct)
                 .ConfigureAwait(false),
             destination, ct).ConfigureAwait(false);
     }
@@ -332,7 +323,7 @@ public static class HtmlToPdfConverter
         ct.ThrowIfCancellationRequested();
 
         await EmitAsync(
-            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, options, ct))
+            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, options, ct), ct: ct)
                 .ConfigureAwait(false),
             destination, ct).ConfigureAwait(false);
     }
@@ -363,12 +354,7 @@ public static class HtmlToPdfConverter
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
-        return await HtmlForPdf.RenderAsync(html, async h =>
-        {
-            var d = await HtmlToDocxConverter.ConvertAsync(h, page, options, ct).ConfigureAwait(false);
-            ct.ThrowIfCancellationRequested();
-            return d;
-        }).ConfigureAwait(false);
+        return await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, options, ct), ct: ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc cref="ConvertAsync(string, PageSetup, RemoteImageOptions, CancellationToken)"/>
@@ -388,7 +374,7 @@ public static class HtmlToPdfConverter
         ct.ThrowIfCancellationRequested();
 
         await EmitAsync(
-            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, options, ct))
+            await HtmlForPdf.RenderAsync(html, h => HtmlToDocxConverter.ConvertAsync(h, page, options, ct), ct: ct)
                 .ConfigureAwait(false),
             destination, ct).ConfigureAwait(false);
     }
