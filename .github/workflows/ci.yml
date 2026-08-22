@@ -731,6 +731,15 @@ jobs:
       - name: Assert every guide snippet resolves to a real region
         run: python3 scripts/check-doc-snippets.py
 
+      # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
+      # documentation tag, so the build stays green under -warnaserror while DocFX renders
+      # whichever block it picks and the API site describes the wrong member. Three instances
+      # were found this way on 2026-08-22, each a block copied from a neighbour and left stacked.
+      - name: Assert no doc comment carries a duplicated block
+        run: |
+          python3 scripts/check-doc-blocks.py --self-test
+          python3 scripts/check-doc-blocks.py
+
       # THE DOCUMENTATION LAYOUT, and it runs here knowing CI can only see half of it.
       #
       # BACKLOG.html and docs/ are gitignored - this repository is public and a backlog is not a

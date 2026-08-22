@@ -25,6 +25,15 @@ namespace DocToolkit;
 /// </remarks>
 internal static class DocxPdfFailureDiagnosis
 {
+    /// <summary>Whether this is the negative-indent refusal, which is repairable.</summary>
+    /// <remarks>
+    /// Exposed separately from <see cref="Describe"/> because the caller needs to act on this one
+    /// rather than only report it - it is the single failure here with a repair, and matching it in
+    /// two places would be two things to keep in step.
+    /// </remarks>
+    internal static bool IsNegativeIndent(Exception ex) =>
+        (ex.Message ?? string.Empty).Contains("indent must be a non-negative", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Returns a message naming the cause, or <see langword="null"/> when the failure is not one of
     /// the recognised shapes and the caller should use its generic wrapper.
@@ -35,15 +44,6 @@ internal static class DocxPdfFailureDiagnosis
     /// <see cref="HtmlFailureDiagnosis"/> - name only a cause that can be told apart, and let
     /// anything unrecognised keep the generic wrapper.
     /// </remarks>
-    /// <summary>Whether this is the negative-indent refusal, which is repairable.</summary>
-    /// <remarks>
-    /// Exposed separately from <see cref="Describe"/> because the caller needs to act on this one
-    /// rather than only report it - it is the single failure here with a repair, and matching it in
-    /// two places would be two things to keep in step.
-    /// </remarks>
-    internal static bool IsNegativeIndent(Exception ex) =>
-        (ex.Message ?? string.Empty).Contains("indent must be a non-negative", StringComparison.OrdinalIgnoreCase);
-
     internal static string? Describe(Exception ex)
     {
         var message = ex.Message ?? string.Empty;

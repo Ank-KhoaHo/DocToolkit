@@ -10,20 +10,6 @@ namespace DocToolkit;
 public static class HtmlToPdfConverter
 {
     /// <summary>
-    /// Converts <paramref name="html"/> straight to PDF bytes.
-    ///
-    /// <b>No network access, and safe in an air-gapped environment.</b> Nothing the markup
-    /// references is fetched, and no font is resolved over the network - see
-    /// <see cref="ConvertAsync(string, bool, CancellationToken)"/> to opt in.
-    /// </summary>
-    /// <exception cref="ArgumentNullException"><paramref name="html"/> is null.</exception>
-    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
-    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
-    /// <remarks>
-    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
-    /// <see cref="ConvertAsync(string, PageSetup, CancellationToken)"/> for anything else.
-    /// </remarks>
-    /// <summary>
     /// Converts <paramref name="html"/> straight to PDF bytes, using <paramref name="fonts"/> for
     /// characters the renderer cannot otherwise encode.
     /// </summary>
@@ -36,6 +22,9 @@ public static class HtmlToPdfConverter
     /// Nothing is fetched, exactly as with <see cref="ConvertAsync(string, CancellationToken)"/>:
     /// the font comes from the caller as bytes. See <see cref="PdfFontOptions"/> for the one side
     /// effect worth knowing about.
+    ///
+    /// The document is laid out on <see cref="PageSetup.A4"/>. Use
+    /// <see cref="ConvertAsync(string, PageSetup, CancellationToken)"/> for anything else.
     /// </remarks>
     /// <param name="html">The markup to convert.</param>
     /// <param name="fonts">Fonts to fall back to.</param>
