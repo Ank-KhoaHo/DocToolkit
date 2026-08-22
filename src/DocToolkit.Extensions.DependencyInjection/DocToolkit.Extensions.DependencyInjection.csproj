@@ -21,12 +21,23 @@
     <Description>
       Dependency-injection registration for Ank.DocToolkit. services.AddDocToolkit() registers one
       injectable interface per capability - conversion between HTML, Markdown, DOCX, PDF, XLSX and
-      PPTX, plus the DOCX/XLSX/PPTX/PDF editors - over the same pure-managed logic, for ASP.NET Core
-      and worker-service consumers.
+      PPTX, plus the DOCX/XLSX/PPTX/PDF editors - over the same pure-managed logic: no browser, no
+      Chromium, no native binaries, no LibreOffice. For ASP.NET Core and worker-service consumers.
     </Description>
     <!-- Same three groups as the core package; see its csproj for why. The DI words stay first
-         because someone searching for them is already most of the way to this package. -->
-    <PackageTags>docx;pdf;xlsx;pptx;word;excel;dependency-injection;aspnetcore;openxml;linux;cross-platform;offline</PackageTags>
+         because someone searching for them is already most of the way to this package.
+
+         SEVEN ADDED 2026-08-23 (F7). This list was WORSE than the core package's: it carried no
+         conversion capability at all - not html-to-docx, not docx-to-pdf, not html-to-pdf - so the
+         package could not be found by any capability it exposes, only by the fact that it does
+         dependency injection. Someone searching `html to pdf dependency injection` had no way to
+         reach it.
+
+         Held to the capabilities plus the two constraints that matter most, rather than mirroring
+         the core package's full list: this package's own differentiator IS the DI registration,
+         and the core package is what a capability search should land on. See the core csproj for
+         the dilution argument and for why this is unverified until F7 step 4 re-measures. -->
+    <PackageTags>dependency-injection;aspnetcore;docx;pdf;xlsx;pptx;word;excel;openxml;html-to-docx;html-to-pdf;docx-to-pdf;browserless;no-native-binaries;linux;cross-platform;offline;csharp;dotnet</PackageTags>
   </PropertyGroup>
 
   <!-- README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by src/Directory.Build.props. -->

@@ -26,12 +26,28 @@
       D20's nuspec check proves this field is NON-EMPTY. Nothing can prove it is COMPLETE, which is
       why the checklist item stayed human - and why it took a person working that list to find it.
     -->
+    <!--
+      REORDERED 2026-08-23, NOT REWRITTEN, and the distinction is the point. F7 measured this
+      package at rank >50 on nuget.org for every query it exists to answer, including
+      `html to pdf without browser` - which returns ONE result across all of nuget.org, and it is
+      not this package. nuget.org searches the description, and the winning package leads with the
+      constraint; this one buried "no native binaries, no browser" in its FOURTH line behind a
+      60-word capability list.
+
+      So the first sentence now leads with the job and the constraint, and the inventory follows.
+      ALL TWELVE CONVERSION PAIRS ARE STILL NAMED - re-checked pair by pair against
+      docfx/guides/capabilities.md when this was reordered, which is the check the two failures
+      above exist to enforce. Do not trade completeness for brevity here: an omission is the
+      failure this field has already had twice, and the second one was invisible to any reading
+      that asked "is DOCX mentioned?" rather than "is DOCX to PDF mentioned?".
+    -->
     <Description>
-      Convert HTML and Markdown to DOCX and PDF; render DOCX, XLSX and PPTX to PDF; export DOCX to
-      HTML/Markdown and XLSX to CSV/HTML; read legacy Word 97-2003 .doc files; read text out of a
-      PDF; create/edit DOCX, XLSX and PPTX; and password-protect PDF, DOCX, XLSX and PPTX - pure
-      managed, no native binaries, no browser, no LibreOffice, no Office interop. Runs on Linux,
-      Windows and macOS, and makes no network calls at runtime.
+      Convert HTML to PDF and DOCX in C# without a browser - pure managed, no Chromium, no
+      wkhtmltopdf, no native binaries, no LibreOffice, no Office interop. Also converts Markdown to
+      DOCX and PDF; renders DOCX, XLSX and PPTX to PDF; exports DOCX to HTML/Markdown and XLSX to
+      CSV/HTML; reads legacy Word 97-2003 .doc files; reads text out of a PDF; creates/edits DOCX,
+      XLSX and PPTX; and password-protects PDF, DOCX, XLSX and PPTX. Runs on Linux, Windows, macOS
+      and arm64, and makes no network calls at runtime.
     </Description>
     <!--
       Three groups, and the ORDER of thought matters more than the list. The old set was eight
@@ -50,8 +66,40 @@
       DELIBERATELY NOT KEYWORD-STUFFED. nuget.org dilutes relevance across a package's tags, so
       twenty weak tags rank worse than ten strong ones. Adding a tag has a cost; keep this list
       short and argue for anything new.
+
+      TEN ADDED 2026-08-23 (F7), which stretches that last rule, so here is the argument.
+
+      The rule above is an ASSERTION, not a measurement - nothing here has ever measured dilution.
+      What F7 did measure is that this package ranks >50 for every query it exists to answer, and
+      that `html to pdf`, the capability the package LEADS WITH, was not a tag at all. It was a
+      GitHub topic and not a NuGet tag, which is the exact surface mismatch F7 was filed about.
+
+        - html-to-pdf, html2pdf   the flagship capability, and the spelling people actually type.
+        - pdf-generation          a 1,879-hit query this package answers.
+        - document-conversion     a 310-hit query, and already a GitHub topic - the two surfaces
+                                  disagreed, which is the whole of F7.
+        - browserless, no-chromium, no-native-binaries, air-gapped
+                                  the CONSTRAINT vocabulary. This is the winnable ground: the head
+                                  terms belong to libraries with tens of millions of downloads and
+                                  cannot be taken with metadata, while `html to pdf without
+                                  browser` returns ONE result across all of nuget.org. Every one of
+                                  these four is enforced by a premise guard, so none is a claim the
+                                  package cannot support - the same rule D32 set for README SEO.
+        - csharp, dotnet          NOT for their own sake, which would be hopeless. NuGet ranks
+                                  higher when metadata contains ALL of a query's terms, and
+                                  `generate pdf c#` was one of the measured failures.
+
+      TWO OF F7's PROPOSED TAGS WERE DELIBERATELY HELD BACK, to limit exactly the dilution the rule
+      above warns about: `pure-managed` (a synonym of no-native-binaries, no measured query) and
+      `document-generation` (a near-duplicate of document-conversion, no measured query).
+
+      THIS IS UNVERIFIED UNTIL RE-MEASURED. F7 step 4 is to re-run the same queries once the next
+      release reaches the index, which lags one to two days, and record before/after in the ticket.
+      Tags are necessary and not sufficient: this package already carried `html-to-docx` and still
+      does not reach the top 20 for `html to docx`, because download count weighs heavily. If the
+      re-measurement shows no movement, the honest response is to cut back, not to add more.
     -->
-    <PackageTags>docx;pdf;xlsx;pptx;word;excel;powerpoint;openxml;html-to-docx;docx-to-pdf;mail-merge;linux;cross-platform;offline</PackageTags>
+    <PackageTags>docx;pdf;xlsx;pptx;word;excel;powerpoint;openxml;html-to-docx;html-to-pdf;html2pdf;docx-to-pdf;pdf-generation;document-conversion;mail-merge;browserless;no-chromium;no-native-binaries;air-gapped;linux;cross-platform;offline;csharp;dotnet</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
