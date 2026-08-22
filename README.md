@@ -1,3 +1,5 @@
+![DocToolkit - convert HTML to PDF and DOCX in C#, no browser, no native binaries](assets/banner.png)
+
 # DocToolkit
 
 [![CI](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml)
@@ -6,15 +8,10 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.svg)](https://www.nuget.org/packages/Ank.DocToolkit/)
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
-**A C# library to convert HTML to PDF without a headless browser** — and to convert HTML and
-Markdown → DOCX and PDF, export **DOCX → HTML/Markdown** and **XLSX → CSV/HTML**, read legacy
-Word 97-2003 **.doc** files, read text out of a **PDF**, open/edit **DOCX, XLSX and PPTX**, and
-**password-protect** any of them, from .NET.
-
-**Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.** No Chromium
-to install, no `wkhtmltopdf`, no Word on the server. Works after `dotnet restore` alone, runs on
-Linux, macOS, Windows and arm64 — including inside a container — and makes **no network calls at
-runtime**.
+**A C# library to convert HTML to PDF without a headless browser** — plus Markdown → DOCX/PDF,
+**DOCX → HTML/Markdown**, **XLSX → CSV/HTML**, legacy **.doc**, PDF text, and open/edit/**password-protect**
+for **DOCX, XLSX and PPTX**. **Pure managed** — no native binaries, no browser, no LibreOffice, no Office
+interop; runs on Linux, macOS, Windows and arm64, and makes **no network calls at runtime**.
 
 ```bash
 dotnet add package Ank.DocToolkit
@@ -286,3 +283,8 @@ the package page.
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+If this replaced a headless browser in your build, a star helps others find it — GitHub's
+repository search ranks partly on stars, and this one has three.
