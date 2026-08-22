@@ -1,3 +1,7 @@
+---
+description: Install Ank.DocToolkit and convert HTML to a Word document or PDF in C#, with no browser engine and no native binaries.
+---
+
 # Getting started
 
 DocToolkit converts HTML into Word documents and PDFs, and reads and edits DOCX, XLSX and PPTX

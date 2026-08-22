@@ -1,3 +1,7 @@
+---
+description: Running DocToolkit in production - Linux and containers, air-gapped hosts, fonts, cancellation and telemetry.
+---
+
 # Running in production
 
 The things that stop being theoretical once this is serving traffic: memory, containers, fonts,
