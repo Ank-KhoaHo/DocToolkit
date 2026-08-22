@@ -10,6 +10,20 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.33.4](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.3...v0.33.4) (2026-08-22)
+
+
+### Fixed
+
+* **core:** name the parameter the caller passed, not the one underneath ([#334](https://github.com/Ank-KhoaHo/DocToolkit/issues/334)) ([2b643e7](https://github.com/Ank-KhoaHo/DocToolkit/commit/2b643e70f71150297275303a36382d45fc0a4795))
+* **core:** observe the cancellation token through the PDF render, not just the DOCX stage ([#333](https://github.com/Ank-KhoaHo/DocToolkit/issues/333)) ([d4a058c](https://github.com/Ank-KhoaHo/DocToolkit/commit/d4a058cb8207abac35365be2efcce70b4f6c9586))
+
+
+### Changed
+
+* **core:** resolve in-page link targets in one pass instead of one per link ([#336](https://github.com/Ank-KhoaHo/DocToolkit/issues/336)) ([fd3e52e](https://github.com/Ank-KhoaHo/DocToolkit/commit/fd3e52ec0069017cf4abffc3db8a5034790d0883))
+* **core:** stop paying for a retry that cannot help, and for a copy nothing needs ([#338](https://github.com/Ank-KhoaHo/DocToolkit/issues/338)) ([8604d21](https://github.com/Ank-KhoaHo/DocToolkit/commit/8604d212efa175b0da0572852c2bac63c75ebb68))
+
 ## [0.33.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.2...v0.33.3) (2026-08-21)
 
 
