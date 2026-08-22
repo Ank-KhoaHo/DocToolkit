@@ -15,14 +15,28 @@ repo-wide tooling (CI, release pipeline).
 
 ### Fixed
 
-* **core:** name the parameter the caller passed, not the one underneath ([#334](https://github.com/Ank-KhoaHo/DocToolkit/issues/334)) ([2b643e7](https://github.com/Ank-KhoaHo/DocToolkit/commit/2b643e70f71150297275303a36382d45fc0a4795))
-* **core:** observe the cancellation token through the PDF render, not just the DOCX stage ([#333](https://github.com/Ank-KhoaHo/DocToolkit/issues/333)) ([d4a058c](https://github.com/Ank-KhoaHo/DocToolkit/commit/d4a058cb8207abac35365be2efcce70b4f6c9586))
+* **Core: a cancellation token now reaches the PDF render, not only the HTML-to-DOCX stage.**
+  Every HTML-to-PDF overload documents an `OperationCanceledException`. Until now the render -
+  the slower half, which a repair can run more than once - could not be interrupted once it had
+  started ([#333](https://github.com/Ank-KhoaHo/DocToolkit/issues/333)) ([d4a058c](https://github.com/Ank-KhoaHo/DocToolkit/commit/d4a058cb8207abac35365be2efcce70b4f6c9586))
 
 
 ### Changed
 
-* **core:** resolve in-page link targets in one pass instead of one per link ([#336](https://github.com/Ank-KhoaHo/DocToolkit/issues/336)) ([fd3e52e](https://github.com/Ank-KhoaHo/DocToolkit/commit/fd3e52ec0069017cf4abffc3db8a5034790d0883))
-* **core:** stop paying for a retry that cannot help, and for a copy nothing needs ([#338](https://github.com/Ank-KhoaHo/DocToolkit/issues/338)) ([8604d21](https://github.com/Ank-KhoaHo/DocToolkit/commit/8604d212efa175b0da0572852c2bac63c75ebb68))
+* **Core: a file-path overload handed a ZERO-BYTE FILE now names the parameter you passed.**
+  It raises `ArgumentException` with `ParamName` `path` or `inputPath`, rather than the one
+  belonging to the `byte[]` method underneath (`docx`, `xlsx`, `pdf`, and so on). Nineteen
+  overloads across seven types behaved the old way, and each one's documented `<exception>` tag
+  already described the new behaviour.
+
+  The exception **type** is unchanged, so `catch (ArgumentException)` needs no edit. **Code that
+  switches on `ParamName`, or matches the message text, will need updating** - see *Migrating*
+  in the package README ([#334](https://github.com/Ank-KhoaHo/DocToolkit/issues/334)) ([2b643e7](https://github.com/Ank-KhoaHo/DocToolkit/commit/2b643e70f71150297275303a36382d45fc0a4795))
+* **Core: HTML with many in-page links converts faster.** Link targets are resolved in one pass
+  rather than one document query per link. Measured 258 ms to 20 ms on a page of 2000 blocks and
+  300 links, of which 14 ms is parsing the HTML ([#336](https://github.com/Ank-KhoaHo/DocToolkit/issues/336)) ([fd3e52e](https://github.com/Ank-KhoaHo/DocToolkit/commit/fd3e52ec0069017cf4abffc3db8a5034790d0883))
+* **Core: two internal paths stop doing work nothing uses** - a DOCX-to-PDF retry that could not
+  have helped is no longer attempted, and opening a workbook no longer copies it ([#338](https://github.com/Ank-KhoaHo/DocToolkit/issues/338)) ([8604d21](https://github.com/Ank-KhoaHo/DocToolkit/commit/8604d212efa175b0da0572852c2bac63c75ebb68))
 
 ## [0.33.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.2...v0.33.3) (2026-08-21)
 
