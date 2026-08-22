@@ -2,7 +2,7 @@
 description: Register DocToolkit with services.AddDocToolkit() for ASP.NET Core and worker services, one interface per capability.
 ---
 
-# Dependency injection
+# Register DocToolkit with ASP.NET Core dependency injection
 
 The core library is static classes, on purpose: for most callers there is nothing to configure and
 nothing to inject. But a static call is awkward to substitute in a test, and application-wide

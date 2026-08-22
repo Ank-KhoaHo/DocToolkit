@@ -2,7 +2,7 @@
 description: Convert HTML to PDF and DOCX in C# without a browser - page setup, images, and what a conversion drops.
 ---
 
-# HTML to Word and PDF
+# Convert HTML to PDF and DOCX in C# without a browser
 
 Two converters, one input. @DocToolkit.HtmlToDocxConverter produces a `.docx`, and
 @DocToolkit.HtmlToPdfConverter produces a `.pdf`.
