@@ -807,6 +807,26 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
+### 0.33.x to 0.33.4 - a file-path overload names the parameter you passed
+
+Before 0.33.4, handing a **zero-byte file** to a file-path overload raised an `ArgumentException`
+naming the parameter of the `byte[]` method underneath, not the one you called:
+
+```csharp
+// 0.33.3  ->  ParamName "docx",  message "DOCX content was empty."
+// 0.33.4  ->  ParamName "path",  message "The file at '/data/empty.docx' is empty."
+await DocxEditor.ExtractTextAsync(path);
+```
+
+A blank or null path was always reported correctly; only an existing but **empty** file was
+affected. Nineteen overloads across `DocxEditor`, `WorkbookEditor`, `PresentationEditor`,
+`PdfEditor`, `DocxToPdfConverter`, `PptxToPdfConverter` and `XlsxToPdfConverter` behaved this way.
+
+The exception **type** is unchanged, so `catch (ArgumentException)` needs no edit. **Code that
+switches on `ParamName`, or matches the message text, will need updating** - that is the whole of
+the change. Each overload's documented `<exception>` tag already described the new behaviour; the
+code disagreed with it.
+
 ### 0.20.x to 0.21.0 - `DocxEditor.ExtractText` now separates blocks
 
 Before 0.21.0 `ExtractText` returned the document's raw concatenated text, with **no separator
