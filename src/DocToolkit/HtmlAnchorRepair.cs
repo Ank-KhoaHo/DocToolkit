@@ -120,15 +120,10 @@ internal static class HtmlAnchorRepair
     /// </remarks>
     private static HashSet<string> SatisfiedIds(IHtmlDocument document)
     {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var block in document.QuerySelectorAll(BlockSelector))
-        {
-            if (!string.IsNullOrEmpty(block.Id) && YieldsBookmark(block))
-                ids.Add(block.Id);
-        }
-
-        return ids;
+        return document.QuerySelectorAll(BlockSelector)
+            .Where(b => !string.IsNullOrEmpty(b.Id) && YieldsBookmark(b))
+            .Select(b => b.Id)
+            .ToHashSet(StringComparer.Ordinal);
     }
 
     /// <summary>
