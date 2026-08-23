@@ -46,6 +46,26 @@ public class DocumentationExamples
     }
 
     [Fact]
+    public async Task HtmlToPdfOptionsExample()
+    {
+        string html = "<h1>Invoice 2026-114</h1><p>Due on receipt.</p>";
+
+        #region HtmlToPdfOptions
+        // One object when a conversion needs more than one of the three axes. Each property
+        // defaults to what the simpler overloads do, so setting only what you care about is safe.
+        byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, new HtmlToPdfOptions
+        {
+            Page = PageSetup.Letter.WithMargins(36),
+            // Fonts = new PdfFontOptions("Noto Sans", File.ReadAllBytes("NotoSans-Regular.ttf")),
+            // RemoteImage = new RemoteImageOptions { AllowedHosts = ["cdn.example.com"] },
+        });
+        #endregion
+
+        var letter = Assert.Single(PdfProbe.MediaBoxes(pdf));
+        Assert.Equal(612, letter.Width, 0);
+    }
+
+    [Fact]
     public void DocxToPdfExample()
     {
         byte[] docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("Signed.") });
