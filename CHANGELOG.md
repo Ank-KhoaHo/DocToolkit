@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.36.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.35.0...v0.36.0) (2026-08-23)
+
+
+### Added
+
+* **core:** read and resolve a document's review state ([#354](https://github.com/Ank-KhoaHo/DocToolkit/issues/354)) ([aa16895](https://github.com/Ank-KhoaHo/DocToolkit/commit/aa16895c969c98972bc968349510a6d8dea703f3))
+
 ## [0.35.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.34.0...v0.35.0) (2026-08-23)
 
 
