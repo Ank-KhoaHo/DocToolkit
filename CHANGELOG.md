@@ -10,6 +10,18 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.34.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.5...v0.34.0) (2026-08-23)
+
+
+### Added
+
+* **core:** carry page setup, remote images and fonts in one HTML-to-PDF call ([#349](https://github.com/Ank-KhoaHo/DocToolkit/issues/349)) ([0757c62](https://github.com/Ank-KhoaHo/DocToolkit/commit/0757c62d94e35445cedacd9579a26288fae10ace))
+
+
+### Changed
+
+* publish the curated changelog entry as the package release notes ([#347](https://github.com/Ank-KhoaHo/DocToolkit/issues/347)) ([5eda199](https://github.com/Ank-KhoaHo/DocToolkit/commit/5eda199044ad17fb1d4e65b9fa715c4e5918b460))
+
 ## [0.33.5](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.4...v0.33.5) (2026-08-22)
 
 
