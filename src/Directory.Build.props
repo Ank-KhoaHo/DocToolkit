@@ -64,4 +64,34 @@
     <None Include="$(MSBuildThisFileDirectory)../assets/icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
+  <!--
+    Release notes are DERIVED from the curated CHANGELOG.md, never stored here.
+
+    Every version page on nuget.org showed an EMPTY Release Notes section, on a package that
+    curates a changelog entry per release. release.yml now writes that entry to a file and passes
+    its path; this reads it. Same source as the GitHub Release body, which release-please.yml
+    already builds with scripts/extract-changelog-section.py - so one curated entry now reaches
+    three surfaces instead of one, the same move gen-third-party-notices.py makes by reading the
+    lockfile rather than keeping a table.
+
+    A FILE PATH RATHER THAN THE TEXT, deliberately. An MSBuild property splits on semicolons, so
+    passing a changelog entry on the command line would silently truncate any entry containing
+    one. A path cannot contain that hazard and the file is read whole.
+
+    BeforeTargets="GenerateNuspec" because that is the target that writes the .nuspec. Setting the
+    property any later has NO effect and fails silently - the package simply packs without notes,
+    exactly as it did before, which looks like success. Verified by packing and reading the
+    .nuspec back rather than by reading this file.
+
+    The condition means a local `dotnet pack` with no property packs EXACTLY as it did before.
+    That negative control was run: no <releaseNotes> element at all.
+  -->
+  <Target Name="ReadReleaseNotesFromFile"
+          BeforeTargets="GenerateNuspec"
+          Condition="'$(PackageReleaseNotesFile)' != '' AND Exists('$(PackageReleaseNotesFile)')">
+    <PropertyGroup>
+      <PackageReleaseNotes>$([System.IO.File]::ReadAllText('$(PackageReleaseNotesFile)'))</PackageReleaseNotes>
+    </PropertyGroup>
+  </Target>
+
 </Project>
