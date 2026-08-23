@@ -8,7 +8,7 @@ namespace DocToolkit;
 /// The one place a <see cref="PageSetup"/> becomes a <c>w:sectPr</c>.
 ///
 /// Single site on purpose, the same reasoning as <c>WorkbookEditor.SetCellValue</c>: both DOCX
-/// producers — <see cref="DocxDocumentWriter"/> and <see cref="HtmlToDocxConverter"/> — go through
+/// producers — <see cref="DocxDocumentWriter"/> and <c>HtmlToDocxConverter</c> — go through
 /// here, so they cannot disagree about what a page setup means. A second conversion site is how
 /// that guarantee gets lost.
 ///
@@ -21,7 +21,7 @@ namespace DocToolkit;
 /// That makes it non-idempotent — calling it twice on the same <see cref="MainDocumentPart"/> adds
 /// a second, orphaned set of header/footer parts rather than replacing the first. It is meant to be
 /// called once per document; both call sites (<see cref="DocxDocumentWriter"/> and
-/// <see cref="HtmlToDocxConverter"/>) already do.
+/// <c>HtmlToDocxConverter</c>) already do.
 /// </summary>
 internal static class SectionPropertiesFactory
 {

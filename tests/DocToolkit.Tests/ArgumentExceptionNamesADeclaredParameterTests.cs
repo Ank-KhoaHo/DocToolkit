@@ -67,7 +67,22 @@ public class ArgumentExceptionNamesADeclaredParameterTests
     [Fact]
     public async Task EveryFilePathOverload_NamesAParameterItDeclares()
     {
-        var types = typeof(DocxEditor).Assembly.GetExportedTypes()
+        // EVERY shipped assembly, not just one. The library is packed as a single package from
+        // several projects, so scanning one assembly would silently shrink this walk to whatever
+        // happens to live there - which is exactly the vacuity the assertions at the bottom exist
+        // to prevent. Measured when the split landed: scanning only DocToolkit found 7 file-path
+        // overloads where 19 ship.
+        var assemblies = new[]
+        {
+            typeof(HtmlToPdfConverter).Assembly,   // DocToolkit
+            typeof(PageSetup).Assembly,            // DocToolkit.Primitives
+            typeof(DocxEditor).Assembly,           // DocToolkit.Docx
+            typeof(WorkbookEditor).Assembly,       // DocToolkit.Xlsx
+            typeof(PresentationEditor).Assembly,   // DocToolkit.Pptx
+            typeof(PdfEditor).Assembly,            // DocToolkit.Pdf
+        }.Distinct();
+
+        var types = assemblies.SelectMany(a => a.GetExportedTypes())
             .Where(t => t.IsAbstract && t.IsSealed)   // static classes
             .OrderBy(t => t.Name);
 

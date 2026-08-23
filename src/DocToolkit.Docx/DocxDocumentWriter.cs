@@ -291,11 +291,11 @@ internal static class DocxDocumentWriter
 
     /// <summary>
     /// Formats a cell value, handling the same types BY NAME as
-    /// <see cref="WorkbookEditor.Create(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}})"/>
+    /// <c>WorkbookEditor.Create</c>
     /// but NOT always to the same text. See <see cref="DocxBlock.Table"/> for the measured
     /// divergences and why they are deliberate.
     ///
-    /// One exception is not by-name at all: <see cref="XlsxFormula"/> is deliberately not one of
+    /// One exception is not by-name at all: <c>XlsxFormula</c> is deliberately not one of
     /// the types handled below. A formula is meaningful only in a spreadsheet cell, so a value of
     /// that type falls to the default arm and renders as the literal text
     /// <c>DocToolkit.XlsxFormula</c> rather than the formula text.

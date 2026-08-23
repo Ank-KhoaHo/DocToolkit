@@ -32,13 +32,22 @@ public class PublicApiApprovalTests
     // has no public surface. An approved file parsing to zero types is a case
     // check-readme-coverage.py fails on by design, rather than passing vacuously.
 
+    // The locator was `typeof(DocxEditor)` until DocxEditor moved to DocToolkit.Docx, at which
+    // point this line silently began pinning a DIFFERENT assembly - the approved file would have
+    // lost everything that stayed behind and gained only the DOCX types, a huge diff on a change
+    // that altered no API at all. HtmlToPdfConverter is a converter, and converters stay here by
+    // design, so it is a stable locator.
     [Fact]
     public void PublicApi_MatchesTheApprovedSurface()
-        => ApiApproval.Verify(typeof(DocxEditor).Assembly, "DocToolkit");
+        => ApiApproval.Verify(typeof(HtmlToPdfConverter).Assembly, "DocToolkit");
 
     [Fact]
     public void PublicApi_Primitives_MatchesTheApprovedSurface()
         => ApiApproval.Verify(typeof(PageSetup).Assembly, "DocToolkit.Primitives");
+
+    [Fact]
+    public void PublicApi_Docx_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(DocxEditor).Assembly, "DocToolkit.Docx");
 }
 
 /// <summary>

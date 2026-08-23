@@ -12,7 +12,7 @@ public static class DocxEditor
     /// <summary>
     /// Creates a document from <paramref name="blocks"/>.
     ///
-    /// A DOCX can also be produced by converting HTML with <see cref="HtmlToDocxConverter"/>. This
+    /// A DOCX can also be produced by converting HTML with <c>HtmlToDocxConverter</c>. This
     /// exists for the case where the content comes from data rather than from markup: there is no
     /// HTML to escape, so a value containing <c>&lt;</c> cannot corrupt the document's structure,
     /// and the same blocks produce the same CONTENT on every machine — nothing here consults the
@@ -120,7 +120,7 @@ public static class DocxEditor
     /// <paramref name="outputPath"/>. See <see cref="Create(IEnumerable{DocxBlock})"/> for the block semantics.
     ///
     /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
-    /// <see cref="WorkbookEditor.CreateToFileAsync(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}}, string, System.Threading.CancellationToken)"/>:
+    /// <c>WorkbookEditor.CreateToFileAsync</c>:
     /// the distinct name keeps which kind of destination a call writes to visible at the call site,
     /// rather than resting on the argument type alone.
     ///

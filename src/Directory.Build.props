@@ -243,4 +243,9 @@
     <InternalsVisibleTo Include="DocToolkit.Tests" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'DocToolkit.Docx'">
+    <InternalsVisibleTo Include="DocToolkit" />
+    <InternalsVisibleTo Include="DocToolkit.Tests" />
+  </ItemGroup>
+
 </Project>

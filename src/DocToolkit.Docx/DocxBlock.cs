@@ -62,7 +62,7 @@ public abstract class DocxBlock
     /// A table with a bold header row.
     ///
     /// Cell values are typed the same WAY as
-    /// <see cref="WorkbookEditor.Create(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}})"/> —
+    /// <c>WorkbookEditor.Create</c> —
     /// <see cref="bool"/>, <see cref="DateTime"/>, <see cref="DateOnly"/>, <see cref="TimeOnly"/>
     /// and <see cref="TimeSpan"/> are handled by name, and everything else, numbers included, is
     /// formatted through <see cref="CultureInfo.InvariantCulture"/> — but they do <b>not</b> always
