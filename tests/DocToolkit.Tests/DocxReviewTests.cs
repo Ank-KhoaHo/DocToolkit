@@ -213,6 +213,70 @@ public class DocxReviewTests
         Assert.NotNull(ex.InnerException);
     }
 
+    [Theory]
+    [InlineData(nameof(DocxReview.RemoveComments))]
+    [InlineData(nameof(DocxReview.AcceptRevisions))]
+    [InlineData(nameof(DocxReview.RejectRevisions))]
+    public void EveryMutatingOverload_WrapsAnUnreadableDocument_AndSaysWhichOperationFailed(string api)
+    {
+        // Covers the one catch arm the three mutating operations share. Each must name ITS OWN
+        // operation: a shared helper that reported "failed to read" for all three would leave a
+        // caller of AcceptRevisions looking in the wrong place.
+        byte[] garbage = [1, 2, 3, 4];
+
+        var ex = Assert.Throws<DocumentConversionException>(() => api switch
+        {
+            nameof(DocxReview.RemoveComments) => DocxReview.RemoveComments(garbage),
+            nameof(DocxReview.AcceptRevisions) => DocxReview.AcceptRevisions(garbage),
+            _ => DocxReview.RejectRevisions(garbage),
+        });
+
+        Assert.NotNull(ex.InnerException);
+
+        string expected = api switch
+        {
+            nameof(DocxReview.RemoveComments) => "comments",
+            _ => "tracked changes",
+        };
+        Assert.Contains(expected, ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ---- the fields a report carries beyond text and author ---------------------------------
+
+    [Fact]
+    public void Inspect_CarriesTheDateACommentOrRevisionWasRecorded()
+    {
+        // The fixtures stamp a fixed date. Without this the property could be unmapped - always
+        // null - and every other assertion in this file would still pass.
+        //
+        // COMPARED AS AN INSTANT, not as a wall-clock reading. The date comes back with Kind Local:
+        // the UTC 09:30 written by the fixture read back as 16:30+07:00 on the machine this was
+        // written on, which is the same moment. Asserting the DateTime directly would have passed
+        // on CI - whose runners sit at UTC, where the two forms coincide - and failed only on a
+        // developer's machine, which is the worst way round for a test to be wrong.
+        AssertSameInstant(Assert.Single(DocxReview.Inspect(WithAThread(resolved: false)).Comments).Created);
+
+        foreach (var revision in DocxReview.Inspect(WithOneInsertionAndOneDeletion()).Revisions)
+            AssertSameInstant(revision.Created);
+    }
+
+    private static void AssertSameInstant(DateTime? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.Equal(Reviewed, actual.Value.ToUniversalTime());
+    }
+
+    [Fact]
+    public void Inspect_SaysWhetherARevisionIsInsideATable()
+    {
+        // BOTH directions. A property hard-wired to false would pass the first assertion alone, and
+        // one hard-wired to true would pass the second alone.
+        Assert.All(DocxReview.Inspect(WithOneInsertionAndOneDeletion()).Revisions,
+                   r => Assert.False(r.IsInTable));
+
+        Assert.True(Assert.Single(DocxReview.Inspect(WithAnInsertionInsideATable()).Revisions).IsInTable);
+    }
+
     // ---- fixtures ---------------------------------------------------------------------------
 
     /// <summary>
@@ -325,6 +389,40 @@ public class DocxReviewTests
             });
 
             main.Document = new Document(new Body(paragraph));
+            main.Document.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// An insertion inside a table cell. Accepting or rejecting one of these can move cell
+    /// boundaries, which is why <see cref="DocxRevision.IsInTable"/> is worth reporting at all.
+    /// </summary>
+    private static byte[] WithAnInsertionInsideATable()
+    {
+        using var ms = new MemoryStream();
+        using (var document = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        {
+            var main = document.AddMainDocumentPart();
+
+            var cell = new TableCell(new TableCellProperties(
+                new TableCellWidth { Type = TableWidthUnitValues.Auto }));
+            cell.Append(new Paragraph(new InsertedRun(new Run(new Text("Added in a cell.")))
+            {
+                Id = "4",
+                Author = "Reviewer Four",
+                Date = new DateTimeValue(Reviewed),
+            }));
+
+            // A w:tbl needs a w:tblGrid or the validator rejects its first w:tr as an unexpected
+            // child - the same trap DocxFixtures.Tbl records.
+            var table = new Table(
+                new TableProperties(new TableWidth { Type = TableWidthUnitValues.Auto }),
+                new TableGrid(new GridColumn()),
+                new TableRow(cell));
+
+            main.Document = new Document(new Body(table, new Paragraph()));
             main.Document.Save();
         }
 

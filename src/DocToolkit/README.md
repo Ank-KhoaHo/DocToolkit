@@ -637,6 +637,36 @@ silently erase the author.
 `Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
+## Comments and tracked changes
+
+`DocxReview` reads what a document carries from having been through review, and resolves it.
+
+```csharp
+DocxReviewReport review = DocxReview.Inspect(docx);
+
+foreach (DocxComment comment in review.Comments)
+    Console.WriteLine($"{comment.Author}: {comment.Text} ({comment.Replies.Count} replies)");
+
+foreach (DocxRevision change in review.Revisions)
+    Console.WriteLine($"{change.Kind} by {change.Author}: {change.AffectedText}");
+
+if (review.UnresolvedThreadCount == 0)
+    docx = DocxReview.AcceptRevisions(DocxReview.RemoveComments(docx));
+```
+
+`Inspect` returns comments and tracked changes together, because reading them separately can return
+counts that disagree. A reply appears on its parent's `Replies` rather than as a comment of its own,
+so `Comments.Count` is a thread count. `DocxRevision.Kind` is `Insertion`, `Deletion`, or `Other` —
+Word records eleven kinds and the nine that describe formatting rather than content all arrive as
+`Other` (`DocxRevisionKind`).
+
+`RemoveComments`, `AcceptRevisions` and `RejectRevisions` each return a new document. Accepting keeps
+insertions and drops deletions; rejecting does the reverse. **Neither can be undone from the result**
+— keep the original if that matters. `Stream` overloads exist for all four operations.
+
+This class reads and resolves review state; it cannot create any. There is no method here to add a
+comment or to record an edit as a tracked change.
+
 ## Password-protected DOCX, XLSX and PPTX
 
 Open one someone sent you, and produce one. `DocxEditor`, `WorkbookEditor` and `PresentationEditor`

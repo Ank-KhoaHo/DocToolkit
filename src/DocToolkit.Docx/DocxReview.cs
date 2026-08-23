@@ -207,11 +207,16 @@ public static class DocxReview
     /// <c>Stream</c> call can never drift apart.
     /// </summary>
     /// <remarks>
-    /// <b>Both catch arms are unfiltered, and both dispose.</b> This method hands its buffer to its
-    /// caller, so it owns that buffer until it returns — and a <i>filtered</i> catch that does not
-    /// match never runs its body, which is exactly how a <see cref="MemoryStream"/> once escaped
-    /// this repository with an exception. A method whose disposables are all under <c>using</c> may
+    /// <b>The catch is unfiltered, and it disposes.</b> This method hands its buffer to its caller,
+    /// so it owns that buffer until it returns — and a <i>filtered</i> catch that does not match
+    /// never runs its body, which is exactly how a <see cref="MemoryStream"/> once escaped this
+    /// repository with an exception. A method whose disposables are all under <c>using</c> may
     /// filter; this one may not.
+    ///
+    /// There is deliberately no second arm re-throwing <see cref="DocumentConversionException"/>
+    /// unwrapped. Nothing inside this <c>try</c> can raise one — every call in it belongs to
+    /// OfficeIMO — so such an arm would be a branch no test could ever reach, and unreachable
+    /// defensive code is indistinguishable from a guard that stopped working.
     /// </remarks>
     private static MemoryStream ApplyCore(
         Stream source, Action<OfficeIMOWordDocument> apply, string failure)
@@ -224,11 +229,6 @@ public static class DocxReview
             document.Save(result);
             result.Position = 0;
             return result;
-        }
-        catch (DocumentConversionException)
-        {
-            result.Dispose();
-            throw;
         }
         catch (Exception ex)
         {
