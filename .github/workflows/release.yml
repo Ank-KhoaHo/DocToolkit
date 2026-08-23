@@ -247,14 +247,41 @@ jobs:
             echo "::endgroup::"
           done
 
+      # Release notes come from the CURATED CHANGELOG.md entry, not from commit titles.
+      #
+      # Every version page on nuget.org showed an EMPTY Release Notes section, on a package that
+      # curates an entry per release. This is the same extractor release-please.yml already uses
+      # for the GitHub Release body, so one curated entry now reaches three surfaces from a single
+      # source - the same move gen-third-party-notices.py makes by reading the lockfile.
+      #
+      # A FILE, not an inline value: an MSBuild property splits on semicolons, so an entry
+      # containing one would be silently truncated on the command line. src/Directory.Build.props
+      # reads the file; see the target there for why it hooks GenerateNuspec.
+      #
+      # It runs AFTER "Guard - CHANGELOG.md has a non-empty entry for this version", so an empty
+      # entry cannot reach a package - that guard has already failed the job by this point. The
+      # test below is a second, cheaper net for the case where the guard's shape and the
+      # extractor's disagree.
+      - name: Extract the curated changelog entry for the release notes
+        run: |
+          set -euo pipefail
+          python3 scripts/extract-changelog-section.py "${{ steps.v.outputs.version }}" \
+            > "${{ runner.temp }}/release-notes.md"
+          echo "--- release notes going into both packages ---"
+          cat "${{ runner.temp }}/release-notes.md"
+          test -s "${{ runner.temp }}/release-notes.md" \
+            || { echo "::error::The extracted changelog entry is empty. Refusing to pack notes nobody wrote."; exit 1; }
+
       - name: Pack
         run: |
           dotnet pack ${{ env.PROJECT }} -c Release --no-build \
             -p:Version=${{ steps.v.outputs.version }} \
-            -p:PackageVersion=${{ steps.v.outputs.version }}
+            -p:PackageVersion=${{ steps.v.outputs.version }} \
+            -p:PackageReleaseNotesFile=${{ runner.temp }}/release-notes.md
           dotnet pack ${{ env.EXTENSIONS_PROJECT }} -c Release --no-build \
             -p:Version=${{ steps.v.outputs.version }} \
-            -p:PackageVersion=${{ steps.v.outputs.version }}
+            -p:PackageVersion=${{ steps.v.outputs.version }} \
+            -p:PackageReleaseNotesFile=${{ runner.temp }}/release-notes.md
           ls -la artifacts/
 
       - name: Verify package contents
