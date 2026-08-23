@@ -4,9 +4,9 @@
     "net10.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.32.0, )",
-        "resolved": "0.32.0",
-        "contentHash": "SNZ7R0QRxXphdkKHhEHW3RDizy01d4Zr6GqbFhg7/Nhaf//IvkEeWQjncHttlKW0K8tq/jmHqpf6+fQZKGHcWA==",
+        "requested": "[0.34.0, )",
+        "resolved": "0.34.0",
+        "contentHash": "vwG9bd1x1KD9NAljaThHr1Y/UfPNhbVW/SICejpLDYBOKIZ6Go+CPewupqlqS+C3iKpxM9ihrmekLd64mwCL0g==",
         "dependencies": {
           "AngleSharp": "1.7.1",
           "ClosedXML": "0.105.1",
@@ -273,9 +273,9 @@
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.32.0, )",
-        "resolved": "0.32.0",
-        "contentHash": "SNZ7R0QRxXphdkKHhEHW3RDizy01d4Zr6GqbFhg7/Nhaf//IvkEeWQjncHttlKW0K8tq/jmHqpf6+fQZKGHcWA==",
+        "requested": "[0.34.0, )",
+        "resolved": "0.34.0",
+        "contentHash": "vwG9bd1x1KD9NAljaThHr1Y/UfPNhbVW/SICejpLDYBOKIZ6Go+CPewupqlqS+C3iKpxM9ihrmekLd64mwCL0g==",
         "dependencies": {
           "AngleSharp": "1.7.1",
           "ClosedXML": "0.105.1",
