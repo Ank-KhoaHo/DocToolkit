@@ -69,8 +69,36 @@ import xml.etree.ElementTree as ET
 # one line calling a static method, so any member that is not covered is simply
 # a member nobody tested, and the fix is always a two-line test. See CLAUDE.md
 # on how often that mirror has gone stale.
+# ONE FLOOR PER SHIPPED ASSEMBLY since the per-format project split. The package still ships as
+# one nupkg; it is now built from seven projects, and this gate FAILS on an assembly with no floor
+# rather than warning - which is how the split was noticed here rather than sliding through.
+#
+# THE SLACK HAD TO BE RE-DERIVED, and that is the part worth reading. The 8-line / 16-branch
+# figure above was calibrated against ONE assembly of ~2,500 lines and ~1,300 branches. Applied
+# unchanged to seven smaller ones it becomes absurd: DocToolkit.Pptx has 98 branches in total, so a
+# 16-branch slack is a 16-POINT drop, and its floor would sit at 66.3% against 82.65% measured - a
+# gate that could not fail. The same absolute number means something entirely different once the
+# thing it is measured against is a seventh of the size.
+#
+# So the slack is 3 lines and 6 branches PER ASSEMBLY, CAPPED AT 2 POINTS - the same threshold
+# RATCHET_SLACK below uses to call a floor too loose. Without the cap the two disagreed: a 6-branch
+# allowance on a 98-branch assembly is 6 points, so the gate passed while the ratchet immediately
+# advised tightening it, on every run. A guard that nags on every green build is one people learn
+# to scroll past.
+#
+# TOTAL COVERAGE DID NOT DROP, and that was measured before any floor was written: 96.45% line and
+# 90.71% branch across all seven, against 96.30 / 90.64 for the single assembly beforehand.
+# DocToolkit's own number falls to 92.94% only because the well-covered editors and primitives
+# moved out from under it, leaving the converters. That is arithmetic, not a regression - and
+# checking it is the difference between re-deriving a floor and lowering one.
 FLOORS = {
-    "DocToolkit": (96.0, 89.0),
+    "DocToolkit": (92.5, 85.0),
+    "DocToolkit.Primitives": (97.9, 91.6),
+    "DocToolkit.Docx": (96.8, 82.6),
+    "DocToolkit.Html": (93.5, 94.7),
+    "DocToolkit.Pdf": (98.4, 95.6),
+    "DocToolkit.Pptx": (96.3, 80.7),
+    "DocToolkit.Xlsx": (95.5, 92.4),
     "DocToolkit.Extensions.DependencyInjection": (100.0, 100.0),
 }
 

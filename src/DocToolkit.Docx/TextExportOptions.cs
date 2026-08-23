@@ -11,7 +11,7 @@ namespace DocToolkit;
 /// the source document comes back as a <c>data:</c> URI rather than a reference to a file that does
 /// not exist anywhere. Inheriting it would make that property a decision the upstream author could
 /// revisit in a patch release, silently turning self-contained output into output with dangling
-/// references. Same reasoning as <see cref="PdfRenderPolicy"/>.
+/// references. Same reasoning as <c>PdfRenderPolicy</c>.
 ///
 /// Single site so the HTML and Markdown paths cannot drift, as with
 /// <c>SectionPropertiesFactory</c> and <c>WorkbookEditor.SetCellValue</c>.

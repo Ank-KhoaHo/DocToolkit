@@ -9,7 +9,7 @@ namespace DocToolkit;
 /// Turns a list of <see cref="PptxSlide"/> into a PresentationML package.
 ///
 /// Separate from <see cref="PresentationEditor"/> on purpose, matching
-/// <see cref="DocxDocumentWriter"/>: that file is already large, and creating a deck has nothing in
+/// <c>DocxDocumentWriter</c>: that file is already large, and creating a deck has nothing in
 /// common with editing one beyond the format.
 ///
 /// A deck needs far more scaffolding than a document: a presentation, a slide master, at least one

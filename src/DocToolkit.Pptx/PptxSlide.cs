@@ -4,7 +4,7 @@ namespace DocToolkit;
 /// One slide: a title and zero or more bullet lines. Built by <see cref="Titled"/> and passed to
 /// <see cref="PresentationEditor.Create"/>.
 ///
-/// A single sealed type rather than the closed hierarchy <see cref="DocxBlock"/> uses. That
+/// A single sealed type rather than the closed hierarchy <c>DocxBlock</c> uses. That
 /// hierarchy exists because a document has four kinds of block an external assembly must not be
 /// able to extend; a deck has one kind of slide in this version, so the same machinery would be
 /// cost without benefit. <see cref="Titled"/> leaves room for other factories later without

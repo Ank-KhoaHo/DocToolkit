@@ -245,116 +245,11 @@
         "resolved": "8.0.1",
         "contentHash": "CoCRHFym33aUSf/NtWSVSZa99dkd0Hm7OCZUxORBjRB16LNhIEOf8THPqzIYlvKM0nNDAPTRBa1FxEECrgaxxA=="
       },
-      "doctoolkit.docx": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.html": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.pdf": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.pptx": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
       "doctoolkit.primitives": {
         "type": "Project",
         "dependencies": {
           "AngleSharp": "[1.7.1, )",
           "ClosedXML": "[0.105.1, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.xlsx": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.2, )",
@@ -615,116 +510,11 @@
         "resolved": "8.0.1",
         "contentHash": "CoCRHFym33aUSf/NtWSVSZa99dkd0Hm7OCZUxORBjRB16LNhIEOf8THPqzIYlvKM0nNDAPTRBa1FxEECrgaxxA=="
       },
-      "doctoolkit.docx": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.html": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.pdf": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.pptx": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
       "doctoolkit.primitives": {
         "type": "Project",
         "dependencies": {
           "AngleSharp": "[1.7.1, )",
           "ClosedXML": "[0.105.1, )",
-          "DocumentFormat.OpenXml": "[3.5.1, )",
-          "HtmlToOpenXml.dll": "[3.5.0, )",
-          "OfficeIMO.Excel": "[3.2.2, )",
-          "OfficeIMO.Excel.Pdf": "[3.2.2, )",
-          "OfficeIMO.PowerPoint": "[3.2.2, )",
-          "OfficeIMO.PowerPoint.Pdf": "[3.2.2, )",
-          "OfficeIMO.Word": "[3.2.2, )",
-          "OfficeIMO.Word.Html": "[3.2.2, )",
-          "OfficeIMO.Word.Markdown": "[3.2.2, )",
-          "OfficeIMO.Word.Pdf": "[3.2.2, )",
-          "PDFsharp": "[6.2.4, )",
-          "PdfPig": "[0.1.15, )",
-          "SixLabors.Fonts": "[1.0.1, 1.0.1]"
-        }
-      },
-      "doctoolkit.xlsx": {
-        "type": "Project",
-        "dependencies": {
-          "AngleSharp": "[1.7.1, )",
-          "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.35.0, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.2, )",

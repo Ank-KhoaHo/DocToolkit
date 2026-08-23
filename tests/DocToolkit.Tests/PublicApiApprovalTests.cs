@@ -18,9 +18,48 @@ namespace DocToolkit.Tests;
 /// </summary>
 public class PublicApiApprovalTests
 {
+    // ONE CALL PER SHIPPED ASSEMBLY. The package contains seven, since the per-format project
+    // split - but they are all packed into the one nupkg, so together these pin exactly the
+    // surface a consumer receives.
+    //
+    // EACH LOCATOR TYPE MUST BE ONE ITS OWN PROJECT GENUINELY OWNS. `Verify` finds the assembly
+    // through the type, so a locator that later moves to another project silently repoints the
+    // whole file - the approved diff would then lose everything that stayed behind and gain only
+    // what moved, which is a large diff on a change that altered no API at all. Check
+    // artifacts/split-assignment.txt before changing one.
+    //
+    // There is deliberately NO test for DocToolkit.Html: all five of its files are internal, so it
+    // has no public surface. An approved file parsing to zero types is a case
+    // check-readme-coverage.py fails on by design, rather than passing vacuously.
+
+    // The locator was `typeof(DocxEditor)` until DocxEditor moved to DocToolkit.Docx, at which
+    // point this line silently began pinning a DIFFERENT assembly - the approved file would have
+    // lost everything that stayed behind and gained only the DOCX types, a huge diff on a change
+    // that altered no API at all. HtmlToPdfConverter is a converter, and converters stay here by
+    // design, so it is a stable locator.
     [Fact]
     public void PublicApi_MatchesTheApprovedSurface()
-        => ApiApproval.Verify(typeof(DocxEditor).Assembly, "DocToolkit");
+        => ApiApproval.Verify(typeof(HtmlToPdfConverter).Assembly, "DocToolkit");
+
+    [Fact]
+    public void PublicApi_Primitives_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(PageSetup).Assembly, "DocToolkit.Primitives");
+
+    [Fact]
+    public void PublicApi_Docx_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(DocxEditor).Assembly, "DocToolkit.Docx");
+
+    [Fact]
+    public void PublicApi_Pdf_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(PdfEditor).Assembly, "DocToolkit.Pdf");
+
+    [Fact]
+    public void PublicApi_Pptx_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(PresentationEditor).Assembly, "DocToolkit.Pptx");
+
+    [Fact]
+    public void PublicApi_Xlsx_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(WorkbookEditor).Assembly, "DocToolkit.Xlsx");
 }
 
 /// <summary>

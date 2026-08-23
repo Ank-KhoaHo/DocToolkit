@@ -48,7 +48,12 @@ import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-APPROVED = REPO / "tests" / "DocToolkit.Tests" / "PublicApi" / "DocToolkit.approved.txt"
+# EVERY approved file, not just the core one. The library packs several assemblies into one
+# package, so the shipped surface is spread across DocToolkit.approved.txt,
+# DocToolkit.Primitives.approved.txt, DocToolkit.Docx.approved.txt and their siblings. Reading one
+# would silently describe a smaller library than ships - which is the exact drift this generated
+# page exists to prevent, arriving through a different door.
+APPROVED = sorted((REPO / "tests" / "DocToolkit.Tests" / "PublicApi").glob("DocToolkit*.approved.txt"))
 PAGE = REPO / "docfx" / "guides" / "capabilities.md"
 
 BEGIN = "<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->"
@@ -92,7 +97,7 @@ TYPE_LINE = re.compile(r"^    public ")
 
 def parse() -> tuple[list[tuple[str, str]], dict[str, list[str]]]:
     """Read the approved surface into (conversions, editor -> method names)."""
-    text = APPROVED.read_text(encoding="utf-8")
+    text = chr(10).join(p.read_text(encoding="utf-8") for p in APPROVED)
 
     conversions: list[tuple[str, str]] = []
     editors: dict[str, list[str]] = {}

@@ -1,7 +1,7 @@
 namespace DocToolkit;
 
 /// <summary>
-/// Controls how <see cref="DocToDocxConverter"/> treats content a Word 97-2003 binary document
+/// Controls how <c>DocToDocxConverter</c> treats content a Word 97-2003 binary document
 /// holds but a .docx package cannot be given.
 /// </summary>
 /// <remarks>
@@ -15,10 +15,10 @@ namespace DocToolkit;
 /// - 11%</b>, while the opt-in succeeded on 99 (89%). A .doc holding a <b>table</b> carries the
 /// stream; plain text, bold runs and headings do not. Tables are ordinary, so expect the opt-in to
 /// be needed rather than to be an exception - and prefer
-/// <see cref="DocToDocxConverter.ConvertWithReport(byte[], LegacyDocOptions?)"/>, which returns the
+/// <c>DocToDocxConverter.ConvertWithReport</c>, which returns the
 /// same bytes and names what was dropped.
 ///
-/// <b>Reading is never affected.</b> <see cref="DocToDocxConverter.ExtractText(byte[])"/> takes no
+/// <b>Reading is never affected.</b> <c>DocToDocxConverter.ExtractText</c> takes no
 /// options and never refuses: text is not what the binary stream holds, so there is nothing for a
 /// policy to decide.
 /// </remarks>
@@ -34,7 +34,7 @@ public sealed class LegacyDocOptions
     /// survive the conversion intact, so this accepts a specific, bounded loss rather than a
     /// general "best effort".
     ///
-    /// Prefer <see cref="DocToDocxConverter.ConvertWithReport(byte[], LegacyDocOptions?)"/> when
+    /// Prefer <c>DocToDocxConverter.ConvertWithReport</c> when
     /// setting this: it returns the same bytes and tells you exactly what was dropped, so the loss
     /// is recorded rather than merely permitted.
     /// </remarks>

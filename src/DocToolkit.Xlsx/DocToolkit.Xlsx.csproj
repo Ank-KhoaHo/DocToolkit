@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DocToolkit.Primitives\DocToolkit.Primitives.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!--
+      Packed INTO Ank.DocToolkit by src/DocToolkit/DocToolkit.csproj, never published on its own.
+      The library ships as ONE package; this split is internal organisation and a consumer never
+      sees it. See docs/superpowers/specs/2026-08-23-format-project-split-design.md.
+    -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

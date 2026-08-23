@@ -21,6 +21,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DocToolkit\DocToolkit.csproj" />
+    <ProjectReference Include="..\..\src\DocToolkit.Primitives\DocToolkit.Primitives.csproj" />
+    <ProjectReference Include="..\..\src\DocToolkit.Docx\DocToolkit.Docx.csproj" />
+    <ProjectReference Include="..\..\src\DocToolkit.Xlsx\DocToolkit.Xlsx.csproj" />
+    <ProjectReference Include="..\..\src\DocToolkit.Pptx\DocToolkit.Pptx.csproj" />
+    <ProjectReference Include="..\..\src\DocToolkit.Pdf\DocToolkit.Pdf.csproj" />
+    <ProjectReference Include="..\..\src\DocToolkit.Html\DocToolkit.Html.csproj" />
   </ItemGroup>
 
   <!--
