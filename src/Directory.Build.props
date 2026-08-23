@@ -94,4 +94,130 @@
     </PropertyGroup>
   </Target>
 
+  <!--
+    EVERY package this library needs is declared HERE, not in the individual projects, and the
+    second reason is not optional.
+
+    1. The per-format projects each need a subset; inheriting the whole set costs nothing at build
+       time and means no project file has to track which packages it happens to use today.
+    2. src/DocToolkit is the ONLY packable project, and its ProjectReferences carry
+       PrivateAssets="all" - which suppresses the sub-projects' own PackageReferences from the
+       nuspec. Declaring them here means the packable project declares them by INHERITANCE, so the
+       nuspec is correct by construction rather than by anybody remembering to duplicate a line.
+
+    Measured 2026-08-23: with OfficeIMO.Word declared only in the Docx project, the produced nuspec
+    had NO <dependency> entries while still shipping the assembly that needs it. That package
+    installs and restores cleanly and throws TypeLoadException at runtime.
+
+    EXCLUDES the extensions package, which declares its own three and must not inherit the core's -
+    it references the PUBLISHED core as a PackageReference, never these.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'DocToolkit.Extensions.DependencyInjection'">
+    <PackageReference Include="AngleSharp" Version="1.7.1" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <PackageReference Include="HtmlToOpenXml.dll" Version="3.5.0" />
+    <PackageReference Include="OfficeIMO.Excel.Pdf" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Word.Html" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.2" />
+
+    <!--
+      Promoted from TRANSITIVE to direct alongside OfficeIMO.Word, for the Protect/Unprotect
+      members on WorkbookEditor and PresentationEditor. Same reasoning and same non-effect on the
+      resolved closure: both already arrived through OfficeIMO.Excel.Pdf and
+      OfficeIMO.PowerPoint.Pdf.
+
+      Encryption is per FORMAT, not shared - measured 2026-08-16, no OfficeIMO package exposes a
+      format-agnostic OOXML encryptor - so all three packages are genuinely needed rather than one
+      being enough. Note WorkbookEditor now touches two spreadsheet libraries: ClosedXML owns the
+      workbook's CONTENT and OfficeIMO.Excel owns only the encrypted CONTAINER around it, which is
+      the same structure/content split E6 draws for PDF.
+    -->
+    <PackageReference Include="OfficeIMO.Excel" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.PowerPoint" Version="3.2.2" />
+
+    <!--
+      Promoted from TRANSITIVE to direct for DocToDocxConverter (legacy .doc import). It arrived
+      transitively through the four packages above, so the resolved closure does not change - this
+      only makes the dependency this code binds against explicit, the same bookkeeping the PDF
+      packages already get. A type used directly should be named directly: a transitive package can
+      stop being pulled in by a minor bump of whatever pulled it, and nothing would say why the
+      build broke.
+    -->
+    <PackageReference Include="OfficeIMO.Word" Version="3.2.2" />
+    <!--
+      PDF text extraction only. PDFsharp owns the document's STRUCTURE (pages, merge, rotate,
+      metadata); PdfPig owns its CONTENT. Neither does the other's job - see the E6 decision.
+
+      Apache-2.0, and unusually clean: zero transitive dependencies, no native payload, no sockets.
+      Measured before adopting rather than taken from the package page.
+    -->
+    <PackageReference Include="PdfPig" Version="0.1.15" />
+
+    <!--
+      PDF utilities (page count, merge, page extraction, metadata). PDFsharp owns the
+      document's STRUCTURE; PdfPig, above, owns its CONTENT (text). Neither does the
+      other's job - see the E6 decision. MIT, so the licence set for the two together is
+      MIT plus PdfPig's Apache-2.0, not a single class.
+
+      Measured before taking it on, with a publish probe built as an APP rather than a
+      library (a library publish omits native assets and reports zero for everything):
+      no .so or .dylib, no banned package, and no SixLabors reference - so the
+      SixLabors.Fonts 1.x guard is untouched. Three transitive dependencies, all
+      Microsoft.
+
+      CORRECTION, 2026-08-14. This comment used to say "OfficeIMO.Pdf, already here, cannot
+      serve this: it WRITES PDFs and cannot read one back". That was WRONG WHEN WRITTEN.
+      OfficeIMO.Pdf 3.2.0 - already a dependency on the day that decision was made - ships
+      PdfDocumentReader with TextByPage(...) returning IReadOnlyList<string>, which is the
+      exact shape PdfEditor.ExtractText returns. Verified against the cached 3.2.0 package,
+      so it is not something the later 3.2.2 bump introduced.
+
+      The mistake was not checking the graph before reaching for a package: it asked whether
+      a NEW dependency could be added safely, never whether the capability was already
+      present. The same error was caught in the A19 row, which planned to add Markdig for
+      something OfficeIMO already did.
+
+      E7 CONCLUDED, 2026-08-14: PdfPig STAYS, and now for measured reasons rather than a false one.
+
+      OfficeIMO.Pdf really can do the job. PdfDocument.Open(byte[]) opens an arbitrary PDF and
+      .Read.TextByPage() returns one string per page. Compared side by side on the same documents,
+      its output is equivalent to ours - it separates a heading from a following paragraph rather
+      than running them together, which is the A26 defect and the reason ContentOrderTextExtractor
+      was chosen over PdfPig's own cheaper page.Text. It splits pages correctly too. The only
+      differences found were line endings (PdfPig \r\n, OfficeIMO \n) and a whitespace-only run
+      that OfficeIMO drops.
+
+      Kept anyway, on three grounds:
+
+      1. INDEPENDENCE. OfficeIMO WRITES the PDFs this library produces. Reading them back with the
+         same library would make a bug in its model self-consistent and invisible - which is
+         precisely why the test suite keeps PdfProbe as a hand-rolled independent oracle instead of
+         verifying OfficeIMO with OfficeIMO. Using a different implementation in production buys
+         the same property for consumers.
+      2. IT WOULD BE A BREAKING CHANGE. ExtractText has shipped since 0.24.0 returning \r\n
+         separators. Switching flips them to \n, silently, for anyone splitting on them.
+      3. THE COST IS SMALL. Apache-2.0, zero transitive dependencies, no native payload. Removing
+         it would take the closure from 30 packages to 29 and leave SixLabors.Fonts as the only
+         non-MIT entry - a tidier sentence in the notices, not a change in kind.
+
+      Revisit only if PdfPig stops being maintained or its licence moves. The reason to keep it is
+      independence, so "OfficeIMO can do it too" is an argument FOR the current design, not against.
+    -->
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+
+    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.2.2" />
+
+    <!--
+      Pinned deliberately, not incidentally. OfficeIMO.Word asks for SixLabors.Fonts
+      [1.0.0, 3.0.0), and 1.x is Apache-2.0 while 2.x moved to the Six Labors Split License 1.0 -
+      Apache-2.0 only below $1M annual revenue, commercial above. Letting NuGet float to 2.x
+      would silently move this package off permissive licensing, which is its whole reason to
+      exist. The exact-version bracket keeps that from happening quietly; see
+      THIRD-PARTY-NOTICES.txt and the DependencyGuardTests guard.
+    -->
+    <PackageReference Include="SixLabors.Fonts" Version="[1.0.1]" />
+  </ItemGroup>
+
 </Project>
