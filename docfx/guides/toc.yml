@@ -8,6 +8,8 @@
   href: markdown.md
 - name: Word documents
   href: word-documents.md
+- name: DOCX to PDF
+  href: docx-to-pdf.md
 - name: Spreadsheets and presentations
   href: spreadsheets-and-presentations.md
 - name: Dependency injection
