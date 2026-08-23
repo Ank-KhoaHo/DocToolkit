@@ -44,6 +44,49 @@ public static class HtmlToPdfConverter
     }
 
     /// <summary>
+    /// Converts <paramref name="html"/> to PDF bytes, applying page setup, remote-image policy and
+    /// fonts <b>together</b>.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the only overload that can express all three at once</b>, which is why it exists.
+    /// The others each fix two of the axes at their defaults, so a caller needing fonts on a
+    /// non-A4 page - or fonts alongside remote images - had no signature to call and
+    /// <c>DocToolkitOptions.Fonts</c> could not reach the HTML path at all.
+    ///
+    /// <para><b>Remote fetching is opt-in and stays that way.</b>
+    /// <see cref="HtmlToPdfOptions.RemoteImage"/> being <see langword="null"/> - its default - opens
+    /// no socket, so this overload is safe in an air-gapped environment exactly like the
+    /// others.</para>
+    /// </remarks>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="options">Page setup, remote-image policy and fonts. See <see cref="HtmlToPdfOptions"/>.</param>
+    /// <param name="ct">Cancels the conversion, including the PDF render.</param>
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="options"/>' <see cref="HtmlToPdfOptions.RemoteImage"/> has an
+    /// <see cref="RemoteImageOptions.AllowedHosts"/> entry that is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task<byte[]> ConvertAsync(
+        string html, HtmlToPdfOptions options, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(options);
+        options.RemoteImage?.Validate();
+
+        // Which delegate, not which converter: HTML to PDF stays a COMPOSITION of the other two
+        // converters. The branch is on whether remote images were opted into, because the core
+        // expresses "offline" and "bounded fetch" as two different HtmlToDocxConverter overloads
+        // rather than as a nullable argument.
+        Func<string, Task<byte[]>> toDocx = options.RemoteImage is null
+            ? h => HtmlToDocxConverter.ConvertAsync(h, options.Page, ct)
+            : h => HtmlToDocxConverter.ConvertAsync(h, options.Page, options.RemoteImage, ct);
+
+        return await HtmlForPdf.RenderAsync(html, toDocx, options.Fonts, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Converts <paramref name="html"/> straight to PDF bytes, laid out on
     /// <see cref="PageSetup.A4"/>.
     ///
@@ -403,6 +446,50 @@ public static class HtmlToPdfConverter
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
         var pdf = await ConvertAsync(html, page, ct).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(outputPath, pdf, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc cref="ConvertAsync(string, HtmlToPdfOptions, CancellationToken)" path="/summary|/remarks"/>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="options">Page setup, remote-image policy and fonts.</param>
+    /// <param name="destination">
+    /// The stream the PDF is written to, from its current position. <b>Not</b> disposed, closed or
+    /// sought - it belongs to the caller and may be write-only and forward-only.
+    /// </param>
+    /// <param name="ct">Cancels the conversion and the write to <paramref name="destination"/>.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="destination"/> is not writable.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted or written.</exception>
+    public static async Task ConvertAsync(
+        string html, HtmlToPdfOptions options, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(options);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        await EmitAsync(await ConvertAsync(html, options, ct).ConfigureAwait(false), destination, ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc cref="ConvertAsync(string, HtmlToPdfOptions, CancellationToken)" path="/summary|/remarks"/>
+    /// <param name="html">The markup to convert.</param>
+    /// <param name="options">Page setup, remote-image policy and fonts.</param>
+    /// <param name="outputPath">The file the PDF is written to. Overwritten if it exists.</param>
+    /// <param name="ct">Cancels the conversion and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="html"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="outputPath"/> is null, empty or whitespace.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The HTML could not be converted.</exception>
+    public static async Task ConvertToFileAsync(
+        string html, HtmlToPdfOptions options, string outputPath, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var pdf = await ConvertAsync(html, options, ct).ConfigureAwait(false);
         await File.WriteAllBytesAsync(outputPath, pdf, ct).ConfigureAwait(false);
     }
 }

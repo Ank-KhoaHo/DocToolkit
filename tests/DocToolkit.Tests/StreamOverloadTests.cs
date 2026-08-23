@@ -163,6 +163,7 @@ public class StreamOverloadTests
         "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)",
         "HtmlToPdfConverter.ConvertAsync(RemoteImageOptions)",
         "HtmlToPdfConverter.ConvertAsync(PageSetup)",
+        "HtmlToPdfConverter.ConvertAsync(HtmlToPdfOptions)",
         "DocxToPdfConverter.ConvertAsync",
         "XlsxToPdfConverter.ConvertAsync",
         "PptxToPdfConverter.ConvertAsync",
@@ -941,6 +942,9 @@ public class StreamOverloadTests
                 HtmlToPdfConverter.ConvertAsync(Html, new RemoteImageOptions(), destination!, ct),
             "HtmlToPdfConverter.ConvertAsync(PageSetup)" =>
                 HtmlToPdfConverter.ConvertAsync(Html, PageSetup.Letter, destination!, ct),
+            "HtmlToPdfConverter.ConvertAsync(HtmlToPdfOptions)" =>
+                HtmlToPdfConverter.ConvertAsync(
+                    Html, new HtmlToPdfOptions { Page = PageSetup.Letter }, destination!, ct),
             "DocxToPdfConverter.ConvertAsync" =>
                 DocxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "XlsxToPdfConverter.ConvertAsync" =>

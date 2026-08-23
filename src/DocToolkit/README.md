@@ -760,6 +760,22 @@ byte[] pdf     = DocxToPdfConverter.Convert(docx, fonts);
 byte[] fromWeb = await HtmlToPdfConverter.ConvertAsync(html, fonts);
 ```
 
+**For HTML → PDF, `HtmlToPdfOptions` carries fonts, page setup and the remote-image policy
+together** — the overload above fixes the page at A4, so it is the one to reach for when a
+conversion needs more than one of the three:
+
+```csharp
+byte[] letter = await HtmlToPdfConverter.ConvertAsync(html, new HtmlToPdfOptions
+{
+    Page  = PageSetup.Letter.WithMargins(36),
+    Fonts = fonts,
+});
+```
+
+Every property defaults to what the simpler overloads already do — A4, no fonts, and **no remote
+fetching** — so setting only what you care about cannot quietly opt you into anything. There are
+`Stream` and file-path forms too, matching every other capability.
+
 Nothing is fetched and nothing is read from disk by this library — the bytes come from you, which is
 why this works on an air-gapped host. **No font ships inside this package**, deliberately: one
 covering Cyrillic, Greek and CJK is measured in megabytes against a package measured in tens of
