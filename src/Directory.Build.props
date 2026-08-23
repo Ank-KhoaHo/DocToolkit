@@ -220,4 +220,27 @@
     <PackageReference Include="SixLabors.Fonts" Version="[1.0.1]" />
   </ItemGroup>
 
+  <!--
+    The split is an internal organisation of ONE shipped package, so `internal` still means "not
+    part of the public API" - it just now spans several assemblies that are packed together.
+
+    These grants follow the project reference edges exactly: Primitives outward to everything, and
+    the format projects up to the converter project. NO format project grants internals to another
+    format project, which is what keeps the boundary enforced rather than advisory - DocToolkit.Xlsx
+    cannot reach into DocToolkit.Docx internals, because there is neither an edge nor a grant.
+
+    DocToolkit.Tests is included because several internals are tested directly rather than through
+    the public API - TableRowFinder above all, whose one dangerous behaviour fails SILENTLY when it
+    regresses, and GuardedResourceLoader.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'DocToolkit.Primitives'">
+    <InternalsVisibleTo Include="DocToolkit" />
+    <InternalsVisibleTo Include="DocToolkit.Docx" />
+    <InternalsVisibleTo Include="DocToolkit.Xlsx" />
+    <InternalsVisibleTo Include="DocToolkit.Pptx" />
+    <InternalsVisibleTo Include="DocToolkit.Pdf" />
+    <InternalsVisibleTo Include="DocToolkit.Html" />
+    <InternalsVisibleTo Include="DocToolkit.Tests" />
+  </ItemGroup>
+
 </Project>

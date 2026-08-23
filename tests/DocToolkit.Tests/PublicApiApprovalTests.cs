@@ -18,9 +18,27 @@ namespace DocToolkit.Tests;
 /// </summary>
 public class PublicApiApprovalTests
 {
+    // ONE CALL PER SHIPPED ASSEMBLY. The package contains seven, since the per-format project
+    // split - but they are all packed into the one nupkg, so together these pin exactly the
+    // surface a consumer receives.
+    //
+    // EACH LOCATOR TYPE MUST BE ONE ITS OWN PROJECT GENUINELY OWNS. `Verify` finds the assembly
+    // through the type, so a locator that later moves to another project silently repoints the
+    // whole file - the approved diff would then lose everything that stayed behind and gain only
+    // what moved, which is a large diff on a change that altered no API at all. Check
+    // artifacts/split-assignment.txt before changing one.
+    //
+    // There is deliberately NO test for DocToolkit.Html: all five of its files are internal, so it
+    // has no public surface. An approved file parsing to zero types is a case
+    // check-readme-coverage.py fails on by design, rather than passing vacuously.
+
     [Fact]
     public void PublicApi_MatchesTheApprovedSurface()
         => ApiApproval.Verify(typeof(DocxEditor).Assembly, "DocToolkit");
+
+    [Fact]
+    public void PublicApi_Primitives_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(PageSetup).Assembly, "DocToolkit.Primitives");
 }
 
 /// <summary>

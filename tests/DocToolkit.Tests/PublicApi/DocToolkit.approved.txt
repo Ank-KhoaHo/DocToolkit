@@ -1,25 +1,5 @@
 namespace DocToolkit
 {
-    public enum ConversionLossKind
-    {
-        None = 0,
-        Approximation = 1,
-        Omission = 2,
-        Failure = 3,
-    }
-    public sealed class ConversionResult<T>
-    {
-        public bool HasLoss { get; }
-        public T Value { get; }
-        public System.Collections.Generic.IReadOnlyList<DocToolkit.ConversionWarning> Warnings { get; }
-    }
-    public sealed class ConversionWarning : System.IEquatable<DocToolkit.ConversionWarning>
-    {
-        public ConversionWarning(string Code, string Message, DocToolkit.ConversionLossKind Kind) { }
-        public string Code { get; init; }
-        public DocToolkit.ConversionLossKind Kind { get; init; }
-        public string Message { get; init; }
-    }
     public static class DocToDocxConverter
     {
         public static byte[] Convert(byte[] doc) { }
@@ -29,16 +9,6 @@ namespace DocToolkit
         public static DocToolkit.ConversionResult<byte[]> ConvertWithReport(byte[] doc, DocToolkit.LegacyDocOptions? options = null) { }
         public static string ExtractText(byte[] doc) { }
         public static System.Threading.Tasks.Task<string> ExtractTextAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
-    }
-    public static class DocToolkitTelemetry
-    {
-        public const string ActivitySourceName = "Ank.DocToolkit";
-        public const string MeterName = "Ank.DocToolkit";
-    }
-    public sealed class DocumentConversionException : System.Exception
-    {
-        public DocumentConversionException(string message) { }
-        public DocumentConversionException(string message, System.Exception inner) { }
     }
     public abstract class DocxBlock
     {
@@ -82,20 +52,6 @@ namespace DocToolkit
         public static byte[] Unprotect(byte[] docx, string password) { }
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
     }
-    public sealed class DocxHeader
-    {
-        public DocToolkit.HeaderAlignment Alignment { get; }
-        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxHeaderSegment> Segments { get; }
-        public override string ToString() { }
-        public static DocToolkit.DocxHeader Of(DocToolkit.HeaderAlignment alignment, params DocToolkit.DocxHeaderSegment[] segments) { }
-        public static DocToolkit.DocxHeader Text(string text, DocToolkit.HeaderAlignment alignment = 0) { }
-    }
-    public abstract class DocxHeaderSegment
-    {
-        public static DocToolkit.DocxHeaderSegment PageCount { get; }
-        public static DocToolkit.DocxHeaderSegment PageNumber { get; }
-        public static DocToolkit.DocxHeaderSegment Text(string text) { }
-    }
     public static class DocxToHtmlConverter
     {
         public static string Convert(byte[] docx) { }
@@ -117,12 +73,6 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, DocToolkit.PdfFontOptions? fonts, System.Threading.CancellationToken ct = default) { }
         public static void ConvertFile(string inputPath, string outputPath) { }
-    }
-    public enum HeaderAlignment
-    {
-        Left = 0,
-        Center = 1,
-        Right = 2,
     }
     public static class HtmlToDocxConverter
     {
@@ -158,18 +108,6 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, DocToolkit.HtmlToPdfOptions options, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, DocToolkit.PageSetup page, string outputPath, System.Threading.CancellationToken ct = default) { }
     }
-    public sealed class HtmlToPdfOptions
-    {
-        public HtmlToPdfOptions() { }
-        public DocToolkit.PdfFontOptions? Fonts { get; init; }
-        public DocToolkit.PageSetup Page { get; init; }
-        public DocToolkit.RemoteImageOptions? RemoteImage { get; init; }
-    }
-    public sealed class LegacyDocOptions
-    {
-        public LegacyDocOptions() { }
-        public bool AllowContentLoss { get; init; }
-    }
     public static class MarkdownToDocxConverter
     {
         public static byte[] Convert(string markdown) { }
@@ -181,30 +119,6 @@ namespace DocToolkit
         public static byte[] Convert(string markdown) { }
         public static System.Threading.Tasks.Task ConvertAsync(string markdown, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static DocToolkit.ConversionResult<byte[]> ConvertWithReport(string markdown) { }
-    }
-    public sealed class PageSetup
-    {
-        public double BottomPoints { get; }
-        public DocToolkit.DocxHeader? FirstPageFooter { get; }
-        public DocToolkit.DocxHeader? FirstPageHeader { get; }
-        public DocToolkit.DocxHeader? Footer { get; }
-        public bool HasDistinctFirstPage { get; }
-        public DocToolkit.DocxHeader? Header { get; }
-        public double HeightPoints { get; }
-        public double LeftPoints { get; }
-        public double RightPoints { get; }
-        public double TopPoints { get; }
-        public double WidthPoints { get; }
-        public static DocToolkit.PageSetup A4 { get; }
-        public static DocToolkit.PageSetup Letter { get; }
-        public DocToolkit.PageSetup Landscape() { }
-        public override string ToString() { }
-        public DocToolkit.PageSetup WithFirstPage(DocToolkit.DocxHeader? header, DocToolkit.DocxHeader? footer) { }
-        public DocToolkit.PageSetup WithFooter(DocToolkit.DocxHeader footer) { }
-        public DocToolkit.PageSetup WithHeader(DocToolkit.DocxHeader header) { }
-        public DocToolkit.PageSetup WithMargins(double points) { }
-        public DocToolkit.PageSetup WithMargins(double topPoints, double rightPoints, double bottomPoints, double leftPoints) { }
-        public static DocToolkit.PageSetup Custom(double widthPoints, double heightPoints) { }
     }
     public static class PdfEditor
     {
@@ -237,12 +151,6 @@ namespace DocToolkit
     {
         Aes128 = 0,
         Aes256 = 1,
-    }
-    public sealed class PdfFontOptions
-    {
-        public PdfFontOptions(string fontName, byte[] trueTypeFont) { }
-        public System.Collections.Generic.IReadOnlyList<string> FontNames { get; }
-        public DocToolkit.PdfFontOptions Add(string fontName, byte[] trueTypeFont) { }
     }
     public sealed class PdfMetadata
     {
@@ -301,14 +209,6 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<int> SlideCountAsync(string path, System.Threading.CancellationToken ct = default) { }
         public static byte[] Unprotect(byte[] pptx, string password) { }
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
-    }
-    public sealed class RemoteImageOptions
-    {
-        public RemoteImageOptions() { }
-        public bool AllowPrivateAddresses { get; set; }
-        public System.Collections.Generic.ISet<string> AllowedHosts { get; }
-        public long MaxBytesPerImage { get; set; }
-        public System.TimeSpan Timeout { get; set; }
     }
     public static class WorkbookEditor
     {

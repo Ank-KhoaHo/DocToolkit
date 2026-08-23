@@ -7,10 +7,10 @@ namespace DocToolkit;
 ///
 /// Immutable and built by factories — <see cref="A4"/>, <see cref="Letter"/> or
 /// <see cref="Custom"/> — then copied by <see cref="Landscape"/> and <c>WithMargins</c>. The same
-/// shape as <see cref="DocxBlock"/>, <see cref="PptxSlide"/>, <see cref="XlsxSheet"/> and
-/// <see cref="XlsxFormula"/>, so the five read as a set.
+/// shape as <c>DocxBlock</c>, <c>PptxSlide</c>, <c>XlsxSheet</c> and
+/// <c>XlsxFormula</c>, so the five read as a set.
 ///
-/// <b>Points throughout</b>, because <see cref="DocxBlock.Image"/> already takes
+/// <b>Points throughout</b>, because <c>DocxBlock.Image</c> already takes
 /// <c>widthPoints</c>/<c>heightPoints</c>, and a library with two length units is a library that
 /// will eventually mix them up. OOXML stores these as twentieths of a point; that conversion lives
 /// in <c>SectionPropertiesFactory</c> and never reaches a caller.
