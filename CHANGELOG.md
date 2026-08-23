@@ -15,12 +15,26 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** carry page setup, remote images and fonts in one HTML-to-PDF call ([#349](https://github.com/Ank-KhoaHo/DocToolkit/issues/349)) ([0757c62](https://github.com/Ank-KhoaHo/DocToolkit/commit/0757c62d94e35445cedacd9579a26288fae10ace))
+* **Core: page setup, remote images and fonts can now apply to the same HTML-to-PDF conversion.**
+  `HtmlToPdfConverter.ConvertAsync` takes an `HtmlToPdfOptions`, with `Stream` and file-path forms
+  beside it. Each existing overload fixes two of the three at their defaults, so a conversion
+  needing fonts on a non-A4 page - or fonts alongside remote images - previously had no signature
+  to call, and `DocToolkitOptions.Fonts` could not reach the HTML path through dependency
+  injection at all.
+
+  **Nothing existing changed or was removed**, and every default matches the overload it replaces:
+  A4, no fonts, and no remote fetching. `RemoteImage` left null opens no socket, so the new
+  overloads are safe in an air-gapped environment exactly like the rest of the API.
+
+  The dependency-injection mirror follows in the next release: the extensions package builds
+  against the published core, so it cannot wrap this until it has shipped.
 
 
 ### Changed
 
-* publish the curated changelog entry as the package release notes ([#347](https://github.com/Ank-KhoaHo/DocToolkit/issues/347)) ([5eda199](https://github.com/Ank-KhoaHo/DocToolkit/commit/5eda199044ad17fb1d4e65b9fa715c4e5918b460))
+* **Every version page on nuget.org now shows that version's release notes**, taken from the
+  curated changelog entry rather than from commit titles. This is the first release to carry them,
+  so 0.34.0's page is the first with the section filled in. Package contents are unchanged.
 
 ## [0.33.5](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.4...v0.33.5) (2026-08-22)
 
