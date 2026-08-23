@@ -32,7 +32,7 @@ namespace DocToolkit;
 /// since there is no anchor to point at.
 ///
 /// <b>This runs on the PDF path only, and deliberately not inside
-/// <see cref="HtmlToDocxConverter"/>.</b> Promoting an anchor there would also repair the DOCX, which
+/// <c>HtmlToDocxConverter</c>.</b> Promoting an anchor there would also repair the DOCX, which
 /// sounds strictly better and is not free: a document that converts today would start carrying
 /// bookmarks it did not carry before, so output would change for conversions that currently succeed.
 /// Every property this class claims rests on the opposite - a document reaching the PDF renderer with

@@ -68,7 +68,7 @@ public static class PresentationEditor
     /// See <see cref="Create"/> for the slide semantics.
     ///
     /// Named <c>CreateToFileAsync</c> rather than a third <c>CreateAsync</c> overload, matching
-    /// <see cref="WorkbookEditor.CreateToFileAsync(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IEnumerable{object}}, string, System.Threading.CancellationToken)"/>:
+    /// <c>WorkbookEditor.CreateToFileAsync</c>:
     /// the distinct name keeps which kind of destination a call writes to visible at the call site,
     /// rather than resting on the argument type alone.
     ///
@@ -327,7 +327,7 @@ public static class PresentationEditor
     ///
     /// Position and size come from the template, so there is nothing to pass: a designer draws a
     /// box in PowerPoint where the image belongs and the image lands there. This deliberately does
-    /// not mirror <see cref="DocxEditor.ReplaceImage"/>'s size arguments — a DOCX image is inline
+    /// not mirror <c>DocxEditor.ReplaceImage</c>'s size arguments — a DOCX image is inline
     /// in the text flow and needs a size, a PPTX picture is a positioned shape and already has one.
     ///
     /// The shape's text must be nothing but the placeholder. The unit replaced is the whole shape,

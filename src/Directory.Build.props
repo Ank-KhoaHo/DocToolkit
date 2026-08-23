@@ -248,4 +248,24 @@
     <InternalsVisibleTo Include="DocToolkit.Tests" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'DocToolkit.Html'">
+    <InternalsVisibleTo Include="DocToolkit" />
+    <InternalsVisibleTo Include="DocToolkit.Tests" />
+  </ItemGroup>
+
+  <!--
+    The remaining three format projects grant internals to the converter project for the same
+    reason Docx and Html do. Xlsx was NOT predicted by the design measurement and is worth saying
+    why: that pass counted internal TYPES, and WorkbookEditor.ReadSheetInvariant is an internal
+    MEMBER on a public type - invisible to a scan looking for `^internal `. XlsxToCsvConverter and
+    XlsxToHtmlConverter both call it.
+
+    Still along the reference edges: every one of these flows upward to DocToolkit, and no format
+    project grants internals to another format project.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'DocToolkit.Xlsx' OR '$(MSBuildProjectName)' == 'DocToolkit.Pptx' OR '$(MSBuildProjectName)' == 'DocToolkit.Pdf'">
+    <InternalsVisibleTo Include="DocToolkit" />
+    <InternalsVisibleTo Include="DocToolkit.Tests" />
+  </ItemGroup>
+
 </Project>

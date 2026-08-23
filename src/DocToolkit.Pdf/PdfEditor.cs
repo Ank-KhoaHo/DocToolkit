@@ -10,7 +10,7 @@ namespace DocToolkit;
 /// </summary>
 /// <remarks>
 /// This is the only part of the library that READS a PDF. Everything else here writes one —
-/// <see cref="DocxToPdfConverter"/> and friends render into PDF and never look at the result,
+/// <c>DocxToPdfConverter</c> and friends render into PDF and never look at the result,
 /// which is why the test suite had to carry a hand-rolled parser before this existed.
 ///
 /// Nothing here re-renders. Pages are moved between documents as they are, so text, fonts and
@@ -58,7 +58,7 @@ public static class PdfEditor
     /// <remarks>
     /// The index is a list position, not a page number — deliberately unlike this class's
     /// <c>firstPage</c> parameters, which are 1-based because that is how a reader numbers pages.
-    /// <see cref="PresentationEditor.ExtractText(byte[])"/> returns per slide for the same reason.
+    /// <c>PresentationEditor.ExtractText</c> returns per slide for the same reason.
     ///
     /// <b>A page with no text layer returns an empty string.</b> A scanned document is images, so
     /// this returns one empty string per page for one — that is what the file contains, not a

@@ -48,6 +48,18 @@ public class PublicApiApprovalTests
     [Fact]
     public void PublicApi_Docx_MatchesTheApprovedSurface()
         => ApiApproval.Verify(typeof(DocxEditor).Assembly, "DocToolkit.Docx");
+
+    [Fact]
+    public void PublicApi_Pdf_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(PdfEditor).Assembly, "DocToolkit.Pdf");
+
+    [Fact]
+    public void PublicApi_Pptx_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(PresentationEditor).Assembly, "DocToolkit.Pptx");
+
+    [Fact]
+    public void PublicApi_Xlsx_MatchesTheApprovedSurface()
+        => ApiApproval.Verify(typeof(WorkbookEditor).Assembly, "DocToolkit.Xlsx");
 }
 
 /// <summary>

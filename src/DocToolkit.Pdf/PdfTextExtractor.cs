@@ -23,7 +23,7 @@ internal static class PdfTextExtractor
     /// <c>page.Text</c> concatenates with no separator, returning
     /// <c>"Acme CorporationInvoice 42"</c> where the correct result is
     /// <c>"Acme Corporation\nInvoice 42"</c>. That is exactly the defect fixed in
-    /// <see cref="DocxEditor.ExtractText(byte[])"/> two days before this was written, and a
+    /// <c>DocxEditor.ExtractText</c> two days before this was written, and a
     /// substring assertion would not notice it.
     /// </remarks>
     public static IReadOnlyList<string> Pages(byte[] pdf)
