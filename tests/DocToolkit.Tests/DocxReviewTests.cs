@@ -285,7 +285,7 @@ public class DocxReviewTests
     /// </summary>
     private static byte[] WithTwoComments()
     {
-        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".docx");
+        string path = Path.Join(Path.GetTempPath(), Path.GetRandomFileName() + ".docx");
         try
         {
             using (var document = OfficeIMO.Word.WordDocument.Create(path))
