@@ -108,13 +108,12 @@ public sealed class DocToolkitOptions
     /// none - measured over 99 real documents, one font rendered 63 where none rendered 71 and four
     /// rendered 77. See <see cref="PdfFontOptions"/> for the whole of that.
     ///
-    /// <b>Applies to <see cref="IDocxToPdfConverter"/> only, for now.</b>
-    /// <see cref="IHtmlToPdfConverter"/> composes page setup and the remote-image settings, and the
-    /// core package has no overload taking all three - so wiring fonts there would either need new
-    /// overloads upstream or would apply them only when no page and no remote-image setting were in
-    /// play, which is worse than not applying them at all: a setting that silently stops taking
-    /// effect depending on unrelated configuration is the kind of thing this package has already had
-    /// to fix once, in this very class. The limitation is stated rather than hidden, and filed.
+    /// <b>Applies to every converter that renders a PDF</b> - <see cref="IDocxToPdfConverter"/> and
+    /// <see cref="IHtmlToPdfConverter"/> alike. It reached only the first until core 0.34.0, because
+    /// no core overload carried fonts alongside page setup and the remote-image settings; wiring it
+    /// anyway would have applied fonts only when neither of the others was in play, and a setting
+    /// that silently stops taking effect depending on unrelated configuration is worse than one that
+    /// is documented as absent. <c>HtmlToPdfOptions</c> closed that, and this option now reaches both.
     /// </remarks>
     public PdfFontOptions? Fonts { get; set; }
 }

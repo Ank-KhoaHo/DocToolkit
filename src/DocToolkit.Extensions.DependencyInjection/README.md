@@ -66,11 +66,20 @@ Nothing is fetched and nothing is read from disk by this library — the bytes c
 *replace* the host's own fallbacks rather than adding to them, so too few is worse than none —
 measured over 99 real documents, one font rendered 63 where none rendered 71, and four rendered 77.
 
-**`Fonts` applies to `IDocxToPdfConverter` only for now.** `IHtmlToPdfConverter` composes page setup
-and the remote-image settings, and the core package has no overload taking all three; wiring it there
-would make the setting apply only when no page and no remote-image setting were in play, which is
-worse than not applying it — a setting that silently stops taking effect depending on unrelated
-configuration is exactly the bug this package already fixed once here.
+**`Fonts` applies to every converter that renders a PDF** — `IDocxToPdfConverter` and
+`IHtmlToPdfConverter` alike, and on the same conversion as your page setup and remote-image
+settings.
+
+It reached only the first before **0.35.0**, because the core package had no overload carrying fonts
+alongside the other two; wiring it anyway would have made the setting apply only when neither of the
+others was in play, and a setting that silently stops taking effect depending on unrelated
+configuration is worse than one documented as absent.
+
+> **If you already set `Fonts` and convert HTML to PDF, this changes your output.** Those
+> conversions previously ignored the setting and used the host's fonts. They now use yours — and
+> supplied fonts **replace** the host's fallbacks rather than adding to them, so a list that covers
+> less than your documents do can render *fewer* of them than before. Supply fonts covering
+> everything you convert, or clear `Fonts` if you were relying on the host.
 
 ### Bounding the remote-image opt-in
 

@@ -61,4 +61,91 @@ public class HtmlToPdfConverterServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => sut.ConvertAsync("<p>Body.</p>", destination, cts.Token));
     }
+
+    // ===================================================================================
+    // A57. Fonts reached IDocxToPdfConverter and not this one until core 0.34.0.
+    // ===================================================================================
+
+    /// <summary>
+    /// A fake font proves fonts REACHED the renderer. 1024 bytes of zeroes is not a TrueType file,
+    /// so a converter that received it fails and one that ignored it succeeds - which is exactly
+    /// the defect A57 recorded. A test asserting "a PDF came back" cannot tell those apart, and
+    /// that is why this suite could not have caught the gap before.
+    /// </summary>
+    private static PdfFontOptions FakeFont => new("Fake", new byte[1024]);
+
+    [Fact]
+    public async Task ConvertAsync_AppliesConfiguredFonts()
+    {
+        var options = new DocToolkitOptions { Fonts = FakeFont };
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(options));
+
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => sut.ConvertAsync("<p>Body.</p>"));
+
+        Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_WithNoFontsConfigured_StillConverts()
+    {
+        // The negative control for the test above. Without it, a service that always threw would
+        // pass the font assertion and prove nothing.
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+
+        var pdf = await sut.ConvertAsync("<p>Body.</p>");
+
+        Assert.Equal(new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2D }, pdf.Take(5).ToArray());
+    }
+
+    [Fact]
+    public async Task ConvertAsync_AppliesFontsALONGSIDEAPageSetup()
+    {
+        // The whole of A57: fonts had to apply together with the other axes, not instead of them.
+        // Naming a page must not quietly drop the configured fonts.
+        var options = new DocToolkitOptions { Fonts = FakeFont };
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(options));
+
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => sut.ConvertAsync("<p>Body.</p>", PageSetup.Letter));
+
+        Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_ToStream_AppliesConfiguredFonts()
+    {
+        var options = new DocToolkitOptions { Fonts = FakeFont };
+        var sut = new HtmlToPdfConverterService(new TestOptionsMonitor<DocToolkitOptions>(options));
+        using var destination = new MemoryStream();
+
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(
+            () => sut.ConvertAsync("<p>Body.</p>", destination));
+
+        Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_AppliesTheConfiguredPageWhenNoneIsNamed()
+    {
+        // Composing one options object must not lose DocToolkitOptions.Page.
+        //
+        // Read out of the PDF's own page dictionary rather than through PdfProbe, which lives in
+        // the core test project and is not referenced here. That is safe for THIS value and not in
+        // general: /MediaBox is PDF STRUCTURE, plain ASCII in the object dictionary, whereas page
+        // TEXT is a hex-string operator inside a content stream and searching bytes for it finds
+        // nothing while looking exactly like a broken converter.
+        var letter = await ConvertWith(PageSetup.Letter);
+        var a4 = await ConvertWith(PageSetup.A4);
+
+        Assert.Contains("/MediaBox [0 0 612", letter, StringComparison.Ordinal);
+        Assert.Contains("/MediaBox [0 0 595", a4, StringComparison.Ordinal);
+
+        static async Task<string> ConvertWith(PageSetup page)
+        {
+            var sut = new HtmlToPdfConverterService(
+                new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions { Page = page }));
+            return System.Text.Encoding.ASCII.GetString(await sut.ConvertAsync("<p>Body.</p>"));
+        }
+    }
 }
