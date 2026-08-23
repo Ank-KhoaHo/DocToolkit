@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.35.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.34.0...v0.35.0) (2026-08-23)
+
+
+### Added
+
+* **extensions:** apply DocToolkitOptions.Fonts to HTML-to-PDF as well ([#351](https://github.com/Ank-KhoaHo/DocToolkit/issues/351)) ([8a00979](https://github.com/Ank-KhoaHo/DocToolkit/commit/8a00979be4ab316cb0bb2cf99448a3292676ecaa))
+
 ## [0.34.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.5...v0.34.0) (2026-08-23)
 
 
