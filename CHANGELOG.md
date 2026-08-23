@@ -15,7 +15,26 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **extensions:** apply DocToolkitOptions.Fonts to HTML-to-PDF as well ([#351](https://github.com/Ank-KhoaHo/DocToolkit/issues/351)) ([8a00979](https://github.com/Ank-KhoaHo/DocToolkit/commit/8a00979be4ab316cb0bb2cf99448a3292676ecaa))
+* **Extensions: `DocToolkitOptions.Fonts` now applies to `IHtmlToPdfConverter` as well as
+  `IDocxToPdfConverter`**, on the same conversion as your page setup and remote-image settings.
+
+  It reached only the DOCX converter before, because the core package had no signature carrying
+  fonts alongside the other two; core 0.34.0's `HtmlToPdfOptions` closed that, and this release
+  wires it through dependency injection. `AllowRemoteImageDownload` is still the only switch that
+  decides whether anything is fetched.
+
+
+### Changed
+
+* **If you already set `Fonts` AND convert HTML to PDF, this changes your output.** Those
+  conversions previously ignored the setting and used whatever fonts the host machine had. They
+  now use yours.
+
+  That matters because supplied fonts **replace** the host's fallbacks rather than adding to them,
+  so a list covering less than your documents do can render **fewer** of them than before -
+  measured over 99 real documents, one font rendered 63 where none rendered 71, and four rendered
+  77. Supply fonts covering everything you convert, or leave `Fonts` unset if you were relying on
+  the host. Nothing changes for anyone who has not set it.
 
 ## [0.34.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.33.5...v0.34.0) (2026-08-23)
 
