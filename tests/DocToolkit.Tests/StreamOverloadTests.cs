@@ -197,6 +197,9 @@ public class StreamOverloadTests
         "WorkbookEditor.UnprotectAsync",
         "PresentationEditor.ProtectAsync",
         "PresentationEditor.UnprotectAsync",
+        "DocxReview.RemoveCommentsAsync",
+        "DocxReview.AcceptRevisionsAsync",
+        "DocxReview.RejectRevisionsAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -244,6 +247,10 @@ public class StreamOverloadTests
         "WorkbookEditor.UnprotectAsync",
         "PresentationEditor.ProtectAsync",
         "PresentationEditor.UnprotectAsync",
+        "DocxReview.InspectAsync",
+        "DocxReview.RemoveCommentsAsync",
+        "DocxReview.AcceptRevisionsAsync",
+        "DocxReview.RejectRevisionsAsync",
     };
 
     /// <summary>
@@ -303,6 +310,9 @@ public class StreamOverloadTests
         "WorkbookEditor.UnprotectAsync",
         "PresentationEditor.ProtectAsync",
         "PresentationEditor.UnprotectAsync",
+        "DocxReview.RemoveCommentsAsync",
+        "DocxReview.AcceptRevisionsAsync",
+        "DocxReview.RejectRevisionsAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -345,8 +355,24 @@ public class StreamOverloadTests
             .Select(n => n.Split('(')[0])
             .ToHashSet(StringComparer.Ordinal);
 
+        // ALL SIX SHIPPED ASSEMBLIES, not just the one this file's oldest entries came from.
+        // Until the per-concern project split this was `typeof(DocxEditor).Assembly` and that WAS
+        // the whole library; afterwards it was one assembly of six, so a new Stream overload on
+        // PdfEditor, WorkbookEditor or PresentationEditor could go unregistered and every theory
+        // here would skip it in silence - reopening the exact hole this test exists to close.
+        // Same list, and the same reasoning, as ArgumentExceptionNamesADeclaredParameterTests.
+        var assemblies = new[]
+        {
+            typeof(HtmlToPdfConverter).Assembly,   // DocToolkit
+            typeof(PageSetup).Assembly,            // DocToolkit.Primitives
+            typeof(DocxEditor).Assembly,           // DocToolkit.Docx
+            typeof(WorkbookEditor).Assembly,       // DocToolkit.Xlsx
+            typeof(PresentationEditor).Assembly,   // DocToolkit.Pptx
+            typeof(PdfEditor).Assembly,            // DocToolkit.Pdf
+        }.Distinct();
+
         var shipped =
-            from type in typeof(DocxEditor).Assembly.GetExportedTypes()
+            from type in assemblies.SelectMany(a => a.GetExportedTypes())
             where type is { IsAbstract: true, IsSealed: true }        // C# static class
             from method in type.GetMethods(BindingFlags.Public | BindingFlags.Static
                                            | BindingFlags.DeclaredOnly)
@@ -906,6 +932,14 @@ public class StreamOverloadTests
     private static Task InvokeAsync(
         string api, Stream? source, Stream? destination, CancellationToken ct = default) => api switch
         {
+            "DocxReview.InspectAsync" =>
+                DocxReview.InspectAsync(source!, ct),
+            "DocxReview.RemoveCommentsAsync" =>
+                DocxReview.RemoveCommentsAsync(source!, destination!, ct),
+            "DocxReview.AcceptRevisionsAsync" =>
+                DocxReview.AcceptRevisionsAsync(source!, destination!, ct),
+            "DocxReview.RejectRevisionsAsync" =>
+                DocxReview.RejectRevisionsAsync(source!, destination!, ct),
             "DocxEditor.ProtectAsync" =>
                 DocxEditor.ProtectAsync(source!, destination!, "pw", ct),
             "DocxEditor.UnprotectAsync" =>

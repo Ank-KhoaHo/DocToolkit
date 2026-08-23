@@ -7,6 +7,15 @@ namespace DocToolkit
         public static DocToolkit.DocxBlock Paragraph(string text) { }
         public static DocToolkit.DocxBlock Table(System.Collections.Generic.IEnumerable<string> headers, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
     }
+    public sealed class DocxComment
+    {
+        public string Author { get; }
+        public System.DateTime? Created { get; }
+        public string Initials { get; }
+        public bool? IsResolved { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxComment> Replies { get; }
+        public string Text { get; }
+    }
     public static class DocxEditor
     {
         public static byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks) { }
@@ -41,5 +50,37 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<int> TableCountAsync(string path, System.Threading.CancellationToken ct = default) { }
         public static byte[] Unprotect(byte[] docx, string password) { }
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
+    }
+    public static class DocxReview
+    {
+        public static byte[] AcceptRevisions(byte[] docx) { }
+        public static System.Threading.Tasks.Task AcceptRevisionsAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocxReviewReport Inspect(byte[] docx) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocxReviewReport> InspectAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+        public static byte[] RejectRevisions(byte[] docx) { }
+        public static System.Threading.Tasks.Task RejectRevisionsAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static byte[] RemoveComments(byte[] docx) { }
+        public static System.Threading.Tasks.Task RemoveCommentsAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class DocxReviewReport
+    {
+        public int CommentThreadCount { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxComment> Comments { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxRevision> Revisions { get; }
+        public int UnresolvedThreadCount { get; }
+    }
+    public sealed class DocxRevision
+    {
+        public string AffectedText { get; }
+        public string Author { get; }
+        public System.DateTime? Created { get; }
+        public bool IsInTable { get; }
+        public DocToolkit.DocxRevisionKind Kind { get; }
+    }
+    public enum DocxRevisionKind
+    {
+        Other = 0,
+        Insertion = 1,
+        Deletion = 2,
     }
 }
