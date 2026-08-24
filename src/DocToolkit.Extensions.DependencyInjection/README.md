@@ -1,7 +1,10 @@
 # Ank.DocToolkit.Extensions.DependencyInjection
 
+![DocToolkit - convert HTML to PDF and DOCX in C#, no browser, no native binaries](https://raw.githubusercontent.com/Ank-KhoaHo/DocToolkit/main/assets/banner.png)
+
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
+[![License: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/LICENSE)
 
 Dependency-injection registration for [Ank.DocToolkit](https://www.nuget.org/packages/Ank.DocToolkit) —
 `services.AddDocToolkit()` registers an injectable interface per capability, over the same
