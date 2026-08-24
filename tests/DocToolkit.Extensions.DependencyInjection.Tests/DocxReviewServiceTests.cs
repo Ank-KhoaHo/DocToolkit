@@ -162,10 +162,18 @@ public class DocxReviewServiceTests
         var service = Service();
         using var ok = new MemoryStream(WithACommentAndTwoRevisions());
 
+        // The destinations are declared rather than passed inline so each is disposed. An
+        // undisposed MemoryStream holds no OS handle and would be reclaimed either way - the
+        // reason to bother is that cs/local-not-disposed once stood at 61 alerts here, all in
+        // test code, and a signal nobody reads protects nothing.
+        using var d1 = new MemoryStream();
+        using var d2 = new MemoryStream();
+        using var d3 = new MemoryStream();
+
         await Assert.ThrowsAsync<ArgumentNullException>(() => service.InspectAsync(null!));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => service.RemoveCommentsAsync(null!, new MemoryStream()));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => service.AcceptRevisionsAsync(null!, new MemoryStream()));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => service.RejectRevisionsAsync(null!, new MemoryStream()));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => service.RemoveCommentsAsync(null!, d1));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => service.AcceptRevisionsAsync(null!, d2));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => service.RejectRevisionsAsync(null!, d3));
         await Assert.ThrowsAsync<ArgumentNullException>(() => service.RejectRevisionsAsync(ok, null!));
     }
 
