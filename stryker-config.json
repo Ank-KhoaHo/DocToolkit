@@ -5,7 +5,7 @@
     "test-projects": [
       "tests/DocToolkit.Tests/DocToolkit.Tests.csproj"
     ],
-    "target-framework": "net8.0",
+    "target-framework": "net10.0",
     "coverage-analysis": "perTest",
     "reporters": [
       "progress",
@@ -26,7 +26,8 @@
       "**/XlsxToHtmlConverter.cs",
       "**/XlsxFormat.cs",
       "**/ConversionDiagnostics.cs",
-      "**/MarkdownImportOptions.cs"
+      "**/MarkdownImportOptions.cs",
+      "**/HtmlToDocxConverter.cs"
     ],
     "thresholds": {
       "high": 99,
