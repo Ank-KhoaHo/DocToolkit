@@ -26,8 +26,7 @@
       "**/XlsxToHtmlConverter.cs",
       "**/XlsxFormat.cs",
       "**/ConversionDiagnostics.cs",
-      "**/MarkdownImportOptions.cs",
-      "**/HtmlToDocxConverter.cs"
+      "**/MarkdownImportOptions.cs"
     ],
     "thresholds": {
       "high": 99,

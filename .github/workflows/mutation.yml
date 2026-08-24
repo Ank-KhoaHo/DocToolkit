@@ -29,7 +29,8 @@ name: Mutation testing
 # trade; the tests came first, then the scope.
 #
 # RUNTIME, measured on this runner rather than inferred from a laptop: 15m52s for
-# the widened scope, against timeout-minutes: 45. Locally the same run is 4m42s, so
+# the widened scope. MEASURED ON CI 2026-08-24 at 43m36s for 635 mutants, which is why
+# timeout-minutes is now 90. Locally the same run is ~20m, so
 # CI costs about 3.4x - which is the ratio to use when pricing any further widening,
 # NOT the local number.
 #
@@ -91,7 +92,16 @@ jobs:
   mutation:
     name: mutation score
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # 90, raised from 45 on 2026-08-24 with the number measured rather than guessed.
+    #
+    # The restored scope cost 43m36s on CI - 635 mutants, which is 84 SECONDS under the old limit.
+    # It had been passing in minutes only because `project: DocToolkit.csproj` plus a net8.0
+    # analysis failure had collapsed the run to 27 mutants in one project; see B27.
+    #
+    # A timeout here is the worst available outcome: it produces no score at all, so nothing
+    # distinguishes "the suite is slow today" from "the gate would have failed". Headroom is
+    # cheaper than that ambiguity on a weekly job.
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
