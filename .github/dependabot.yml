@@ -105,7 +105,8 @@ updates:
       # trusting the comment: it derives the required set from the src/ blocks, so
       # deleting one of these lines - or adding a NEW block that forgets them - fails
       # the build instead of silently reopening the hole.
-      - dependency-name: "SixLabors.Fonts"
+      # SixLabors.Fonts is NOT repeated here - it is in the derived list below, and
+      # Dependabot rejects a duplicate dependency-name outright rather than ignoring it.
       - dependency-name: "Ank.DocToolkit"
       - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
       - dependency-name: "Microsoft.Extensions.Options"
@@ -190,9 +191,11 @@ updates:
     commit-message:
       prefix: ci
     ignore:
-      # Repeated from /src/DocToolkit - the licensing wall.
-      - dependency-name: "SixLabors.Fonts"
-        update-types: ["version-update:semver-major"]
+      # The licensing wall - SixLabors.Fonts - is in the derived list below rather than
+      # here, so it is not repeated as its own entry: Dependabot rejects a duplicate
+      # dependency-name outright. The derived entry ignores it ENTIRELY where this one
+      # ignored only its majors; ignoring more is always safe, and src/ pins it to an
+      # exact version anyway.
       # Repeated from /src/DocToolkit.Extensions.DependencyInjection - raising a
       # floor narrows who can consume the package, which is never routine.
       - dependency-name: "Ank.DocToolkit"
