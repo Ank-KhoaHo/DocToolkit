@@ -138,3 +138,12 @@ date,workflow,runs
 2026-08-22,Release curation state,7
 2026-08-22,nuget stats,1
 2026-08-22,release-please,14
+2026-08-23,CI,34
+2026-08-23,CodeQL,24
+2026-08-23,Dependabot auto-merge,16
+2026-08-23,Docs,4
+2026-08-23,Install smoke test,4
+2026-08-23,Release,4
+2026-08-23,Release curation state,9
+2026-08-23,nuget stats,1
+2026-08-23,release-please,8
