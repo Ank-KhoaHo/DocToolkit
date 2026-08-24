@@ -885,6 +885,18 @@ jobs:
       - name: Pack
         run: dotnet pack ${{ matrix.project }} -c Release
 
+      # Checks the ASSEMBLIES inside the nupkg; the step below checks the nuspec's DEPENDENCIES.
+      # Two different questions, and 0.36.0 shipped with the second correct and the first wrong.
+      #
+      # This runs HERE as well as on the publish path deliberately. A guard whose first real
+      # execution is the irreversible run is a guard nothing has tested - which is the same shape
+      # as the defect it exists to catch. This job packs the way release.yml now does, so it is
+      # also the positive control: it must PASS, and a failure here means the packing target broke.
+      - name: Guard - every assembly the package ships is actually in it
+        run: |
+          python3 scripts/check-package-contents.py --self-test
+          python3 scripts/check-package-contents.py artifacts/*.nupkg
+
       - name: Verify package contents
         env:
           EXPECTED_DEPS: ${{ matrix.deps }}
