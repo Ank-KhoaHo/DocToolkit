@@ -15,7 +15,35 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** read and resolve a document's review state ([#354](https://github.com/Ank-KhoaHo/DocToolkit/issues/354)) ([aa16895](https://github.com/Ank-KhoaHo/DocToolkit/commit/aa16895c969c98972bc968349510a6d8dea703f3))
+* **Core: a document's comments and tracked changes are now readable, and resolvable, through
+  `DocxReview`.** `DocxEditor` could read a document's text, tables and images and could not see a
+  single comment or revision, so a document that had been through review carried state no caller
+  could reach.
+
+  `Inspect` returns both together, in one `DocxReviewReport` — reading them separately can return
+  counts that disagree, because they come from different passes over the same document. Comments
+  arrive threaded: a reply sits on its parent's `Replies` rather than appearing again at the top
+  level, so `Comments.Count` is a thread count, and `UnresolvedThreadCount` is the number still
+  worth acting on. Each carries its author, initials, text and date; each revision carries its
+  author, the text it affected, and whether it sits inside a table.
+
+  `RemoveComments`, `AcceptRevisions` and `RejectRevisions` each return a new document. Accepting
+  keeps insertions and drops deletions; rejecting does the reverse. **Neither can be undone from
+  the result** — keep the original if you might need it. `byte[]` and `Stream` overloads exist for all
+  four operations, and an unreviewed document reports empty rather than failing.
+
+  `DocxRevision.Kind` is `Insertion`, `Deletion` or `Other`. Word records eleven kinds of revision,
+  and the other nine all arrive as `Other` — the two halves of a move, six formatting kinds, and an
+  unknown catch-all — so a document edited with track-changes on while somebody restyled it can be
+  entirely `Other`. Reporting those coarsely was chosen over refusing to read the document; naming
+  more of them later is additive.
+
+  **This release adds no way to create review state** — there is no method to add a comment or to
+  record an edit as a tracked change. Reading and resolving is coherent without it, and authoring
+  needs a design of its own.
+
+  The dependency-injection mirror follows in the next release: the extensions package builds
+  against the published core, so it cannot wrap this until it has shipped.
 
 ## [0.35.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.34.0...v0.35.0) (2026-08-23)
 
