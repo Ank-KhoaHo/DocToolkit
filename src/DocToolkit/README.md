@@ -853,6 +853,25 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
+### 0.36.0 is broken — upgrade to 0.36.1, or stay on 0.35.0
+
+**Do not use 0.36.0.** It was published carrying `DocToolkit.dll` alone; the six assemblies the
+library was split into were missing from the package. Referencing it produces compile errors on
+almost everything this library exposes:
+
+```
+error CS0012: The type 'PageSetup' is defined in an assembly that is not referenced.
+              You must add a reference to assembly 'DocToolkit.Primitives'.
+error CS0103: The name 'DocxEditor' does not exist in the current context
+```
+
+`0.36.1` is the same library with the packaging fixed. **Nothing in your code needs to change** —
+this was never an API change, and 0.36.0 could not be compiled against at all, so no working code
+depends on it.
+
+A nuget.org version cannot be replaced or deleted, only unlisted, which is why this entry exists
+rather than a corrected 0.36.0.
+
 ### 0.33.x to 0.33.4 - a file-path overload names the parameter you passed
 
 Before 0.33.4, handing a **zero-byte file** to a file-path overload raised an `ArgumentException`
