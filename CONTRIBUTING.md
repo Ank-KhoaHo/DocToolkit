@@ -308,7 +308,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | `outdated shipped dependencies` | `dependency-report.yml` | `check-dependabot-scoping.py`<br>`gen-third-party-notices.py` |
 | `report` | `release-curation-state.yml` | `check-changelog-curated.py` |
 | `release-please` | `release-please.yml` | `extract-changelog-section.py` |
-| `verify, pack and publish` | `release.yml` | `extract-changelog-section.py` |
+| `verify, pack and publish` | `release.yml` | `check-package-contents.py`<br>`extract-changelog-section.py` |
 
 Generated from `.github/workflows/*.yml`. A guard added to a job appears here automatically; one moved between jobs moves with it. What each guard means, and what to do when it fails, is the table above — that part is written by hand because it cannot be derived.
 

@@ -209,6 +209,29 @@
     <ProjectReference Include="..\DocToolkit.Html\DocToolkit.Html.csproj" PrivateAssets="all" />
   </ItemGroup>
 
+  <!--
+    THIS TARGET CANNOT BE PACKED WITH THE `no-build` SWITCH, and 0.36.0 shipped broken because it
+    was. `release.yml` must run a full `dotnet pack`.
+
+    This target reads @(ReferenceCopyLocalPaths), which only ResolveReferences populates.
+    `release.yml` packs with `dotnet pack` and the `no-build` switch, which does NOT run it - so the item list was
+    empty, BuildOutputInPackage got nothing, and the package went to nuget.org carrying
+    DocToolkit.dll ALONE: a 67 KB shell with the other six assemblies absent, against 266 KB of
+    working library in pre-split 0.35.0. Every consumer touching DocxEditor, PageSetup, PdfEditor,
+    WorkbookEditor or PresentationEditor got CS0012/CS0103 and could not compile.
+
+    It passed every check because nothing packed the way the release packs. A plain `dotnet pack`
+    runs ResolveReferences and produces all seven assemblies, so every local pack was correct and
+    only the release was wrong. Measured 2026-08-24: plain pack seven assemblies, clean-tree pack
+    seven, `no-build` pack ONE.
+
+    Adding DependsOnTargets="ResolveReferences" here does NOT fix it - NoBuild forbids the build
+    that ResolveReferences then wants, so pack fails outright with NETSDK1085. The switch has to go
+    from the workflow, which is what happened.
+
+    scripts/check-package-contents.py asserts the assembly list inside the built nupkg, on the
+    publish path, so this cannot ship a second time.
+  -->
   <Target Name="IncludeReferencedProjectInPackage">
     <ItemGroup>
       <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths->WithMetadataValue('ReferenceSourceTarget','ProjectReference'))" />
