@@ -119,8 +119,8 @@
     <PackageReference Include="HtmlToOpenXml.dll" Version="3.5.0" />
     <PackageReference Include="OfficeIMO.Excel.Pdf" Version="3.2.2" />
     <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.2.2" />
-    <PackageReference Include="OfficeIMO.Word.Html" Version="3.2.2" />
-    <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Word.Html" Version="3.2.6" />
+    <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.6" />
 
     <!--
       Promoted from TRANSITIVE to direct alongside OfficeIMO.Word, for the Protect/Unprotect
@@ -145,7 +145,7 @@
       stop being pulled in by a minor bump of whatever pulled it, and nothing would say why the
       build broke.
     -->
-    <PackageReference Include="OfficeIMO.Word" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Word" Version="3.2.6" />
     <!--
       PDF text extraction only. PDFsharp owns the document's STRUCTURE (pages, merge, rotate,
       metadata); PdfPig owns its CONTENT. Neither does the other's job - see the E6 decision.
