@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.36.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.0...v0.36.1) (2026-08-24)
+
+
+### Fixed
+
+* **core:** pack every assembly the package ships ([#368](https://github.com/Ank-KhoaHo/DocToolkit/issues/368)) ([219e654](https://github.com/Ank-KhoaHo/DocToolkit/commit/219e65400f5d3f71e299b6cefb41f1ec89bf3b41))
+
 ## [0.36.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.35.0...v0.36.0) (2026-08-23)
 
 
