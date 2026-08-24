@@ -109,6 +109,36 @@ updates:
       - dependency-name: "Ank.DocToolkit"
       - dependency-name: "Microsoft.Extensions.DependencyInjection.Abstractions"
       - dependency-name: "Microsoft.Extensions.Options"
+      # ── EVERY PACKAGE THE SHIPPED LIBRARY DECLARES ──────────────────────────
+      # Added 2026-08-24, as C37. Both /src/ blocks ignore "*" and propose nothing, and
+      # their comment says bumps there "stay a deliberate manual act" - but this block
+      # reaches src/ and Dependabot edits the src csproj on its way past, so it was the
+      # ONLY automated path that touched a shipped dependency.
+      #
+      # #366 proved the cost: titled "Bump the test-dependencies group", it moved OfficeIMO
+      # 3.2.2 -> 3.2.6 across eight packages plus AngleSharp and PdfPig, under `chore:` -
+      # hidden and non-bumping. A consumer would have restored four patch versions of the
+      # engine behind every DOCX, XLSX, PPTX and PDF path with nothing in the changelog. It
+      # truncated all eight lockfiles too, exactly as the /src/ blocks predict.
+      #
+      # check-dependabot-scoping.py DERIVES this list from src/Directory.Build.props, so a
+      # sixteenth package joins by being added and deleting a line here fails the build.
+      # dependency-report.yml still reports these weekly, read-only.
+      - dependency-name: "AngleSharp"
+      - dependency-name: "ClosedXML"
+      - dependency-name: "DocumentFormat.OpenXml"
+      - dependency-name: "HtmlToOpenXml.dll"
+      - dependency-name: "OfficeIMO.Excel"
+      - dependency-name: "OfficeIMO.Excel.Pdf"
+      - dependency-name: "OfficeIMO.PowerPoint"
+      - dependency-name: "OfficeIMO.PowerPoint.Pdf"
+      - dependency-name: "OfficeIMO.Word"
+      - dependency-name: "OfficeIMO.Word.Html"
+      - dependency-name: "OfficeIMO.Word.Markdown"
+      - dependency-name: "OfficeIMO.Word.Pdf"
+      - dependency-name: "PDFsharp"
+      - dependency-name: "PdfPig"
+      - dependency-name: "SixLabors.Fonts"
 
   # ── Samples have no block of their own ──────────────────────────────────────
   # They reference the published packages as Version="*", so nothing needs to
@@ -172,6 +202,36 @@ updates:
       # sample is reached from here through the solution, and a bump to 10.x would
       # be exactly the unrelated-upstream-release noise the pin exists to prevent.
       - dependency-name: "Microsoft.Extensions.Hosting"
+      # ── EVERY PACKAGE THE SHIPPED LIBRARY DECLARES ──────────────────────────
+      # Added 2026-08-24, as C37. Both /src/ blocks ignore "*" and propose nothing, and
+      # their comment says bumps there "stay a deliberate manual act" - but this block
+      # reaches src/ and Dependabot edits the src csproj on its way past, so it was the
+      # ONLY automated path that touched a shipped dependency.
+      #
+      # #366 proved the cost: titled "Bump the test-dependencies group", it moved OfficeIMO
+      # 3.2.2 -> 3.2.6 across eight packages plus AngleSharp and PdfPig, under `chore:` -
+      # hidden and non-bumping. A consumer would have restored four patch versions of the
+      # engine behind every DOCX, XLSX, PPTX and PDF path with nothing in the changelog. It
+      # truncated all eight lockfiles too, exactly as the /src/ blocks predict.
+      #
+      # check-dependabot-scoping.py DERIVES this list from src/Directory.Build.props, so a
+      # sixteenth package joins by being added and deleting a line here fails the build.
+      # dependency-report.yml still reports these weekly, read-only.
+      - dependency-name: "AngleSharp"
+      - dependency-name: "ClosedXML"
+      - dependency-name: "DocumentFormat.OpenXml"
+      - dependency-name: "HtmlToOpenXml.dll"
+      - dependency-name: "OfficeIMO.Excel"
+      - dependency-name: "OfficeIMO.Excel.Pdf"
+      - dependency-name: "OfficeIMO.PowerPoint"
+      - dependency-name: "OfficeIMO.PowerPoint.Pdf"
+      - dependency-name: "OfficeIMO.Word"
+      - dependency-name: "OfficeIMO.Word.Html"
+      - dependency-name: "OfficeIMO.Word.Markdown"
+      - dependency-name: "OfficeIMO.Word.Pdf"
+      - dependency-name: "PDFsharp"
+      - dependency-name: "PdfPig"
+      - dependency-name: "SixLabors.Fonts"
 
   - package-ecosystem: github-actions
     directory: "/"

@@ -272,17 +272,42 @@ jobs:
           test -s "${{ runner.temp }}/release-notes.md" \
             || { echo "::error::The extracted changelog entry is empty. Refusing to pack notes nobody wrote."; exit 1; }
 
+      # NO `no-build` SWITCH HERE, AND THAT IS THE WHOLE POINT.
+      #
+      # It was there until 0.36.0, and it is why that version shipped broken. The core package
+      # assembles SEVEN assemblies into one nupkg through a TargetsForTfmSpecificBuildOutput target
+      # that reads @(ReferenceCopyLocalPaths) - and only ResolveReferences populates that item.
+      # `no-build` skips ResolveReferences, so the list came out empty, BuildOutputInPackage added
+      # nothing, and 0.36.0 went to nuget.org carrying DocToolkit.dll ALONE: a 67 KB shell against
+      # 266 KB of working library in pre-split 0.35.0. Consumers got CS0012 on PageSetup and
+      # CS0103 on DocxEditor and could not compile at all.
+      #
+      # Nothing caught it because nothing else packs this way. A plain `dotnet pack` runs
+      # ResolveReferences and emits all seven, so every local pack and every CI pack was correct -
+      # only the release was wrong, and only on the one run that cannot be undone.
+      #
+      # Sources are unchanged since the build step above and the build is deterministic, so this
+      # re-runs incrementally and still ships what the suite ran against. Both packs are kept
+      # identical so the switch cannot creep back onto just one of them.
       - name: Pack
         run: |
-          dotnet pack ${{ env.PROJECT }} -c Release --no-build \
+          dotnet pack ${{ env.PROJECT }} -c Release \
             -p:Version=${{ steps.v.outputs.version }} \
             -p:PackageVersion=${{ steps.v.outputs.version }} \
             -p:PackageReleaseNotesFile=${{ runner.temp }}/release-notes.md
-          dotnet pack ${{ env.EXTENSIONS_PROJECT }} -c Release --no-build \
+          dotnet pack ${{ env.EXTENSIONS_PROJECT }} -c Release \
             -p:Version=${{ steps.v.outputs.version }} \
             -p:PackageVersion=${{ steps.v.outputs.version }} \
             -p:PackageReleaseNotesFile=${{ runner.temp }}/release-notes.md
           ls -la artifacts/
+
+      # Checks the ASSEMBLIES inside each nupkg. The step below it checks the nuspec's
+      # DEPENDENCIES, which is a different question - and the reason 0.36.0 shipped a package with
+      # correct dependencies and six of its seven assemblies missing. Nothing looked at lib/.
+      - name: Guard - every assembly each package ships is actually in it
+        run: |
+          python3 scripts/check-package-contents.py --self-test
+          python3 scripts/check-package-contents.py artifacts/*.nupkg
 
       - name: Verify package contents
         run: |

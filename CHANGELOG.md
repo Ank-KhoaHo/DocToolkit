@@ -10,6 +10,70 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.36.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.0...v0.36.1) (2026-08-24)
+
+
+### Fixed
+
+* **Core: 0.36.0 shipped an incomplete package. If you are on it, upgrade.** That version was
+  published carrying `DocToolkit.dll` alone - the six assemblies this library was split into were
+  missing from it - so referencing it fails to compile on almost everything the API exposes:
+
+  ```
+  error CS0012: The type 'PageSetup' is defined in an assembly that is not referenced.
+                You must add a reference to assembly 'DocToolkit.Primitives'.
+  error CS0103: The name 'DocxEditor' does not exist in the current context
+  ```
+
+  0.36.1 is the same library with the packaging repaired. **Nothing in your code changes.** This was
+  never an API change, and 0.36.0 could not be compiled against at all, so no working code depends
+  on it - upgrading from 0.35.0 straight to 0.36.1 is the ordinary upgrade the 0.36.0 entry
+  describes.
+
+  The cause was the release pipeline packing with a switch that skipped the step assembling those
+  six assemblies into the package. A `dotnet pack` anywhere else produced all seven, which is why
+  the tests, the licence and native-binary guards, the API approval and the install smoke test all
+  passed on it - none of them look inside the produced package. Two checks now do, one of them on
+  every pull request.
+
+  A nuget.org version can be unlisted but never replaced, so 0.36.0 remains where it is. This entry
+  and the *Migrating* note in the package README are the only repair available.
+
+## [0.36.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.35.0...v0.36.0) (2026-08-23)
+
+
+### Added
+
+* **Core: a document's comments and tracked changes are now readable, and resolvable, through
+  `DocxReview`.** `DocxEditor` could read a document's text, tables and images and could not see a
+  single comment or revision, so a document that had been through review carried state no caller
+  could reach.
+
+  `Inspect` returns both together, in one `DocxReviewReport` — reading them separately can return
+  counts that disagree, because they come from different passes over the same document. Comments
+  arrive threaded: a reply sits on its parent's `Replies` rather than appearing again at the top
+  level, so `Comments.Count` is a thread count, and `UnresolvedThreadCount` is the number still
+  worth acting on. Each carries its author, initials, text and date; each revision carries its
+  author, the text it affected, and whether it sits inside a table.
+
+  `RemoveComments`, `AcceptRevisions` and `RejectRevisions` each return a new document. Accepting
+  keeps insertions and drops deletions; rejecting does the reverse. **Neither can be undone from
+  the result** — keep the original if you might need it. `byte[]` and `Stream` overloads exist for all
+  four operations, and an unreviewed document reports empty rather than failing.
+
+  `DocxRevision.Kind` is `Insertion`, `Deletion` or `Other`. Word records eleven kinds of revision,
+  and the other nine all arrive as `Other` — the two halves of a move, six formatting kinds, and an
+  unknown catch-all — so a document edited with track-changes on while somebody restyled it can be
+  entirely `Other`. Reporting those coarsely was chosen over refusing to read the document; naming
+  more of them later is additive.
+
+  **This release adds no way to create review state** — there is no method to add a comment or to
+  record an edit as a tracked change. Reading and resolving is coherent without it, and authoring
+  needs a design of its own.
+
+  The dependency-injection mirror follows in the next release: the extensions package builds
+  against the published core, so it cannot wrap this until it has shipped.
+
 ## [0.35.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.34.0...v0.35.0) (2026-08-23)
 
 
