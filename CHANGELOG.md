@@ -10,6 +10,24 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.37.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.1...v0.37.0) (2026-08-24)
+
+
+### Added
+
+* **extensions:** mirror DocxReview as IDocxReview ([#375](https://github.com/Ank-KhoaHo/DocToolkit/issues/375)) ([8bcfacf](https://github.com/Ank-KhoaHo/DocToolkit/commit/8bcfacf227982af79cfad01373f4da6469041565))
+
+
+### Fixed
+
+* **ci:** remove the duplicate ignore entries that broke the Dependabot config ([#374](https://github.com/Ank-KhoaHo/DocToolkit/issues/374)) ([cab06a2](https://github.com/Ank-KhoaHo/DocToolkit/commit/cab06a2a3e557f3034e360873e4757309f9f8597))
+* **core:** restore the samples to the floating version ([#371](https://github.com/Ank-KhoaHo/DocToolkit/issues/371)) ([51a66eb](https://github.com/Ank-KhoaHo/DocToolkit/commit/51a66eb1e119353cd1eea12ed803bbe85c4ba337))
+
+
+### Changed
+
+* **deps:** bump OfficeIMO to 3.2.6, AngleSharp to 1.7.2 and PdfPig to 0.1.16 ([#366](https://github.com/Ank-KhoaHo/DocToolkit/issues/366)) ([df1dc03](https://github.com/Ank-KhoaHo/DocToolkit/commit/df1dc03100715fc4681209c14b7ea1b9959981e4))
+
 ## [0.36.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.0...v0.36.1) (2026-08-24)
 
 
