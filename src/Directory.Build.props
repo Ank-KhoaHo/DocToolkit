@@ -134,7 +134,7 @@
       workbook's CONTENT and OfficeIMO.Excel owns only the encrypted CONTAINER around it, which is
       the same structure/content split E6 draws for PDF.
     -->
-    <PackageReference Include="OfficeIMO.Excel" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Excel" Version="3.2.6" />
     <PackageReference Include="OfficeIMO.PowerPoint" Version="3.2.2" />
 
     <!--
