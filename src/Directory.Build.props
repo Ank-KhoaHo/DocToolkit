@@ -145,7 +145,7 @@
       stop being pulled in by a minor bump of whatever pulled it, and nothing would say why the
       build broke.
     -->
-    <PackageReference Include="OfficeIMO.Word" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Word" Version="3.2.6" />
     <!--
       PDF text extraction only. PDFsharp owns the document's STRUCTURE (pages, merge, rotate,
       metadata); PdfPig owns its CONTENT. Neither does the other's job - see the E6 decision.
@@ -207,7 +207,7 @@
     -->
     <PackageReference Include="PDFsharp" Version="6.2.4" />
 
-    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.2.6" />
 
     <!--
       Pinned deliberately, not incidentally. OfficeIMO.Word asks for SixLabors.Fonts
