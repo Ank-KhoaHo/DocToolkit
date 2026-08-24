@@ -120,6 +120,21 @@ jobs:
       - name: Run Stryker
         run: dotnet stryker
 
+      # THE SCORE IS MEANINGLESS WITHOUT ITS DENOMINATOR, and nothing reported the denominator
+      # until 2026-08-24. `project: DocToolkit.csproj` scoped the run to one project, the
+      # per-concern split moved 11 of the 15 scoped files into siblings, and a 16th pattern had
+      # never matched any file - Stryker ignores an unmatched mutate pattern in silence. The suite
+      # tested 74 mutants instead of 575 and the score ROSE to 98.65%, clearing break: 95. Three
+      # weekly runs passed like that.
+      #
+      # `if: always()` because a failing score must not hide a collapsed scope: those are different
+      # diagnoses and the second one makes the first meaningless.
+      - name: Guard - every file the config says to mutate was actually mutated
+        if: always()
+        run: |
+          python3 scripts/check-mutation-scope.py --self-test
+          python3 scripts/check-mutation-scope.py
+
       # Uploaded even on failure: when the score drops, the HTML report naming
       # the surviving mutants IS the diagnosis, and re-running locally to get it
       # costs another four minutes.

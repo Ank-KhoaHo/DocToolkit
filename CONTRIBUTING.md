@@ -307,6 +307,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | `pack & verify .nupkg (…)` | `ci.yml` | `check-package-contents.py` |
 | `arm auto-merge if eligible` | `dependabot-automerge.yml` | `automerge-eligible.py` |
 | `outdated shipped dependencies` | `dependency-report.yml` | `check-dependabot-scoping.py`<br>`gen-third-party-notices.py` |
+| `mutation score` | `mutation.yml` | `check-mutation-scope.py` |
 | `report` | `release-curation-state.yml` | `check-changelog-curated.py` |
 | `release-please` | `release-please.yml` | `extract-changelog-section.py` |
 | `verify, pack and publish` | `release.yml` | `check-package-contents.py`<br>`extract-changelog-section.py` |
