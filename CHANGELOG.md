@@ -15,18 +15,38 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **extensions:** mirror DocxReview as IDocxReview ([#375](https://github.com/Ank-KhoaHo/DocToolkit/issues/375)) ([8bcfacf](https://github.com/Ank-KhoaHo/DocToolkit/commit/8bcfacf227982af79cfad01373f4da6469041565))
+* **Extensions: `IDocxReview` reaches the comment and tracked-change API through dependency
+  injection.** Core 0.36.0 added `DocxReview`; the extensions package builds against the published
+  core, so the mirror could not ship until that was on nuget.org.
 
+  ```csharp
+  public sealed class ReviewEndpoint(IDocxReview review)
+  {
+      public bool ReadyToPublish(byte[] docx) => review.Inspect(docx).UnresolvedThreadCount == 0;
+  }
+  ```
 
-### Fixed
+  All four operations, 1:1 with the static class: `Inspect`, `RemoveComments`, `AcceptRevisions`
+  and `RejectRevisions`, each with its `byte[]` and `Stream` form. File-path overloads are
+  deliberately not mirrored, as on every other interface here.
 
-* **ci:** remove the duplicate ignore entries that broke the Dependabot config ([#374](https://github.com/Ank-KhoaHo/DocToolkit/issues/374)) ([cab06a2](https://github.com/Ank-KhoaHo/DocToolkit/commit/cab06a2a3e557f3034e360873e4757309f9f8597))
-* **core:** restore the samples to the floating version ([#371](https://github.com/Ank-KhoaHo/DocToolkit/issues/371)) ([51a66eb](https://github.com/Ank-KhoaHo/DocToolkit/commit/51a66eb1e119353cd1eea12ed803bbe85c4ba337))
+  The floor moves to `Ank.DocToolkit` **[0.36.1, )**. 0.36.0 is skipped on purpose - it shipped an
+  incomplete package and cannot be compiled against; see that version's entry.
 
 
 ### Changed
 
-* **deps:** bump OfficeIMO to 3.2.6, AngleSharp to 1.7.2 and PdfPig to 0.1.16 ([#366](https://github.com/Ank-KhoaHo/DocToolkit/issues/366)) ([df1dc03](https://github.com/Ank-KhoaHo/DocToolkit/commit/df1dc03100715fc4681209c14b7ea1b9959981e4))
+* **Core: OfficeIMO moves 3.2.2 to 3.2.6, AngleSharp 1.7.1 to 1.7.2, PdfPig 0.1.15 to 0.1.16.**
+  These are the libraries that do the actual rendering and parsing, so **your documents are produced
+  by different code after this upgrade**, even though nothing in DocToolkit's own API changed.
+
+  The full suite passes against them on both target frameworks and all four CI platforms, and the
+  licensing wall holds: `SixLabors.Fonts` is still pinned to the exact 1.0.x version, still
+  Apache-2.0, and no non-permissive licence entered the dependency graph. Every premise this package
+  exists for is re-checked on that graph, not assumed.
+
+  Flagged here rather than left under *Added* because a dependency bump that changes rendering is
+  something you can act on - it is the kind of change worth re-checking your own output against.
 
 ## [0.36.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.0...v0.36.1) (2026-08-24)
 
