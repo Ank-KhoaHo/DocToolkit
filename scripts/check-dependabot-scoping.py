@@ -37,6 +37,7 @@ the repository rather than from a list kept in this file.
 
 import glob
 import io
+import pathlib
 import re
 import sys
 
@@ -49,6 +50,9 @@ KEY = re.compile(r"^    ([\w-]+):")
 IGNORED_NAME = re.compile(r"^\s+- dependency-name:\s*[\"']?([^\"'\s]+)")
 PACKAGE_REF = re.compile(
     r'<PackageReference\s+Include="([^"]+)"\s+Version="([^"]+)"')
+
+
+PACKAGE_REF_NAME = re.compile(r'<PackageReference\s+Include="([^"]+)"')
 
 
 def blocks(text):
@@ -100,6 +104,29 @@ def pinned_names(text):
     return names
 
 
+def shipped_packages():
+    """Every package the packable projects declare, so no other block may bump one.
+
+    Read from src/Directory.Build.props, which is where the split put all fifteen: a
+    PrivateAssets="all" ProjectReference suppresses its own PackageReferences from the nuspec,
+    so every package the library needs has to be declared there rather than in the per-format
+    project that uses it. That makes the props file the complete shipped set.
+    """
+    props = pathlib.Path("src") / "Directory.Build.props"
+    try:
+        text = io.open(props, encoding="utf-8").read()
+    except FileNotFoundError:
+        sys.exit(f"::error::{props} not found, so the shipped package set cannot be derived. "
+                 "This check would then require less than it should, which is worse than "
+                 "failing.")
+
+    names = {m for m in PACKAGE_REF_NAME.findall(text)}
+    if not names:
+        sys.exit(f"::error::No PackageReference parsed from {props}. A derivation that finds "
+                 "nothing would make this check pass vacuously.")
+    return names
+
+
 def main():
     try:
         text = io.open(CONFIG, encoding="utf-8").read()
@@ -120,9 +147,30 @@ def main():
                  f"{CONFIG}. Either the file changed shape or this check stopped "
                  "matching it; both are worth a red build.")
 
-    # The source of truth: whatever the src/ blocks protect.
+    # The source of truth: whatever the src/ blocks protect, PLUS every package those
+    # projects actually declare.
+    #
+    # The second half was added 2026-08-24, after #366 - titled "Bump the test-dependencies
+    # group" - bumped SEVEN shipped runtime dependencies in src/Directory.Build.props:
+    # OfficeIMO 3.2.2 -> 3.2.6 across eight packages, AngleSharp, and PdfPig. It carried
+    # `prefix: chore`, which is hidden and non-bumping, so a consumer would have restored four
+    # patch versions of the engine behind every DOCX, XLSX, PPTX and PDF path with no changelog
+    # entry and no version proposed.
+    #
+    # Both src/ blocks ignore "*" and propose nothing, and their comment says bumps there "stay
+    # a deliberate manual act". They did not: the tests block reaches src/ through
+    # ProjectReference, Dependabot edits the src csproj on its way past, and that block is the
+    # ONLY automated path that touches a shipped dependency.
+    #
+    # This check already passed, correctly, and its own comment below named the hole - it
+    # required the four NAMED rules where src/Directory.Build.props declares fifteen packages.
+    # Only SixLabors.Fonts was in both sets, leaving fourteen reachable and bumpable.
+    #
+    # DERIVED from the props file, never listed: a sixteenth package joins the requirement by
+    # being added, which is the point.
     protects_src = [b for b in nuget if all(d.startswith("/src/") for d in b[1])]
     required = set().union(*(b[2] for b in protects_src)) if protects_src else set()
+    required |= shipped_packages()
 
     # A wildcard is not a rule that protects src/ from other blocks - it says "propose
     # nothing for THIS project", which is a statement about that block's own update
