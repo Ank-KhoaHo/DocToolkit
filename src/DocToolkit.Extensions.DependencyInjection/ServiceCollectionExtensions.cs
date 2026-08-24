@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IXlsxToCsvConverter, XlsxToCsvConverterService>();
         services.TryAddSingleton<IXlsxToHtmlConverter, XlsxToHtmlConverterService>();
         services.TryAddSingleton<IDocToDocxConverter, DocToDocxConverterService>();
+        services.TryAddSingleton<IDocxReview, DocxReviewService>();
 
         return services;
     }

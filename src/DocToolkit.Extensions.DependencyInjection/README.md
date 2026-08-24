@@ -4,8 +4,9 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
 Dependency-injection registration for [Ank.DocToolkit](https://www.nuget.org/packages/Ank.DocToolkit) —
-`services.AddDocToolkit()` registers fifteen injectable interfaces over the same pure-managed
-HTML/DOCX/PDF/XLSX/PPTX/Markdown conversion and editing logic.
+`services.AddDocToolkit()` registers an injectable interface per capability, over the same
+pure-managed HTML/DOCX/PDF/XLSX/PPTX/Markdown conversion and editing logic. They are named in full
+below.
 
 ```bash
 dotnet add package Ank.DocToolkit.Extensions.DependencyInjection
@@ -154,7 +155,7 @@ Every interface — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfCo
 `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`,
 `IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`,
 `IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocToDocxConverter`, `IDocxEditor`,
-`IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor` — mirrors
+`IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor`, `IDocxReview` — mirrors
 [`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
 `byte[]` and its `Stream`-based async overloads.
 

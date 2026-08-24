@@ -44,6 +44,17 @@ namespace DocToolkit.Extensions.DependencyInjection
         byte[] Unprotect(byte[] docx, string password);
         System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default);
     }
+    public interface IDocxReview
+    {
+        byte[] AcceptRevisions(byte[] docx);
+        System.Threading.Tasks.Task AcceptRevisionsAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+        DocToolkit.DocxReviewReport Inspect(byte[] docx);
+        System.Threading.Tasks.Task<DocToolkit.DocxReviewReport> InspectAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
+        byte[] RejectRevisions(byte[] docx);
+        System.Threading.Tasks.Task RejectRevisionsAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+        byte[] RemoveComments(byte[] docx);
+        System.Threading.Tasks.Task RemoveCommentsAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+    }
     public interface IDocxToHtmlConverter
     {
         string Convert(byte[] docx);
