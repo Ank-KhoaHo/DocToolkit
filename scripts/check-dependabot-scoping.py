@@ -55,6 +55,50 @@ PACKAGE_REF = re.compile(
 PACKAGE_REF_NAME = re.compile(r'<PackageReference\s+Include="([^"]+)"')
 
 
+def ignore_lists(text):
+    """Yield (ecosystem, [directories], [ignored names IN ORDER]) per update block.
+
+    The list, not the set `blocks()` builds - a duplicate is invisible once deduplicated, and
+    Dependabot refuses to parse a file containing one.
+    """
+    current = None
+    section = None
+
+    for line in text.splitlines():
+        start = BLOCK.match(line)
+        if start:
+            if current:
+                yield current
+            current = (start.group(1), [], [])
+            section = None
+            continue
+
+        if current is None:
+            continue
+
+        key = KEY.match(line)
+        if key:
+            section = key.group(1)
+            directory = DIRECTORY.match(line)
+            if directory:
+                current[1].append(directory.group(1))
+            continue
+
+        if section == "directories":
+            item = DIRECTORIES_ITEM.match(line)
+            if item:
+                current[1].append(item.group(1))
+            continue
+
+        if section == "ignore":
+            name = IGNORED_NAME.match(line)
+            if name:
+                current[2].append(name.group(1))
+
+    if current:
+        yield current
+
+
 def blocks(text):
     """Yield (ecosystem, [directories], {ignored names}) for each update block."""
     current = None
@@ -140,6 +184,32 @@ def main():
         for name in sorted(pinned_names(text)):
             print(name)
         return 0
+
+    # ── Dependabot REJECTS a duplicate dependency-name, and this check could not see one ──
+    #
+    # Added 2026-08-24, immediately after causing the failure it now catches. C37 appended the
+    # fifteen shipped packages to two ignore lists that already named SixLabors.Fonts, so both
+    # gained a duplicate. Dependabot answered
+    #
+    #     The property '#/updates/2/ignore/18/dependency-name' is a duplicate.
+    #
+    # and stopped parsing the file AT ALL - which disables every update it would raise, security
+    # updates included. It reached `main` because nothing here could see it: `blocks()` reduces
+    # each ignore list to a SET, and a YAML parser accepts duplicate list items happily. The only
+    # thing that objected was Dependabot's own API check, on the next pull request.
+    #
+    # Counted from the TEXT, with this file's own line patterns, deliberately. The first version
+    # of this check used PyYAML inside a try/except ImportError - and no workflow here installs
+    # PyYAML, so in CI it would have skipped itself and reported success. A check that silently
+    # does nothing is worse than no check, which is the lesson this script already carries twice.
+    for ecosystem, directories, names in ignore_lists(text):
+        duplicated = sorted({n for n in names if names.count(n) > 1})
+        if duplicated:
+            scope = ", ".join(directories) or "(unscoped)"
+            sys.exit(f"::error::the {ecosystem} block at {scope} ignores "
+                     f"{', '.join(duplicated)} more than once. Dependabot rejects a duplicate "
+                     "dependency-name and stops parsing the WHOLE file, which silently disables "
+                     "every update including security ones. Merge the rules into one entry.")
 
     nuget = [b for b in blocks(text) if b[0] == "nuget"]
     if not nuget:
