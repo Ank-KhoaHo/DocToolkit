@@ -10,6 +10,35 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.36.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.0...v0.36.1) (2026-08-24)
+
+
+### Fixed
+
+* **Core: 0.36.0 shipped an incomplete package. If you are on it, upgrade.** That version was
+  published carrying `DocToolkit.dll` alone - the six assemblies this library was split into were
+  missing from it - so referencing it fails to compile on almost everything the API exposes:
+
+  ```
+  error CS0012: The type 'PageSetup' is defined in an assembly that is not referenced.
+                You must add a reference to assembly 'DocToolkit.Primitives'.
+  error CS0103: The name 'DocxEditor' does not exist in the current context
+  ```
+
+  0.36.1 is the same library with the packaging repaired. **Nothing in your code changes.** This was
+  never an API change, and 0.36.0 could not be compiled against at all, so no working code depends
+  on it - upgrading from 0.35.0 straight to 0.36.1 is the ordinary upgrade the 0.36.0 entry
+  describes.
+
+  The cause was the release pipeline packing with a switch that skipped the step assembling those
+  six assemblies into the package. A `dotnet pack` anywhere else produced all seven, which is why
+  the tests, the licence and native-binary guards, the API approval and the install smoke test all
+  passed on it - none of them look inside the produced package. Two checks now do, one of them on
+  every pull request.
+
+  A nuget.org version can be unlisted but never replaced, so 0.36.0 remains where it is. This entry
+  and the *Migrating* note in the package README are the only repair available.
+
 ## [0.36.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.35.0...v0.36.0) (2026-08-23)
 
 
