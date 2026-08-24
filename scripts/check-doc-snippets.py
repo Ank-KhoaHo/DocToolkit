@@ -38,6 +38,11 @@ import sys
 
 DOCS_ROOT = "docfx"
 
+# The shipped doc comments, whose <code source> tags render onto the API pages. Walked for the
+# reason given in references(): nothing was checking them.
+SRC_ROOT = "src"
+SKIP_DIRS = {"bin", "obj"}
+
 # DocFX's snippet syntax: [!code-csharp[](path#region)] - the label is usually
 # empty, the fragment names a #region or an Lstart-Lend line range.
 SNIPPET = re.compile(r"\[!code-(\w+)\[[^\]]*\]\(([^)#]+)#([^)]+)\)\]")
@@ -75,6 +80,19 @@ def region_body(source, name):
 
 
 def references():
+    """Every snippet reference in the guides AND in src/'s XML doc comments.
+
+    THE SECOND HALF WAS MISSING UNTIL 2026-08-24, and it is the half CLAUDE.md warns about most
+    loudly: a `<code source>` with a wrong path or region FAILS SILENTLY - DocFX emits no warning
+    and renders an empty `<pre><code>` on the API page. This walked `docfx/` only, so fifteen tags
+    in `src/` doc comments were checked by nothing at all.
+
+    They were all intact when the gap was found, and the reason is luck rather than design: every
+    one of them says `../../tests/...`, and the per-concern project split moved the files carrying
+    them from `src/DocToolkit/` to `src/DocToolkit.Docx/` - the SAME nesting depth, so `../..`
+    still reached the repository root. A split that had nested a project one level deeper would
+    have broken all fifteen, on the public docs site, with every check green.
+    """
     for folder, _, files in os.walk(DOCS_ROOT):
         if "_site" in folder.replace("\\", "/").split("/"):
             continue
@@ -88,13 +106,29 @@ def references():
             for target, fragment in CODE_TAG.findall(text):
                 yield path, target, fragment
 
+    for folder, dirs, files in os.walk(SRC_ROOT):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for name in sorted(files):
+            if not name.endswith(".cs"):
+                continue
+            path = os.path.join(folder, name)
+            text = io.open(path, encoding="utf-8").read()
+            for target, fragment in CODE_TAG.findall(text):
+                yield path, target, fragment
+
 
 def main():
     failures = []
     checked = 0
+    from_docs = 0
+    from_src = 0
 
     for doc, target, fragment in references():
         checked += 1
+        if doc.replace("\\", "/").startswith(SRC_ROOT + "/"):
+            from_src += 1
+        else:
+            from_docs += 1
         resolved = os.path.normpath(os.path.join(os.path.dirname(doc), target))
 
         if not os.path.isfile(resolved):
@@ -112,12 +146,19 @@ def main():
         elif not any(line.strip() for line in body):
             failures.append(f"{doc}: '#region {fragment}' in {target} is empty")
 
-    if checked == 0:
+    if from_docs == 0:
         sys.exit("::error::No snippet references found under "
                  f"{DOCS_ROOT}/. Either the guides stopped using them or this "
                  "check stopped matching them; both are worth a red build.")
 
-    print(f"{checked} snippet reference(s) checked across the docs site.")
+    if from_src == 0:
+        sys.exit(f"::error::No <code source> tags found under {SRC_ROOT}/. The API pages' examples "
+                 "are written as region references in doc comments, so finding none means either "
+                 "they were removed or this check stopped matching them. Counted separately from "
+                 "the guides on purpose: one total would let either source fall to zero unnoticed.")
+
+    print(f"{checked} snippet reference(s) checked: "
+          f"{from_docs} in {DOCS_ROOT}/, {from_src} in {SRC_ROOT}/ doc comments.")
 
     if not failures:
         print("Every referenced region exists and has content.")
