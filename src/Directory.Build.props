@@ -113,7 +113,7 @@
     it references the PUBLISHED core as a PackageReference, never these.
   -->
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'DocToolkit.Extensions.DependencyInjection'">
-    <PackageReference Include="AngleSharp" Version="1.7.1" />
+    <PackageReference Include="AngleSharp" Version="1.7.2" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageReference Include="HtmlToOpenXml.dll" Version="3.5.0" />
