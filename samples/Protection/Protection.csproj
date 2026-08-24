@@ -5,7 +5,23 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ank.DocToolkit" Version="*" />
+    <!--
+      PINNED, TEMPORARILY, AND THIS MUST GO BACK TO "*" ONCE 0.36.1 IS PUBLISHED.
+
+      "*" is the deliberate canary: it resolves to the newest published stable release, so a sample
+      is the first thing to break when a release is wrong. On 2026-08-24 it did exactly its job -
+      0.36.0 shipped DocToolkit.dll alone, and these samples went from building to 36 compile
+      errors. See F11 / the hotfix PR.
+
+      But the canary firing also blocks the fix: release.yml builds this solution before it packs,
+      so with "*" resolving to the broken 0.36.0 there is no way to publish the version that
+      repairs it. Pinning to the last good release is the only way out that does not require
+      unlisting 0.36.0 first.
+
+      RESTORE THIS TO "*" the moment 0.36.1 is on nuget.org. A pinned sample is a disarmed canary,
+      and this repo has already lost that canary for weeks once by leaving a floor here.
+    -->
+    <PackageReference Include="Ank.DocToolkit" Version="0.35.0" />
   </ItemGroup>
 
   <!--

@@ -143,6 +143,20 @@ def self_test():
             if not ok:
                 bad += 1
 
+    # The id lookup, which the synthetic cases above never touch - and which had a real bug.
+    for name, want in [
+        ("Ank.DocToolkit.1.2.3.nupkg", "Ank.DocToolkit"),
+        ("Ank.DocToolkit.Extensions.DependencyInjection.1.2.3.nupkg",
+         "Ank.DocToolkit.Extensions.DependencyInjection"),
+    ]:
+        cands = [p for p in PACKAGES if name.startswith(p + ".")]
+        got = max(cands, key=len) if cands else None
+        if got == want:
+            print(f"  ok   {name} -> {got}")
+        else:
+            print(f"  FAIL {name} -> {got}, expected {want}")
+            bad += 1
+
     # And the derivation itself, against the real csproj.
     real = expected_assemblies(PACKAGES["Ank.DocToolkit"])
     if len(real) < 2:
@@ -175,7 +189,13 @@ def main(argv):
         if not nupkg.exists():
             sys.exit(f"::error::{nupkg} not found; this check cannot run.")
 
-        package = next((p for p in PACKAGES if nupkg.name.startswith(p + ".")), None)
+        # LONGEST match, not the first. "Ank.DocToolkit.Extensions.DependencyInjection.1.2.3.nupkg"
+        # also starts with "Ank.DocToolkit.", so a first-match lookup checked the extensions package
+        # against the CORE package's expected assemblies and reported seven missing. Caught by
+        # running this against both real nupkgs; the self-test could not see it, because it never
+        # exercises the id lookup.
+        candidates = [p for p in PACKAGES if nupkg.name.startswith(p + ".")]
+        package = max(candidates, key=len) if candidates else None
         if package is None:
             print(f"  {nupkg.name}: not a known package id, skipped")
             continue
