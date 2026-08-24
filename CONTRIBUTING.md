@@ -304,6 +304,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | `build & test (…)` | `ci.yml` | `check-coverage.py` |
 | `formatting` | `ci.yml` | `check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-package-description.py`<br>`check-readme-coverage.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py` |
 | `no native binaries / no banned packages` | `ci.yml` | `gen-third-party-notices.py`<br>`repair-lockfiles.py` |
+| `pack & verify .nupkg (…)` | `ci.yml` | `check-package-contents.py` |
 | `arm auto-merge if eligible` | `dependabot-automerge.yml` | `automerge-eligible.py` |
 | `outdated shipped dependencies` | `dependency-report.yml` | `check-dependabot-scoping.py`<br>`gen-third-party-notices.py` |
 | `report` | `release-curation-state.yml` | `check-changelog-curated.py` |
