@@ -1,5 +1,11 @@
 # DocToolkit
 
+![DocToolkit - convert HTML to PDF and DOCX in C#, no browser, no native binaries](https://raw.githubusercontent.com/Ank-KhoaHo/DocToolkit/main/assets/banner.png)
+
+[![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.svg)](https://www.nuget.org/packages/Ank.DocToolkit/)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.svg)](https://www.nuget.org/packages/Ank.DocToolkit/)
+[![License: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/LICENSE)
+
 Generating Word, Excel, PowerPoint or PDF files from .NET usually means one of these:
 
 - `System.Drawing.Common` throwing **`PlatformNotSupportedException`** the first time your container
@@ -24,154 +30,10 @@ XLSX and PPTX, and password-protect any of them — from .NET, with:
 
 All four are properties of the *resolved dependency graph*, so CI re-checks every one on every push.
 
-## How often it works on files it has never seen
-
-A test suite proves only that a library agrees with itself — every fixture in this repository was
-produced by the code under test. So the conversions are also run against
-[govdocs1](https://digitalcorpora.org/corpora/file-corpora/files/), a public crawl of real `.gov`
-documents. Measured on chunk `000`, 2026-08-20:
-
-| conversion | succeeded | of |
-|---|---|---|
-| HTML → DOCX | **97.8%** | 181 real pages |
-| legacy `.doc` → DOCX | **89.2%** | 111 real documents |
-| HTML → PDF | **88.4%** | 181 real pages |
-
-Reading PDFs is stronger: across **200 real PDFs, 4,588 pages, a dozen producers**, every operation
-succeeded on every file it did not refuse — and the refusals were 11 permission-restricted
-documents, reported as exactly that rather than as a failure.
-
-**Legacy PowerPoint 97-2003 `.ppt` also converts to PDF**, through the same
-`PptxToPdfConverter.Convert` call — **at 60.2%** over 88 real binary decks, which is a lower bar
-than the OOXML path and is stated rather than rounded up. The refusals are dominated by one
-upstream limitation and none produced a corrupt PDF.
-
-**Published because they are unflattering and still useful.** A rate below 100% is what real input
-looks like, and the alternative is telling you what is *supported* and letting you discover the
-rest.
-
-## Measured against the alternatives
-
-Every number below was measured on 2026-08-09 by adding the package to an empty `net8.0` console
-app and building it. **Reproduce any row in under a minute** — that is the point of publishing the
-method rather than a conclusion:
-
-```bash
-dotnet new console && dotnet add package <name> && dotnet build -c Release
-find bin -path '*runtimes*' \( -name '*.so' -o -name '*.dylib' \) | wc -l
-du -sm bin/Release/net8.0/runtimes
-```
-
-| package | native `.so`/`.dylib` in build output | `runtimes/` | licence in NuGet metadata |
-|---|---|---|---|
-| **Ank.DocToolkit** | **0** | **0 MB** | **`MIT`**, as an SPDX expression |
-| EPPlus | 0 | 1 MB | ships `license.md` — read it |
-| QuestPDF | 10 | 83 MB | ships `LICENSE.md` — read it |
-| NPOI | 12 | 416 MB | ships `OSMFEULA.txt` — read it |
-| ShapeCrawler | 19 | 664 MB | none declared |
-
-**Two things this table deliberately does not do.** It does not tell you what those licences say —
-they are linked from each package's own page and are the authors' to describe, not ours. And it does
-not claim native payload is everyone's problem: **EPPlus carries essentially none**, so if that is
-your only concern it is not a reason to switch. Where the payload does appear it comes from
-SkiaSharp and Magick.NET, pulled in transitively for image rendering.
-
-What the table is for is the case where **both** columns matter at once — a Linux container that has
-to stay small, with a licence you can clear without asking anybody. That combination is the whole
-reason this package exists, and all four constraints are re-checked by CI on every push.
-
-## Offline by default — safe in air-gapped environments
-
-**No method on DocToolkit's public API opens a network connection.** Not for images, not for
-stylesheets, not for fonts, not for linked pictures or external workbook references. Once the
-package is restored, DocToolkit never needs the network again. That default is unchanged and still
-proven by 37 dedicated tests — see below.
-
-There is exactly one way to change that, and you have to ask for it by name:
-
-<!-- BEGIN SNIPPET: readme-remote-images -->
-
-```csharp
-// The ONLY API family that makes an outbound request: downloads and embeds images the markup
-// names. It still succeeds in an air-gapped environment - a host that will not answer just leaves
-// that image out of the result, after a per-image timeout, rather than failing the conversion.
-byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
-byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
-
-// RemoteImageOptions bounds that opt-in instead of leaving it wide open. Every default here is
-// already the restrictive one, so `new RemoteImageOptions()` is far narrower than the bool form.
-byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions(), ct);
-```
-
-<!-- END SNIPPET -->
-
-**The opt-in is now bounded, not just present.** Every fetch it makes is subject to fixed limits:
-
-- **http and https only** — never `file://`, which would otherwise read the host's own disk.
-- **No redirects are followed** — each hop would need re-validating against the whole policy below;
-  an unvalidated hop is the standard way past an address check like this one.
-- **Loopback, private and link-local addresses are blocked by default**, including
-  `169.254.169.254` (the cloud metadata endpoint), unless
-  `RemoteImageOptions.AllowPrivateAddresses` is set `true`.
-- **A 10-second timeout and a 5 MB cap per image**, both configurable, and the cap is enforced by
-  counting bytes actually read off the stream — never by trusting a `Content-Length` header, which
-  a hostile server can understate.
-
-**Those limits are per image, not per document.** A document naming many remote images has no
-aggregate ceiling of its own: at the defaults, peak memory lands near 240 MB whatever the image
-count (fetches run concurrently, and buffering one costs roughly three times the cap), and images
-on hosts that never answer cost about ten seconds each, several at a time. Neither is unbounded —
-your `CancellationToken` is honoured throughout, and `Timeout` and `MaxBytesPerImage` are yours to
-lower — but if you convert documents of unknown size, bound them with a deadline rather than
-assuming the per-image caps do it for you.
-
-**This is not a complete SSRF defence.** A host's address is resolved and checked, then resolved
-again by the HTTP stack when it actually connects — a DNS answer that changes between those two
-moments defeats the check. It stops the ordinary cases (a literal metadata address, a hard-coded
-internal hostname) and raises the cost of the rest. A service that converts genuinely untrusted
-HTML should also be egress-filtered at the network layer, not rely on this alone.
-
-Everything else — `ConvertAsync(html)`, `ConvertToFileAsync`, `DocxToPdfConverter`, `DocxEditor`,
-`WorkbookEditor`, `PresentationEditor` — is offline, unconditionally.
-
-This is enforced, not merely intended. The test suite starts a real TCP listener on loopback,
-feeds every public API markup that names it as an `<img src>`, a `<link rel="stylesheet">`, a CSS
-`@import`, a `background-image`, an `<a href>`, an externally linked DOCX picture, an external
-XLSX workbook link and more, and requires the accepted-connection count to be **exactly zero**. A
-companion test points the same APIs at an unroutable address (TEST-NET-3) and requires them to
-return promptly rather than stall on a connect timeout. A further suite proves the opt-in itself
-over a real socket, not a mock: `file://` is refused even with downloads enabled, loopback is
-refused by default and only reached with `AllowPrivateAddresses = true`, a host outside a non-empty
-`AllowedHosts` is refused while one inside it is fetched, an oversized or slow response is aborted
-rather than trusted, and invalid options are rejected by the converter itself.
-
-`dotnet restore` is the one step that still needs a package feed. `THIRD-PARTY-NOTICES.txt` lists
-the full dependency closure with resolved versions, so it can be mirrored onto an internal feed;
-every entry is a plain managed assembly with no native payload and no post-restore download.
-
-## Memory, and why there is no size limit
-
-This library will not refuse a large document. It edits and converts documents; rejecting a big one
-would be a defect, not a safeguard. What it will do is use memory proportional to the document's
-*expanded* form, which is far larger than the file.
-
-Measured 2026-08-08 on a 1.9 MB `.xlsx` of 40,000 rows x 8 columns:
-
-| operation | peak managed heap held | relative to the file |
-|---|---|---|
-| `ReadSheet` | 120 MB | 64x |
-| `SetCell` | 233 MB | 124x |
-| `SetCellAsync` (`Stream`) | 238 MB | 127x |
-
-The multiplier comes from the OOXML object model, not from copying bytes around: a spreadsheet cell
-that occupies a few bytes compressed becomes a live object with a type, a style reference and a
-parent chain. So **size a container from the expanded cost, not from the file size** — roughly two
-orders of magnitude for a dense spreadsheet, less for text-heavy documents.
-
-**The `Stream` overloads are not a memory optimisation**, and the table shows it: 238 MB against
-233 MB for the same edit. They exist so a caller can hand over a source that is forward-only and
-non-seekable, such as an HTTP request body, without materialising a `byte[]` first. If you need to
-bound memory, bound concurrency — the per-call cost is what it is.
+Install and usage come first below, deliberately. The measurements behind those four claims are at
+the end of this page rather than the top — corpus pass rates on files the library has never seen,
+the comparison against the alternatives, how the offline guarantee is built, and what conversions
+actually cost in memory.
 
 ## Install
 
@@ -1057,3 +919,152 @@ whole chain pure managed.
 MIT. See `THIRD-PARTY-NOTICES.txt` for dependency attribution — in particular `SixLabors.Fonts`,
 pinned to an exact version on its 1.x line because 1.x is the last Apache-2.0 licensed line of
 that package. The notices file records the version actually resolved.
+
+## How often it works on files it has never seen
+
+A test suite proves only that a library agrees with itself — every fixture in this repository was
+produced by the code under test. So the conversions are also run against
+[govdocs1](https://digitalcorpora.org/corpora/file-corpora/files/), a public crawl of real `.gov`
+documents. Measured on chunk `000`, 2026-08-20:
+
+| conversion | succeeded | of |
+|---|---|---|
+| HTML → DOCX | **97.8%** | 181 real pages |
+| legacy `.doc` → DOCX | **89.2%** | 111 real documents |
+| HTML → PDF | **88.4%** | 181 real pages |
+
+Reading PDFs is stronger: across **200 real PDFs, 4,588 pages, a dozen producers**, every operation
+succeeded on every file it did not refuse — and the refusals were 11 permission-restricted
+documents, reported as exactly that rather than as a failure.
+
+**Legacy PowerPoint 97-2003 `.ppt` also converts to PDF**, through the same
+`PptxToPdfConverter.Convert` call — **at 60.2%** over 88 real binary decks, which is a lower bar
+than the OOXML path and is stated rather than rounded up. The refusals are dominated by one
+upstream limitation and none produced a corrupt PDF.
+
+**Published because they are unflattering and still useful.** A rate below 100% is what real input
+looks like, and the alternative is telling you what is *supported* and letting you discover the
+rest.
+
+## Measured against the alternatives
+
+Every number below was measured on 2026-08-09 by adding the package to an empty `net8.0` console
+app and building it. **Reproduce any row in under a minute** — that is the point of publishing the
+method rather than a conclusion:
+
+```bash
+dotnet new console && dotnet add package <name> && dotnet build -c Release
+find bin -path '*runtimes*' \( -name '*.so' -o -name '*.dylib' \) | wc -l
+du -sm bin/Release/net8.0/runtimes
+```
+
+| package | native `.so`/`.dylib` in build output | `runtimes/` | licence in NuGet metadata |
+|---|---|---|---|
+| **Ank.DocToolkit** | **0** | **0 MB** | **`MIT`**, as an SPDX expression |
+| EPPlus | 0 | 1 MB | ships `license.md` — read it |
+| QuestPDF | 10 | 83 MB | ships `LICENSE.md` — read it |
+| NPOI | 12 | 416 MB | ships `OSMFEULA.txt` — read it |
+| ShapeCrawler | 19 | 664 MB | none declared |
+
+**Two things this table deliberately does not do.** It does not tell you what those licences say —
+they are linked from each package's own page and are the authors' to describe, not ours. And it does
+not claim native payload is everyone's problem: **EPPlus carries essentially none**, so if that is
+your only concern it is not a reason to switch. Where the payload does appear it comes from
+SkiaSharp and Magick.NET, pulled in transitively for image rendering.
+
+What the table is for is the case where **both** columns matter at once — a Linux container that has
+to stay small, with a licence you can clear without asking anybody. That combination is the whole
+reason this package exists, and all four constraints are re-checked by CI on every push.
+
+## Offline by default — safe in air-gapped environments
+
+**No method on DocToolkit's public API opens a network connection.** Not for images, not for
+stylesheets, not for fonts, not for linked pictures or external workbook references. Once the
+package is restored, DocToolkit never needs the network again. That default is unchanged and still
+proven by 37 dedicated tests — see below.
+
+There is exactly one way to change that, and you have to ask for it by name:
+
+<!-- BEGIN SNIPPET: readme-remote-images -->
+
+```csharp
+// The ONLY API family that makes an outbound request: downloads and embeds images the markup
+// names. It still succeeds in an air-gapped environment - a host that will not answer just leaves
+// that image out of the result, after a per-image timeout, rather than failing the conversion.
+byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+byte[] pdf = await HtmlToPdfConverter.ConvertAsync(html, allowRemoteImageDownload: true, ct);
+
+// RemoteImageOptions bounds that opt-in instead of leaving it wide open. Every default here is
+// already the restrictive one, so `new RemoteImageOptions()` is far narrower than the bool form.
+byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions(), ct);
+```
+
+<!-- END SNIPPET -->
+
+**The opt-in is now bounded, not just present.** Every fetch it makes is subject to fixed limits:
+
+- **http and https only** — never `file://`, which would otherwise read the host's own disk.
+- **No redirects are followed** — each hop would need re-validating against the whole policy below;
+  an unvalidated hop is the standard way past an address check like this one.
+- **Loopback, private and link-local addresses are blocked by default**, including
+  `169.254.169.254` (the cloud metadata endpoint), unless
+  `RemoteImageOptions.AllowPrivateAddresses` is set `true`.
+- **A 10-second timeout and a 5 MB cap per image**, both configurable, and the cap is enforced by
+  counting bytes actually read off the stream — never by trusting a `Content-Length` header, which
+  a hostile server can understate.
+
+**Those limits are per image, not per document.** A document naming many remote images has no
+aggregate ceiling of its own: at the defaults, peak memory lands near 240 MB whatever the image
+count (fetches run concurrently, and buffering one costs roughly three times the cap), and images
+on hosts that never answer cost about ten seconds each, several at a time. Neither is unbounded —
+your `CancellationToken` is honoured throughout, and `Timeout` and `MaxBytesPerImage` are yours to
+lower — but if you convert documents of unknown size, bound them with a deadline rather than
+assuming the per-image caps do it for you.
+
+**This is not a complete SSRF defence.** A host's address is resolved and checked, then resolved
+again by the HTTP stack when it actually connects — a DNS answer that changes between those two
+moments defeats the check. It stops the ordinary cases (a literal metadata address, a hard-coded
+internal hostname) and raises the cost of the rest. A service that converts genuinely untrusted
+HTML should also be egress-filtered at the network layer, not rely on this alone.
+
+Everything else — `ConvertAsync(html)`, `ConvertToFileAsync`, `DocxToPdfConverter`, `DocxEditor`,
+`WorkbookEditor`, `PresentationEditor` — is offline, unconditionally.
+
+This is enforced, not merely intended. The test suite starts a real TCP listener on loopback,
+feeds every public API markup that names it as an `<img src>`, a `<link rel="stylesheet">`, a CSS
+`@import`, a `background-image`, an `<a href>`, an externally linked DOCX picture, an external
+XLSX workbook link and more, and requires the accepted-connection count to be **exactly zero**. A
+companion test points the same APIs at an unroutable address (TEST-NET-3) and requires them to
+return promptly rather than stall on a connect timeout. A further suite proves the opt-in itself
+over a real socket, not a mock: `file://` is refused even with downloads enabled, loopback is
+refused by default and only reached with `AllowPrivateAddresses = true`, a host outside a non-empty
+`AllowedHosts` is refused while one inside it is fetched, an oversized or slow response is aborted
+rather than trusted, and invalid options are rejected by the converter itself.
+
+`dotnet restore` is the one step that still needs a package feed. `THIRD-PARTY-NOTICES.txt` lists
+the full dependency closure with resolved versions, so it can be mirrored onto an internal feed;
+every entry is a plain managed assembly with no native payload and no post-restore download.
+
+## Memory, and why there is no size limit
+
+This library will not refuse a large document. It edits and converts documents; rejecting a big one
+would be a defect, not a safeguard. What it will do is use memory proportional to the document's
+*expanded* form, which is far larger than the file.
+
+Measured 2026-08-08 on a 1.9 MB `.xlsx` of 40,000 rows x 8 columns:
+
+| operation | peak managed heap held | relative to the file |
+|---|---|---|
+| `ReadSheet` | 120 MB | 64x |
+| `SetCell` | 233 MB | 124x |
+| `SetCellAsync` (`Stream`) | 238 MB | 127x |
+
+The multiplier comes from the OOXML object model, not from copying bytes around: a spreadsheet cell
+that occupies a few bytes compressed becomes a live object with a type, a style reference and a
+parent chain. So **size a container from the expanded cost, not from the file size** — roughly two
+orders of magnitude for a dense spreadsheet, less for text-heavy documents.
+
+**The `Stream` overloads are not a memory optimisation**, and the table shows it: 238 MB against
+233 MB for the same edit. They exist so a caller can hand over a source that is forward-only and
+non-seekable, such as an HTTP request body, without materialising a `byte[]` first. If you need to
+bound memory, bound concurrency — the per-call cost is what it is.
