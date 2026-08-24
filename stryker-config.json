@@ -1,7 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/Schemas/stryker-config.schema.json",
   "stryker-config": {
-    "project": "DocToolkit.csproj",
     "solution": "DocToolkit.sln",
     "test-projects": [
       "tests/DocToolkit.Tests/DocToolkit.Tests.csproj"
@@ -15,7 +14,6 @@
     ],
     "mutate": [
       "**/GuardedResourceLoader.cs",
-      "**/OfflineResourceLoader.cs",
       "**/PdfRenderPolicy.cs",
       "**/TextExportOptions.cs",
       "**/SectionPropertiesFactory.cs",
