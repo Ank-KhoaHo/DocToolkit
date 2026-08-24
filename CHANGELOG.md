@@ -10,6 +10,44 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.37.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.1...v0.37.0) (2026-08-24)
+
+
+### Added
+
+* **Extensions: `IDocxReview` reaches the comment and tracked-change API through dependency
+  injection.** Core 0.36.0 added `DocxReview`; the extensions package builds against the published
+  core, so the mirror could not ship until that was on nuget.org.
+
+  ```csharp
+  public sealed class ReviewEndpoint(IDocxReview review)
+  {
+      public bool ReadyToPublish(byte[] docx) => review.Inspect(docx).UnresolvedThreadCount == 0;
+  }
+  ```
+
+  All four operations, 1:1 with the static class: `Inspect`, `RemoveComments`, `AcceptRevisions`
+  and `RejectRevisions`, each with its `byte[]` and `Stream` form. File-path overloads are
+  deliberately not mirrored, as on every other interface here.
+
+  The floor moves to `Ank.DocToolkit` **[0.36.1, )**. 0.36.0 is skipped on purpose - it shipped an
+  incomplete package and cannot be compiled against; see that version's entry.
+
+
+### Changed
+
+* **Core: OfficeIMO moves 3.2.2 to 3.2.6, AngleSharp 1.7.1 to 1.7.2, PdfPig 0.1.15 to 0.1.16.**
+  These are the libraries that do the actual rendering and parsing, so **your documents are produced
+  by different code after this upgrade**, even though nothing in DocToolkit's own API changed.
+
+  The full suite passes against them on both target frameworks and all four CI platforms, and the
+  licensing wall holds: `SixLabors.Fonts` is still pinned to the exact 1.0.x version, still
+  Apache-2.0, and no non-permissive licence entered the dependency graph. Every premise this package
+  exists for is re-checked on that graph, not assumed.
+
+  Flagged here rather than left under *Added* because a dependency bump that changes rendering is
+  something you can act on - it is the kind of change worth re-checking your own output against.
+
 ## [0.36.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.0...v0.36.1) (2026-08-24)
 
 
