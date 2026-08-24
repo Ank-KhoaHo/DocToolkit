@@ -153,7 +153,7 @@
       Apache-2.0, and unusually clean: zero transitive dependencies, no native payload, no sockets.
       Measured before adopting rather than taken from the package page.
     -->
-    <PackageReference Include="PdfPig" Version="0.1.15" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
 
     <!--
       PDF utilities (page count, merge, page extraction, metadata). PDFsharp owns the
