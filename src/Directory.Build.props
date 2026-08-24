@@ -135,7 +135,7 @@
       the same structure/content split E6 draws for PDF.
     -->
     <PackageReference Include="OfficeIMO.Excel" Version="3.2.2" />
-    <PackageReference Include="OfficeIMO.PowerPoint" Version="3.2.2" />
+    <PackageReference Include="OfficeIMO.PowerPoint" Version="3.2.6" />
 
     <!--
       Promoted from TRANSITIVE to direct for DocToDocxConverter (legacy .doc import). It arrived
