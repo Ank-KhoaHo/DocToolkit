@@ -159,6 +159,42 @@ public class DocxToPdfPreflightTests
         Assert.NotNull(ex.InnerException);
     }
 
+    // ---- degenerate documents: report nothing, raise nothing ---------------------------------
+
+    /// <summary>
+    /// Four documents that are openable but missing a part this scanner reaches through. All four
+    /// are constructible - measured, not assumed - and a preflight that THREW on one would be worse
+    /// than useless: the whole point is to run it over documents somebody else authored, which is
+    /// exactly the population that contains malformed files.
+    /// </summary>
+    [Theory]
+    [InlineData("no main document part")]
+    [InlineData("a main part with no Document")]
+    [InlineData("a Document with no Body")]
+    [InlineData("a FootnotesPart holding no Footnotes")]
+    public void Inspect_OnADegenerateDocument_ReportsNothingRatherThanThrowing(string shape)
+    {
+        var report = DocxToPdfPreflight.Inspect(Degenerate(shape));
+
+        Assert.Empty(report.Findings);
+        Assert.False(report.HasFindings);
+    }
+
+    [Fact]
+    public void EveryFinding_CarriesTextAConsumerCanActOn()
+    {
+        // Deliberately NOT pinning the wording - a message is prose and a test asserting its exact
+        // words fails on every rewrite while proving nothing. What must hold is that a caller
+        // rendering the report to a human gets something in every field, and that Count is not
+        // silently disagreeing with the message it appears in.
+        var finding = Assert.Single(DocxToPdfPreflight.Inspect(WithFootnote()).Findings);
+
+        Assert.Equal("Footnote", finding.Code);
+        Assert.False(string.IsNullOrWhiteSpace(finding.Construct));
+        Assert.False(string.IsNullOrWhiteSpace(finding.Message));
+        Assert.Contains(finding.Count.ToString(), finding.Message, StringComparison.Ordinal);
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------
 
     private static byte[] Build(Action<MainDocumentPart, Body> build)
@@ -239,4 +275,29 @@ public class DocxToPdfPreflightTests
         { Style = "width:200pt;height:50pt", Id = "s1" };
         body.Append(new Paragraph(new Run(new Picture(shape))));
     });
+
+    private static byte[] Degenerate(string shape)
+    {
+        using var ms = new MemoryStream();
+        using (var d = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        {
+            if (shape == "no main document part") { }
+            else
+            {
+                var main = d.AddMainDocumentPart();
+                if (shape == "a Document with no Body")
+                {
+                    main.Document = new Document();
+                    main.Document.Save();
+                }
+                else if (shape == "a FootnotesPart holding no Footnotes")
+                {
+                    main.Document = new Document(new Body(new Paragraph(new Run(new Text("x")))));
+                    main.AddNewPart<FootnotesPart>();
+                    main.Document.Save();
+                }
+            }
+        }
+        return ms.ToArray();
+    }
 }
