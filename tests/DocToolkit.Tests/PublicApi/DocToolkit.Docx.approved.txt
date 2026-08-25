@@ -51,6 +51,59 @@ namespace DocToolkit
         public static byte[] Unprotect(byte[] docx, string password) { }
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
     }
+    public static class DocxMailMerge
+    {
+        public static DocToolkit.DocxMailMergeTemplate InspectTemplate(byte[] docx) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocxMailMergeTemplate> InspectTemplateAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+        public static byte[] Merge(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> values) { }
+        public static System.Threading.Tasks.Task MergeAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocxMailMergeResult MergeWithReport(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> values) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocxMailMergeReport> MergeWithReportAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class DocxMailMergeField
+    {
+        public string Message { get; }
+        public string Name { get; }
+        public DocToolkit.DocxMailMergeFieldStatus Status { get; }
+        public string? Value { get; }
+    }
+    public enum DocxMailMergeFieldStatus
+    {
+        Merged = 0,
+        MissingValue = 1,
+        UnsupportedFormatting = 2,
+        Malformed = 3,
+    }
+    public sealed class DocxMailMergeIssue
+    {
+        public DocToolkit.DocxMailMergeIssueKind Kind { get; }
+        public string Message { get; }
+        public string Name { get; }
+    }
+    public enum DocxMailMergeIssueKind
+    {
+        Other = 0,
+        MalformedField = 1,
+        UnsupportedFormatting = 2,
+    }
+    public sealed class DocxMailMergeReport
+    {
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxMailMergeField> Fields { get; }
+        public bool IsComplete { get; }
+        public int MergedCount { get; }
+        public System.Collections.Generic.IReadOnlyList<string> MissingFieldNames { get; }
+    }
+    public sealed class DocxMailMergeResult
+    {
+        public byte[] Document { get; }
+        public DocToolkit.DocxMailMergeReport Report { get; }
+    }
+    public sealed class DocxMailMergeTemplate
+    {
+        public System.Collections.Generic.IReadOnlyList<string> FieldNames { get; }
+        public bool IsValid { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxMailMergeIssue> Issues { get; }
+    }
     public static class DocxReview
     {
         public static byte[] AcceptRevisions(byte[] docx) { }

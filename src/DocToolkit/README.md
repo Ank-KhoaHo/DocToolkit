@@ -500,6 +500,71 @@ silently erase the author.
 `Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
+## Word mail merge
+
+Fill a template authored in Word — the kind carrying real `MERGEFIELD`s, showing as `«FirstName»` —
+from named values.
+
+```csharp
+// What does this template ask for?
+DocxMailMergeTemplate template = DocxMailMerge.InspectTemplate(docx);
+Console.WriteLine(string.Join(", ", template.FieldNames));   // FirstName, Balance
+
+byte[] letter = DocxMailMerge.Merge(docx, new Dictionary<string, string>
+{
+    ["FirstName"] = "Khoa",
+    ["Balance"] = "1,204.55",
+});
+```
+
+**This is not `DocxEditor.FillRows` under another name, and the difference is who authored the
+template.** `DocxEditor` reads `{{placeholder}}` — plain text, typed by anyone in any editor, a
+convention this library invented. Mail merge reads what Word itself writes. Neither substitutes for
+the other: an existing Word mail-merge template has not one `{{` in it, and a caller without Word
+cannot author merge fields.
+
+**`Merge` refuses to produce a document that still has an unfilled field**, naming every one of
+them. That is deliberate, and measured: an unfilled field survives as a live field and the document
+reads `Your balance is «Balance»` — valid, opening cleanly, and looking finished. Nothing about it
+says otherwise.
+
+When you want the document anyway, ask for it by name:
+
+```csharp
+DocxMailMergeResult result = DocxMailMerge.MergeWithReport(docx, values);
+
+foreach (DocxMailMergeField field in result.Report.Fields)
+    Console.WriteLine($"{field.Name}: {field.Status}");     // a DocxMailMergeFieldStatus:
+                                                            // Merged | MissingValue |
+                                                            // UnsupportedFormatting | Malformed
+
+if (!result.Report.IsComplete)
+    Console.WriteLine($"unfilled: {string.Join(", ", result.Report.MissingFieldNames)}");
+```
+
+Worth knowing before you rely on it, all measured rather than assumed:
+
+- **Both on-disk field encodings work** — the complex form Word writes, and the `w:fldSimple` form
+  most generators emit.
+- **Field names match case-insensitively**, so `firstname` fills `FirstName`.
+- **A `null` value is refused.** The engine beneath merges it as an empty string and reports the
+  document complete, so a database NULL would produce "Your balance is " with nothing flagging it.
+  Pass `string.Empty` to mean "leave it blank" — that is accepted, because it is a decision.
+- **Produced documents are flattened**: the merged fields become ordinary text, so re-opening the
+  result in Word cannot re-merge it.
+- **A document with no merge fields is not an error.** It comes back unchanged and reports itself
+  complete — which is what `InspectTemplate` is for.
+- `DocxMailMergeTemplate.IsValid` reports whether the *template* is sound, via
+  `DocxMailMergeIssue` and `DocxMailMergeIssueKind`. It says nothing about whether a merge will be
+  complete; that depends on the values you supply.
+
+`Stream` overloads: `InspectTemplateAsync`, `MergeAsync` and `MergeWithReportAsync`. The last
+returns a `DocxMailMergeReport` rather than a `DocxMailMergeResult`, because the document went to
+your `destination`.
+
+**Batch — one document per record — is not here yet.** A loop over `Merge` produces exactly the same
+documents; what is missing is the ergonomics, not the capability.
+
 ## Comments and tracked changes
 
 `DocxReview` reads what a document carries from having been through review, and resolves it.
