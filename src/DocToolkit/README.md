@@ -17,9 +17,10 @@ Generating Word, Excel, PowerPoint or PDF files from .NET usually means one of t
   a few hundred MB and a CVE feed for the privilege;
 - or discovering the package downloads fonts or images at runtime, on a machine with no route out.
 
-**DocToolkit exists because all four are avoidable.** Convert HTML to DOCX and PDF, render XLSX and
-PPTX to PDF, turn DOCX into HTML or Markdown, read legacy Word 97-2003 `.doc` files, open/edit DOCX,
-XLSX and PPTX, and password-protect any of them — from .NET, with:
+**DocToolkit exists because all four are avoidable.** **HTML → DOCX/PDF**, **Markdown →
+DOCX/PDF**, **DOCX → HTML/Markdown/PDF**, **XLSX → CSV/HTML/PDF**, **PPTX → PDF**, legacy Word
+97-2003 **DOC → DOCX**, plus PDF text extraction, open/edit for DOCX, XLSX and PPTX, and password
+protection for all four — from .NET, with:
 
 | | |
 |---|---|
@@ -870,7 +871,7 @@ is that you find out by reading the source.
 
 | Limitation | Detail |
 |---|---|
-| **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; the PDF converters have no warning channel, because the renderer beneath them produces no report to surface. The output is a valid PDF either way. The DOCX → HTML and DOCX → Markdown exporters are the exception — see `ConvertWithReport`. |
+| **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; the PDF converters have no warning channel, because the renderer beneath them produces no report to surface. The output is a valid PDF either way. The DOCX → HTML and DOCX → Markdown exporters are the exception — see `ConvertWithReport`. **Paragraph styles ARE resolved on the DOCX → PDF path** — a `Heading1` whose size lives only in `styles.xml`, with no direct run formatting, renders at that size; measured 2026-08-25, 24pt heading against 11pt body. So documents authored from a corporate template keep their heading hierarchy. (The style-resolution caveat in `ROADMAP.md` is about the unshipped page-image renderer, not this path.) |
 | **PDF fonts depend on the machine doing the conversion** | Where a system font is available it is **embedded**: on a Windows dev box the same invoice produces a ~167 KB PDF carrying Arial-Regular and Arial-Bold. In a slim container with no fonts installed, nothing is embedded and the PDF falls back to the **base-14 standard fonts** (Helvetica), giving ~1.5 KB. **Both are valid and both render**, and Arial and Helvetica are metric-compatible so line breaks do not move — but the glyphs are not identical, so a PDF built in your container will not be byte-identical to one built on your laptop. Install fonts in the image if you need a specific face. |
 | **HTML → PDF goes through DOCX** | So fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |
 | **No external stylesheets** | `<link rel="stylesheet">` is not fetched, by design. Inline `<style>` and `style=` are honoured. |
@@ -941,6 +942,12 @@ documents, reported as exactly that rather than as a failure.
 `PptxToPdfConverter.Convert` call — **at 60.2%** over 88 real binary decks, which is a lower bar
 than the OOXML path and is stated rather than rounded up. The refusals are dominated by one
 upstream limitation and none produced a corrupt PDF.
+
+**What is deliberately not in that table.** The corpus predates both `.pptx` and `.docx`, so there
+is no measured **PPTX → PDF** or **DOCX → PDF** rate — chunk `000` contains neither format. Both
+conversions ship and are covered by the test suite; what is missing is a rate on files this project
+did not author, and manufacturing one by chaining `.doc` → DOCX → PDF would measure the chain rather
+than the converter.
 
 **Published because they are unflattering and still useful.** A rate below 100% is what real input
 looks like, and the alternative is telling you what is *supported* and letting you discover the

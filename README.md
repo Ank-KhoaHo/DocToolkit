@@ -9,7 +9,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
 **A C# library to convert HTML to PDF without a headless browser** — plus Markdown → DOCX/PDF,
-**DOCX → HTML/Markdown**, **XLSX → CSV/HTML**, legacy **.doc**, PDF text, and open/edit/**password-protect**
+**DOCX → HTML/Markdown/PDF**, **XLSX → CSV/HTML/PDF**, **PPTX → PDF**, legacy **.doc**, PDF text, and open/edit/**password-protect**
 for **DOCX, XLSX and PPTX**. **Pure managed** — no native binaries, no browser, no LibreOffice, no Office
 interop; runs on Linux, macOS, Windows and arm64, and makes **no network calls at runtime**.
 
@@ -197,9 +197,12 @@ well below where it is now and improved by fixing what the corpus exposed, not b
 was counted. The workflow is scheduled monthly, so the figures move on their own and can be checked
 against a run rather than taken on trust.
 
-**What is deliberately not in that table.** The corpus predates `.pptx`, so there is no measured
-PPTX → PDF rate here — quoting the legacy `.ppt` figure in its place would be measuring one thing
-and labelling it another. That figure has a section of its own instead.
+**What is deliberately not in that table.** The corpus predates both `.pptx` and `.docx`, so there
+is no measured **PPTX → PDF** or **DOCX → PDF** rate here — govdocs1 chunk `000` contains neither
+format, so there is nothing real to measure them on. Quoting the legacy `.ppt` figure in place of a
+PPTX rate would be measuring one thing and labelling it another, and chaining `.doc` → DOCX → PDF
+to manufacture a DOCX → PDF figure would be the same substitution: it measures the chain, so a
+failure could belong to either stage. The legacy `.ppt` figure has a section of its own instead.
 
 ### Legacy PowerPoint 97-2003
 
