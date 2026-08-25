@@ -250,7 +250,8 @@ public class DocxToPdfPreflightTests
             { Id = 0, Type = FootnoteEndnoteValues.ContinuationSeparator },
             new Footnote(new Paragraph(
                 new Run(new FootnoteReferenceMark()),
-                new Run(new Text(" FOOTTOKEN")))) { Id = 1 });
+                new Run(new Text(" FOOTTOKEN"))))
+            { Id = 1 });
         part.Footnotes.Save();
 
         body.Append(new Paragraph(
