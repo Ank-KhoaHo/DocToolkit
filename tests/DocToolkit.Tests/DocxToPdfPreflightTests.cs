@@ -128,6 +128,27 @@ public class DocxToPdfPreflightTests
         Assert.DoesNotContain("NESTTOKEN", pdf, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The mirror of the two tests above, and the reason the EXCLUSIONS are falsifiable too.
+    ///
+    /// Content controls and text boxes are deliberately not reported, on the grounds that they were
+    /// measured to survive the render. That is a claim, and a claim nothing re-checks is how a list
+    /// goes stale in the other direction: if OfficeIMO ever stops carrying them, the exclusion
+    /// becomes wrong and this fails - which is the signal to promote them to findings.
+    /// </summary>
+    [Fact]
+    public void TheExcludedConstructsReallyDoSurviveTheRender()
+    {
+        string sdt = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(WithContentControl())));
+        string box = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(WithTextBox())));
+
+        Assert.Contains(Sibling, sdt, StringComparison.Ordinal);
+        Assert.Contains("SDTTOKEN", sdt, StringComparison.Ordinal);
+
+        Assert.Contains(Sibling, box, StringComparison.Ordinal);
+        Assert.Contains("BOXTOKEN", box, StringComparison.Ordinal);
+    }
+
     // ---- guards -------------------------------------------------------------------------------
 
     [Fact]
