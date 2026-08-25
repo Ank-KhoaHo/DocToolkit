@@ -44,7 +44,16 @@ Roughly in order of how often the gap has actually been hit. None is scheduled.
 
   The other half is genuinely absent and cannot be done the same way: **the PDF renderers produce
   no report to surface.** Features they cannot represent — charts, conditional formatting, some
-  shape effects — are still dropped silently, and the limitation is documented instead. Offering a
+  shape effects — are still dropped silently, and the limitation is documented instead.
+
+  **Two of those silent drops are now measured rather than assumed**, and both lose content rather
+  than styling: **footnote text never reaches the PDF**, and **a table nested inside a table cell
+  loses its content entirely**. Measured 2026-08-25, reading the PDF back, with a sibling paragraph
+  in each fixture so a missing token could not be mistaken for an empty render. Content controls and
+  text boxes were measured to *survive*, so neither is on that list.
+
+  The loss is upstream: `DocxToPdfConverter` is a pass-through to the renderer, so this package
+  cannot fix it — only report it and say so. Offering a
   `ConvertWithReport` there that always returned an empty list would be a documented lie.
 
 ## Not built, but cheap — ask if you need one
