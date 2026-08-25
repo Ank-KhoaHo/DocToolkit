@@ -35,6 +35,15 @@ public class StreamOverloadTests
         DocxFixtures.P(DocxFixtures.R("Dear {{customer}}, your invoice is ready.")));
 
     /// <summary>A .docx whose table holds a repeating-row template, for FillRowsAsync.</summary>
+    /// <summary>
+    /// No values, deliberately. The shared <c>Docx</c> fixture carries <c>{{placeholder}}</c> text
+    /// and not one MERGEFIELD, so a merge over it fills nothing and succeeds — which is what this
+    /// suite wants, because it tests stream plumbing rather than merge semantics. A fixture WITH
+    /// fields would make the strict overload throw before the plumbing was exercised at all.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> NoMergeValues =
+        new Dictionary<string, string>();
+
     private static readonly byte[] TableDocx = DocxFixtures.Build(DocxFixtures.Tbl(
         DocxFixtures.Row(DocxFixtures.R("Description")),
         DocxFixtures.Row(DocxFixtures.R("{{item.Desc}}"))));
@@ -200,6 +209,8 @@ public class StreamOverloadTests
         "DocxReview.RemoveCommentsAsync",
         "DocxReview.AcceptRevisionsAsync",
         "DocxReview.RejectRevisionsAsync",
+        "DocxMailMerge.MergeAsync",
+        "DocxMailMerge.MergeWithReportAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -252,6 +263,9 @@ public class StreamOverloadTests
         "DocxReview.AcceptRevisionsAsync",
         "DocxReview.RejectRevisionsAsync",
         "DocxToPdfPreflight.InspectAsync",
+        "DocxMailMerge.InspectTemplateAsync",
+        "DocxMailMerge.MergeAsync",
+        "DocxMailMerge.MergeWithReportAsync",
     };
 
     /// <summary>
@@ -314,6 +328,8 @@ public class StreamOverloadTests
         "DocxReview.RemoveCommentsAsync",
         "DocxReview.AcceptRevisionsAsync",
         "DocxReview.RejectRevisionsAsync",
+        "DocxMailMerge.MergeAsync",
+        "DocxMailMerge.MergeWithReportAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -937,6 +953,12 @@ public class StreamOverloadTests
                 DocxReview.InspectAsync(source!, ct),
             "DocxToPdfPreflight.InspectAsync" =>
                 DocxToPdfPreflight.InspectAsync(source!, ct),
+            "DocxMailMerge.InspectTemplateAsync" =>
+                DocxMailMerge.InspectTemplateAsync(source!, ct),
+            "DocxMailMerge.MergeAsync" =>
+                DocxMailMerge.MergeAsync(source!, destination!, NoMergeValues, ct),
+            "DocxMailMerge.MergeWithReportAsync" =>
+                DocxMailMerge.MergeWithReportAsync(source!, destination!, NoMergeValues, ct),
             "DocxReview.RemoveCommentsAsync" =>
                 DocxReview.RemoveCommentsAsync(source!, destination!, ct),
             "DocxReview.AcceptRevisionsAsync" =>
