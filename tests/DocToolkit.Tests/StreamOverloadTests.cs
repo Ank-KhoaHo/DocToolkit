@@ -34,7 +34,6 @@ public class StreamOverloadTests
         "Footer text",
         DocxFixtures.P(DocxFixtures.R("Dear {{customer}}, your invoice is ready.")));
 
-    /// <summary>A .docx whose table holds a repeating-row template, for FillRowsAsync.</summary>
     /// <summary>
     /// No values, deliberately. The shared <c>Docx</c> fixture carries <c>{{placeholder}}</c> text
     /// and not one MERGEFIELD, so a merge over it fills nothing and succeeds — which is what this
@@ -44,6 +43,7 @@ public class StreamOverloadTests
     private static readonly IReadOnlyDictionary<string, string> NoMergeValues =
         new Dictionary<string, string>();
 
+    /// <summary>A .docx whose table holds a repeating-row template, for FillRowsAsync.</summary>
     private static readonly byte[] TableDocx = DocxFixtures.Build(DocxFixtures.Tbl(
         DocxFixtures.Row(DocxFixtures.R("Description")),
         DocxFixtures.Row(DocxFixtures.R("{{item.Desc}}"))));
