@@ -32,6 +32,29 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, DocToolkit.PdfFontOptions? fonts, System.Threading.CancellationToken ct = default) { }
         public static void ConvertFile(string inputPath, string outputPath) { }
     }
+    public static class DocxToPdfPreflight
+    {
+        public static DocToolkit.DocxToPdfPreflightReport Inspect(byte[] docx) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocxToPdfPreflightReport> InspectAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class DocxToPdfPreflightFinding
+    {
+        public string Code { get; }
+        public string Construct { get; }
+        public int Count { get; }
+        public string Message { get; }
+        public DocToolkit.DocxToPdfRisk Risk { get; }
+    }
+    public sealed class DocxToPdfPreflightReport
+    {
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxToPdfPreflightFinding> Findings { get; }
+        public bool HasFindings { get; }
+    }
+    public enum DocxToPdfRisk
+    {
+        Possible = 0,
+        Known = 1,
+    }
     public static class HtmlToDocxConverter
     {
         public static System.Threading.Tasks.Task<byte[]> ConvertAsync(string html, System.Threading.CancellationToken ct = default) { }

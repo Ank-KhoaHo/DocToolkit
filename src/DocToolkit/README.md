@@ -530,6 +530,35 @@ insertions and drops deletions; rejecting does the reverse. **Neither can be und
 This class reads and resolves review state; it cannot create any. There is no method here to add a
 comment or to record an edit as a tracked change.
 
+## Knowing before you convert: `DocxToPdfPreflight`
+
+The DOCX → PDF renderer drops some things silently (see *Known limitations* below). If you convert
+documents you did not author, this tells you which ones need a human to look at them.
+
+```csharp
+DocxToPdfPreflightReport preflight = DocxToPdfPreflight.Inspect(docx);
+
+if (preflight.HasFindings)
+    foreach (DocxToPdfPreflightFinding finding in preflight.Findings)
+        Console.WriteLine($"{finding.Count}x {finding.Construct}: {finding.Message}");
+```
+
+**It reports what your document CONTAINS, not what was lost.** Nothing here converts anything, so
+nothing here can claim to know what the renderer did — it answers *"is there anything in this file
+worth a second look?"* That is the claim that stays true whatever a future renderer improves.
+
+`DocxToPdfRisk.Known` means this project has converted a document carrying that construct and watched
+the content fail to arrive, and each one has a test that **fails if the renderer ever starts carrying
+it**. `Possible` would mean listed on reasoning alone; nothing is `Possible` today, deliberately.
+
+**Two findings, and both were measured rather than assumed:** footnotes and tables nested inside a
+table cell. Content controls (`w:sdt`) and text boxes were measured to *survive* the render and are
+deliberately **not** reported — an inventory that fires on documents the renderer handles perfectly
+is one you learn to ignore. Charts, SmartArt and embedded objects are unmeasured, so they are absent
+too rather than guessed at.
+
+`Stream` overload: `InspectAsync`.
+
 ## Password-protected DOCX, XLSX and PPTX
 
 Open one someone sent you, and produce one. `DocxEditor`, `WorkbookEditor` and `PresentationEditor`
@@ -871,7 +900,7 @@ is that you find out by reading the source.
 
 | Limitation | Detail |
 |---|---|
-| **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; the PDF converters have no warning channel, because the renderer beneath them produces no report to surface. **Two losses are MEASURED rather than listed, and both are content, not styling.** Converted 2026-08-25 and read back out of the PDF, each fixture carrying a sibling paragraph so a missing token could not be confused with an empty render: **footnote text never reaches the PDF** — verified with a properly formed footnotes part, separators and all — and **a table nested inside a table cell loses its content entirely**. Both produce a valid PDF and raise nothing. If your documents carry footnotes, that content will not be in the output. **Measured to survive, so you do not have to wonder:** content controls (`w:sdt`) and text boxes both render. The output is a valid PDF either way. The DOCX → HTML and DOCX → Markdown exporters are the exception — see `ConvertWithReport`. **Paragraph styles ARE resolved on the DOCX → PDF path** — a `Heading1` whose size lives only in `styles.xml`, with no direct run formatting, renders at that size; measured 2026-08-25, 24pt heading against 11pt body. So documents authored from a corporate template keep their heading hierarchy. (The style-resolution caveat in `ROADMAP.md` is about the unshipped page-image renderer, not this path.) |
+| **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; the PDF converters have no warning channel, because the renderer beneath them produces no report to surface. **Two losses are MEASURED rather than listed, and both are content, not styling.** Converted 2026-08-25 and read back out of the PDF, each fixture carrying a sibling paragraph so a missing token could not be confused with an empty render: **footnote text never reaches the PDF** — verified with a properly formed footnotes part, separators and all — and **a table nested inside a table cell loses its content entirely**. Both produce a valid PDF and raise nothing. If your documents carry footnotes, that content will not be in the output. **Measured to survive, so you do not have to wonder:** content controls (`w:sdt`) and text boxes both render. **`DocxToPdfPreflight` reports both measured losses on a document you are about to convert** — see *Knowing before you convert* above; it lists what the file contains, and does not claim to know what the renderer dropped. The output is a valid PDF either way. The DOCX → HTML and DOCX → Markdown exporters are the exception — see `ConvertWithReport`. **Paragraph styles ARE resolved on the DOCX → PDF path** — a `Heading1` whose size lives only in `styles.xml`, with no direct run formatting, renders at that size; measured 2026-08-25, 24pt heading against 11pt body. So documents authored from a corporate template keep their heading hierarchy. (The style-resolution caveat in `ROADMAP.md` is about the unshipped page-image renderer, not this path.) |
 | **PDF fonts depend on the machine doing the conversion** | Where a system font is available it is **embedded**: on a Windows dev box the same invoice produces a ~167 KB PDF carrying Arial-Regular and Arial-Bold. In a slim container with no fonts installed, nothing is embedded and the PDF falls back to the **base-14 standard fonts** (Helvetica), giving ~1.5 KB. **Both are valid and both render**, and Arial and Helvetica are metric-compatible so line breaks do not move — but the glyphs are not identical, so a PDF built in your container will not be byte-identical to one built on your laptop. Install fonts in the image if you need a specific face. |
 | **HTML → PDF goes through DOCX** | So fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |
 | **No external stylesheets** | `<link rel="stylesheet">` is not fetched, by design. Inline `<style>` and `style=` are honoured. |

@@ -251,6 +251,7 @@ public class StreamOverloadTests
         "DocxReview.RemoveCommentsAsync",
         "DocxReview.AcceptRevisionsAsync",
         "DocxReview.RejectRevisionsAsync",
+        "DocxToPdfPreflight.InspectAsync",
     };
 
     /// <summary>
@@ -934,6 +935,8 @@ public class StreamOverloadTests
         {
             "DocxReview.InspectAsync" =>
                 DocxReview.InspectAsync(source!, ct),
+            "DocxToPdfPreflight.InspectAsync" =>
+                DocxToPdfPreflight.InspectAsync(source!, ct),
             "DocxReview.RemoveCommentsAsync" =>
                 DocxReview.RemoveCommentsAsync(source!, destination!, ct),
             "DocxReview.AcceptRevisionsAsync" =>

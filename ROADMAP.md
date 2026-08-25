@@ -53,7 +53,12 @@ Roughly in order of how often the gap has actually been hit. None is scheduled.
   text boxes were measured to *survive*, so neither is on that list.
 
   The loss is upstream: `DocxToPdfConverter` is a pass-through to the renderer, so this package
-  cannot fix it — only report it and say so. Offering a
+  cannot fix it — only report it and say so.
+
+  **Reporting it is now an API rather than a paragraph.** `DocxToPdfPreflight.Inspect` lists what a
+  document CONTAINS that this renderer may not represent, so a caller converting third-party files
+  can route those for human review. It deliberately does not claim to know what was dropped — that
+  claim is the one this section refuses, and an inventory of the input does not need it. Offering a
   `ConvertWithReport` there that always returned an empty list would be a documented lie.
 
 ## Not built, but cheap — ask if you need one
