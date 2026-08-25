@@ -301,6 +301,7 @@ to be wrong, because you are reading it precisely when something has already fai
 
 | Check | Workflow | Guards it runs |
 |---|---|---|
+| `a clean consumer installs the packed packages` | `ci.yml` | `check-packed-install.py` |
 | `build & test (…)` | `ci.yml` | `check-coverage.py` |
 | `formatting` | `ci.yml` | `check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-package-description.py`<br>`check-readme-conversions.py`<br>`check-readme-coverage.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py` |
 | `no native binaries / no banned packages` | `ci.yml` | `gen-third-party-notices.py`<br>`repair-lockfiles.py` |
@@ -310,7 +311,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | `mutation score` | `mutation.yml` | `check-mutation-scope.py` |
 | `report` | `release-curation-state.yml` | `check-changelog-curated.py` |
 | `release-please` | `release-please.yml` | `extract-changelog-section.py` |
-| `verify, pack and publish` | `release.yml` | `check-package-contents.py`<br>`extract-changelog-section.py` |
+| `verify, pack and publish` | `release.yml` | `check-package-contents.py`<br>`check-packed-install.py`<br>`extract-changelog-section.py` |
 
 Generated from `.github/workflows/*.yml`. A guard added to a job appears here automatically; one moved between jobs moves with it. What each guard means, and what to do when it fails, is the table above — that part is written by hand because it cannot be derived.
 

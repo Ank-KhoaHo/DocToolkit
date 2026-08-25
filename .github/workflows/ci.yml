@@ -994,3 +994,46 @@ jobs:
           name: nupkg-${{ matrix.name }}
           path: artifacts/*.nupkg
           if-no-files-found: error
+
+  # ── A clean consumer installs the packed packages and runs one conversion per format ──────────
+  #
+  # Issue #383, filed after 0.36.0 shipped carrying `DocToolkit.dll` alone. The `package` job above
+  # verifies the nupkg's assembly list and its nuspec dependencies, but executes nothing; the test
+  # suite builds against PROJECT REFERENCES, not the artifact; and `install-smoke.yml` runs a real
+  # consumer only AFTER Release, when a defect is already permanent.
+  #
+  # It runs HERE as well as on the publish path deliberately. A guard whose first real execution is
+  # the irreversible run is a guard nothing has tested - which is the same shape as the defect it
+  # exists to catch, and is the lesson 0.36.0 taught in `CLAUDE.md`.
+  #
+  # Its own version-identity assertion is what stops it quietly testing the PUBLISHED package
+  # instead: the restored nupkg must be byte-identical to the one just packed. Without that, a
+  # version already on nuget.org would satisfy the restore and this would duplicate
+  # install-smoke.yml while claiming to pre-empt it.
+  packed-install:
+    name: a clean consumer installs the packed packages
+    runs-on: ubuntu-24.04
+    needs: build-test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.302
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      # Both packages, because the consumer program resolves an interface from the DI container and
+      # the extensions package is where the container wiring lives.
+      - name: Pack both packages to a local feed
+        run: |
+          dotnet pack src/DocToolkit/DocToolkit.csproj -c Release -o artifacts
+          dotnet pack src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj -c Release -o artifacts
+          ls -la artifacts/
+
+      - name: Guard - a clean consumer can install and run them
+        run: |
+          python3 scripts/check-packed-install.py --self-test
+          python3 scripts/check-packed-install.py --artifacts artifacts
