@@ -651,6 +651,24 @@ jobs:
       - name: Assert every shipped type is named in its package README
         run: python3 scripts/check-readme-coverage.py
 
+      # A THIRD kind of README drift, and the one all the others were blind to. Issue #381: the
+      # headline read "DOCX → HTML/Markdown" and "XLSX → CSV/HTML" while both also convert to PDF,
+      # so it advertised a narrower package than shipped on the surface a search result shows.
+      #
+      # Every existing check passed on it. The generated capability grid stayed CORRECT the whole
+      # time; check-readme-coverage.py passed because DocxToPdfConverter is named further down; and
+      # check-package-description.py passed because "PDF" appears in the description many times.
+      # None of them checked a claim about which conversions EXIST.
+      #
+      # Narrow on purpose: it asserts only that where a README enumerates a source's targets, the
+      # enumeration is complete. Demanding a headline list all twelve conversions would produce an
+      # unreadable sentence and be switched off within a month - the same reason
+      # check-readme-coverage.py does not require the three READMEs to match.
+      - name: Assert no README enumerates a format's targets and leaves one out
+        run: |
+          python3 scripts/check-readme-conversions.py --self-test
+          python3 scripts/check-readme-conversions.py
+
       # The same drift, one field further out. The release checklist asks a human "does the
       # nuget.org Description still describe what ships?" and says outright that nothing can
       # prove it is TRUE - which was right, and left a hole 0.28.0 walked into twice: the core
