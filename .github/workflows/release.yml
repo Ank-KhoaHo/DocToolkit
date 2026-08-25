@@ -309,6 +309,21 @@ jobs:
           python3 scripts/check-package-contents.py --self-test
           python3 scripts/check-package-contents.py artifacts/*.nupkg
 
+      # THE ONLY CHECK THAT RUNS A CONSUMER BEFORE THE PUBLISH. Issue #383, filed after 0.36.0.
+      #
+      # The suite builds against project references; the guard above reads the nupkg's assembly
+      # list but executes nothing; and `install-smoke.yml` compiles a real consumer app only AFTER
+      # Release finishes - by which point a defect it finds is permanent, because a nuget.org
+      # version can be unlisted but never replaced.
+      #
+      # Verified against a REPRODUCTION of the 0.36.0 defect rather than a synthetic one: packing
+      # with the `no-build` switch again yields the same one-assembly package, and this fails with
+      # the same CS0103/CS0012 a consumer saw.
+      - name: Guard - a clean consumer can install and run the packed packages
+        run: |
+          python3 scripts/check-packed-install.py --self-test
+          python3 scripts/check-packed-install.py --artifacts artifacts
+
       - name: Verify package contents
         run: |
           python3 - "${{ steps.v.outputs.version }}" <<'PY'
