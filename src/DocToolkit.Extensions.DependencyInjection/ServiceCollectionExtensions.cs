@@ -42,6 +42,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IXlsxToHtmlConverter, XlsxToHtmlConverterService>();
         services.TryAddSingleton<IDocToDocxConverter, DocToDocxConverterService>();
         services.TryAddSingleton<IDocxReview, DocxReviewService>();
+        services.TryAddSingleton<IDocxMailMerge, DocxMailMergeService>();
+        services.TryAddSingleton<IDocxForm, DocxFormService>();
+        services.TryAddSingleton<IDocxToPdfPreflight, DocxToPdfPreflightService>();
 
         return services;
     }
