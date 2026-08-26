@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.39.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.38.0...v0.39.0) (2026-08-26)
+
+
+### Added
+
+* **extensions:** mirror DocxMailMerge, DocxForm and DocxToPdfPreflight ([#397](https://github.com/Ank-KhoaHo/DocToolkit/issues/397)) ([50a59d4](https://github.com/Ank-KhoaHo/DocToolkit/commit/50a59d439b2ee2dbcbd9144fbdb8975c3d939079))
+
 ## [0.38.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.37.0...v0.38.0) (2026-08-26)
 
 
