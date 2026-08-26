@@ -21,7 +21,7 @@ public interface IDocxToPdfPreflight
     /// <exception cref="DocToolkit.DocumentConversionException">It could not be opened or read.</exception>
     DocToolkit.DocxToPdfPreflightReport Inspect(byte[] docx);
 
-    /// <inheritdoc cref="Inspect(byte[])"/>
+    /// <inheritdoc cref="Inspect(byte[])" path="/summary|/remarks|/exception"/>
     /// <param name="source">The document to inspect. Read to its end; never disposed or sought.</param>
     /// <param name="ct">Cancels before the document is read.</param>
     Task<DocToolkit.DocxToPdfPreflightReport> InspectAsync(

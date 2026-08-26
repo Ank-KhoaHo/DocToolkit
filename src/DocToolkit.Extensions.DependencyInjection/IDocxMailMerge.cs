@@ -20,7 +20,7 @@ public interface IDocxMailMerge
     /// <exception cref="DocToolkit.DocumentConversionException">It could not be opened or read.</exception>
     DocToolkit.DocxMailMergeTemplate InspectTemplate(byte[] docx);
 
-    /// <inheritdoc cref="InspectTemplate(byte[])"/>
+    /// <inheritdoc cref="InspectTemplate(byte[])" path="/summary|/remarks|/exception"/>
     /// <param name="source">The template to read. Read to its end; never disposed or sought.</param>
     /// <param name="ct">Cancels before the document is read.</param>
     Task<DocToolkit.DocxMailMergeTemplate> InspectTemplateAsync(
@@ -45,7 +45,7 @@ public interface IDocxMailMerge
     /// </exception>
     byte[] Merge(byte[] docx, IReadOnlyDictionary<string, string> values);
 
-    /// <inheritdoc cref="Merge(byte[], IReadOnlyDictionary{string, string})"/>
+    /// <inheritdoc cref="Merge(byte[], IReadOnlyDictionary{string, string})" path="/summary|/remarks|/exception"/>
     /// <param name="source">The template to fill. Read to its end; never disposed or sought.</param>
     /// <param name="destination">Receives the filled document. Written; never disposed or sought.</param>
     /// <param name="values">The value for each field, matched case-insensitively.</param>
@@ -66,7 +66,7 @@ public interface IDocxMailMerge
     DocToolkit.DocxMailMergeResult MergeWithReport(
         byte[] docx, IReadOnlyDictionary<string, string> values);
 
-    /// <inheritdoc cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/>
+    /// <inheritdoc cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})" path="/summary|/remarks|/exception"/>
     /// <remarks>
     /// Returns the report alone, because the document went to <paramref name="destination"/>.
     /// </remarks>

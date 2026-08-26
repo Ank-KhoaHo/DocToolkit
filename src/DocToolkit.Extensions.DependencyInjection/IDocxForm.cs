@@ -26,7 +26,7 @@ public interface IDocxForm
     DocToolkit.DocxFormReport Inspect(
         byte[] docx, DocToolkit.DocxFormKey key = DocToolkit.DocxFormKey.TagThenAlias);
 
-    /// <inheritdoc cref="Inspect(byte[], DocToolkit.DocxFormKey)"/>
+    /// <inheritdoc cref="Inspect(byte[], DocToolkit.DocxFormKey)" path="/summary|/remarks|/exception"/>
     /// <param name="source">The document to read. Read to its end; never disposed or sought.</param>
     /// <param name="key">Which name identifies a control.</param>
     /// <param name="ct">Cancels before the document is read.</param>
@@ -50,7 +50,7 @@ public interface IDocxForm
         byte[] docx, IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values,
         DocToolkit.DocxFormKey key = DocToolkit.DocxFormKey.TagThenAlias);
 
-    /// <inheritdoc cref="Validate(byte[], IReadOnlyDictionary{string, DocToolkit.DocxFormValue}, DocToolkit.DocxFormKey)"/>
+    /// <inheritdoc cref="Validate(byte[], IReadOnlyDictionary{string, DocToolkit.DocxFormValue}, DocToolkit.DocxFormKey)" path="/summary|/remarks|/exception"/>
     /// <param name="source">The document to check against. Read to its end; never disposed or sought.</param>
     /// <param name="values">The values to check.</param>
     /// <param name="key">Which name identifies a control.</param>
@@ -81,7 +81,7 @@ public interface IDocxForm
         byte[] docx, IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values,
         DocToolkit.DocxFormKey key = DocToolkit.DocxFormKey.TagThenAlias);
 
-    /// <inheritdoc cref="Fill(byte[], IReadOnlyDictionary{string, DocToolkit.DocxFormValue}, DocToolkit.DocxFormKey)"/>
+    /// <inheritdoc cref="Fill(byte[], IReadOnlyDictionary{string, DocToolkit.DocxFormValue}, DocToolkit.DocxFormKey)" path="/summary|/remarks|/exception"/>
     /// <param name="source">The document to fill. Read to its end; never disposed or sought.</param>
     /// <param name="destination">Receives the filled document. Written; never disposed or sought.</param>
     /// <param name="values">The value for each control.</param>
