@@ -30,11 +30,17 @@ public sealed class DocxFormReport
     /// The content controls this document exposes under the <see cref="DocxFormKey"/> asked for.
     /// </summary>
     /// <remarks>
-    /// <b>Not necessarily every control in the document.</b> A control is absent when it has no name
-    /// under that key mode, and only the first of several controls sharing a name appears. Measured:
-    /// two controls sharing a tag yield one field, and a tag-only template read with
-    /// <see cref="DocxFormKey.Alias"/> yields <b>none at all</b> — which looks exactly like a
-    /// document that has no form, so check the key mode before concluding that.
+    /// <b>Not necessarily every control in the document</b>, for three measured reasons. A control
+    /// is absent when it has no name under that key mode; only the first of several controls sharing
+    /// a name appears; and <b>a control in a header or a footer is never included</b>, because only
+    /// the body is read. Measured: two controls sharing a tag yield one field, a tag-only template
+    /// read with <see cref="DocxFormKey.Alias"/> yields <b>none at all</b> — which looks exactly like
+    /// a document that has no form — and a header control is missing while
+    /// <see cref="DocxMailMerge"/> would have found it.
+    ///
+    /// <b>The order is not document order.</b> Measured: a form authored FullName, Plan, Start,
+    /// Signed comes back Signed, Start, Plan, FullName. Nothing here promises any order, so sort by
+    /// <see cref="DocxFormField.Key"/> if you are rendering a form and the sequence matters.
     ///
     /// <see cref="DocxForm.Validate(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/>
     /// reports both cases, as <see cref="DocxFormIssueKind.DuplicateKey"/> and

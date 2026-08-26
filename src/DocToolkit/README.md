@@ -586,8 +586,12 @@ var values = new Dictionary<string, DocxFormValue>
     ["Signed"] = DocxFormValue.FromChecked(true),
 };
 
+// Validate reports EVERY control with no value, so IsValid is false for any partial fill.
+// Gate on the issues you actually care about, not on IsValid, unless you mean to supply all of them.
 DocxFormValidation check = DocxForm.Validate(docx, values);  // DocxFormIssue, DocxFormIssueKind
-if (check.IsValid) docx = DocxForm.Fill(docx, values);
+bool blocked = check.Issues.Any(i => i.Kind != DocxFormIssueKind.MissingValue);
+
+if (!blocked) docx = DocxForm.Fill(docx, values);
 ```
 
 **This is a third template model, not a replacement for the other two.** `DocxEditor` fills
@@ -602,9 +606,17 @@ because there is no constraint to check against, so a clean result means "nothin
 rather than "every value is right". `IsValid` means no issues of any kind; filter `Issues` by `Kind`
 if you do not care about one of them.
 
-**`Fill` is lenient.** A control you supply no value for keeps its own existing text - there is no
-injected marker - so filling half a form is a supported workflow. `Validate` first if you need to
-know what will be skipped.
+**`Fill` is lenient about a MISSING value.** A control you supply no value for keeps its own
+existing text - there is no injected marker - so filling half a form is a supported workflow.
+
+**It is not lenient about a value that does not fit a typed control, and the three typed kinds do not
+agree.** Measured: a drop-down value outside its list **throws**, while a non-date for a date picker
+and a non-boolean for a check box are silently skipped and the control keeps its old content. That
+asymmetry comes from the library underneath rather than a choice made here, and it is the strongest
+reason to run `Validate` first - it reports all three the same way, before anything is written.
+
+**A clean `Validate` is not a promise that `Fill` will succeed.** Nothing here decodes image bytes,
+so content that is not a readable image validates clean and then throws from `Fill`.
 
 **Images are supplied as bytes**, through `DocxFormValue.FromPicture(bytes, fileName)`. There is
 deliberately no overload taking a path: this package does not read files you did not hand it.
@@ -616,7 +628,12 @@ between them, so a template keyed either way works without you knowing which.
 the first of several controls sharing a name appears, and a control with no name under the mode in
 use does not appear at all - so a tag-only template read with `DocxFormKey.Alias` comes back **empty**,
 which looks exactly like a document with no form. `Validate` reports both, as `DuplicateKey` and
-`UnmappedControl`.
+`UnmappedControl`. **The order is not document order**, so sort by `Key` if the sequence matters.
+
+**Only the document BODY is read or written.** A content control in a header or footer is invisible
+to all three methods: it is not in the report, a value aimed at it comes back as `UnusedValue` - which
+reads as though you invented the name - and `Fill` leaves it alone. `DocxMailMerge` **does** reach
+headers, so if your form lives in one, that is the API to use.
 
 `Stream` overloads: `InspectAsync`, `ValidateAsync`, `FillAsync`.
 

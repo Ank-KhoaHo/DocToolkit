@@ -31,18 +31,37 @@ namespace DocToolkit;
 /// text control validates anything, because there is no constraint to check it against.
 ///
 /// <b><see cref="Fill(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/> is
-/// lenient</b>, where <see cref="DocxMailMerge.Merge"/> refuses. Two measured differences justify
-/// that: a control given no value keeps its <i>own</i> existing text rather than showing an injected
-/// marker, and unlike mail merge this class ships a <c>Validate</c> a caller can run first.
+/// lenient about a MISSING value</b>, where <see cref="DocxMailMerge.Merge"/> refuses. Two measured
+/// differences justify that: a control given no value keeps its <i>own</i> existing text rather than
+/// showing an injected marker, and unlike mail merge this class ships a <c>Validate</c> a caller can
+/// run first.
+///
+/// <b>It is NOT lenient about a value that does not fit a typed control, and the three typed kinds
+/// do not agree with each other.</b> Measured: a drop-down value outside its list <i>throws</i>,
+/// while a non-date for a date picker and a non-boolean for a check box are silently skipped and the
+/// control keeps its old content. That asymmetry is the library beneath, not a choice made here —
+/// which is the strongest reason to run <c>Validate</c> first, since it reports all three the same
+/// way, before anything is written.
+///
+/// <b>Only the document BODY is read or written.</b> A content control in a header or a footer is
+/// invisible to every method here: it is not in <see cref="Inspect(byte[], DocxFormKey)"/>'s report,
+/// a value aimed at it is reported as <see cref="DocxFormIssueKind.UnusedValue"/> — which reads as
+/// though the caller invented the name — and <c>Fill</c> leaves it untouched. Measured.
+/// <see cref="DocxMailMerge"/> <i>does</i> reach headers, so the two template APIs genuinely differ
+/// here; if your form lives in a header, that is the one to use.
 ///
 /// <b>Images are supplied as bytes and never as a path</b> — see <see cref="DocxFormValue"/>.
 /// </remarks>
 public static class DocxForm
 {
-    /// <summary>Reads every content control in <paramref name="docx"/>, and what it holds.</summary>
+    /// <summary>
+    /// Reads the content controls in <paramref name="docx"/>'s <b>body</b>, and what they hold.
+    /// </summary>
     /// <remarks>
-    /// A document with no content controls reports none rather than failing — which is how a caller
-    /// catches having passed the wrong document, since filling one succeeds and changes nothing.
+    /// <b>Not every control in the document</b> — see <see cref="DocxFormReport.Fields"/> for the
+    /// three reasons one can be absent. A document with no content controls reports none rather than
+    /// failing, which is how a caller catches having passed the wrong document, since filling one
+    /// succeeds and changes nothing.
     /// </remarks>
     /// <param name="docx">The document to read.</param>
     /// <param name="key">Which name identifies a control.</param>
@@ -89,8 +108,12 @@ public static class DocxForm
     /// </summary>
     /// <remarks>
     /// Run this before
-    /// <see cref="Fill(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/>, which is
-    /// lenient by design and will not tell you what it skipped.
+    /// <see cref="Fill(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/>, which
+    /// will not tell you what it skipped.
+    ///
+    /// <b>It is not a complete guarantee that <c>Fill</c> will succeed.</b> Measured: image bytes
+    /// that are not a readable image validate clean and then throw from <c>Fill</c>, because nothing
+    /// here decodes them. A clean result means no <i>key or typed-value</i> problem was found.
     ///
     /// <b>Every issue is reported</b> and <see cref="DocxFormValidation.IsValid"/> means "none of any
     /// kind". Filter <see cref="DocxFormValidation.Issues"/> by <see cref="DocxFormIssue.Kind"/> if
@@ -161,7 +184,13 @@ public static class DocxForm
     /// <param name="key">Which name identifies a control.</param>
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="values"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a value is null.</exception>
-    /// <exception cref="DocumentConversionException">The document could not be read or written.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The document could not be read or written, <b>or a value did not fit a typed control in a way
+    /// the library beneath refuses</b> — measured: a drop-down value outside its list throws here,
+    /// while a bad date or boolean is skipped silently. Run
+    /// <see cref="Validate(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/> first
+    /// to see all three before writing.
+    /// </exception>
     public static byte[] Fill(
         byte[] docx, IReadOnlyDictionary<string, DocxFormValue> values,
         DocxFormKey key = DocxFormKey.TagThenAlias)
@@ -270,8 +299,12 @@ public static class DocxForm
             var result = document.ValidateContentControlValues(
                 Upstream(values), Upstream(key), requireAllControls: true, allowUnusedValues: false);
 
+            // Derived rather than copied from result.IsValid, which is a second source of truth
+            // for the same thing: the doc comment promises "true when Issues is empty, of any
+            // kind", and an upstream release that excluded a kind from its own flag would make that
+            // promise silently false while nothing failed.
             return new DocxFormValidation(
-                result.IsValid,
+                result.Issues.Count == 0,
                 [.. result.ExpectedKeys],
                 [.. result.SuppliedKeys],
                 [.. result.Issues.Select(Issue)]);
