@@ -80,4 +80,23 @@ public class DocxFormTests
         Assert.Equal("fileName", Assert.Throws<ArgumentException>(
             () => DocxFormValue.FromPicture([1], "  ")).ParamName);
     }
+    [Fact]
+    public void DocxFormIssueKind_NamesOnlyTheThreeKindsThatCanActuallyFire()
+    {
+        // Upstream reports NINE. Measured 2026-08-26, three can be provoked: a drop-down value
+        // outside its list, a string where a date belongs and a bool where a date belongs all
+        // reported valid=True. Naming a kind a caller cannot receive advertises a check that does
+        // not run - the failure A67 was filed to avoid - so the other six map to Other.
+        Assert.Equal(
+            ["Other", "MissingValue", "UnusedValue", "DuplicateKey"],
+            Enum.GetNames<DocxFormIssueKind>());
+    }
+
+    [Fact]
+    public void DocxFormKey_DefaultsToTheModeThatFallsBack()
+    {
+        // The default must fall back, so a template keyed either way works without the caller
+        // knowing which. Measured: Tag gives "FullName" where Alias gives "Full name".
+        Assert.Equal(DocxFormKey.TagThenAlias, default(DocxFormKey));
+    }
 }
