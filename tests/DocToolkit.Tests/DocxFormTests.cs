@@ -228,6 +228,32 @@ public class DocxFormTests
         Assert.Contains("FullName", ex.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Fill_WritesADateAsADate_AndTheRenderingIsUpstreamsRawToString()
+    {
+        // TWO things at once, and the second is deliberately unflattering.
+        //
+        // A sabotage run found nothing covering the date fill path at all - writing a DateTime as
+        // its ToString() survived every other test here. So this pins that a DocxFormValue.FromDate
+        // reaches the document as a date rather than as pre-formatted text.
+        //
+        // It also pins WHAT lands, which is not pretty: upstream renders the DateTime with a raw
+        // ToString, so a date control ends up reading "03/09/2027 00:00:00" rather than a formatted
+        // date. That is documented under Known limitations rather than smoothed over - and if
+        // upstream ever formats it properly this test fails, which is the signal to update the
+        // limitation instead of discovering it from a bug report.
+        byte[] filled = DocxForm.Fill(DocxFormFixtures.Form(),
+            new Dictionary<string, DocxFormValue>
+            {
+                ["Start"] = DocxFormValue.FromDate(new DateTime(2027, 3, 9)),
+            });
+
+        string start = Assert.Single(DocxForm.Inspect(filled).Fields, f => f.Key == "Start").Value.Text!;
+
+        Assert.Contains("2027", start, StringComparison.Ordinal);
+        Assert.DoesNotContain("15 January 2026", start, StringComparison.Ordinal);
+    }
+
     // ---- guards --------------------------------------------------------------------------------
 
     [Fact]
