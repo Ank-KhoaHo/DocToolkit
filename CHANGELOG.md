@@ -10,6 +10,21 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.38.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.37.0...v0.38.0) (2026-08-26)
+
+
+### Added
+
+* **core:** fill Word mail-merge templates through DocxMailMerge ([#392](https://github.com/Ank-KhoaHo/DocToolkit/issues/392)) ([9f8c812](https://github.com/Ank-KhoaHo/DocToolkit/commit/9f8c8123e98a2115ed67623d9dbce08d7e4f320b))
+* **core:** read, check and fill Word content controls through DocxForm ([#395](https://github.com/Ank-KhoaHo/DocToolkit/issues/395)) ([ae99cf8](https://github.com/Ank-KhoaHo/DocToolkit/commit/ae99cf8cd5d8e7918054d02d23d47732c99c60f4))
+* **core:** report DOCX constructs the PDF renderer may not represent ([#390](https://github.com/Ank-KhoaHo/DocToolkit/issues/390)) ([b4fd443](https://github.com/Ank-KhoaHo/DocToolkit/commit/b4fd443fdf743b3161a3a301843c7e5bb8054ff3))
+
+
+### Fixed
+
+* **core:** close the DocxForm defects a code review measured ([#396](https://github.com/Ank-KhoaHo/DocToolkit/issues/396)) ([177bfcc](https://github.com/Ank-KhoaHo/DocToolkit/commit/177bfcc83dc4a87aea8d4cde04b78d9c3ce34bb1))
+* **core:** ExtractText reads text inside Word content controls ([#393](https://github.com/Ank-KhoaHo/DocToolkit/issues/393)) ([791f1b9](https://github.com/Ank-KhoaHo/DocToolkit/commit/791f1b96cbd1898d2be5de7303fb5b04d2f4b238))
+
 ## [0.37.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.36.1...v0.37.0) (2026-08-24)
 
 
