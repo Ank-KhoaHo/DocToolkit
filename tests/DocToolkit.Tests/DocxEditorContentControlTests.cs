@@ -84,17 +84,29 @@ public class DocxEditorContentControlTests
     public void ExtractText_DoesNotFlattenATableNestedInACell()
     {
         // The Elements-not-Descendants rule this fix had to preserve. Unwrapping controls level by
-        // level keeps it; a Descendants-based fix would have passed every test above and quietly
-        // flattened this one.
+        // level keeps it; a Descendants-based fix would pass every other test here and quietly
+        // flatten this one.
+        //
+        // ASSERTING THE EXACT STRING IS THE POINT, and a first version of this test that merely
+        // checked both tokens were PRESENT did not discriminate at all - measured by sabotage, it
+        // passed against a Descendants implementation. Flattening does not lose the text, it
+        // RELOCATES it, so only the separators can tell the two apart:
+        //
+        //   correct    "INNER\tOUTER"          one row, two cells
+        //   flattened  "INNER\tOUTER\nINNER"   the inner row pulled up as a row of its own
+        //
+        // The outer row needs TWO cells for that difference to exist; with one cell the two
+        // implementations produce identical text and the test proves nothing.
         var inner = DocxFixtures.Tbl(DocxFixtures.Row(DocxFixtures.R("INNER")));
-        byte[] docx = DocxFixtures.Build(
-            DocxFixtures.Tbl(DocxFixtures.RowOf(inner, DocxFixtures.P(DocxFixtures.R("OUTER")))),
-            Paragraph(Sibling));
+        var outerRow = new TableRow(
+            new TableCell(inner, DocxFixtures.P()),
+            new TableCell(Paragraph("OUTER")));
+
+        byte[] docx = DocxFixtures.Build(WithRows(DocxFixtures.Tbl(), outerRow), Paragraph(Sibling));
 
         string text = DocxEditor.ExtractText(docx);
 
-        Assert.Contains("INNER", text, StringComparison.Ordinal);
-        Assert.Contains("OUTER", text, StringComparison.Ordinal);
+        Assert.Equal($"INNER\n\tOUTER\n{Sibling}", text);
     }
 
     // ---- fixtures ------------------------------------------------------------------------------

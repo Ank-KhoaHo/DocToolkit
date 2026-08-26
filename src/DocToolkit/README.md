@@ -810,6 +810,20 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
+### 0.38.0 - `ExtractText` reads Word content controls
+
+`DocxEditor.ExtractText` **returns text it previously omitted**. A document whose content sat inside
+a Word content control (`w:sdt`) used to extract to nothing at all, while the same document rendered
+to PDF carried that text perfectly.
+
+If you index, search, diff or hash extracted text, **expect the output to change** for any document
+containing a content control - which is most template-driven documents, since a content control is
+usually the part that varies. Nothing about the API changed; the same call now answers correctly.
+
+All six positions a control can occupy are covered: at body level, nested inside another control,
+holding a table, inside a table cell, and controls wrapping a whole row or a single cell. The last
+two also used to shift the `\t` positions of the cells beside them.
+
 ### 0.36.0 is broken — upgrade to 0.36.1, or stay on 0.35.0
 
 **Do not use 0.36.0.** It was published carrying `DocToolkit.dll` alone; the six assemblies the
