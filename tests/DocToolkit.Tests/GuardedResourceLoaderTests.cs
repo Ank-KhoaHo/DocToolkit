@@ -268,24 +268,90 @@ public class GuardedResourceLoaderTests
         Assert.Equal(cap, result!.Content.Length);
     }
 
+    private const int TimingAttempts = 3;
+
+    /// <summary>
+    /// <b>Best-of-N, and this is the THIRD member of a family that has now needed it three times.</b>
+    ///
+    /// This was a single-shot wall-clock assertion and it failed CI on 2026-08-26 at <b>7.63 s</b>
+    /// against a 5 s ceiling — on a pull request that changed <c>DocxEditor.BlockText</c> and
+    /// nothing this test can reach. The identical check <i>passed</i> on a parallel run of the same
+    /// commit, which is the tell.
+    ///
+    /// Its two siblings — <c>AirGapGuardTests.MeasureStallAsync</c> and
+    /// <c>RemoteImageGuardTests.SlowResponse_TimesOut_RatherThanHangingTheConversion</c> — were
+    /// each given this defence after flaking the same way. This one was simply missed, and
+    /// <c>CLAUDE.md</c> already carried the reasoning that applies to it verbatim.
+    ///
+    /// <b>Taking the SMALLEST elapsed is valid because the noise is one-sided.</b> CPU contention on
+    /// a 2-4 core runner can only make an attempt slower, never faster — xunit runs collections in
+    /// parallel and this suite has PDF renders beside it. The defect being detected costs
+    /// <see cref="SlowDripResponder"/>'s full drip on <i>every</i> attempt, so it survives the
+    /// minimum. That is measured from the responder rather than assumed: it writes 50 chunks
+    /// 200 ms apart, so an unbounded read takes <b>~10 s</b> every time against a correct read's
+    /// ~0.3 s. The ceiling sits between them at 5 s.
+    ///
+    /// <b>Do NOT "fix" a future failure here by raising the ceiling.</b> 5 s is already 16x the
+    /// 300 ms <c>Timeout</c> being asserted, and raising it walks toward the ~10 s that IS the
+    /// defect. The headroom is not the problem.
+    ///
+    /// <b>Verified by sabotage — and the OBVIOUS sabotage does not test the timing half at all.</b>
+    /// Removing the bound entirely (<c>CancelAfter(InfiniteTimeSpan)</c>) lets the drip finish, so
+    /// the fetch <i>succeeds</i> and <c>Assert.Null</c> fires — the test goes red for a reason that
+    /// has nothing to do with elapsed time, which is the "green for the wrong reason" failure this
+    /// repository keeps recording, wearing red instead.
+    ///
+    /// The sabotage that actually exercises this loop keeps the bound and makes it <i>late</i>:
+    /// <c>CancelAfter(TimeSpan.FromSeconds(8))</c>. The fetch is still refused, so
+    /// <c>Assert.Null</c> passes, and only the timing assertion can see the defect. Measured — all
+    /// three attempts came in at 8.00-8.01 s, so it survives the minimum exactly as the one-sided
+    /// argument requires:
+    ///
+    /// <code>
+    /// attempt 1/3: 8.01 s (best 8.01 s, ceiling 5 s)
+    /// attempt 2/3: 8.01 s (best 8.01 s, ceiling 5 s)
+    /// attempt 3/3: 8.00 s (best 8.00 s, ceiling 5 s)
+    /// </code>
+    /// </summary>
     [Fact]
     public async Task FetchAsync_Timeout_BoundsASlowDripBody()
     {
-        using var probe = new LoopbackProbe(_output, SlowDripResponder);
-        var loader = new GuardedResourceLoader(new RemoteImageOptions
+        var ceiling = TimeSpan.FromSeconds(5);
+        var best = TimeSpan.MaxValue;
+
+        for (var attempt = 1; attempt <= TimingAttempts; attempt++)
         {
-            AllowPrivateAddresses = true,
-            Timeout = TimeSpan.FromMilliseconds(300),
-        });
+            // A fresh probe per attempt rather than reusing one: nothing here promises the
+            // responder serves a second request, and a silently-refused reconnect would look
+            // exactly like a fast read.
+            using var probe = new LoopbackProbe(_output, SlowDripResponder);
+            var loader = new GuardedResourceLoader(new RemoteImageOptions
+            {
+                AllowPrivateAddresses = true,
+                Timeout = TimeSpan.FromMilliseconds(300),
+            });
 
-        var stopwatch = Stopwatch.StartNew();
-        var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/slow.bin"));
-        stopwatch.Stop();
+            var stopwatch = Stopwatch.StartNew();
+            var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/slow.bin"));
+            stopwatch.Stop();
 
-        Assert.Null(result);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5),
-            $"Took {stopwatch.Elapsed.TotalSeconds:0.00} s against a slow-drip body with a " +
-            "300 ms Timeout - Timeout is not bounding the read.");
+            // Asserted on EVERY attempt, not only the fastest. This is the actual guarantee - the
+            // fetch is refused - and it is not a timing claim, so a retry must never launder it.
+            Assert.Null(result);
+
+            if (stopwatch.Elapsed < best) best = stopwatch.Elapsed;
+            _output.WriteLine(
+                $"attempt {attempt}/{TimingAttempts}: {stopwatch.Elapsed.TotalSeconds:0.00} s "
+                + $"(best {best.TotalSeconds:0.00} s, ceiling {ceiling.TotalSeconds:0.#} s)");
+
+            // A first attempt under the ceiling has answered the question; retrying would triple
+            // the cost of the common case for nothing.
+            if (best < ceiling) break;
+        }
+
+        Assert.True(best < ceiling,
+            $"Best of {TimingAttempts} attempts was {best.TotalSeconds:0.00} s against a slow-drip "
+            + "body with a 300 ms Timeout - Timeout is not bounding the read.");
     }
 
     [Fact]
