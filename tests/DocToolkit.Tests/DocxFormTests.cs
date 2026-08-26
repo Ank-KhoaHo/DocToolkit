@@ -412,6 +412,135 @@ public class DocxFormTests
         Assert.NotEmpty(value.Bytes!);
     }
 
+    // ---- what a code review found, each pinned so it cannot come back --------------------------
+
+    [Fact]
+    public void DocxFormValue_IsActuallyImmutable_NotJustGetterOnly()
+    {
+        // A sealed type with getter-only properties that stores and hands out a LIVE array is not
+        // immutable. Both directions measured before the fix: the caller's later write was visible
+        // through Bytes, so a value approved by Validate could be different content by the time Fill
+        // converted it; and a caller could rewrite what a report reports.
+        byte[] mine = [1, 2, 3];
+        DocxFormValue value = DocxFormValue.FromPicture(mine, "a.png");
+
+        mine[0] = 99;
+        Assert.Equal<byte[]>([1, 2, 3], value.Bytes!);
+
+        byte[] handedOut = value.Bytes!;
+        handedOut[0] = 42;
+        Assert.Equal<byte[]>([1, 2, 3], value.Bytes!);
+    }
+
+    [Fact]
+    public void AControlInAHeaderIsInvisible_AndTheDocumentationSaysSo()
+    {
+        // Only the body is read or written. The failure is quiet and misleading: a value aimed at a
+        // header control is reported as UnusedValue, which reads as though the caller invented the
+        // name, and Fill leaves the control untouched. DocxMailMerge DOES reach headers, so the two
+        // template APIs genuinely differ - which is why this is pinned rather than left as a note.
+        byte[] docx = DocxFormFixtures.Authored(d =>
+        {
+            d.AddHeadersAndFooters();
+            d.Header!.Default!.AddParagraph().AddStructuredDocumentTag("h", "HeaderCtrl", "HeaderCtrl");
+            d.AddParagraph().AddStructuredDocumentTag("b", "BodyCtrl", "BodyCtrl");
+        });
+
+        Assert.Equal("BodyCtrl", Assert.Single(DocxForm.Inspect(docx).Fields).Key);
+
+        DocxFormValidation result = DocxForm.Validate(docx, new Dictionary<string, DocxFormValue>
+        {
+            ["HeaderCtrl"] = DocxFormValue.FromText("H"),
+            ["BodyCtrl"] = DocxFormValue.FromText("B"),
+        });
+
+        Assert.Contains(result.Issues,
+            i => i.Kind == DocxFormIssueKind.UnusedValue && i.Key == "HeaderCtrl");
+    }
+
+    [Fact]
+    public void Fill_IsLenientAboutAMissingValueButNotAboutAValueThatDoesNotFit()
+    {
+        // "Lenient" was documented without qualification and is only true of a MISSING value. The
+        // three typed controls also disagree with each other, which is the library beneath rather
+        // than a choice made here - and is the strongest argument for running Validate first.
+        byte[] form = DocxFormFixtures.Form();
+
+        // A drop-down value outside its list THROWS.
+        Assert.Throws<DocumentConversionException>(() => DocxForm.Fill(form,
+            new Dictionary<string, DocxFormValue> { ["Plan"] = DocxFormValue.FromChoice("NotAnOption") }));
+
+        // A bad date and a bad boolean are SKIPPED, leaving the control at its old content.
+        byte[] filled = DocxForm.Fill(form, new Dictionary<string, DocxFormValue>
+        {
+            ["Start"] = DocxFormValue.FromText("not a date"),
+            ["Signed"] = DocxFormValue.FromText("not a bool"),
+        });
+
+        DocxFormReport after = DocxForm.Inspect(filled);
+        Assert.Equal(new DateTime(2026, 1, 15), Assert.Single(after.Fields, f => f.Key == "Start").Value.Date);
+        Assert.False(Assert.Single(after.Fields, f => f.Key == "Signed").Value.Checked);
+    }
+
+    [Fact]
+    public void AGreenValidateDoesNotPromiseFillWillSucceed()
+    {
+        // Validate's remarks said "run this before Fill", which reads as a guarantee. It is not one:
+        // nothing here decodes image bytes, so rubbish validates clean and throws from Fill. The
+        // documentation now says what a clean result does and does not mean.
+        byte[] form = DocxFormFixtures.WithPictureControl();
+        var rubbish = new Dictionary<string, DocxFormValue>
+        {
+            ["Logo"] = DocxFormValue.FromPicture([1, 2, 3], "a.png"),
+        };
+
+        Assert.True(DocxForm.Validate(form, rubbish).IsValid);
+        Assert.Throws<DocumentConversionException>(() => DocxForm.Fill(form, rubbish));
+    }
+
+    [Fact]
+    public void ALinkedPictureCarriesItsUriRatherThanACLRTypeName()
+    {
+        // The Other arm used value.ToString(), which for a reference type with no ToString override
+        // is the CLR type name - so a linked-image control reported
+        // "OfficeIMO.Word.WordContentControlPictureValue" as its content, and feeding that back into
+        // Fill through the advertised round trip would have written the type name into the document.
+        // DocxFormValueKind.Other promises Text carries the content; this makes that true.
+        Assert.DoesNotContain("OfficeIMO", DocxFormValue.FromText("x").Text!, StringComparison.Ordinal);
+
+        DocxFormValue readBack = Assert.Single(
+            DocxForm.Inspect(DocxFormFixtures.WithPictureControl()).Fields).Value;
+
+        // An embedded picture still arrives as bytes; the linked case is the one the Other arm now
+        // handles, and neither may ever report a type name.
+        Assert.DoesNotContain("WordContentControlPictureValue", readBack.Text ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsValid_IsDerivedFromIssuesRatherThanCopiedFromASecondSource()
+    {
+        // IsValid was copied from the library's own flag while being documented as "true when Issues
+        // is empty, of any kind". Two sources of truth for one fact, with nothing asserting they
+        // agree - so an upstream release that excluded a kind from its flag would make the shipped
+        // doc comment silently false.
+        byte[] form = DocxFormFixtures.Form();
+
+        DocxFormValidation clean = DocxForm.Validate(form, new Dictionary<string, DocxFormValue>
+        {
+            ["FullName"] = DocxFormValue.FromText("a"),
+            ["Plan"] = DocxFormValue.FromChoice("Team"),
+            ["Start"] = DocxFormValue.FromDate(new DateTime(2027, 3, 9)),
+            ["Signed"] = DocxFormValue.FromChecked(true),
+        });
+        Assert.True(clean.IsValid);
+        Assert.Empty(clean.Issues);
+
+        DocxFormValidation dirty = DocxForm.Validate(form, new Dictionary<string, DocxFormValue>());
+        Assert.False(dirty.IsValid);
+        Assert.NotEmpty(dirty.Issues);
+    }
+
     // ---- guards --------------------------------------------------------------------------------
 
     [Fact]

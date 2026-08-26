@@ -18,6 +18,8 @@ namespace DocToolkit;
 /// </remarks>
 public sealed class DocxFormValue
 {
+    private readonly byte[]? _bytes;
+
     private DocxFormValue(
         DocxFormValueKind kind, string? text, bool? isChecked, DateTime? date,
         byte[]? bytes, string? fileName)
@@ -26,7 +28,7 @@ public sealed class DocxFormValue
         Text = text;
         Checked = isChecked;
         Date = date;
-        Bytes = bytes;
+        _bytes = bytes is null ? null : (byte[])bytes.Clone();
         FileName = fileName;
     }
 
@@ -46,7 +48,13 @@ public sealed class DocxFormValue
     public DateTime? Date { get; }
 
     /// <summary>The image content, for <see cref="DocxFormValueKind.Picture"/>.</summary>
-    public byte[]? Bytes { get; }
+    /// <remarks>
+    /// A <b>copy</b>, on the way in and on the way out. Without both, this sealed type with
+    /// getter-only properties would not actually be immutable: a caller who kept their array could
+    /// change what a value means after <c>Validate</c> had approved it and before <c>Fill</c> wrote
+    /// it, and a caller could mutate what a report reports by writing through this property.
+    /// </remarks>
+    public byte[]? Bytes => _bytes is null ? null : (byte[])_bytes.Clone();
 
     /// <summary>The image's file name, for <see cref="DocxFormValueKind.Picture"/>.</summary>
     public string? FileName { get; }
@@ -85,7 +93,9 @@ public sealed class DocxFormValue
     /// </summary>
     /// <param name="bytes">The image content.</param>
     /// <param name="fileName">A name for the image part, such as <c>logo.png</c>.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="bytes"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="bytes"/> or <paramref name="fileName"/> is null.
+    /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="bytes"/> is empty, or <paramref name="fileName"/> is blank.
     /// </exception>
@@ -120,7 +130,16 @@ public sealed class DocxFormValue
         DateTime date => FromDate(date),
         string text => FromText(text),
         OfficeIMOPictureValue picture when picture.Bytes is { Length: > 0 } bytes
-            => FromPicture(bytes, string.IsNullOrWhiteSpace(picture.FileName) ? "image" : picture.FileName),
+            => FromPicture(bytes, string.IsNullOrWhiteSpace(picture.FileName) ? "image.png" : picture.FileName),
+
+        // A LINKED picture carries no bytes - only a URI. ToString() would store the CLR type name
+        // here, which is worse than useless: DocxFormValueKind.Other promises Text carries the
+        // content, and "OfficeIMO.Word.WordContentControlPictureValue" is not content. Name the URI
+        // if there is one, and say plainly that there is nothing to carry if there is not.
+        OfficeIMOPictureValue linked
+            => new DocxFormValue(DocxFormValueKind.Other,
+                linked.ExternalUri?.ToString() ?? string.Empty, null, null, null, linked.FileName),
+
         _ => new DocxFormValue(DocxFormValueKind.Other, value.ToString(), null, null, null, null),
     };
 
@@ -132,7 +151,9 @@ public sealed class DocxFormValue
     {
         DocxFormValueKind.Checked => Checked,
         DocxFormValueKind.Date => Date,
-        DocxFormValueKind.Picture => OfficeIMOPictureValue.FromBytes(Bytes!, FileName!),
+        // The stored array, not the copying property: this is the one place inside the type
+        // where copying again would be waste.
+        DocxFormValueKind.Picture => OfficeIMOPictureValue.FromBytes(_bytes!, FileName!),
         _ => Text,
     };
 }
@@ -149,7 +170,14 @@ public enum DocxFormValueKind
     /// <summary>A date.</summary>
     Date = 2,
 
-    /// <summary>A selection from a drop-down or combo box.</summary>
+    /// <summary>
+    /// A selection from a drop-down or combo box.
+    /// </summary>
+    /// <remarks>
+    /// <b>Only ever seen on the way in.</b> A drop-down's current selection is handed back as plain
+    /// text, so <c>DocxForm.Inspect</c> reports it as <see cref="Text"/> — measured. A caller cannot
+    /// tell a drop-down from a text control by kind alone.
+    /// </remarks>
     Choice = 3,
 
     /// <summary>An image.</summary>
