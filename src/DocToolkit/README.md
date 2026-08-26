@@ -565,6 +565,48 @@ your `destination`.
 **Batch — one document per record — is not here yet.** A loop over `Merge` produces exactly the same
 documents; what is missing is the ergonomics, not the capability.
 
+## Fill-in forms: Word content controls
+
+A content control is a named region Word itself protects - the format's own answer to a fill-in
+field, and sturdier than a `{{placeholder}}` an author can break by editing inside it.
+
+```csharp
+DocxFormReport form = DocxForm.Inspect(docx);
+foreach (DocxFormField field in form.Fields)
+    Console.WriteLine($"{field.Key}: {field.Value.Text}");   // DocxFormValue, DocxFormValueKind
+
+var values = new Dictionary<string, DocxFormValue>
+{
+    ["FullName"] = DocxFormValue.FromText("Khoa Ho"),
+    ["Plan"] = DocxFormValue.FromChoice("Team"),
+    ["Signed"] = DocxFormValue.FromChecked(true),
+};
+
+DocxFormValidation check = DocxForm.Validate(docx, values);  // DocxFormIssue, DocxFormIssueKind
+if (check.IsValid) docx = DocxForm.Fill(docx, values);
+```
+
+**This is a third template model, not a replacement for the other two.** `DocxEditor` fills
+`{{placeholder}}` text and `DocxMailMerge` fills `MERGEFIELD` instructions; which one you need is
+decided by whoever authored the document, not by preference.
+
+**`Validate` checks keys, not values** - which controls got no value, which values matched nothing,
+and which names are ambiguous. Measured: a drop-down value outside its list, and a non-date for a
+date control, both validate clean. `IsValid` means no issues of any kind; filter `Issues` by `Kind`
+if you do not care about one of them.
+
+**`Fill` is lenient.** A control you supply no value for keeps its own existing text - there is no
+injected marker - so filling half a form is a supported workflow. `Validate` first if you need to
+know what will be skipped.
+
+**Images are supplied as bytes**, through `DocxFormValue.FromPicture(bytes, fileName)`. There is
+deliberately no overload taking a path: this package does not read files you did not hand it.
+
+**Keys** come from a control's tag or its alias, and `DocxFormKey` chooses. The default falls back
+between them, so a template keyed either way works without you knowing which.
+
+`Stream` overloads: `InspectAsync`, `ValidateAsync`, `FillAsync`.
+
 ## Comments and tracked changes
 
 `DocxReview` reads what a document carries from having been through review, and resolves it.
