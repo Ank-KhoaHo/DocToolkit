@@ -77,6 +77,12 @@ namespace DocToolkit
         MissingValue = 1,
         UnusedValue = 2,
         DuplicateKey = 3,
+        UnmappedControl = 4,
+        InvalidBoolean = 5,
+        InvalidDate = 6,
+        InvalidChoice = 7,
+        InvalidImage = 8,
+        InvalidRepeatingSection = 9,
     }
     public enum DocxFormKey
     {
