@@ -1,53 +1,87 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using OfficeIMO.Word;
 
 namespace DocToolkit.Tests;
 
 /// <summary>
-/// Documents carrying content controls. Hand-built OOXML, because no public API in this library can
-/// author a <c>w:sdt</c> — which is half the gap <see cref="DocxForm"/> closes.
+/// Documents carrying content controls, for <see cref="DocxForm"/>.
+///
+/// <b>These are authored through OfficeIMO's own API, and an earlier version of this file was not —
+/// which invalidated every measurement taken against it.</b> Hand-built <c>SdtBlock</c> markup with
+/// a <c>w:dropDownList</c> or <c>w:date</c> child <i>looks</i> like a typed control and is not one:
+/// OfficeIMO recognises typed controls only on an <c>SdtRun</c>, so those markers were inert and
+/// every fixture control was a plain structured document tag, whose value validator is
+/// <c>value =&gt; true</c>. Measured against the old fixture, <b>no</b> wrong-typed value could be
+/// made to fail; against these, three kinds fire immediately.
+///
+/// The rule this earns: <b>author a fixture the way the library under test authors one</b>, or the
+/// thing being measured is the fixture rather than the library.
 /// </summary>
 internal static class DocxFormFixtures
 {
-    /// <summary>A control with a tag, an alias and some current text.</summary>
-    internal static SdtBlock Control(
-        string tag, string alias, string shown, params OpenXmlElement[] typeMarkers)
+    /// <summary>
+    /// A four-field form with three REAL typed controls — drop-down, date picker and check box —
+    /// plus a plain text tag.
+    /// </summary>
+    internal static byte[] Form()
     {
-        var properties = new SdtProperties(new Tag { Val = tag }, new SdtAlias { Val = alias });
-        foreach (OpenXmlElement marker in typeMarkers) properties.Append(marker);
+        byte[] blank = Authored(document =>
+        {
+            document.AddParagraph().AddStructuredDocumentTag("Khoa Ho", "Full name", "FullName");
+            document.AddParagraph().AddDropDownList(["Free", "Pro", "Team"], "Plan", "Plan");
+            document.AddParagraph().AddDatePicker(new DateTime(2026, 1, 15), "Start date", "Start");
+            document.AddParagraph().AddCheckBox(false, "Signed", "Signed");
+        });
 
-        return new SdtBlock(properties, new SdtContentBlock(
-            new Paragraph(new Run(new Text(shown)))));
+        // A drop-down added with no selection reads back as null, which is a real state but a poor
+        // starting point for a form fixture - so select one, the way a template with a default has.
+        return DocxForm.Fill(blank,
+            new Dictionary<string, DocxFormValue> { ["Plan"] = DocxFormValue.FromChoice("Pro") });
     }
 
-    /// <summary>A drop-down control offering <paramref name="options"/>.</summary>
-    internal static SdtBlock DropDown(string tag, string alias, string shown, params string[] options)
+    /// <summary>A document whose only controls share one tag.</summary>
+    internal static byte[] DuplicateTags() => Authored(document =>
     {
-        var list = new SdtContentDropDownList();
-        foreach (string option in options)
-            list.Append(new ListItem { DisplayText = option, Value = option });
+        document.AddParagraph().AddStructuredDocumentTag("one", "Same", "Same");
+        document.AddParagraph().AddStructuredDocumentTag("two", "Same", "Same");
+    });
 
-        return Control(tag, alias, shown, list);
+    /// <summary>A document with no content controls at all.</summary>
+    internal static byte[] NoControls() => Authored(document =>
+        document.AddParagraph().Text = "an ordinary document");
+
+    /// <summary>Builds a document through OfficeIMO, as Word itself would write one.</summary>
+    internal static byte[] Authored(Action<WordDocument> build)
+    {
+        using var buffer = new MemoryStream();
+        using (WordDocument document = WordDocument.Create(buffer))
+        {
+            build(document);
+            document.Save();
+        }
+        return buffer.ToArray();
     }
 
-    /// <summary>A four-field form: text, drop-down, date, and a second plain text field.</summary>
-    internal static byte[] Form() => Build(
-        Control("FullName", "Full name", "Khoa Ho", new SdtContentText()),
-        DropDown("Plan", "Plan", "Pro", "Free", "Pro", "Team"),
-        Control("Start", "Start date", "15 January 2026", new SdtContentDate
-        { FullDate = new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc) }),
-        Control("Notes", "Notes", "none"));
-
-    internal static byte[] Build(params OpenXmlElement[] blocks)
+    /// <summary>
+    /// A hand-built <c>SdtBlock</c> — deliberately NOT a typed control.
+    /// </summary>
+    /// <remarks>
+    /// Kept for the one test that pins the distinction, so the mistake this file's summary describes
+    /// cannot be made again silently. Do not build form fixtures with it.
+    /// </remarks>
+    internal static byte[] UntypedBlockControl(string tag, string shown)
     {
+        var properties = new SdtProperties(new Tag { Val = tag }, new SdtAlias { Val = tag });
+        var control = new SdtBlock(properties,
+            new SdtContentBlock(new Paragraph(new Run(new Text(shown)))));
+
         using var ms = new MemoryStream();
         using (var document = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
         {
             MainDocumentPart main = document.AddMainDocumentPart();
-            var body = new Body();
-            foreach (OpenXmlElement block in blocks) body.Append(block);
-            main.Document = new Document(body);
+            main.Document = new Document(new Body(control));
             main.Document.Save();
         }
         return ms.ToArray();

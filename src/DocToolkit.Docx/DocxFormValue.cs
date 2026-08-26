@@ -103,11 +103,15 @@ public sealed class DocxFormValue
     /// Maps a value the underlying library handed back.
     /// </summary>
     /// <remarks>
-    /// Measured 2026-08-26: every value from a text, drop-down or date control came back as a
-    /// <see cref="string"/>. A check box and a picture control could not be authored in a hand-built
-    /// fixture, so their runtime types are <b>unverified</b> — which is exactly why an unrecognised
-    /// value becomes <see cref="DocxFormValueKind.Other"/> carrying its text, rather than being
-    /// dropped or throwing.
+    /// Measured against a form authored the way Word authors one: a check box returns
+    /// <see cref="bool"/>, a date picker returns <see cref="DateTime"/>, a picture control returns a
+    /// picture value, and a plain text control returns a <see cref="string"/>. An <b>unset</b> date
+    /// picker or an unselected drop-down returns <see langword="null"/>.
+    ///
+    /// An earlier version of this remark said everything came back as a string, on a measurement
+    /// taken against hand-built markup that contained no typed controls at all. The
+    /// <see cref="DocxFormValueKind.Other"/> arm still exists for a type this API does not model, so
+    /// such a value is carried rather than dropped or thrown on.
     /// </remarks>
     internal static DocxFormValue FromUpstream(object? value) => value switch
     {

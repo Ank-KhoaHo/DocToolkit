@@ -81,14 +81,16 @@ public class DocxFormTests
             () => DocxFormValue.FromPicture([1], "  ")).ParamName);
     }
     [Fact]
-    public void DocxFormIssueKind_NamesOnlyTheThreeKindsThatCanActuallyFire()
+    public void DocxFormIssueKind_SurfacesEveryKindTheLibraryBeneathReports()
     {
-        // Upstream reports NINE. Measured 2026-08-26, three can be provoked: a drop-down value
-        // outside its list, a string where a date belongs and a bool where a date belongs all
-        // reported valid=True. Naming a kind a caller cannot receive advertises a check that does
-        // not run - the failure A67 was filed to avoid - so the other six map to Other.
+        // This asserted a set of THREE, on a measurement that was an artefact of its own fixtures -
+        // hand-built SdtBlock markup is not a typed control, so nothing could report InvalidChoice
+        // because there was no drop-down. Against a real form, three of the six "unreachable" kinds
+        // fire immediately. See DocxFormFixtures for the rule that earns.
         Assert.Equal(
-            ["Other", "MissingValue", "UnusedValue", "DuplicateKey"],
+            ["Other", "MissingValue", "UnusedValue", "DuplicateKey", "UnmappedControl",
+             "InvalidBoolean", "InvalidDate", "InvalidChoice", "InvalidImage",
+             "InvalidRepeatingSection"],
             Enum.GetNames<DocxFormIssueKind>());
     }
 
@@ -144,9 +146,7 @@ public class DocxFormTests
     [Fact]
     public void Validate_ReportsTwoControlsSharingAName()
     {
-        byte[] docx = DocxFormFixtures.Build(
-            DocxFormFixtures.Control("Same", "Same", "one"),
-            DocxFormFixtures.Control("Same", "Same", "two"));
+        byte[] docx = DocxFormFixtures.DuplicateTags();
 
         DocxFormValidation result = DocxForm.Validate(docx,
             new Dictionary<string, DocxFormValue> { ["Same"] = DocxFormValue.FromText("x") });
@@ -165,7 +165,7 @@ public class DocxFormTests
                 ["FullName"] = DocxFormValue.FromText("a"),
                 ["Plan"] = DocxFormValue.FromChoice("Team"),
                 ["Start"] = DocxFormValue.FromDate(new DateTime(2027, 3, 9)),
-                ["Notes"] = DocxFormValue.FromText("b"),
+                ["Signed"] = DocxFormValue.FromChecked(true),
             });
 
         Assert.True(result.IsValid);
@@ -182,12 +182,16 @@ public class DocxFormTests
             new Dictionary<string, DocxFormValue>
             {
                 ["FullName"] = DocxFormValue.FromText("Someone Else"),
-                ["Notes"] = DocxFormValue.FromText("updated"),
+                ["Signed"] = DocxFormValue.FromChecked(true),
             });
 
         DocxFormReport report = DocxForm.Inspect(filled);
         Assert.Equal("Someone Else", Assert.Single(report.Fields, f => f.Key == "FullName").Value.Text);
-        Assert.Equal("updated", Assert.Single(report.Fields, f => f.Key == "Notes").Value.Text);
+
+        // The round trip across TYPES, not just text: a check box read back as a bool.
+        DocxFormValue signed = Assert.Single(report.Fields, f => f.Key == "Signed").Value;
+        Assert.Equal(DocxFormValueKind.Checked, signed.Kind);
+        Assert.True(signed.Checked);
     }
 
     [Fact]
@@ -202,7 +206,7 @@ public class DocxFormTests
         DocxFormReport report = DocxForm.Inspect(filled);
         Assert.Equal("Only This", Assert.Single(report.Fields, f => f.Key == "FullName").Value.Text);
         Assert.Equal("Pro", Assert.Single(report.Fields, f => f.Key == "Plan").Value.Text);
-        Assert.Equal("none", Assert.Single(report.Fields, f => f.Key == "Notes").Value.Text);
+        Assert.Equal(new DateTime(2026, 1, 15), Assert.Single(report.Fields, f => f.Key == "Start").Value.Date);
     }
 
     [Fact]
@@ -215,7 +219,11 @@ public class DocxFormTests
         byte[] filled = DocxForm.Fill(DocxFormFixtures.Form(),
             new Dictionary<string, DocxFormValue> { ["FullName"] = DocxFormValue.FromText("A") });
 
-        Assert.Equal("A\nPro\n15 January 2026\nnone", DocxEditor.ExtractText(filled));
+        // The date picker and check box render as their own glyphs rather than as text, which is
+        // the document's business and not this API's - what matters is that the block boundaries
+        // survive, so the paragraphs are still four separate blocks.
+        Assert.Equal(4, DocxEditor.ExtractText(filled).Split('\n').Length);
+        Assert.StartsWith("A\n", DocxEditor.ExtractText(filled), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -229,34 +237,123 @@ public class DocxFormTests
     }
 
     [Fact]
-    public void Fill_WritesADateAsADate_AndTheRenderingIsUpstreamsRawToString()
+    public void Fill_WritesADateAsADate_AndNotAsPreFormattedText()
     {
-        // TWO things at once, and the second is deliberately unflattering.
+        // THE MOST DANGEROUS THING THIS SUITE PINS, and an earlier version of this test declared it
+        // untestable. It claimed passing a DateTime and passing that DateTime's ToString() were
+        // equivalent, so no test could tell them apart. Measured on a real date picker, en-CA:
         //
-        // A sabotage run found nothing covering the date fill path at all - writing a DateTime as
-        // its ToString() survived every other test here. So this pins that a DocxFormValue.FromDate
-        // reaches the document as a date rather than as pre-formatted text.
+        //     DateTime            -> 2027-03-09
+        //     DateTime.ToString() -> 2027-09-03      <- March 9 became September 3
         //
-        // It also pins WHAT lands, which is not pretty: upstream renders the DateTime with a raw
-        // ToString, so a date control ends up reading "03/09/2027 00:00:00" rather than a formatted
-        // date. That is documented under Known limitations rather than smoothed over - and if
-        // upstream ever formats it properly this test fails, which is the signal to update the
-        // limitation instead of discovering it from a bug report.
-        //
-        // It cannot go further than that. Sabotage showed that passing a DateTime and passing
-        // that DateTime's ToString() produce byte-identical documents - because the raw
-        // ToString above IS what upstream writes either way. That mutant is equivalent, so no
-        // test can kill it and none should be written trying.
+        // ToString() uses the current culture; the library beneath re-parses with InvariantCulture.
+        // The result is a valid document with a silently transposed date and nothing raised. Not an
+        // equivalent mutant - a data-corruption bug that a comment was telling people not to test.
         byte[] filled = DocxForm.Fill(DocxFormFixtures.Form(),
             new Dictionary<string, DocxFormValue>
             {
                 ["Start"] = DocxFormValue.FromDate(new DateTime(2027, 3, 9)),
             });
 
-        string start = Assert.Single(DocxForm.Inspect(filled).Fields, f => f.Key == "Start").Value.Text!;
+        DocxFormValue start = Assert.Single(
+            DocxForm.Inspect(filled).Fields, f => f.Key == "Start").Value;
 
-        Assert.Contains("2027", start, StringComparison.Ordinal);
-        Assert.DoesNotContain("15 January 2026", start, StringComparison.Ordinal);
+        // Assert the DAY and MONTH, not merely the year: only that distinguishes 09-03 from 03-09.
+        Assert.Equal(DocxFormValueKind.Date, start.Kind);
+        Assert.Equal(new DateTime(2027, 3, 9), start.Date);
+    }
+
+    [Fact]
+    public void Validate_ReportsAValueThatDoesNotFitATypedControl()
+    {
+        // The three kinds an earlier draft called unreachable. They need a form authored the way
+        // Word authors one - which is the whole reason DocxFormFixtures no longer hand-builds markup.
+        DocxFormValidation result = DocxForm.Validate(DocxFormFixtures.Form(),
+            new Dictionary<string, DocxFormValue>
+            {
+                ["FullName"] = DocxFormValue.FromText("fine"),
+                ["Plan"] = DocxFormValue.FromChoice("NotAnOption"),
+                ["Start"] = DocxFormValue.FromText("not a date"),
+                ["Signed"] = DocxFormValue.FromText("not a bool"),
+            });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, i => i.Kind == DocxFormIssueKind.InvalidChoice && i.Key == "Plan");
+        Assert.Contains(result.Issues, i => i.Kind == DocxFormIssueKind.InvalidDate && i.Key == "Start");
+        Assert.Contains(result.Issues, i => i.Kind == DocxFormIssueKind.InvalidBoolean && i.Key == "Signed");
+    }
+
+    [Fact]
+    public void Validate_CarriesTheUnderlyingMessageRatherThanBlankingIt()
+    {
+        // Nothing asserted Message anywhere, so returning string.Empty for every issue passed the
+        // whole suite - and Message is the only thing carrying detail for a kind this API collapses.
+        DocxFormValidation result = DocxForm.Validate(DocxFormFixtures.Form(),
+            new Dictionary<string, DocxFormValue> { ["FullName"] = DocxFormValue.FromText("x") });
+
+        DocxFormIssue issue = result.Issues.First(i => i.Kind == DocxFormIssueKind.MissingValue);
+        Assert.False(string.IsNullOrWhiteSpace(issue.Message));
+        Assert.Contains(issue.Key, issue.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void APictureValueReachesTheLibraryAsBYTES_NeverAsAPath()
+    {
+        // THE BEHAVIOURAL HALF of the bytes-only guarantee, and it was missing. The surface test
+        // pins that no FACTORY takes a path; nothing pinned that the conversion uses FromBytes.
+        // Rewriting that one line to FromFile(FileName) passed every other test in this suite while
+        // making the shipped package read a caller-supplied string off disk.
+        object? upstream = DocxFormValue.FromPicture([1, 2, 3], "logo.png").ToUpstream();
+
+        var picture = Assert.IsType<OfficeIMO.Word.WordContentControlPictureValue>(upstream);
+        Assert.Null(picture.FilePath);
+        Assert.Null(picture.ExternalUri);
+        Assert.False(picture.IsExternal);
+        Assert.Equal<byte[]>([1, 2, 3], picture.Bytes!);
+    }
+
+    [Fact]
+    public void Inspect_DoesNotClaimToReturnControlsItCannotName()
+    {
+        // Fields is documented as what the document EXPOSES under a key mode, not as every control,
+        // because upstream drops some. Both cases are pinned here so the doc comment stays true.
+        Assert.Single(DocxForm.Inspect(DocxFormFixtures.DuplicateTags()).Fields);
+
+        // The dangerous one: a tag-only template read by alias yields nothing at all, which looks
+        // exactly like a document with no form in it.
+        Assert.DoesNotContain(DocxForm.Inspect(DocxFormFixtures.Form(), DocxFormKey.Alias).Fields,
+            f => f.Key == "FullName");
+        Assert.NotEmpty(DocxForm.Inspect(DocxFormFixtures.Form(), DocxFormKey.Tag).Fields);
+    }
+
+    [Fact]
+    public void AHandBuiltSdtBlockIsNotATypedControl_WhichIsWhyFixturesAreAuthored()
+    {
+        // Pins the mistake that invalidated this feature's first round of measurements, so it cannot
+        // be made again silently. A hand-built SdtBlock IS a content control - it has a key and it
+        // extracts - but it is not a TYPED one, so no value constraint applies to it.
+        byte[] handBuilt = DocxFormFixtures.UntypedBlockControl("Plan", "Pro");
+
+        Assert.Single(DocxForm.Inspect(handBuilt).Fields);
+        Assert.True(DocxForm.Validate(handBuilt,
+            new Dictionary<string, DocxFormValue> { ["Plan"] = DocxFormValue.FromChoice("NotAnOption") })
+            .IsValid);
+    }
+
+    [Fact]
+    public void EveryKeyIsCarriedThrough_EvenOneWhoseValueMapsToNull()
+    {
+        // An unset date picker and an unselected drop-down both read back as null, so the advertised
+        // Inspect-then-Fill round trip produced values that mapped to null. Dropping those made
+        // Validate report MissingValue for a key the caller HAD supplied.
+        byte[] empty = DocxFormFixtures.Authored(d =>
+            d.AddParagraph().AddDatePicker(null, "Start date", "Start"));
+
+        DocxFormValue readBack = Assert.Single(DocxForm.Inspect(empty).Fields).Value;
+        DocxFormValidation result = DocxForm.Validate(empty,
+            new Dictionary<string, DocxFormValue> { ["Start"] = readBack });
+
+        Assert.Contains("Start", result.SuppliedKeys);
     }
 
     // ---- guards --------------------------------------------------------------------------------
@@ -294,12 +391,23 @@ public class DocxFormTests
         source.Position = 0;
         Assert.True(source.ReadByte() >= 0, "the stream the caller owns must not be closed");
 
-        using var fillSource = new MemoryStream(DocxFormFixtures.Form());
-        using var destination = new MemoryStream();
-        await DocxForm.FillAsync(fillSource, destination,
-            new Dictionary<string, DocxFormValue> { ["Notes"] = DocxFormValue.FromText("streamed") });
+        // Against its byte[] twin, on the same input - which is what the name claims.
+        byte[] form = DocxFormFixtures.Form();
+        var values = new Dictionary<string, DocxFormValue>
+        {
+            ["FullName"] = DocxFormValue.FromText("streamed"),
+        };
 
-        DocxFormReport after = DocxForm.Inspect(destination.ToArray());
-        Assert.Equal("streamed", Assert.Single(after.Fields, f => f.Key == "Notes").Value.Text);
+        using var fillSource = new MemoryStream(form);
+        using var destination = new MemoryStream();
+        await DocxForm.FillAsync(fillSource, destination, values);
+
+        Assert.Equal(
+            DocxForm.Inspect(DocxForm.Fill(form, values)).Fields.Select(f => f.Key + "=" + f.Value.Text),
+            DocxForm.Inspect(destination.ToArray()).Fields.Select(f => f.Key + "=" + f.Value.Text));
+
+        using var validateSource = new MemoryStream(form);
+        DocxFormValidation streamed = await DocxForm.ValidateAsync(validateSource, values);
+        Assert.Equal(DocxForm.Validate(form, values).IsValid, streamed.IsValid);
     }
 }

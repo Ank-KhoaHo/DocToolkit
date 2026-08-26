@@ -26,9 +26,9 @@ namespace DocToolkit;
 /// </list>
 ///
 /// <b><see cref="Validate(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/> checks
-/// keys, not values.</b> Measured 2026-08-26: a drop-down value outside its list, and a non-date for
-/// a date control, both validated clean. What it does answer is which controls got no value, which
-/// values matched nothing, and which names are ambiguous.
+/// keys and, for a typed control, values.</b> A drop-down value outside its list, a non-date for a
+/// date picker and a non-boolean for a check box are each reported under their own kind. A plain
+/// text control validates anything, because there is no constraint to check it against.
 ///
 /// <b><see cref="Fill(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/> is
 /// lenient</b>, where <see cref="DocxMailMerge.Merge"/> refuses. Two measured differences justify
@@ -314,12 +314,13 @@ public static class DocxForm
     private static Dictionary<string, object?> Upstream(
         IReadOnlyDictionary<string, DocxFormValue> values)
     {
+        // EVERY key is carried through, including one whose value maps to null. Dropping those
+        // silently made Validate report MissingValue for a key the caller HAD supplied, and made
+        // SuppliedKeys disagree with what was passed - a value read back from Inspect for an unset
+        // date picker or an unselected drop-down maps to null, so the advertised round trip hit it.
         var copy = new Dictionary<string, object?>(values.Count);
         foreach (KeyValuePair<string, DocxFormValue> pair in values)
-        {
-            if (pair.Value.ToUpstream() is { } mapped)
-                copy[pair.Key] = mapped;
-        }
+            copy[pair.Key] = pair.Value.ToUpstream();
         return copy;
     }
 
@@ -335,14 +336,25 @@ public static class DocxForm
         => new(issue.Key ?? string.Empty, Kind(issue.Kind), issue.Message ?? string.Empty);
 
     /// <summary>
-    /// Nine kinds to three. See <see cref="DocxFormIssueKind"/> for why the other six arrive as
-    /// <see cref="DocxFormIssueKind.Other"/> rather than under their own names.
+    /// All nine kinds, one for one.
     /// </summary>
+    /// <remarks>
+    /// An earlier version mapped six of them to <see cref="DocxFormIssueKind.Other"/> on a
+    /// measurement that turned out to be an artefact of its own fixtures — see
+    /// <see cref="DocxFormIssueKind"/>. The <c>_</c> arm remains for a kind added upstream later,
+    /// which would otherwise fail to compile a consumer's exhaustive switch.
+    /// </remarks>
     private static DocxFormIssueKind Kind(OfficeIMOIssueKind kind) => kind switch
     {
         OfficeIMOIssueKind.MissingValue => DocxFormIssueKind.MissingValue,
         OfficeIMOIssueKind.UnusedValue => DocxFormIssueKind.UnusedValue,
         OfficeIMOIssueKind.DuplicateKey => DocxFormIssueKind.DuplicateKey,
+        OfficeIMOIssueKind.UnmappedControl => DocxFormIssueKind.UnmappedControl,
+        OfficeIMOIssueKind.InvalidBoolean => DocxFormIssueKind.InvalidBoolean,
+        OfficeIMOIssueKind.InvalidDate => DocxFormIssueKind.InvalidDate,
+        OfficeIMOIssueKind.InvalidChoice => DocxFormIssueKind.InvalidChoice,
+        OfficeIMOIssueKind.InvalidImage => DocxFormIssueKind.InvalidImage,
+        OfficeIMOIssueKind.InvalidRepeatingSection => DocxFormIssueKind.InvalidRepeatingSection,
         _ => DocxFormIssueKind.Other,
     };
 }

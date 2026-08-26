@@ -26,7 +26,20 @@ public sealed class DocxFormReport
 {
     internal DocxFormReport(IReadOnlyList<DocxFormField> fields) => Fields = fields;
 
-    /// <summary>Every content control, keyed as the <see cref="DocxFormKey"/> asked for.</summary>
+    /// <summary>
+    /// The content controls this document exposes under the <see cref="DocxFormKey"/> asked for.
+    /// </summary>
+    /// <remarks>
+    /// <b>Not necessarily every control in the document.</b> A control is absent when it has no name
+    /// under that key mode, and only the first of several controls sharing a name appears. Measured:
+    /// two controls sharing a tag yield one field, and a tag-only template read with
+    /// <see cref="DocxFormKey.Alias"/> yields <b>none at all</b> — which looks exactly like a
+    /// document that has no form, so check the key mode before concluding that.
+    ///
+    /// <see cref="DocxForm.Validate(byte[], IReadOnlyDictionary{string, DocxFormValue}, DocxFormKey)"/>
+    /// reports both cases, as <see cref="DocxFormIssueKind.DuplicateKey"/> and
+    /// <see cref="DocxFormIssueKind.UnmappedControl"/>.
+    /// </remarks>
     public IReadOnlyList<DocxFormField> Fields { get; }
 }
 
@@ -51,10 +64,14 @@ public sealed class DocxFormField
 
 /// <summary>Whether a set of values fits a document's content controls.</summary>
 /// <remarks>
-/// <b>This checks keys, not values.</b> Measured 2026-08-26: a drop-down value outside its list and
-/// a non-date for a date control both came back valid. What it does answer — which controls got no
-/// value, which values matched nothing, and which names are ambiguous — is what a caller needs
-/// before filling a template somebody else authored.
+/// <b>This checks keys AND values.</b> It reports which controls got no value, which values matched
+/// nothing and which names are ambiguous — and, for a typed control, whether the value fits: a
+/// drop-down value outside its list, a non-date for a date picker and a non-boolean for a check box
+/// are each reported under their own <see cref="DocxFormIssueKind"/>.
+///
+/// <b>A plain text control validates anything</b>, because the underlying library has no constraint
+/// to check it against. So a clean result means "nothing detectably wrong", not "every value is
+/// right".
 /// </remarks>
 public sealed class DocxFormValidation
 {
@@ -107,18 +124,17 @@ public sealed class DocxFormIssue
     public string Message { get; }
 }
 
-/// <summary>The kinds of problem this API distinguishes.</summary>
+/// <summary>The kinds of problem a set of values can have.</summary>
 /// <remarks>
-/// <b>Upstream reports nine kinds; three of them can actually happen.</b> Measured 2026-08-26 by
-/// trying to provoke each: a drop-down value outside its list, a string where a date belongs, and a
-/// bool where a date belongs all reported valid. So <c>InvalidChoice</c>, <c>InvalidDate</c>,
-/// <c>InvalidBoolean</c>, <c>InvalidImage</c>, <c>InvalidRepeatingSection</c> and
-/// <c>UnmappedControl</c> arrive as <see cref="Other"/> with their message intact — if one ever does
-/// fire the caller still sees it, and nothing here advertises a check that does not run.
+/// <b>All nine of the underlying library's kinds are surfaced, and an earlier draft of this type
+/// surfaced three.</b> That draft was written on a measurement which said the other six could not be
+/// provoked — and the measurement was wrong: its fixtures were hand-built <c>SdtBlock</c> markup,
+/// which is not a typed control, so a drop-down value outside its list really did validate clean
+/// because there was no drop-down. Against a form authored the way Word authors one, three of the
+/// six fire on the first attempt.
 ///
-/// The fixtures behind that measurement were hand-built, so it remains possible those kinds need
-/// markup Word writes and a probe did not. That is the reason they map to <see cref="Other"/>
-/// rather than being dropped.
+/// The lesson is recorded on <c>DocxFormFixtures</c>: a fixture must be authored the way the library
+/// under test authors one, or what gets measured is the fixture.
 /// </remarks>
 public enum DocxFormIssueKind
 {
@@ -135,4 +151,30 @@ public enum DocxFormIssueKind
 
     /// <summary>Two controls answer to the same name, so a value cannot be aimed at one of them.</summary>
     DuplicateKey = 3,
+
+    /// <summary>A control carries no name under the <see cref="DocxFormKey"/> in use.</summary>
+    /// <remarks>
+    /// Reachable two ways: a control with neither a tag nor an alias, and — more easily — reading a
+    /// tag-only template with <see cref="DocxFormKey.Alias"/>.
+    /// </remarks>
+    UnmappedControl = 4,
+
+    /// <summary>The value is not usable as the check box's true/false.</summary>
+    InvalidBoolean = 5,
+
+    /// <summary>The value is not usable as the date control's date.</summary>
+    InvalidDate = 6,
+
+    /// <summary>The value is not one of the drop-down's options.</summary>
+    InvalidChoice = 7,
+
+    /// <summary>The value is not usable as the picture control's image.</summary>
+    /// <remarks>
+    /// Reachable through this API with a file name that has no extension — the underlying library
+    /// requires one.
+    /// </remarks>
+    InvalidImage = 8,
+
+    /// <summary>The value does not fit the control's repeating section.</summary>
+    InvalidRepeatingSection = 9,
 }
