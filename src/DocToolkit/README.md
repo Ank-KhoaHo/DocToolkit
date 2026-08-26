@@ -565,6 +565,61 @@ your `destination`.
 **Batch — one document per record — is not here yet.** A loop over `Merge` produces exactly the same
 documents; what is missing is the ergonomics, not the capability.
 
+## Fill-in forms: Word content controls
+
+A content control is a named region Word itself protects - the format's own answer to a fill-in
+field, and sturdier than a `{{placeholder}}` an author can break by editing inside it.
+
+```csharp
+DocxFormReport form = DocxForm.Inspect(docx);
+foreach (DocxFormField field in form.Fields)
+{
+    // Read by Kind: a check box arrives as Checked, a date picker as Date, a picture as Bytes.
+    // Text alone is blank for all three - a DocxFormValueKind says which to read.
+    Console.WriteLine($"{field.Key}: {field.Value.Kind}");   // DocxFormValue, DocxFormValueKind
+}
+
+var values = new Dictionary<string, DocxFormValue>
+{
+    ["FullName"] = DocxFormValue.FromText("Khoa Ho"),
+    ["Plan"] = DocxFormValue.FromChoice("Team"),
+    ["Signed"] = DocxFormValue.FromChecked(true),
+};
+
+DocxFormValidation check = DocxForm.Validate(docx, values);  // DocxFormIssue, DocxFormIssueKind
+if (check.IsValid) docx = DocxForm.Fill(docx, values);
+```
+
+**This is a third template model, not a replacement for the other two.** `DocxEditor` fills
+`{{placeholder}}` text and `DocxMailMerge` fills `MERGEFIELD` instructions; which one you need is
+decided by whoever authored the document, not by preference.
+
+**`Validate` checks keys and, for a typed control, values.** It reports which controls got no
+value, which values matched nothing, which names are ambiguous - and whether a value fits: a
+drop-down value outside its list, a non-date for a date picker and a non-boolean for a check box
+each come back under their own `DocxFormIssueKind`. A **plain text** control validates anything,
+because there is no constraint to check against, so a clean result means "nothing detectably wrong"
+rather than "every value is right". `IsValid` means no issues of any kind; filter `Issues` by `Kind`
+if you do not care about one of them.
+
+**`Fill` is lenient.** A control you supply no value for keeps its own existing text - there is no
+injected marker - so filling half a form is a supported workflow. `Validate` first if you need to
+know what will be skipped.
+
+**Images are supplied as bytes**, through `DocxFormValue.FromPicture(bytes, fileName)`. There is
+deliberately no overload taking a path: this package does not read files you did not hand it.
+
+**Keys** come from a control's tag or its alias, and `DocxFormKey` chooses. The default falls back
+between them, so a template keyed either way works without you knowing which.
+
+**`Fields` is what the document exposes under that key mode, not every control it contains.** Only
+the first of several controls sharing a name appears, and a control with no name under the mode in
+use does not appear at all - so a tag-only template read with `DocxFormKey.Alias` comes back **empty**,
+which looks exactly like a document with no form. `Validate` reports both, as `DuplicateKey` and
+`UnmappedControl`.
+
+`Stream` overloads: `InspectAsync`, `ValidateAsync`, `FillAsync`.
+
 ## Comments and tracked changes
 
 `DocxReview` reads what a document carries from having been through review, and resolves it.
@@ -979,6 +1034,7 @@ is that you find out by reading the source.
 
 | Limitation | Detail |
 |---|---|
+| **A form's typed controls are only as checkable as the document makes them** | `DocxForm.Validate` reports a value that does not fit a **typed** control - a drop-down value outside its list, a non-date for a date picker, a non-boolean for a check box. A plain text control has no constraint, so any value validates. A clean result therefore means "nothing detectably wrong", not "every value is right". Related: `DocxForm.Inspect` returns what the document exposes under the `DocxFormKey` in use, which is not always every control - see *Fill-in forms*. |
 | **PDF fidelity is bounded, and unsupported features drop silently** | Charts, conditional formatting and some shape effects are omitted rather than reported; the PDF converters have no warning channel, because the renderer beneath them produces no report to surface. **Two losses are MEASURED rather than listed, and both are content, not styling.** Converted 2026-08-25 and read back out of the PDF, each fixture carrying a sibling paragraph so a missing token could not be confused with an empty render: **footnote text never reaches the PDF** — verified with a properly formed footnotes part, separators and all — and **a table nested inside a table cell loses its content entirely**. Both produce a valid PDF and raise nothing. If your documents carry footnotes, that content will not be in the output. **Measured to survive, so you do not have to wonder:** content controls (`w:sdt`) and text boxes both render. **`DocxToPdfPreflight` reports both measured losses on a document you are about to convert** — see *Knowing before you convert* above; it lists what the file contains, and does not claim to know what the renderer dropped. The output is a valid PDF either way. The DOCX → HTML and DOCX → Markdown exporters are the exception — see `ConvertWithReport`. **Paragraph styles ARE resolved on the DOCX → PDF path** — a `Heading1` whose size lives only in `styles.xml`, with no direct run formatting, renders at that size; measured 2026-08-25, 24pt heading against 11pt body. So documents authored from a corporate template keep their heading hierarchy. (The style-resolution caveat in `ROADMAP.md` is about the unshipped page-image renderer, not this path.) |
 | **PDF fonts depend on the machine doing the conversion** | Where a system font is available it is **embedded**: on a Windows dev box the same invoice produces a ~167 KB PDF carrying Arial-Regular and Arial-Bold. In a slim container with no fonts installed, nothing is embedded and the PDF falls back to the **base-14 standard fonts** (Helvetica), giving ~1.5 KB. **Both are valid and both render**, and Arial and Helvetica are metric-compatible so line breaks do not move — but the glyphs are not identical, so a PDF built in your container will not be byte-identical to one built on your laptop. Install fonts in the image if you need a specific face. |
 | **HTML → PDF goes through DOCX** | So fidelity is bounded by what HtmlToOpenXml maps into WordprocessingML, not by what a browser would render. Complex CSS layout — flexbox, grid, floats, absolute positioning — does not survive. Text, headings, tables, lists, inline styling and images do. |

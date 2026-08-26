@@ -35,6 +35,14 @@ public class StreamOverloadTests
         DocxFixtures.P(DocxFixtures.R("Dear {{customer}}, your invoice is ready.")));
 
     /// <summary>
+    /// No values. The shared <c>Docx</c> fixture carries no content controls at all, so filling it
+    /// writes nothing and succeeds — which is what this suite wants, because it tests stream
+    /// plumbing rather than form semantics.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, DocxFormValue> NoFormValues =
+        new Dictionary<string, DocxFormValue>();
+
+    /// <summary>
     /// No values, deliberately. The shared <c>Docx</c> fixture carries <c>{{placeholder}}</c> text
     /// and not one MERGEFIELD, so a merge over it fills nothing and succeeds — which is what this
     /// suite wants, because it tests stream plumbing rather than merge semantics. A fixture WITH
@@ -211,6 +219,7 @@ public class StreamOverloadTests
         "DocxReview.RejectRevisionsAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxForm.FillAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -266,6 +275,9 @@ public class StreamOverloadTests
         "DocxMailMerge.InspectTemplateAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxForm.InspectAsync",
+        "DocxForm.ValidateAsync",
+        "DocxForm.FillAsync",
     };
 
     /// <summary>
@@ -330,6 +342,7 @@ public class StreamOverloadTests
         "DocxReview.RejectRevisionsAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxForm.FillAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -955,6 +968,12 @@ public class StreamOverloadTests
                 DocxToPdfPreflight.InspectAsync(source!, ct),
             "DocxMailMerge.InspectTemplateAsync" =>
                 DocxMailMerge.InspectTemplateAsync(source!, ct),
+            "DocxForm.InspectAsync" =>
+                DocxForm.InspectAsync(source!, ct: ct),
+            "DocxForm.ValidateAsync" =>
+                DocxForm.ValidateAsync(source!, NoFormValues, ct: ct),
+            "DocxForm.FillAsync" =>
+                DocxForm.FillAsync(source!, destination!, NoFormValues, ct: ct),
             "DocxMailMerge.MergeAsync" =>
                 DocxMailMerge.MergeAsync(source!, destination!, NoMergeValues, ct),
             "DocxMailMerge.MergeWithReportAsync" =>

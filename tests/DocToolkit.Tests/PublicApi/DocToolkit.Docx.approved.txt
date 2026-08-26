@@ -51,6 +51,80 @@ namespace DocToolkit
         public static byte[] Unprotect(byte[] docx, string password) { }
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
     }
+    public static class DocxForm
+    {
+        public static byte[] Fill(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0) { }
+        public static System.Threading.Tasks.Task FillAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocxFormReport Inspect(byte[] docx, DocToolkit.DocxFormKey key = 0) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocxFormReport> InspectAsync(System.IO.Stream source, DocToolkit.DocxFormKey key = 0, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocxFormValidation Validate(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocxFormValidation> ValidateAsync(System.IO.Stream source, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class DocxFormField
+    {
+        public string Key { get; }
+        public DocToolkit.DocxFormValue Value { get; }
+    }
+    public sealed class DocxFormIssue
+    {
+        public string Key { get; }
+        public DocToolkit.DocxFormIssueKind Kind { get; }
+        public string Message { get; }
+    }
+    public enum DocxFormIssueKind
+    {
+        Other = 0,
+        MissingValue = 1,
+        UnusedValue = 2,
+        DuplicateKey = 3,
+        UnmappedControl = 4,
+        InvalidBoolean = 5,
+        InvalidDate = 6,
+        InvalidChoice = 7,
+        InvalidImage = 8,
+        InvalidRepeatingSection = 9,
+    }
+    public enum DocxFormKey
+    {
+        TagThenAlias = 0,
+        Tag = 1,
+        Alias = 2,
+        AliasThenTag = 3,
+    }
+    public sealed class DocxFormReport
+    {
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxFormField> Fields { get; }
+    }
+    public sealed class DocxFormValidation
+    {
+        public System.Collections.Generic.IReadOnlyList<string> ExpectedKeys { get; }
+        public bool IsValid { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxFormIssue> Issues { get; }
+        public System.Collections.Generic.IReadOnlyList<string> SuppliedKeys { get; }
+    }
+    public sealed class DocxFormValue
+    {
+        public byte[]? Bytes { get; }
+        public bool? Checked { get; }
+        public System.DateTime? Date { get; }
+        public string? FileName { get; }
+        public DocToolkit.DocxFormValueKind Kind { get; }
+        public string? Text { get; }
+        public static DocToolkit.DocxFormValue FromChecked(bool value) { }
+        public static DocToolkit.DocxFormValue FromChoice(string value) { }
+        public static DocToolkit.DocxFormValue FromDate(System.DateTime value) { }
+        public static DocToolkit.DocxFormValue FromPicture(byte[] bytes, string fileName) { }
+        public static DocToolkit.DocxFormValue FromText(string value) { }
+    }
+    public enum DocxFormValueKind
+    {
+        Text = 0,
+        Checked = 1,
+        Date = 2,
+        Choice = 3,
+        Picture = 4,
+        Other = 5,
+    }
     public static class DocxMailMerge
     {
         public static DocToolkit.DocxMailMergeTemplate InspectTemplate(byte[] docx) { }
