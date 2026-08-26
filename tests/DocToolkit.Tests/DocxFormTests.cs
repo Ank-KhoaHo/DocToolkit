@@ -356,6 +356,62 @@ public class DocxFormTests
         Assert.Contains("Start", result.SuppliedKeys);
     }
 
+    [Theory]
+    [InlineData(DocxFormKey.Tag, "FullName")]
+    [InlineData(DocxFormKey.AliasThenTag, "Full name")]
+    public void Inspect_HonoursTheOtherTwoKeyModes(DocxFormKey key, string expected)
+    {
+        // Tag and AliasThenTag were never exercised, so swapping the two arms survived every test.
+        Assert.Contains(DocxForm.Inspect(DocxFormFixtures.Form(), key).Fields, f => f.Key == expected);
+    }
+
+    [Fact]
+    public void Validate_ReportsAControlWithNoNameUnderTheKeyModeInUse()
+    {
+        // UnmappedControl, reached the easy way: a tag-only template read by alias. This is the
+        // case DocxFormReport.Fields warns about, where Inspect comes back empty and looks exactly
+        // like a document with no form in it.
+        byte[] tagOnly = DocxFormFixtures.Authored(d =>
+            d.AddParagraph().AddStructuredDocumentTag("one", null!, "OnlyTag"));
+
+        DocxFormValidation result = DocxForm.Validate(
+            tagOnly, new Dictionary<string, DocxFormValue>(), DocxFormKey.Alias);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, i => i.Kind == DocxFormIssueKind.UnmappedControl);
+        Assert.Empty(DocxForm.Inspect(tagOnly, DocxFormKey.Alias).Fields);
+    }
+
+    [Fact]
+    public void Validate_ReportsAnImageThisApiWillAcceptButTheDocumentWillNot()
+    {
+        // InvalidImage, reachable straight through this API: DocxFormValue.FromPicture only requires
+        // a non-blank file name, while the library beneath requires one with an EXTENSION. Worth a
+        // test rather than a tightened guard - the document is the authority on what it will take,
+        // and Validate is exactly the place to find out before writing.
+        byte[] withPicture = DocxFormFixtures.WithPictureControl();
+
+        DocxFormValidation result = DocxForm.Validate(withPicture,
+            new Dictionary<string, DocxFormValue>
+            {
+                ["Logo"] = DocxFormValue.FromPicture(ImageFixtures.Png(), "noextension"),
+            });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues, i => i.Kind == DocxFormIssueKind.InvalidImage);
+    }
+
+    [Fact]
+    public void Inspect_ReadsAPictureControlBackAsBytes()
+    {
+        byte[] withPicture = DocxFormFixtures.WithPictureControl();
+
+        DocxFormValue value = Assert.Single(DocxForm.Inspect(withPicture).Fields).Value;
+
+        Assert.Equal(DocxFormValueKind.Picture, value.Kind);
+        Assert.NotEmpty(value.Bytes!);
+    }
+
     // ---- guards --------------------------------------------------------------------------------
 
     [Fact]

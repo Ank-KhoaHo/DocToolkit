@@ -48,6 +48,29 @@ internal static class DocxFormFixtures
         document.AddParagraph().AddStructuredDocumentTag("two", "Same", "Same");
     });
 
+    /// <summary>
+    /// A document with a picture content control.
+    /// </summary>
+    /// <remarks>
+    /// Writes a temporary file because OfficeIMO's <c>AddPictureControl</c> takes a path. That is a
+    /// fixture-side concern only — <see cref="DocxForm"/> itself never accepts a path, which is the
+    /// point of <see cref="DocxFormValue"/>.
+    /// </remarks>
+    internal static byte[] WithPictureControl()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"docxform-{Guid.NewGuid():N}.png");
+        File.WriteAllBytes(path, ImageFixtures.Png());
+        try
+        {
+            return Authored(document =>
+                document.AddParagraph().AddPictureControl(path, 32, 32, "Logo", "Logo"));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     /// <summary>A document with no content controls at all.</summary>
     internal static byte[] NoControls() => Authored(document =>
         document.AddParagraph().Text = "an ordinary document");
