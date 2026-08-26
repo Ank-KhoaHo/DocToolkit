@@ -44,6 +44,24 @@ namespace DocToolkit.Extensions.DependencyInjection
         byte[] Unprotect(byte[] docx, string password);
         System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default);
     }
+    public interface IDocxForm
+    {
+        byte[] Fill(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0);
+        System.Threading.Tasks.Task FillAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0, System.Threading.CancellationToken ct = default);
+        DocToolkit.DocxFormReport Inspect(byte[] docx, DocToolkit.DocxFormKey key = 0);
+        System.Threading.Tasks.Task<DocToolkit.DocxFormReport> InspectAsync(System.IO.Stream source, DocToolkit.DocxFormKey key = 0, System.Threading.CancellationToken ct = default);
+        DocToolkit.DocxFormValidation Validate(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0);
+        System.Threading.Tasks.Task<DocToolkit.DocxFormValidation> ValidateAsync(System.IO.Stream source, System.Collections.Generic.IReadOnlyDictionary<string, DocToolkit.DocxFormValue> values, DocToolkit.DocxFormKey key = 0, System.Threading.CancellationToken ct = default);
+    }
+    public interface IDocxMailMerge
+    {
+        DocToolkit.DocxMailMergeTemplate InspectTemplate(byte[] docx);
+        System.Threading.Tasks.Task<DocToolkit.DocxMailMergeTemplate> InspectTemplateAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
+        byte[] Merge(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> values);
+        System.Threading.Tasks.Task MergeAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Threading.CancellationToken ct = default);
+        DocToolkit.DocxMailMergeResult MergeWithReport(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> values);
+        System.Threading.Tasks.Task<DocToolkit.DocxMailMergeReport> MergeWithReportAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Threading.CancellationToken ct = default);
+    }
     public interface IDocxReview
     {
         byte[] AcceptRevisions(byte[] docx);
@@ -73,6 +91,11 @@ namespace DocToolkit.Extensions.DependencyInjection
     {
         byte[] Convert(byte[] docx);
         System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
+    }
+    public interface IDocxToPdfPreflight
+    {
+        DocToolkit.DocxToPdfPreflightReport Inspect(byte[] docx);
+        System.Threading.Tasks.Task<DocToolkit.DocxToPdfPreflightReport> InspectAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
     }
     public interface IHtmlToDocxConverter
     {
