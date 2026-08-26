@@ -446,6 +446,14 @@ public static class DocxEditor
                 case Table table:
                     blocks.Add(TableText(table));
                     break;
+                case SdtBlock control:
+                    // A content control is a THIRD block-level child, beside Paragraph and Table -
+                    // and leaving it out of this switch is why every one of them was silently
+                    // absent from the text. Recursing keeps the Elements-not-Descendants rule this
+                    // method's summary depends on, and handles a nested control by construction.
+                    if (control.SdtContentBlock is { } content)
+                        blocks.Add(BlockText(content));
+                    break;
             }
         }
 
@@ -458,8 +466,41 @@ public static class DocxEditor
     /// several paragraphs, or a nested table, keeps its own structure.
     /// </summary>
     private static string TableText(Table table) =>
-        string.Join("\n", table.Elements<TableRow>()
-            .Select(row => string.Join("\t", row.Elements<TableCell>().Select(BlockText))));
+        string.Join("\n", Rows(table)
+            .Select(row => string.Join("\t", Cells(row).Select(BlockText))));
+
+    /// <summary>
+    /// A table's rows, including any wrapped in a row-level content control.
+    /// </summary>
+    /// <remarks>
+    /// <b><c>Elements&lt;TableRow&gt;()</c> alone loses a <c>w:sdt</c>-wrapped row entirely</b> —
+    /// measured: a table of one plain row and one wrapped row returned only the plain one, with
+    /// nothing to say the other existed. Word writes wrapped rows for a repeating-section control,
+    /// so this is ordinary content rather than an exotic case.
+    ///
+    /// Still <c>Elements</c>, never <c>Descendants</c>: this unwraps one level of control at a
+    /// time, so a table nested inside a cell keeps its own structure exactly as before.
+    /// </remarks>
+    private static IEnumerable<TableRow> Rows(Table table) =>
+        table.Elements().SelectMany<OpenXmlElement, TableRow>(child => child switch
+        {
+            TableRow row => [row],
+            SdtRow control => control.SdtContentRow?.Elements<TableRow>() ?? [],
+            _ => [],
+        });
+
+    /// <summary>
+    /// A row's cells, including any wrapped in a cell-level content control — the same blind spot
+    /// as <see cref="Rows"/>, one level further in. A wrapped cell used to vanish from its row,
+    /// which also shifted the <c>\t</c> positions of every cell beside it.
+    /// </summary>
+    private static IEnumerable<TableCell> Cells(TableRow row) =>
+        row.Elements().SelectMany<OpenXmlElement, TableCell>(child => child switch
+        {
+            TableCell cell => [cell],
+            SdtCell control => control.SdtContentCell?.Elements<TableCell>() ?? [],
+            _ => [],
+        });
 
     /// <summary>
     /// How many tables the document body holds.
