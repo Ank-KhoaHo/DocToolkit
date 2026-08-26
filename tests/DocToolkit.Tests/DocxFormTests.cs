@@ -242,6 +242,11 @@ public class DocxFormTests
         // date. That is documented under Known limitations rather than smoothed over - and if
         // upstream ever formats it properly this test fails, which is the signal to update the
         // limitation instead of discovering it from a bug report.
+        //
+        // It cannot go further than that. Sabotage showed that passing a DateTime and passing
+        // that DateTime's ToString() produce byte-identical documents - because the raw
+        // ToString above IS what upstream writes either way. That mutant is equivalent, so no
+        // test can kill it and none should be written trying.
         byte[] filled = DocxForm.Fill(DocxFormFixtures.Form(),
             new Dictionary<string, DocxFormValue>
             {
