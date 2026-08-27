@@ -288,11 +288,23 @@ public class XlsxPresentationTests
     [Fact]
     public void XlsxFormatReport_StillDoesExactlyWhatItDidBefore()
     {
-        // The guard against FreezeHeaderRow becoming derived being a regression. These are the same
-        // numbers the design opens with, measured before any of this existed.
+        // The guard against FreezeHeaderRow becoming derived being a regression.
+        //
+        // The width is asserted RELATIONALLY, against auto-fit measured on this same machine,
+        // rather than against the 54.14 the design opens with. That number is a property of the
+        // HOST, not of this code: auto-fit derives a column width from font metrics, so a machine
+        // with different fonts computes a different one. Pinning it passed on Linux and Windows
+        // and failed on macOS at 50 - the same mistake CLAUDE.md already records for PDF byte
+        // sizes, which vary ~100x with installed fonts and must never be asserted exactly.
+        //
+        // What the test is actually for survives intact: Report still auto-fits, and it still
+        // freezes exactly the header row. Both are claims about this code.
+        double autoFitOnly = Read(WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithAutoFitColumns())).Width;
         var read = Read(WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.Report));
 
-        Assert.Equal(54.14, read.Width);
+        Assert.Equal(autoFitOnly, read.Width);
+        Assert.True(read.Width > 20, $"Report must auto-fit column A, measured {read.Width}");
         Assert.Equal(1, read.FrozenRows);
         Assert.Equal(0, read.FrozenColumns);
     }
