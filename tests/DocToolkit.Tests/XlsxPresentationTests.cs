@@ -51,4 +51,41 @@ public class XlsxPresentationTests
         Assert.Equal("high", Assert.Throws<ArgumentOutOfRangeException>(
             () => XlsxRule.Between("A1:A9", 10, 1, XlsxHighlight.Green)).ParamName);
     }
+    [Fact]
+    public void XlsxValidation_CarriesItsRangeKindAndBounds()
+    {
+        // int, not long: the file format takes an int, so a long would be lossy at the boundary
+        // rather than here.
+        XlsxValidation whole = XlsxValidation.WholeNumberBetween("B2:B99", 0, 1000);
+        Assert.Equal("B2:B99", whole.Range);
+        Assert.Equal(XlsxValidationKind.WholeNumber, whole.Kind);
+        Assert.Equal(0, whole.Min);
+        Assert.Equal(1000, whole.Max);
+
+        XlsxValidation list = XlsxValidation.OneOf("C2:C99", "Free", "Pro", "Team");
+        Assert.Equal(XlsxValidationKind.List, list.Kind);
+        Assert.Equal(["Free", "Pro", "Team"], list.Options);
+
+        XlsxValidation dates = XlsxValidation.DateBetween(
+            "D2:D99", new DateTime(2020, 1, 1), new DateTime(2030, 1, 1));
+        Assert.Equal(XlsxValidationKind.Date, dates.Kind);
+        Assert.Equal(new DateTime(2020, 1, 1), dates.MinDate);
+    }
+
+    [Fact]
+    public void XlsxValidation_RefusesInvertedBoundsAndAnEmptyOptionList()
+    {
+        Assert.Equal("max", Assert.Throws<ArgumentOutOfRangeException>(
+            () => XlsxValidation.WholeNumberBetween("A1", 10, 1)).ParamName);
+        Assert.Equal("max", Assert.Throws<ArgumentOutOfRangeException>(
+            () => XlsxValidation.DecimalBetween("A1", 1.5, 0.5)).ParamName);
+        Assert.Equal("max", Assert.Throws<ArgumentOutOfRangeException>(
+            () => XlsxValidation.TextLengthBetween("A1", 50, 1)).ParamName);
+        Assert.Equal("max", Assert.Throws<ArgumentOutOfRangeException>(
+            () => XlsxValidation.DateBetween("A1", new DateTime(2030, 1, 1), new DateTime(2020, 1, 1))).ParamName);
+
+        // An empty list validates nothing, so a caller who passes one gets a cell nobody can fill.
+        Assert.Equal("options", Assert.Throws<ArgumentException>(
+            () => XlsxValidation.OneOf("A1")).ParamName);
+    }
 }
