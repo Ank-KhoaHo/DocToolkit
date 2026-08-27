@@ -600,7 +600,17 @@ public class XlsxPresentationTests
         // the difference between a contract and an accident.
         Assert.Throws<ArgumentNullException>(() => XlsxRule.EqualTo("A1", null!, XlsxHighlight.Red));
         Assert.Throws<ArgumentNullException>(() => XlsxRule.Contains("A1", null!, XlsxHighlight.Red));
-        Assert.Throws<ArgumentNullException>(() => XlsxValidation.OneOf("A1", (string[])null!));
+
+        // A bare null binds to the ARRAY, not to a one-element array containing null -
+        // measured, because the two read almost identically and mean different things:
+        //
+        //   OneOf("A1", null)           -> options is null
+        //   OneOf("A1", null, "Other")  -> options is [null, "Other"]   <- tested separately
+        //
+        // The (string[]) cast that used to sit here was signposting that difference, and
+        // CodeQL was right that it is redundant - the measurement above is what settled it.
+        // The distinction is real, so it survives as a comment rather than as a cast.
+        Assert.Throws<ArgumentNullException>(() => XlsxValidation.OneOf("A1", null!));
         Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithRule(null!));
         Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithValidation(null!));
     }
