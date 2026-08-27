@@ -72,10 +72,30 @@ Console.WriteLine($"Grand total  : {WorkbookEditor.ReadCell(workbook, "Summary",
 // Format applies presentation to a sheet that already exists, so it composes with Create,
 // AppendRows and SetCell rather than being an argument to any of them. XlsxFormat is immutable
 // and every With* returns a new one, same as PageSetup.
+//
+// The boundary is a CLOSED vocabulary rather than a small one: six rule conditions, five
+// validation kinds and four highlights, each enumerable and measured. Anything that cannot be
+// expressed as a closed set - arbitrary fonts, borders, colour scales - is ClosedXML's job.
 
 #region format
 byte[] presented = WorkbookEditor.Format(workbook, "Q1", XlsxFormat.Report
-    .WithNumberFormat("B", "#,##0.00"));
+    .WithNumberFormat("B", "#,##0.00")
+
+    // Auto-fit sizes a column to what is in it today; an explicit width survives longer values.
+    .WithColumnWidth("A", 14)
+
+    // Report already freezes the header row. Naming a position freezes a column too, so the
+    // region labels stay visible when a wide sheet scrolls sideways.
+    .WithFreezeAt(row: 1, column: 1)
+    .WithAutoFilter()
+
+    // XlsxHighlight names an INTENT, never a colour - a colour picker cannot be enumerated,
+    // and the moment one exists the closed vocabulary is gone.
+    .WithRule(XlsxRule.GreaterThan("B2:B4", 1000, XlsxHighlight.Green))
+
+    // The half of a generated workbook that survives a human editing it: Excel refuses a region
+    // outside this list rather than accepting a typo that breaks tomorrow's formula.
+    .WithValidation(XlsxValidation.OneOf("A2:A4", "EMEA", "APAC", "AMER")));
 #endregion
 
 Console.WriteLine($"\nFormatted    : {presented.Length:N0} bytes (was {workbook.Length:N0})");
