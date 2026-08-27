@@ -31,6 +31,7 @@ WHAT IT CHECKS
     silently matching nothing
 """
 
+import glob
 import io
 import os
 import re
@@ -117,6 +118,112 @@ def references():
                 yield path, target, fragment
 
 
+# ---------------------------------------------------------------------------
+# The sibling failure: an @uid cross-reference that silently renders as TEXT.
+#
+# MEASURED 2026-08-26, on this repository's own shipped docs site. Two guides
+# carried an @uid that resolved to nothing, and `dotnet docfx --warningsAsErrors`
+# reported **0 warnings, 0 errors** for both - exactly like the empty code block
+# above. The reader gets a paragraph with a raw "@DocToolkit.XlsxRuleKind" in it.
+#
+# Two distinct causes, and only the first is guessable from reading the markdown:
+#
+#   1. A TRAILING ")". "(@DocToolkit.XlsxRuleKind)" never resolves - the shorthand
+#      swallows the bracket into the uid. Three of these were introduced at once.
+#   2. A METHOD uid without its overload-group star. "@DocToolkit.PptxSlide.Titled"
+#      matches nothing, because the real uids are
+#      "DocToolkit.PptxSlide.Titled(System.String,System.String[])" and
+#      "DocToolkit.PptxSlide.Titled*". This one had been live on the published
+#      site and is invisible to any purely syntactic rule.
+#
+# So the check has two tiers and SAYS WHICH IT RAN, rather than implying the
+# wider cover when the narrower one is all that was possible.
+# ---------------------------------------------------------------------------
+
+# The trailing `N is the GENERIC ARITY suffix - DocToolkit.ConversionResult`1 is a real
+# uid, not a uid followed by inline code. Missing that produced this guard's first false
+# positive, and a guard that cries wolf is a guard somebody switches off.
+UID_IN_PROSE = re.compile(
+    r"(?<![\w`])@([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+(?:`\d+)?\*?)")
+
+
+def strip_code(markdown):
+    """Drop FENCED code, where an @uid is a literal rather than a link.
+
+    Inline code is deliberately left alone. Stripping it glued three separate spans
+    into one imaginary uid - ConversionResultValueWarningsHasLoss - and reported it as
+    broken. The lookbehind on UID_IN_PROSE already refuses a uid opening inside a
+    backtick span, so nothing is lost by leaving inline code in place.
+    """
+    return re.sub(r"```.*?```", "", markdown, flags=re.S)
+
+
+def known_uids():
+    """The uid set DocFX itself generated, or None when metadata has not been built.
+
+    Derived rather than hand-listed - the principle gen-third-party-notices.py and
+    check-readme-coverage.py already follow. docfx/api/ is gitignored and absent on a
+    fresh checkout, so this returns None there and the caller degrades loudly.
+    """
+    files = glob.glob("docfx/api/*.yml")
+    if not files:
+        return None
+
+    uids = set()
+    for path in files:
+        for line in io.open(path, encoding="utf-8"):
+            match = re.match(r"^-?\s*uid:\s*(\S+)\s*$", line)
+            if match:
+                uids.add(match.group(1))
+    return uids or None
+
+
+def check_xrefs():
+    failures = []
+    scanned = 0
+    uids = known_uids()
+
+    for path in sorted(glob.glob(f"{DOCS_ROOT}/**/*.md", recursive=True)):
+        text = strip_code(io.open(path, encoding="utf-8").read())
+        for match in UID_IN_PROSE.finditer(text):
+            scanned += 1
+            uid, tail = match.group(1), text[match.end():match.end() + 1]
+
+            # Tier 1 - syntax. True regardless of what the API surface holds.
+            if tail == ")":
+                failures.append(
+                    f"{path}: @{uid} is followed by ')', which the shorthand swallows into the "
+                    f"uid. Write [{uid.rsplit('.', 1)[-1]}](xref:{uid}) instead.")
+                continue
+
+            # Tier 2 - resolution. Only possible once DocFX has emitted metadata.
+            #
+            # The uid is looked up EXACTLY as written. An earlier version accepted a bare
+            # method name whenever the "*" overload group existed - which made it blind to
+            # the one bug on the real site that motivated the whole check, because the
+            # star's PRESENCE is precisely what proves the bare form is a method and will
+            # not resolve. Sabotage caught that; reading the code had not.
+            if uids is not None and uid not in uids:
+                star = f"{uid}*"
+                if star in uids or any(u.startswith(f"{uid}(") for u in uids):
+                    hint = f" It is a method - write xref:{star}, the overload group."
+                else:
+                    hint = " No such uid was generated."
+                failures.append(f"{path}: @{uid} matches no uid.{hint}")
+
+    if not failures:
+        if uids is None:
+            print(f"{scanned} @uid reference(s) checked for SYNTAX only - docfx/api/ has not "
+                  "been generated, so whether each one RESOLVES was not verified. Run "
+                  "`dotnet docfx docfx/docfx.json` first for the full check.")
+        else:
+            print(f"{scanned} @uid reference(s) checked against {len(uids)} generated uids; "
+                  "every one resolves.")
+        return []
+
+    return failures
+
+
 def main():
     failures = []
     checked = 0
@@ -146,6 +253,9 @@ def main():
         elif not any(line.strip() for line in body):
             failures.append(f"{doc}: '#region {fragment}' in {target} is empty")
 
+    xref_failures = check_xrefs()
+    failures.extend(xref_failures)
+
     if from_docs == 0:
         sys.exit("::error::No snippet references found under "
                  f"{DOCS_ROOT}/. Either the guides stopped using them or this "
@@ -168,9 +278,9 @@ def main():
     for failure in failures:
         print(f"::error::{failure}")
     print()
-    print("DocFX renders a missing region as an EMPTY code block and still exits 0, "
-          "so this would have shipped as a guide with nothing in it. Fix the region "
-          "name, or restore the region in the sample.")
+    print("DocFX renders a missing region as an EMPTY code block, and an unresolved @uid as "
+          "RAW TEXT, and still exits 0 for both - so this would have shipped as a guide with "
+          "nothing in it, or with an @DocToolkit.Something sitting in a sentence.")
     return 1
 
 

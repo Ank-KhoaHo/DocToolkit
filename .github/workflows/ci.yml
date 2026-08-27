@@ -868,8 +868,21 @@ jobs:
 
       # --warningsAsErrors catches a regression like the InvalidFileLink warning
       # this pipeline hit once already (see docfx/index.md's xref: links).
+      #
+      # It does NOT catch an unresolved @uid, which is the next step's job. Measured
+      # 2026-08-26 on this repository's own shipped site: two guides carried an @uid
+      # that resolved to nothing and this command reported 0 warnings, 0 errors. The
+      # reader got a raw "@DocToolkit.Something" sitting in a sentence.
       - name: Build docs site
         run: dotnet docfx docfx/docfx.json --warningsAsErrors
+
+      # The SAME script the formatting job runs, deliberately run a second time here.
+      # It has two tiers, and only this job can reach the second: resolving an @uid
+      # needs the uid set DocFX emits into docfx/api/, which does not exist until the
+      # step above has run. In the formatting job it says plainly that it checked
+      # syntax only - rather than reporting a narrow pass as a wide one.
+      - name: Guard - every @uid cross-reference resolves
+        run: python3 scripts/check-doc-snippets.py
 
   # Proves the artifacts consumers actually install are correct - not just that
   # the solution compiles. Catches missing TFMs and metadata regressions.
