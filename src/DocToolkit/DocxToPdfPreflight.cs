@@ -30,9 +30,15 @@ namespace DocToolkit;
 /// dependency direction settles it either way - core references Docx, not the reverse, so a
 /// <c>cref</c> to <see cref="DocxToPdfConverter"/> cannot resolve from there at all.
 ///
-/// <b>Two things were measured to SURVIVE and are deliberately absent</b>, because a report that
-/// fires on constructs the renderer handles teaches a caller to ignore it: content controls
-/// (<c>w:sdt</c>) and text boxes (<c>w:txbxContent</c>) both render.
+/// <b>What is deliberately absent is decided by measurement, because a report that fires on
+/// constructs the renderer handles teaches a caller to ignore it.</b> A text box
+/// (<c>w:txbxContent</c>) renders, and so does a content control (<c>w:sdt</c>) at body level — so
+/// neither is reported there, and a control inside a text box's table is not reported either.
+///
+/// <b>A content control in a TABLE is the exception, and it was found by re-measuring.</b> The same
+/// construct that survives at body level loses its text inside a cell, or wrapping a cell or a row.
+/// This class excluded content controls outright until 2026-08-27, on the body-level evidence
+/// alone — correct for what had been measured, and incomplete.
 /// </remarks>
 public static class DocxToPdfPreflight
 {
@@ -82,6 +88,7 @@ public static class DocxToPdfPreflight
     /// <summary>Stable codes, so a caller can branch on one without matching prose.</summary>
     internal const string FootnoteCode = "Footnote";
     internal const string NestedTableCode = "NestedTable";
+    internal const string ControlInCellCode = "ControlInCell";
 
     private static DocxToPdfPreflightReport InspectCore(Stream source)
     {
@@ -115,12 +122,16 @@ public static class DocxToPdfPreflight
             }
 
             // A table that is a DIRECT child of a cell, at any depth of nesting. Descendants finds
-            // the cells at every level; Elements keeps the table bound to the cell that holds it,
-            // so a sibling table further down the body is not counted as nested.
+            // the cells at every level; ContentControls.Tables keeps the table bound to the cell
+            // that holds it - so a sibling table further down the body is not counted as nested -
+            // while still seeing one wrapped in a w:sdt.
+            //
+            // It read c.Elements<Table>() until 2026-08-27, which missed a wrapped one entirely:
+            // measured, the same document reported 1 nested table unwrapped and 0 wrapped. A
+            // preflight that under-reports is worse than one that does not run, because a caller
+            // reads silence as "nothing will be lost".
             var body = main?.Document?.Body;
-            int nested = body is null
-                ? 0
-                : body.Descendants<TableCell>().SelectMany(c => c.Elements<Table>()).Count();
+            int nested = body is null ? 0 : Cells(body).SelectMany(ContentControls.Tables).Count();
 
             if (nested > 0)
             {
@@ -133,11 +144,104 @@ public static class DocxToPdfPreflight
                     DocxToPdfRisk.Known));
             }
 
+            // A content control that wraps, or sits inside, part of a TABLE. NOT content
+            // controls in general: A67 measured a body-level w:sdt SURVIVING the render and
+            // excluded controls on that evidence, correctly for what it measured. Re-measured
+            // 2026-08-27, the same construct one level in is lost while the body-level one still
+            // renders, so the finding is scoped to the table cases.
+            //
+            // ALL THREE table wrapper positions, because a code review measured that the first
+            // version reported only one of them and stayed silent on the other two:
+            //
+            //     w:tc > w:sdt        a control inside a cell        was reported
+            //     w:tr > w:sdt > w:tc a cell wrapped in a control    was SILENT, and is lost
+            //     w:tbl > w:sdt > w:tr a row wrapped in a control    was SILENT, and is lost
+            //
+            // The neighbouring plain cell renders in both silent cases, so this is a real loss
+            // rather than a broken fixture - and a Word form laid out in a table, which is what
+            // the finding's own message advertises, is usually built from cell-level controls.
+            int controlsInTables = body is null ? 0 : ControlsInTables(body);
+
+            if (controlsInTables > 0)
+            {
+                findings.Add(new DocxToPdfPreflightFinding(
+                    ControlInCellCode,
+                    "Content controls in tables",
+                    $"{controlsInTables} content control(s) in a table - inside a cell, or wrapping "
+                    + "a cell or a row. Their text does not reach the PDF - measured, while the "
+                    + "same control at body level renders normally. A form or template laid out in "
+                    + "a table is the common case.",
+                    controlsInTables,
+                    DocxToPdfRisk.Known));
+            }
+
             return new DocxToPdfPreflightReport(findings);
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
             throw new DocumentConversionException(ReadFailure, ex);
         }
+    }
+    /// <summary>
+    /// Every table cell in the body that the PDF renderer actually lays out — which excludes the
+    /// ones inside a text box.
+    /// </summary>
+    /// <remarks>
+    /// <b>A text box is the reason this is not simply <c>Descendants&lt;TableCell&gt;()</c>.</b>
+    /// Measured 2026-08-27: a table inside <c>w:txbxContent</c> renders to the PDF with its content
+    /// intact — both a nested table and a content control inside one survive — yet a plain
+    /// <c>Descendants</c> sweep walks straight into it and reported both as losses. A preflight
+    /// that cries wolf on content the reader can see is worse than one reporting nothing, because
+    /// it is the findings a caller stops believing.
+    ///
+    /// <para>This is the same <c>Descendants</c> trap <c>CLAUDE.md</c> records twice — once where
+    /// it deleted text-box content in <c>DocxEditor</c>, and once where it swept a nested table's
+    /// rows into its container's expansion.</para>
+    /// </remarks>
+    private static IEnumerable<TableCell> Cells(Body body) =>
+        body.Descendants<TableCell>().Where(c => !c.Ancestors<TextBoxContent>().Any());
+
+    /// <summary>
+    /// How many content controls sit in a table position the renderer drops, counting the
+    /// OUTERMOST one at each site.
+    /// </summary>
+    /// <remarks>
+    /// Outermost wins because that is what the render does: measured, a control nested inside
+    /// another in the same cell loses its text exactly once — the outer one is dropped whole and
+    /// takes the inner with it. Counting both would inflate a number a caller uses to decide
+    /// whether the document is worth opening.
+    /// </remarks>
+    private static int ControlsInTables(Body body)
+    {
+        int count = 0;
+
+        foreach (var table in body.Descendants<Table>().Where(t => !t.Ancestors<TextBoxContent>().Any()))
+        {
+            foreach (var child in table.Elements())
+            {
+                if (child is SdtRow)
+                {
+                    // The whole row is wrapped. Nothing inside it renders, so nothing inside it
+                    // is counted again.
+                    count++;
+                    continue;
+                }
+
+                if (child is not TableRow row) continue;
+
+                foreach (var cell in row.Elements())
+                {
+                    if (cell is SdtCell)
+                    {
+                        count++;
+                        continue;
+                    }
+
+                    if (cell is TableCell plain) count += plain.Elements<SdtBlock>().Count();
+                }
+            }
+        }
+
+        return count;
     }
 }

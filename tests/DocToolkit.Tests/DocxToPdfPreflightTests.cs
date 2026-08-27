@@ -95,7 +95,7 @@ public class DocxToPdfPreflightTests
     }
 
     [Fact]
-    public void Inspect_DoesNotReportContentControlsOrTextBoxes()
+    public void Inspect_DoesNotReportABodyLevelContentControlOrATextBox()
     {
         // Both were MEASURED to survive the render. Reporting them would be crying wolf, and
         // `w:sdt` is named as at-risk in the issue this feature came from - so this test pins the
@@ -321,5 +321,221 @@ public class DocxToPdfPreflightTests
             }
         }
         return ms.ToArray();
+    }
+    // ---- A76: a content control INSIDE a table cell -------------------------------------------
+
+    private static byte[] WithControlInACell()
+    {
+        var cell = new TableCell(ControlHolding(DocxFixtures.P(Text_("INCELLTOKEN"))));
+        return DocxFixtures.Build(
+            DocxFixtures.Tbl(new TableRow(cell)),
+            DocxFixtures.P(Text_(Sibling)));
+    }
+
+    private static Run Text_(string text) =>
+        new(new Text(text) { Space = SpaceProcessingModeValues.Preserve });
+
+    private static SdtBlock ControlHolding(OpenXmlElement inner) => new(
+        new SdtProperties(new SdtAlias { Val = "c" }, new Tag { Val = "c" }),
+        new SdtContentBlock(inner));
+
+    [Fact]
+    public void AControlInsideATableCellIsReportedAsAKnownLoss()
+    {
+        var report = DocxToPdfPreflight.Inspect(WithControlInACell());
+
+        var finding = Assert.Single(report.Findings);
+        Assert.Equal("ControlInCell", finding.Code);
+        Assert.Equal(DocxToPdfRisk.Known, finding.Risk);
+        Assert.Equal(1, finding.Count);
+    }
+
+    [Fact]
+    public void TheControlInCellLossIsREAL_AndThisFailsIfTheRendererImproves()
+    {
+        // The evidence bar the other two Known findings meet, applied to this one. A `Known` risk
+        // is a promise that the loss was MEASURED, not inferred - so if OfficeIMO ever starts
+        // rendering these, this test goes red and the finding must come out rather than quietly
+        // warning about something that no longer happens.
+        //
+        // The sibling paragraph is what makes the assertion readable: without it, "the token is
+        // missing" and "the whole render came out empty" are the same observation.
+        string pdf = string.Join(" ", PdfEditor.ExtractText(
+            DocxToPdfConverter.Convert(WithControlInACell())));
+
+        Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
+        Assert.DoesNotContain("INCELLTOKEN", pdf, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ABodyLevelControlIsStillNotReported_BecauseItStillRenders()
+    {
+        // The boundary. A67 excluded content controls after measuring a body-level one surviving,
+        // and that measurement still holds - so the new finding must be about the CELL case
+        // specifically. Reporting every control would make the preflight cry wolf on the common
+        // shape, which is how a report stops being read.
+        var report = DocxToPdfPreflight.Inspect(WithContentControl());
+
+        Assert.Empty(report.Findings);
+    }
+
+    [Fact]
+    public void ANestedTableWrappedInAControlIsStillCountedAsNested()
+    {
+        // Found by the code review of A77: the nested-table walk read c.Elements<Table>(), so a
+        // table wrapped in a w:sdt was invisible to it. Measured before the fix - the same shape
+        // reported 1 finding unwrapped and 0 wrapped.
+        //
+        // Both fixtures are asserted here rather than only the wrapped one, because a walk that
+        // reported ZERO for both would satisfy a single-sided test.
+        // Named locals rather than one nested expression: the first version of this fixture was
+        // seven parentheses deep and did not compile, which is a fair warning about how readable
+        // it would have been.
+        static Table InnerTable() =>
+            DocxFixtures.Tbl(new TableRow(new TableCell(DocxFixtures.P(Text_("inner")))));
+
+        static byte[] OuterHolding(OpenXmlElement nested) => DocxFixtures.Build(
+            DocxFixtures.Tbl(new TableRow(new TableCell(DocxFixtures.P(Text_("outer")), nested))));
+
+        byte[] wrapped = OuterHolding(ControlHolding(InnerTable()));
+        byte[] plain = OuterHolding(InnerTable());
+
+        Assert.Equal(1, DocxToPdfPreflight.Inspect(plain).Findings
+            .Single(f => f.Code == "NestedTable").Count);
+        Assert.Equal(1, DocxToPdfPreflight.Inspect(wrapped).Findings
+            .Single(f => f.Code == "NestedTable").Count);
+    }
+    // ---- the shapes a code review found nothing covered ----------------------------------------
+
+    private static SdtCell CellControl(TableCell inner) =>
+        new(new SdtProperties(new Tag { Val = "c" }), new SdtContentCell(inner));
+
+    private static SdtRow RowControl(TableRow inner) =>
+        new(new SdtProperties(new Tag { Val = "r" }), new SdtContentRow(inner));
+
+    private static Paragraph TextBoxHolding(OpenXmlElement inner) =>
+        new(new Run(new DocumentFormat.OpenXml.Wordprocessing.Picture(
+            new DocumentFormat.OpenXml.Vml.Shape(
+                new DocumentFormat.OpenXml.Vml.TextBox(new TextBoxContent(inner)))
+            {
+                Id = "TextBox1",
+                Type = "#_x0000_t202",
+                Style = "position:absolute;width:200pt;height:80pt",
+            })));
+
+    [Fact]
+    public void AControlInATextBoxTableCellIsNOTReported_BecauseItRenders()
+    {
+        // THE false positive. Descendants<TableCell> walks into w:txbxContent, so a control in a
+        // table inside a text box was reported as lost - while its text reaches the PDF perfectly.
+        // Measured both halves here, because "not reported" alone would also be satisfied by a
+        // counter that had stopped working.
+        byte[] docx = DocxFixtures.Build(
+            TextBoxHolding(DocxFixtures.Tbl(new TableRow(new TableCell(
+                ControlHolding(DocxFixtures.P(Text_("BOXCTL"))))))),
+            DocxFixtures.P(Text_(Sibling)));
+
+        Assert.Empty(DocxToPdfPreflight.Inspect(docx).Findings);
+
+        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+        Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
+        Assert.Contains("BOXCTL", pdf, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ANestedTableInATextBoxIsNOTReported_BecauseItRenders()
+    {
+        // The same false positive on the OLDER finding, one line away in the source. Pre-dates the
+        // content-control work; fixed with it because both walks now share the same cell filter.
+        var inner = DocxFixtures.Tbl(new TableRow(new TableCell(DocxFixtures.P(Text_("BOXNEST")))));
+        var outer = DocxFixtures.Tbl(new TableRow(new TableCell(DocxFixtures.P(Text_("o")), inner)));
+
+        byte[] docx = DocxFixtures.Build(TextBoxHolding(outer), DocxFixtures.P(Text_(Sibling)));
+
+        Assert.Empty(DocxToPdfPreflight.Inspect(docx).Findings);
+
+        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+        Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
+        Assert.Contains("BOXNEST", pdf, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("cell")]
+    [InlineData("row")]
+    public void ACellOrRowWRAPPEDInAControlIsReported_AndIsGenuinelyLost(string position)
+    {
+        // The two silent losses. The first version of this finding reported only w:tc > w:sdt and
+        // said nothing about a cell or a row that is ITSELF wrapped - which is how Word builds a
+        // form laid out in a table, the exact case the finding's message advertises.
+        //
+        // Two columns, so the neighbouring PLAIN cell proves the render worked and only the
+        // wrapped half went missing. A one-column fixture could not tell those apart.
+        var left = new TableCell(DocxFixtures.P(Text_("LEFTOK")));
+        var right = new TableCell(DocxFixtures.P(Text_("RIGHTGONE")));
+
+        byte[] docx = position == "cell"
+            ? DocxFixtures.Build(
+                DocxFixtures.Tbl(new TableRow(left, CellControl(right))),
+                DocxFixtures.P(Text_(Sibling)))
+            : DocxFixtures.Build(
+                DocxFixtures.Tbl(new TableRow(left), RowControl(new TableRow(right))),
+                DocxFixtures.P(Text_(Sibling)));
+
+        var finding = Assert.Single(DocxToPdfPreflight.Inspect(docx).Findings);
+        Assert.Equal("ControlInCell", finding.Code);
+        Assert.Equal(1, finding.Count);
+
+        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+        Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
+        Assert.Contains("LEFTOK", pdf, StringComparison.Ordinal);
+        Assert.DoesNotContain("RIGHTGONE", pdf, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheCountIsACOUNT_NotAPresenceFlag()
+    {
+        // Kills `.Count()` -> `.Take(1).Count()`, which survived the whole suite because no fixture
+        // had more than one control. The number is what a caller uses to decide whether to open the
+        // document, so one and five must not read the same.
+        var cell = new TableCell(
+            ControlHolding(DocxFixtures.P(Text_("ONE"))),
+            ControlHolding(DocxFixtures.P(Text_("TWO"))),
+            ControlHolding(DocxFixtures.P(Text_("THREE"))));
+
+        byte[] docx = DocxFixtures.Build(
+            DocxFixtures.Tbl(new TableRow(cell)), DocxFixtures.P(Text_(Sibling)));
+
+        Assert.Equal(3, Assert.Single(DocxToPdfPreflight.Inspect(docx).Findings).Count);
+    }
+
+    [Fact]
+    public void AControlInsideAControlInTheSameCellCountsONCE()
+    {
+        // Kills `c.Elements<SdtBlock>()` -> `c.Descendants<SdtBlock>()`, which also survived the
+        // whole suite. Measured: w:tc > w:sdt > w:sdt > w:p loses its token exactly ONCE - the
+        // outer control is dropped whole and takes the inner with it - so counting two would
+        // inflate a number a caller reads as "how many things will go missing".
+        var cell = new TableCell(ControlHolding(ControlHolding(DocxFixtures.P(Text_("DEEPTOKEN")))));
+
+        byte[] docx = DocxFixtures.Build(
+            DocxFixtures.Tbl(new TableRow(cell)), DocxFixtures.P(Text_(Sibling)));
+
+        Assert.Equal(1, Assert.Single(DocxToPdfPreflight.Inspect(docx).Findings).Count);
+    }
+
+    [Fact]
+    public void NestedTablesAreCountedByDEPTH_NotBySweepingEveryTable()
+    {
+        // Kills `SelectMany(ContentControls.Tables)` -> `SelectMany(c => c.Descendants<Table>())`,
+        // the tempting shorthand, which survived because every other fixture is only two levels
+        // deep - where the two walks agree. Three levels separates them: the cell-scoped
+        // Descendants sweep counts the innermost table twice, once from each ancestor cell.
+        var l3 = DocxFixtures.Tbl(new TableRow(new TableCell(DocxFixtures.P(Text_("L3")))));
+        var l2 = DocxFixtures.Tbl(new TableRow(new TableCell(DocxFixtures.P(Text_("L2")), l3)));
+        var l1 = DocxFixtures.Tbl(new TableRow(new TableCell(DocxFixtures.P(Text_("L1")), l2)));
+
+        byte[] docx = DocxFixtures.Build(l1, DocxFixtures.P(Text_(Sibling)));
+
+        Assert.Equal(2, Assert.Single(DocxToPdfPreflight.Inspect(docx).Findings).Count);
     }
 }
