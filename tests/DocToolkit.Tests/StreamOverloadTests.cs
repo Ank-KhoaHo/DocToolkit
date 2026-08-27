@@ -176,12 +176,15 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
         "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)",
         "HtmlToDocxConverter.ConvertAsync(PageSetup)",
+        "HtmlToDocxConverter.ConvertAsync(PageSetup, RemoteImageOptions)",
         "HtmlToPdfConverter.ConvertAsync",
         "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)",
         "HtmlToPdfConverter.ConvertAsync(RemoteImageOptions)",
         "HtmlToPdfConverter.ConvertAsync(PageSetup)",
+        "HtmlToPdfConverter.ConvertAsync(PageSetup, RemoteImageOptions)",
         "HtmlToPdfConverter.ConvertAsync(HtmlToPdfOptions)",
         "DocxToPdfConverter.ConvertAsync",
+        "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "XlsxToPdfConverter.ConvertAsync",
         "PptxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
@@ -206,6 +209,7 @@ public class StreamOverloadTests
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
         "DocToDocxConverter.ConvertAsync",
+        "DocToDocxConverter.ConvertAsync(LegacyDocOptions)",
         "PdfEditor.ProtectAsync",
         "PdfEditor.UnprotectAsync",
         "DocxEditor.ProtectAsync",
@@ -226,6 +230,7 @@ public class StreamOverloadTests
     private static readonly string[] SourceReaderNames =
     {
         "DocxToPdfConverter.ConvertAsync",
+        "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
@@ -258,6 +263,7 @@ public class StreamOverloadTests
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
         "DocToDocxConverter.ConvertAsync",
+        "DocToDocxConverter.ConvertAsync(LegacyDocOptions)",
         "DocToDocxConverter.ExtractTextAsync",
         "PdfEditor.ProtectAsync",
         "PdfEditor.UnprotectAsync",
@@ -308,6 +314,7 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync(allowRemoteImageDownload)",
         "HtmlToDocxConverter.ConvertAsync(RemoteImageOptions)",
         "HtmlToDocxConverter.ConvertAsync(PageSetup)",
+        "HtmlToDocxConverter.ConvertAsync(PageSetup, RemoteImageOptions)",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
@@ -329,6 +336,7 @@ public class StreamOverloadTests
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
         "DocToDocxConverter.ConvertAsync",
+        "DocToDocxConverter.ConvertAsync(LegacyDocOptions)",
         "PdfEditor.ProtectAsync",
         "PdfEditor.UnprotectAsync",
         "DocxEditor.ProtectAsync",
@@ -370,20 +378,31 @@ public class StreamOverloadTests
     /// the wrong shape for it. Same principle as <c>gen-third-party-notices.py</c> reading the
     /// lockfile and <c>automerge-eligible.py</c> reading the workflows: derive, do not remember.
     ///
-    /// <b>Known limitation, stated so it is a choice.</b> This matches on <c>Class.Method</c>, not
-    /// on signature, because that is how the lists are keyed. A NEW OVERLOAD of an already-listed
-    /// name is therefore still invisible here — the same limitation `CLAUDE.md` records for the 1:1
-    /// interface check. What it does catch is a whole method, or a whole class, going unregistered,
-    /// which is what happened both times.
+    /// <b>It counts overloads, not just names, and it did not always.</b> Matching on
+    /// <c>Class.Method</c> alone left "a NEW OVERLOAD of an already-listed name" invisible — a
+    /// limitation this comment used to state as a deliberate choice. It stopped being defensible on
+    /// 2026-08-27, when mutation testing found that
+    /// <c>HtmlToDocxConverter.ConvertAsync(html, PageSetup, RemoteImageOptions, destination, ct)</c>
+    /// was in neither list: <b>six guards on it survived every test in the repository</b>, including
+    /// the <c>RequireWritable</c> and already-cancelled-token theories that exist to cover exactly
+    /// those. The name <c>HtmlToDocxConverter.ConvertAsync</c> was listed four times, so the check
+    /// was satisfied while a fifth overload went untested.
+    ///
+    /// <para>So the count per method name must match. A stated limitation that has since cost real
+    /// coverage is a bug wearing a comment.</para>
     /// </summary>
     [Fact]
     public void EveryPublicStreamOverloadIsRegisteredInTheListsAbove()
     {
-        var listed = DestinationWriterNames
+        // DISTINCT entries per method name: the two destination lists deliberately overlap, so a
+        // name appearing in both is one registered overload rather than two. Counting raw entries
+        // would let a duplicate stand in for a missing overload.
+        var listedByMethod = DestinationWriterNames
             .Concat(SourceReaderNames)
             .Concat(BufferedDestinationWriterNames)
-            .Select(n => n.Split('(')[0])
-            .ToHashSet(StringComparer.Ordinal);
+            .Distinct(StringComparer.Ordinal)
+            .GroupBy(n => n.Split('(')[0], StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
         // ALL SIX SHIPPED ASSEMBLIES, not just the one this file's oldest entries came from.
         // Until the per-concern project split this was `typeof(DocxEditor).Assembly` and that WAS
@@ -409,12 +428,58 @@ public class StreamOverloadTests
             where method.GetParameters().Any(p => typeof(Stream).IsAssignableFrom(p.ParameterType))
             select $"{type.Name}.{method.Name}";
 
-        var missing = shipped.Distinct().Where(m => !listed.Contains(m)).OrderBy(m => m).ToList();
+        var shippedByMethod = shipped
+            .GroupBy(m => m, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
-        Assert.True(missing.Count == 0,
-            "These public Stream overloads are not in this file's name lists, so every theory here "
-            + "skips them silently:\n  " + string.Join("\n  ", missing));
+        var gaps = shippedByMethod
+            .Select(kv => (Method: kv.Key, Shipped: kv.Value,
+                           Listed: listedByMethod.GetValueOrDefault(kv.Key)))
+            .Where(x => x.Listed < x.Shipped)
+            .OrderBy(x => x.Method, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(gaps.Count == 0,
+            "These public Stream overloads are not all registered in this file's name lists, so "
+            + "every theory here skips the unregistered ones silently:\n  "
+            + string.Join("\n  ", gaps.Select(
+                g => $"{g.Method}: {g.Shipped} shipped, {g.Listed} listed")));
     }
+
+    /// <summary>
+    /// A PdfFontOptions carrying bytes that are NOT a real TrueType file.
+    /// </summary>
+    /// <remarks>
+    /// These theories assert plumbing - that a destination is written, refused or cancelled - not
+    /// that a glyph rendered. There is no font asset in this repository and no test converts with a
+    /// real one, so a synthetic instance is what registers this overload. If it ever turns out the
+    /// renderer rejects it, that is a finding about the renderer worth its own test, not a reason
+    /// to leave the overload unregistered again.
+    /// </remarks>
+    private static PdfFontOptions SampleFonts => new("DocToolkitTest", [0x00, 0x01, 0x00, 0x00]);
+
+    /// <summary>
+    /// APIs whose theories cannot assert a successful CONVERSION, and why.
+    /// </summary>
+    /// <remarks>
+    /// <b>An exemption stated in one place beats an overload left unregistered.</b> Registering
+    /// <c>DocxToPdfConverter.ConvertAsync(PdfFontOptions)</c> is what gives it the guard theories —
+    /// a refused destination, an already-cancelled token, an unreadable source — which is what
+    /// mutation testing showed were missing. What it cannot have is the two theories that require
+    /// bytes to come out the other end.
+    ///
+    /// <para>The reason is measured, not assumed: a <c>PdfFontOptions</c> must carry a real
+    /// TrueType file, and a synthetic one fails with <c>NotSupportedException: TrueType font data
+    /// is too small to embed</c>, wrapped as a <c>DocumentConversionException</c>. That is the
+    /// renderer behaving correctly. This repository ships no font asset, and fabricating a valid
+    /// TTF to satisfy a plumbing test would be a worse trade than naming the gap.</para>
+    ///
+    /// <para><b>If a font asset is ever added, delete this set rather than growing it.</b></para>
+    /// </remarks>
+    private static readonly HashSet<string> CannotAssertARenderedDocument = new(StringComparer.Ordinal)
+    {
+        "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
+    };
 
     private static TheoryData<string> Cases(IEnumerable<string> names)
     {
@@ -440,6 +505,10 @@ public class StreamOverloadTests
     [MemberData(nameof(DestinationWriters))]
     public async Task EveryDestinationWriter_WritesAWholeDocumentToAForwardOnlySink_AndLeavesItOpen(string api)
     {
+        // See CannotAssertARenderedDocument: this one is registered for its guard
+        // theories, and cannot produce a document from synthetic test input.
+        if (CannotAssertARenderedDocument.Contains(api)) return;
+
         var sink = new ForwardOnlySink();
         var destination = new TrackingStream(sink);
         using var source = NewSource(api);
@@ -500,6 +569,10 @@ public class StreamOverloadTests
     [MemberData(nameof(SourceReaders))]
     public async Task EverySourceReader_ConsumesAForwardOnlySourceAsynchronously_AndLeavesItOpen(string api)
     {
+        // See CannotAssertARenderedDocument: this one is registered for its guard
+        // theories, and cannot produce a document from synthetic test input.
+        if (CannotAssertARenderedDocument.Contains(api)) return;
+
         var forwardOnly = new ForwardOnlySource(SourceBytesFor(api));
         var source = new TrackingStream(forwardOnly);
         using var destination = new MemoryStream();
@@ -1002,6 +1075,8 @@ public class StreamOverloadTests
                 PdfEditor.UnprotectAsync(source!, destination!, "pw", ct),
             "DocToDocxConverter.ConvertAsync" =>
                 DocToDocxConverter.ConvertAsync(source!, destination!, ct),
+            "DocToDocxConverter.ConvertAsync(LegacyDocOptions)" =>
+                DocToDocxConverter.ConvertAsync(source!, destination!, new LegacyDocOptions(), ct),
             "DocToDocxConverter.ExtractTextAsync" =>
                 DocToDocxConverter.ExtractTextAsync(source!, ct),
             "HtmlToDocxConverter.ConvertAsync" =>
@@ -1012,6 +1087,9 @@ public class StreamOverloadTests
                 HtmlToDocxConverter.ConvertAsync(Html, new RemoteImageOptions(), destination!, ct),
             "HtmlToDocxConverter.ConvertAsync(PageSetup)" =>
                 HtmlToDocxConverter.ConvertAsync(Html, PageSetup.Letter, destination!, ct),
+            "HtmlToDocxConverter.ConvertAsync(PageSetup, RemoteImageOptions)" =>
+                HtmlToDocxConverter.ConvertAsync(
+                    Html, PageSetup.Letter, new RemoteImageOptions(), destination!, ct),
             "HtmlToPdfConverter.ConvertAsync" =>
                 HtmlToPdfConverter.ConvertAsync(Html, destination!, ct),
             "HtmlToPdfConverter.ConvertAsync(allowRemoteImageDownload)" =>
@@ -1020,11 +1098,16 @@ public class StreamOverloadTests
                 HtmlToPdfConverter.ConvertAsync(Html, new RemoteImageOptions(), destination!, ct),
             "HtmlToPdfConverter.ConvertAsync(PageSetup)" =>
                 HtmlToPdfConverter.ConvertAsync(Html, PageSetup.Letter, destination!, ct),
+            "HtmlToPdfConverter.ConvertAsync(PageSetup, RemoteImageOptions)" =>
+                HtmlToPdfConverter.ConvertAsync(
+                    Html, PageSetup.Letter, new RemoteImageOptions(), destination!, ct),
             "HtmlToPdfConverter.ConvertAsync(HtmlToPdfOptions)" =>
                 HtmlToPdfConverter.ConvertAsync(
                     Html, new HtmlToPdfOptions { Page = PageSetup.Letter }, destination!, ct),
             "DocxToPdfConverter.ConvertAsync" =>
                 DocxToPdfConverter.ConvertAsync(source!, destination!, ct),
+            "DocxToPdfConverter.ConvertAsync(PdfFontOptions)" =>
+                DocxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "XlsxToPdfConverter.ConvertAsync" =>
                 XlsxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "PptxToPdfConverter.ConvertAsync" =>

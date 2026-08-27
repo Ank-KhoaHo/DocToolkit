@@ -65,25 +65,56 @@ public class DocxTableContentControlTests
     /// shapes and every FillRows fixture went unchecked. A claim nothing verifies is the defect
     /// this repository keeps recording, so the shapes are enumerated here and the validator runs
     /// over all of them.
+    ///
+    /// <para><b>The theory passes a NAME and builds the document inside the test</b>, rather than
+    /// passing the bytes through <c>MemberData</c>. A <c>byte[]</c> in a theory case puts the whole
+    /// array into the case's display name, and Stryker's coverage analysis then cannot match those
+    /// cases to the tests it ran — it warned <i>"mutation tests may be inaccurate"</i> 90 times in
+    /// one run, which quietly degrades the one tool that measures whether these tests discriminate
+    /// at all.</para>
     /// </remarks>
-    public static TheoryData<string, byte[]> EveryShape() => new()
+    public static TheoryData<string> EveryShapeName() =>
+    [
+        "wrapped table",
+        "wrapped table, twice nested",
+        "wrapped row",
+        "wrapped cell",
+        "paragraph wrapped in a cell",
+        "table nested in a cell",
+        "wrapped and ordinary together",
+        "template row, wrapped table",
+        "template row, wrapped row",
+        "template marker in a wrapped cell",
+    ];
+
+    private static byte[] ShapeNamed(string shape) => shape switch
     {
-        { "wrapped table", Doc(BlockControl(Tbl(Row("W"))), P("after")) },
-        { "wrapped table, twice nested", Doc(BlockControl(BlockControl(Tbl(Row("W")))), P("after")) },
-        { "wrapped row", Doc(Tbl(Row("Name"), RowControl(Row("W"))), P("after")) },
-        { "wrapped cell", Doc(Tbl(new TableRow(CellControl(new TableCell(P("W"))))), P("after")) },
-        { "paragraph wrapped in a cell", Doc(Tbl(new TableRow(new TableCell(BlockControl(P("W"))))), P("after")) },
-        { "table nested in a cell", Doc(Tbl(new TableRow(new TableCell(P("cell"), Tbl(Row("inner"))))), P("after")) },
-        { "wrapped and ordinary together", Doc(BlockControl(Tbl(Row("W"))), Tbl(Row("A")), P("after")) },
-        { "template row, wrapped table", Doc(BlockControl(Tbl(Row("Name", "Qty"), Row("{{item.Name}}", "{{item.Qty}}"))), P("after")) },
-        { "template row, wrapped row", Doc(Tbl(Row("Name", "Qty"), RowControl(Row("{{item.Name}}", "{{item.Qty}}"))), P("after")) },
-        { "template marker in a wrapped cell", Doc(Tbl(Row("Name", "Qty"), new TableRow(CellControl(new TableCell(P("{{item.Name}}"))), new TableCell(P("fixed")))), P("after")) },
+        "wrapped table" => Doc(BlockControl(Tbl(Row("W"))), P("after")),
+
+        "wrapped table, twice nested" => Doc(BlockControl(BlockControl(Tbl(Row("W")))), P("after")),
+
+        "wrapped row" => Doc(Tbl(Row("Name"), RowControl(Row("W"))), P("after")),
+
+        "wrapped cell" => Doc(Tbl(new TableRow(CellControl(new TableCell(P("W"))))), P("after")),
+
+        "paragraph wrapped in a cell" => Doc(Tbl(new TableRow(new TableCell(BlockControl(P("W"))))), P("after")),
+
+        "table nested in a cell" => Doc(Tbl(new TableRow(new TableCell(P("cell"), Tbl(Row("inner"))))), P("after")),
+
+        "wrapped and ordinary together" => Doc(BlockControl(Tbl(Row("W"))), Tbl(Row("A")), P("after")),
+
+        "template row, wrapped table" => Doc(BlockControl(Tbl(Row("Name", "Qty"), Row("{{item.Name}}", "{{item.Qty}}"))), P("after")),
+
+        "template row, wrapped row" => Doc(Tbl(Row("Name", "Qty"), RowControl(Row("{{item.Name}}", "{{item.Qty}}"))), P("after")),
+
+        _ => Doc(Tbl(Row("Name", "Qty"), new TableRow(CellControl(new TableCell(P("{{item.Name}}"))), new TableCell(P("fixed")))), P("after")),
     };
 
     [Theory]
-    [MemberData(nameof(EveryShape))]
-    public void EveryFixtureShapeIsSchemaValid(string shape, byte[] docx)
+    [MemberData(nameof(EveryShapeName))]
+    public void EveryFixtureShapeIsSchemaValid(string shape)
     {
+        byte[] docx = ShapeNamed(shape);
         // A fixture Word would reject proves nothing about Word, and this repository has already
         // had a whole family of measurements invalidated by a fixture that was not what it claimed
         // - see CLAUDE.md on hand-built SdtBlock content controls.

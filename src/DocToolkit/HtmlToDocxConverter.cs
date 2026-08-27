@@ -411,13 +411,22 @@ public static class HtmlToDocxConverter
                 mainPart.Document.Save();
             }
         }
+        // Both ms.Dispose() calls below are EQUIVALENT under mutation and are excluded rather
+        // than chased with a test, on the same grounds as NewScratch's `Stryker disable all`.
+        // The scratch buffer is a local MemoryStream the caller never receives: it holds no OS
+        // handle and has no finalizer, so deleting either call leaves the buffer to the collector
+        // and changes nothing observable. Nothing can reach `ms` to assert on it either.
+        //
+        // Disposing is still correct - the stream is being abandoned - which is why the calls stay.
         catch (OperationCanceledException)
         {
+            // Stryker disable once Statement : equivalent - see the note above this catch block
             ms.Dispose();
             throw;
         }
         catch (Exception ex)
         {
+            // Stryker disable once Statement : equivalent - see the note above this catch block
             ms.Dispose();
             // A recognised cause gets named; everything else keeps the generic wrapper. See
             // HtmlFailureDiagnosis for why the test is a stack frame rather than an exception type.
@@ -482,7 +491,15 @@ public static class HtmlToDocxConverter
     /// Data-URI images are decoded by the parser itself and never routed through here, so
     /// self-contained documents still convert in full.
     /// </summary>
-    private sealed class OfflineResourceLoader : IWebRequest
+    // INTERNAL rather than private so a test can ask it directly. Mutation testing found
+    // SupportsProtocol had NO COVERAGE AT ALL: flipping `=> false` to `=> true` was reached by
+    // nothing in the repository, on the class CLAUDE.md calls "the default path" for every
+    // air-gapped consumer. The air-gap suites cannot see it - with `true`, FetchAsync still
+    // returns null, so no connection is made either way and every probe stays silent.
+    //
+    // Same reasoning as TableRowFinder being internal and tested directly, which is why the
+    // core project grants InternalsVisibleTo to the test project.
+    internal sealed class OfflineResourceLoader : IWebRequest
     {
         public static readonly OfflineResourceLoader Instance = new();
 
