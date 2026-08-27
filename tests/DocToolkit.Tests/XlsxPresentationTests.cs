@@ -296,4 +296,45 @@ public class XlsxPresentationTests
         Assert.Equal(1, read.FrozenRows);
         Assert.Equal(0, read.FrozenColumns);
     }
+    [Fact]
+    public void ARuleCarriesBothOfItsBoundsAndItsOperator_NotJustItsExistence()
+    {
+        // Sabotage found the gap this closes: rewriting WhenBetween(low, high) to
+        // WhenBetween(low, low) survived every other test here, because they COUNT rules rather
+        // than reading them. A rule with collapsed bounds is a rule that never fires - the sheet
+        // looks formatted and is not, which is the failure XlsxRule.Between's own guard exists for.
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithRule(XlsxRule.Between("B2:B3", 100, 300, XlsxHighlight.Amber)));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        ClosedXML.Excel.IXLConditionalFormat rule =
+            workbook.Worksheet("Data").ConditionalFormats.Single();
+
+        Assert.Equal(ClosedXML.Excel.XLCFOperator.Between, rule.Operator);
+        Assert.Equal("100", rule.Values[1].Value);
+        Assert.Equal("300", rule.Values[2].Value);
+    }
+
+    [Fact]
+    public void EachComparisonReachesTheFileAsItsOwnOperator()
+    {
+        // The counting test would also pass if every kind mapped to the same comparison. This
+        // pins that the six conditions stay six distinct operators in the saved file.
+        (XlsxRule Rule, ClosedXML.Excel.XLCFOperator Expected)[] cases =
+        [
+            (XlsxRule.GreaterThan("B2:B3", 1, XlsxHighlight.Red), ClosedXML.Excel.XLCFOperator.GreaterThan),
+            (XlsxRule.LessThan("B2:B3", 1, XlsxHighlight.Red), ClosedXML.Excel.XLCFOperator.LessThan),
+            (XlsxRule.EqualTo("A2:A3", "short", XlsxHighlight.Red), ClosedXML.Excel.XLCFOperator.Equal),
+        ];
+
+        foreach ((XlsxRule rule, ClosedXML.Excel.XLCFOperator expected) in cases)
+        {
+            using var ms = new MemoryStream(
+                WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithRule(rule)));
+            using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+
+            Assert.Equal(expected, workbook.Worksheet("Data").ConditionalFormats.Single().Operator);
+        }
+    }
 }
