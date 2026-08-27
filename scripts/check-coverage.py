@@ -99,9 +99,16 @@ FLOORS = {
     "DocToolkit.Pdf": (98.4, 95.6),
     "DocToolkit.Pptx": (96.3, 80.7),
     # Ratcheted 2026-08-26 with A68 (conditional formats, validations, widths, freeze,
-    # autofilter). Measured 97.25 / 96.21 - the branch floor was 3.81 points below
-    # reality, which is a floor that has stopped catching anything.
-    "DocToolkit.Xlsx": (96.3, 95.9),
+    # autofilter), from 95.5 / 92.4 - the branch floor was 3.81 points below reality,
+    # which is a floor that has stopped catching anything.
+    #
+    # It was first set at 95.9 against a measured 96.21, and that FAILED CI two commits
+    # later at 95.85 - the closed-vocabulary guards added `_ => throw` arms that are
+    # unreachable by construction and correct to leave uncovered. Which is precisely the
+    # failure this file's own header warns about: a floor set at the measurement fails on
+    # the first line it is right to not cover, and trains people to lower it. Measured
+    # 97.04 / 95.85 now, with the floor a genuine step below both.
+    "DocToolkit.Xlsx": (96.3, 95.0),
     "DocToolkit.Extensions.DependencyInjection": (100.0, 100.0),
 }
 

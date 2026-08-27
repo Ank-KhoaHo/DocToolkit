@@ -564,4 +564,127 @@ public class XlsxPresentationTests
         Assert.Equal("A2:B2", XlsxRule.GreaterThan("A2:B2", 1, XlsxHighlight.Red).Range);
         Assert.Equal("A2:B2", XlsxValidation.WholeNumberBetween("A2:B2", 1, 2).Range);
     }
+    // ---- aimed at the survivor list, not written blind ----------------------------------------
+    //
+    // Widening the Stryker scope to XlsxRule.cs and XlsxValidation.cs dropped the score to
+    // 93.40%, under the 95 break threshold. CLAUDE.md records exactly this shape from the last
+    // widening - "adding them and lowering the gate would have bought a green run and no
+    // information" - so these kill the survivors instead. Each names the mutant it exists for.
+
+    [Fact]
+    public void ADegenerateRangeIsAccepted_BecauseLowEqualToHighIsAValidRule()
+    {
+        // Kills `high < low` -> `high <= low` in XlsxRule, and the two `max < min` siblings in
+        // XlsxValidation. A single permitted value is a real thing to ask for; the guard exists
+        // to catch INVERTED bounds, not equal ones, and nothing pinned that difference.
+        Assert.Equal(5, XlsxRule.Between("A1:A9", 5, 5, XlsxHighlight.Red).Value);
+        Assert.Equal(5, XlsxValidation.WholeNumberBetween("A1:A9", 5, 5).Min);
+
+        var day = new DateTime(2020, 1, 1);
+        Assert.Equal(day, XlsxValidation.DateBetween("A1:A9", day, day).MinDate);
+
+        // And the control: genuinely inverted bounds must still be refused, or the assertions
+        // above would pass against a guard that had been deleted outright.
+        Assert.Throws<ArgumentOutOfRangeException>(() => XlsxRule.Between("A1:A9", 9, 1, XlsxHighlight.Red));
+        Assert.Throws<ArgumentOutOfRangeException>(() => XlsxValidation.WholeNumberBetween("A1:A9", 9, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => XlsxValidation.DateBetween("A1:A9", day.AddDays(1), day));
+    }
+
+    [Fact]
+    public void EveryFactoryRefusesNullWithTheRightExceptionTYPE_NotWhateverDereferencingThrows()
+    {
+        // Kills the ThrowIfNull statement removals in XlsxRule.EqualTo, XlsxValidation.OneOf and
+        // both XlsxFormat.With* methods. The TYPE is the assertion: without the guard the call
+        // still fails, but as a NullReferenceException from a dereference further in, which is
+        // the difference between a contract and an accident.
+        Assert.Throws<ArgumentNullException>(() => XlsxRule.EqualTo("A1", null!, XlsxHighlight.Red));
+        Assert.Throws<ArgumentNullException>(() => XlsxRule.Contains("A1", null!, XlsxHighlight.Red));
+        Assert.Throws<ArgumentNullException>(() => XlsxValidation.OneOf("A1", (string[])null!));
+        Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithRule(null!));
+        Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithValidation(null!));
+    }
+
+    [Fact]
+    public void ABlankRangeIsRefusedByBothVocabularies()
+    {
+        // Kills the ThrowIfNullOrWhiteSpace removal. A blank range otherwise sails through the
+        // sheet-qualifier check - it contains no '!' - and is stored, failing much later inside
+        // ClosedXML where the caller's argument no longer has a name.
+        foreach (string blank in new[] { "", "   ", "\t" })
+        {
+            Assert.Throws<ArgumentException>(() => XlsxRule.Blank(blank, XlsxHighlight.Grey));
+            Assert.Throws<ArgumentException>(() => XlsxValidation.OneOf(blank, "x"));
+        }
+    }
+
+    [Fact]
+    public void AFreezeSurvivesALaterUnrelatedSetting()
+    {
+        // Kills both null-coalescing mutants on the private With helper's freeze argument. Every
+        // With* method funnels through it, so dropping the `?? FreezeAt` fallback silently clears
+        // a freeze whenever any OTHER setting is added afterwards - and nothing saw it, because
+        // every existing test set the freeze last.
+        XlsxFormat format = XlsxFormat.None
+            .WithFreezeAt(3, 2)
+            .WithAutoFilter()
+            .WithColumnWidth("A", 15)
+            .WithRule(XlsxRule.Blank("A1", XlsxHighlight.Grey));
+
+        Assert.Equal(new XlsxFreeze(3, 2), format.FreezeAt);
+    }
+
+    [Fact]
+    public void TheTwoMessagesThatARE_theFeature_SayWhyRatherThanJustNo()
+    {
+        // Kills the string mutants on these two specifically, and only these two. Most exception
+        // text is left unpinned on purpose - asserting every message is brittle and this
+        // repository already treats message mutants as an accepted floor. These are different:
+        // each REFUSES something that used to be silently accepted, so the message carrying the
+        // reason is the entire value of the guard. A caller who reads "no" and not "why" will
+        // reasonably conclude the library is broken.
+        var qualified = Assert.Throws<ArgumentException>(
+            () => XlsxRule.GreaterThan("Other!A1:B2", 1, XlsxHighlight.Red));
+        Assert.Contains("silently discarded", qualified.Message, StringComparison.Ordinal);
+        Assert.Contains("sheetName", qualified.Message, StringComparison.Ordinal);
+
+        var comma = Assert.Throws<ArgumentException>(() => XlsxValidation.OneOf("A1", "Free, Pro"));
+        Assert.Contains("comma", comma.Message, StringComparison.Ordinal);
+        Assert.Contains("corrupt it silently", comma.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnInstructionalMessageKeepsItsInSTRUCTION()
+    {
+        // The other half of the same judgement. These messages do not merely report a refusal -
+        // each NAMES THE THING TO DO INSTEAD, which is the part a caller acts on and the part a
+        // string mutant silently deletes. Pinned by distinctive phrase rather than whole text, so
+        // rewording stays cheap while gutting does not.
+        //
+        // Deliberately NOT pinned: "Number format was blank", "A column width must be positive"
+        // and their kind. Those restate the guard and a caller learns nothing from the words that
+        // the exception type and parameter name have not already told them. Their mutants stay in
+        // the accepted floor CLAUDE.md already describes - asserting every message is how a suite
+        // becomes brittle, and the distinction here is whether the sentence carries information.
+        var nothing = Assert.Throws<ArgumentOutOfRangeException>(() => XlsxFormat.None.WithFreezeAt(0, 0));
+        Assert.Contains("WithFrozenHeaderRow(false)", nothing.Message, StringComparison.Ordinal);
+
+        var negativeRow = Assert.Throws<ArgumentOutOfRangeException>(() => XlsxFormat.None.WithFreezeAt(-1, 0));
+        Assert.Contains("cannot be negative", negativeRow.Message, StringComparison.Ordinal);
+
+        // The two must not share a message: (0,0) is "you asked for nothing, here is how to say
+        // that on purpose" and -1 is "that is not a position". Collapsing them was a review
+        // finding earlier in this branch, and only distinct assertions keep them apart.
+        Assert.DoesNotContain("WithFrozenHeaderRow", negativeRow.Message, StringComparison.Ordinal);
+
+        var negativeColumn = Assert.Throws<ArgumentOutOfRangeException>(() => XlsxFormat.None.WithFreezeAt(1, -1));
+        Assert.Contains("cannot be negative", negativeColumn.Message, StringComparison.Ordinal);
+        Assert.Equal("column", negativeColumn.ParamName);
+
+        var empty = Assert.Throws<ArgumentException>(() => XlsxValidation.OneOf("A1"));
+        Assert.Contains("a cell nobody can fill", empty.Message, StringComparison.Ordinal);
+
+        var blankOption = Assert.Throws<ArgumentException>(() => XlsxValidation.OneOf("A1", "x", "  "));
+        Assert.Contains("nobody can pick", blankOption.Message, StringComparison.Ordinal);
+    }
 }
