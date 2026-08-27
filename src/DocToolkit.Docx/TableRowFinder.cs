@@ -60,7 +60,7 @@ internal static class TableRowFinder
         // cells must not have its rows or paragraphs read as if this row owned them. Collapsing
         // the two loops into Any() changes the shape, not the scoping.
         return ContentControls.Cells(row)
-            .Any(cell => cell.ChildElements.OfType<Paragraph>()
+            .Any(cell => ContentControls.Paragraphs(cell)
                 .Any(p => p.InnerText.Contains(marker, StringComparison.Ordinal)));
     }
 }

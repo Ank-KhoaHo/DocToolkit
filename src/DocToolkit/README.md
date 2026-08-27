@@ -893,6 +893,32 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
+### 0.41.0 - table indexes count content-controlled tables
+
+`DocxEditor.TableCount`, `ReadTable` and `FillRows` **now see a table, row or cell wrapped in a Word
+content control** (`w:sdt`), matching `ExtractText`, which has read them since 0.38.0.
+
+**`ReadTable(index)` can return a different table than it did.** The clearest case: where a wrapped
+table came *before* an ordinary one, `ReadTable(0)` used to return the ordinary one - the table that
+is physically second - because the wrapped one was invisible and the index slid past it. It returns
+the first table now.
+
+Three other results change, and each was previously wrong rather than merely different:
+
+| document | before | now |
+|---|---|---|
+| only table wrapped in a control | `TableCount` **0**, `ReadTable(0)` threw | `1`, reads it |
+| a wrapped **row** in an ordinary table | that row silently missing | present |
+| a template row wrapped, or in a wrapped table | `FillRows` threw | expands |
+
+**If you store table indexes**, re-derive them against 0.41.0 for any document that uses content
+controls - which is most template-driven documents, since a control is usually the part that varies.
+A document containing no content controls is completely unaffected.
+
+The `FillRows` refusal is worth calling out separately, because its message was actively misleading:
+it said the marker *"must appear inside a table cell"* when the marker was inside a table cell. That
+message now only appears when it is true.
+
 ### 0.38.0 - `ExtractText` reads Word content controls
 
 `DocxEditor.ExtractText` **returns text it previously omitted**. A document whose content sat inside

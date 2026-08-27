@@ -23,30 +23,14 @@ public class DocxTableContentControlTests
 {
     // ---- fixtures ------------------------------------------------------------------------------
 
+    // Delegated to DocxFixtures rather than redeclared. The only builders that live here are
+    // the three w:sdt wrappers, which no other test file needs.
     private static Paragraph P(string text) =>
-        new(new Run(new Text(text) { Space = SpaceProcessingModeValues.Preserve }));
+        DocxFixtures.P(new Run(new Text(text) { Space = SpaceProcessingModeValues.Preserve }));
 
-    private static TableRow Row(params string[] cells)
-    {
-        var row = new TableRow();
-        foreach (string cell in cells) row.Append(new TableCell(P(cell)));
-        return row;
-    }
+    private static TableRow Row(params string[] cells) => DocxFixtures.RowOfText(cells);
 
-    /// <summary>
-    /// A table with its <c>w:tblGrid</c>. Without one the validator rejects the first <c>w:tr</c>
-    /// as an unexpected child — an earlier version of this repository's helper built schema-invalid
-    /// tables that every test happily passed against.
-    /// </summary>
-    private static Table Tbl(params OpenXmlElement[] rows)
-    {
-        // OpenXmlElement rather than TableRow: a w:sdt at row level is an SdtRow, which is not a
-        // TableRow at all - which is the entire shape of the defect being closed here.
-        var table = new Table(new TableProperties(),
-                              new TableGrid(new GridColumn(), new GridColumn()));
-        foreach (var row in rows) table.Append(row);
-        return table;
-    }
+    private static Table Tbl(params OpenXmlElement[] rows) => DocxFixtures.Tbl(rows);
 
     private static SdtBlock BlockControl(OpenXmlElement inner) => new(
         new SdtProperties(new SdtAlias { Val = "c" }, new Tag { Val = "c" }),
@@ -60,18 +44,7 @@ public class DocxTableContentControlTests
         new SdtProperties(new SdtAlias { Val = "x" }, new Tag { Val = "x" }),
         new SdtContentCell(inner));
 
-    private static byte[] Doc(params OpenXmlElement[] blocks)
-    {
-        using var ms = new MemoryStream();
-        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
-        {
-            var body = new Body();
-            foreach (var block in blocks) body.Append(block);
-            doc.AddMainDocumentPart().Document = new Document(body);
-        }
-
-        return ms.ToArray();
-    }
+    private static byte[] Doc(params OpenXmlElement[] blocks) => DocxFixtures.Build(blocks);
 
     private static void AssertSchemaValid(byte[] docx)
     {
@@ -85,15 +58,37 @@ public class DocxTableContentControlTests
 
     // ---- the fixtures are what they claim to be ------------------------------------------------
 
-    [Fact]
-    public void EveryFixtureHereIsSchemaValid()
+    /// <summary>Every distinct document SHAPE this file builds, named once.</summary>
+    /// <remarks>
+    /// A code review pointed out that the class comment claimed every fixture was validated while
+    /// this test checked three of about a dozen — the double-nested control, both nested-table
+    /// shapes and every FillRows fixture went unchecked. A claim nothing verifies is the defect
+    /// this repository keeps recording, so the shapes are enumerated here and the validator runs
+    /// over all of them.
+    /// </remarks>
+    public static TheoryData<string, byte[]> EveryShape() => new()
     {
-        // The control on the whole file. A fixture Word would reject proves nothing about Word,
-        // and this repository has already had a family of measurements invalidated by a fixture
-        // that was not what it claimed - see CLAUDE.md on hand-built SdtBlock content controls.
-        AssertSchemaValid(Doc(BlockControl(Tbl(Row("W"))), P("after")));
-        AssertSchemaValid(Doc(Tbl(Row("Name"), RowControl(Row("W"))), P("after")));
-        AssertSchemaValid(Doc(Tbl(new TableRow(CellControl(new TableCell(P("W"))))), P("after")));
+        { "wrapped table", Doc(BlockControl(Tbl(Row("W"))), P("after")) },
+        { "wrapped table, twice nested", Doc(BlockControl(BlockControl(Tbl(Row("W")))), P("after")) },
+        { "wrapped row", Doc(Tbl(Row("Name"), RowControl(Row("W"))), P("after")) },
+        { "wrapped cell", Doc(Tbl(new TableRow(CellControl(new TableCell(P("W"))))), P("after")) },
+        { "paragraph wrapped in a cell", Doc(Tbl(new TableRow(new TableCell(BlockControl(P("W"))))), P("after")) },
+        { "table nested in a cell", Doc(Tbl(new TableRow(new TableCell(P("cell"), Tbl(Row("inner"))))), P("after")) },
+        { "wrapped and ordinary together", Doc(BlockControl(Tbl(Row("W"))), Tbl(Row("A")), P("after")) },
+        { "template row, wrapped table", Doc(BlockControl(Tbl(Row("Name", "Qty"), Row("{{item.Name}}", "{{item.Qty}}"))), P("after")) },
+        { "template row, wrapped row", Doc(Tbl(Row("Name", "Qty"), RowControl(Row("{{item.Name}}", "{{item.Qty}}"))), P("after")) },
+        { "template marker in a wrapped cell", Doc(Tbl(Row("Name", "Qty"), new TableRow(CellControl(new TableCell(P("{{item.Name}}"))), new TableCell(P("fixed")))), P("after")) },
+    };
+
+    [Theory]
+    [MemberData(nameof(EveryShape))]
+    public void EveryFixtureShapeIsSchemaValid(string shape, byte[] docx)
+    {
+        // A fixture Word would reject proves nothing about Word, and this repository has already
+        // had a whole family of measurements invalidated by a fixture that was not what it claimed
+        // - see CLAUDE.md on hand-built SdtBlock content controls.
+        Assert.NotEmpty(shape);
+        AssertSchemaValid(docx);
     }
 
     // ---- TableCount ----------------------------------------------------------------------------
@@ -279,10 +274,17 @@ public class DocxTableContentControlTests
     }
 
     [Fact]
-    public void FillRows_StillExpandsTheInnermostRowFirstWhenTablesNest()
+    public void FillRows_ReachesATemplateRowInsideANestedTable()
     {
-        // TableRowFinder returns rows innermost-first so a nested template row is expanded before
-        // anything clones the row it sits in. Unwrapping controls must not disturb that ordering.
+        // RENAMED after a code review measured what it actually checks. It used to be called
+        // ...ExpandsTheInnermostRowFirstWhenTablesNest and its comment claimed the ordering
+        // guarantee - but the marker sits only in the INNER table, so TableRowFinder returns
+        // exactly one row, and a one-element list has no order. Adding found.Reverse() left it
+        // green. What it really proves is that a nested template row is reachable through a cell,
+        // which is worth keeping under a name that says so.
+        //
+        // The ordering guarantee is checked by the sibling below, and by the pre-existing
+        // TableRowFinderTests.Find_ReturnsNestedRowsBeforeTheRowsContainingThem.
         var inner = Tbl(Row("{{item.Name}}"));
         var outer = Tbl(new TableRow(new TableCell(P("outer"), inner)));
 
@@ -312,5 +314,133 @@ public class DocxTableContentControlTests
         Assert.Contains("Widget", text, StringComparison.Ordinal);
         Assert.Contains("Gadget", text, StringComparison.Ordinal);
         Assert.DoesNotContain("{{item.", text, StringComparison.Ordinal);
+    }
+    // ---- found by code review, measured before fixing --------------------------------------------
+
+    [Fact]
+    public void FillRows_FindsAMarkerInAParagraphWrappedInsideACell()
+    {
+        // The FOURTH wrapper position, and the one the first pass missed: w:tc > w:sdt > w:p.
+        // Collect unwrapped SdtBlock when looking for nested TABLES in a cell, but OwnsMarker still
+        // read the cell's direct-child paragraphs - so this refused with the same misleading
+        // "the marker must appear inside a table cell" message A77 was filed against.
+        //
+        // It is the shape Word writes when a Rich Text control is inserted into an empty cell.
+        var wrappedMarker = new TableCell(BlockControl(P("{{item.Name}}")));
+        var templateRow = new TableRow(wrappedMarker, new TableCell(P("fixed")));
+
+        byte[] docx = Doc(Tbl(Row("Name", "Qty"), templateRow), P("after"));
+
+        // ExtractText already reads it, which is the disagreement this whole row exists to close.
+        Assert.Contains("{{item.Name}}", DocxEditor.ExtractText(docx), StringComparison.Ordinal);
+
+        string text = DocxEditor.ExtractText(DocxEditor.FillRows(docx, "item", TwoRecords));
+        Assert.Contains("Widget", text, StringComparison.Ordinal);
+        Assert.Contains("Gadget", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{item.", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FillRows_WithNoRecords_StillRemovesTheTable_EvenWhenTheTemplateRowIsWrapped()
+    {
+        // ExpandRow took template.Parent to find the table to remove. For a wrapped row that parent
+        // is SdtContentRow, not Table, so the removal silently stopped happening on the very path
+        // this change opened - leaving an empty frame behind.
+        //
+        // This is not a preference: DocxEditor's shipped XML doc states the removal as behaviour
+        // ("an empty frame left on the page reads worse than rendering nothing") and that text
+        // renders on the API site. The change would have made a published claim false.
+        byte[] wrappedRow = Doc(Tbl(RowControl(Row("{{item.Name}}"))), P("after"));
+        byte[] plainRow = Doc(Tbl(Row("{{item.Name}}")), P("after"));
+
+        Assert.Equal(0, DocxEditor.TableCount(DocxEditor.FillRows(plainRow, "item", [])));
+        Assert.Equal(0, DocxEditor.TableCount(DocxEditor.FillRows(wrappedRow, "item", [])));
+    }
+
+    [Fact]
+    public void FillRows_WithNoRecords_KeepsATableThatStillHasOtherRows()
+    {
+        // The control on the test above. Without it, "remove the table" could be implemented as
+        // "always remove the table" and both assertions there would still pass.
+        byte[] docx = Doc(Tbl(Row("Name"), RowControl(Row("{{item.Name}}"))), P("after"));
+
+        byte[] emptied = DocxEditor.FillRows(docx, "item", []);
+
+        Assert.Equal(1, DocxEditor.TableCount(emptied));
+        Assert.Equal("Name", Flat(DocxEditor.ReadTable(emptied, 0)));
+    }
+
+    [Fact]
+    public void FillRows_WithNoRecords_KeepsATableWhoseOnlyRemainingRowIsItselfWRAPPED()
+    {
+        // Found by sabotage, not by design. The test above leaves an ORDINARY row behind, so a
+        // direct-child row count still finds it and asking emptiness the old way passed.
+        //
+        // Here the survivor is wrapped: a direct-child count sees ZERO rows, calls the table empty
+        // and deletes a row the caller can plainly see. That is silent data loss introduced by the
+        // very fix that removes empty frames, and only asking through ContentControls avoids it.
+        byte[] docx = Doc(Tbl(RowControl(Row("Kept")), Row("{{item.Name}}")), P("after"));
+
+        byte[] emptied = DocxEditor.FillRows(docx, "item", []);
+
+        Assert.Equal(1, DocxEditor.TableCount(emptied));
+        Assert.Equal("Kept", Flat(DocxEditor.ReadTable(emptied, 0)));
+    }
+
+    [Fact]
+    public void TableRowFinder_ReturnsTheInnermostRowFirst_WithBothRowsOwningTheMarker()
+    {
+        // The ordering test in this file could not discriminate: its fixture put the marker only in
+        // the inner table, so Find returned ONE row and a one-element list has no order. Reversing
+        // the finder left it green. Both rows own a marker here, so the order is observable.
+        //
+        // Order matters because a nested template row must be expanded BEFORE anything clones the
+        // row it sits in - otherwise the clones carry an unexpanded template.
+        var inner = Tbl(Row("{{item.Name}}"));
+        var outer = Tbl(new TableRow(new TableCell(P("outer {{item.Qty}}"), inner)));
+
+        byte[] docx = Doc(outer, P("after"));
+        string text = DocxEditor.ExtractText(DocxEditor.FillRows(docx, "item", TwoRecords));
+
+        // Two records against two nested template rows: every record must appear, and no template
+        // may survive anywhere - which is exactly what expanding in the wrong order breaks.
+        Assert.Contains("Widget", text, StringComparison.Ordinal);
+        Assert.Contains("Gadget", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{item.", text, StringComparison.Ordinal);
+    }
+    [Fact]
+    public void FillRows_KeepsTheGeneratedRowsInsideTheControlTheTemplateWasIn()
+    {
+        // The STRUCTURE, not just the text. Both wrapped-row FillRows tests above assert only that
+        // "Widget" and "Gadget" appear, which any structure preserving the text satisfies - the
+        // presence-only shape CLAUDE.md flags as a repeat failure here. A code review measured what
+        // actually comes out and it is worth pinning deliberately rather than leaving to accident.
+        //
+        // Measured: the table's children are tblPr, tblGrid, tr, sdt - and that ONE w:sdt holds
+        // BOTH generated rows. Schema-valid, and ReadTable reads all three rows in order.
+        //
+        // The alternative - cloning the whole w:sdt once per record - would give each row its own
+        // control carrying the SAME tag and alias, which is its own ambiguity. Which one Word
+        // prefers is NOT verified here: there is no Word on this machine, and this repository's
+        // rule is that an unverified claim is worse than an absent one. What is verified is that
+        // the output is schema-valid, reads back correctly, and stays inside the control the
+        // author put the row in rather than escaping to the table. If a real Word document ever
+        // shows this is wrong, this test is the record of what was chosen and why.
+        byte[] docx = Doc(Tbl(Row("Name", "Qty"), RowControl(Row("{{item.Name}}", "{{item.Qty}}"))), P("after"));
+
+        byte[] filled = DocxEditor.FillRows(docx, "item", TwoRecords);
+
+        AssertSchemaValid(filled);
+        Assert.Equal("Name|Qty / Widget|2 / Gadget|5", Flat(DocxEditor.ReadTable(filled, 0)));
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var table = doc.MainDocumentPart!.Document!.Body!.Elements<Table>().Single();
+
+        // No row escaped the control: the table still has exactly one direct-child w:tr, the header.
+        Assert.Single(table.Elements<TableRow>());
+
+        var control = Assert.Single(table.Elements<SdtRow>());
+        Assert.Equal(2, control.SdtContentRow!.Elements<TableRow>().Count());
     }
 }

@@ -64,6 +64,24 @@ internal static class ContentControls
     /// </remarks>
     public static IEnumerable<TableCell> Cells(TableRow row) => CellsIn(row);
 
+    /// <summary>
+    /// The paragraphs directly under <paramref name="scope"/>, including any wrapped in one or more
+    /// block-level content controls, in document order.
+    /// </summary>
+    /// <remarks>
+    /// The fourth wrapper position, and the one a first pass missed. A control can wrap a
+    /// <i>paragraph</i> inside a cell — <c>w:tc &gt; w:sdt &gt; w:p</c> — which is what Word writes
+    /// when a Rich Text control is inserted into an empty cell. A reader that unwrapped tables,
+    /// rows and cells but not paragraphs still could not see a template marker sitting there.
+    /// </remarks>
+    public static IEnumerable<Paragraph> Paragraphs(OpenXmlElement scope) =>
+        scope.Elements().SelectMany<OpenXmlElement, Paragraph>(child => child switch
+        {
+            Paragraph paragraph => [paragraph],
+            SdtBlock control => control.SdtContentBlock is { } content ? Paragraphs(content) : [],
+            _ => [],
+        });
+
     private static IEnumerable<TableRow> RowsIn(OpenXmlElement scope) =>
         scope.Elements().SelectMany<OpenXmlElement, TableRow>(child => child switch
         {
