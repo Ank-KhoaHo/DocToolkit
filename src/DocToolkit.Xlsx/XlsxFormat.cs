@@ -2,20 +2,42 @@ using System.Collections.ObjectModel;
 
 namespace DocToolkit;
 
+/// <summary>Where a sheet is frozen: how many rows and columns stay visible while scrolling.</summary>
+/// <remarks>
+/// A <c>record struct</c> rather than a class, because a two-int position has value semantics and
+/// cannot meaningfully be null once present. Absence lives on <see cref="XlsxFormat.FreezeAt"/> being
+/// null instead.
+/// </remarks>
+/// <param name="Row">How many rows stay visible. Zero freezes no rows.</param>
+/// <param name="Column">How many columns stay visible. Zero freezes no columns.</param>
+public readonly record struct XlsxFreeze(int Row, int Column);
+
 /// <summary>
-/// The formatting <see cref="WorkbookEditor.Format(byte[], string, XlsxFormat)"/> applies to a
-/// sheet: a bold header row, a frozen header row, auto-fitted columns, and a number format per
-/// column.
+/// The presentation <see cref="WorkbookEditor.Format(byte[], string, XlsxFormat)"/> applies to a
+/// sheet: a bold header row, a freeze position, auto-fitted or explicit column widths, a number
+/// format per column, an autofilter, conditional formats and data validations.
 /// </summary>
 /// <remarks>
-/// <b>This is deliberately a small, closed set, and the smallness is the design.</b> Cell
-/// formatting is an open-ended surface — fonts, borders, fills, conditional rules, merged
-/// ranges — and this package's premise is a narrow one it can actually guarantee. The four
-/// settings here are the ones that turn a generated grid into a report somebody can read; the
-/// underlying library supports far more, and adding it here means owning it forever.
+/// <b>The boundary here is a CLOSED vocabulary, not a small one — and that is a change.</b> This type
+/// used to say the smallness was the design, and excluded conditional rules by name. It was reversed
+/// deliberately on 2026-08-26, because "small" stops being a boundary the moment anything is added,
+/// while "closed" survives the question.
 ///
-/// If you need more than this, the honest answer is to use ClosedXML directly rather than for
-/// DocToolkit to grow a second, worse styling API in front of it.
+/// <list type="table">
+/// <listheader><term>in</term><description>out</description></listheader>
+/// <item><term>
+/// a vocabulary this library can enumerate, measure and guarantee — six rule conditions, five
+/// validation kinds, four highlights, a freeze position, a column width
+/// </term><description>
+/// an open one it would have to own forever — arbitrary fonts, borders, fills, merged ranges, colour
+/// scales, icon sets
+/// </description></item>
+/// </list>
+///
+/// <see cref="XlsxHighlight"/> is the test case for that line: four named intents can be enumerated
+/// and guaranteed, a colour picker cannot. <b>If what you need cannot be expressed as a closed set,
+/// the original answer still stands — use ClosedXML directly rather than have this package grow a
+/// second, worse styling API in front of it.</b>
 ///
 /// Immutable, with <c>With…</c> methods returning a new instance — the same shape as
 /// <see cref="PageSetup"/>.
@@ -24,13 +46,18 @@ public sealed class XlsxFormat
 {
     private XlsxFormat(
         bool boldHeaderRow,
-        bool freezeHeaderRow,
         bool autoFitColumns,
-        IReadOnlyDictionary<string, string> columnNumberFormats)
+        IReadOnlyDictionary<string, string> columnNumberFormats,
+        IReadOnlyDictionary<string, double> columnWidths,
+        XlsxFreeze? freezeAt,
+        bool autoFilter,
+        IReadOnlyList<XlsxRule> rules,
+        IReadOnlyList<XlsxValidation> validations)
     {
         BoldHeaderRow = boldHeaderRow;
-        FreezeHeaderRow = freezeHeaderRow;
         AutoFitColumns = autoFitColumns;
+        FreezeAt = freezeAt;
+        AutoFilter = autoFilter;
 
         // Wrapped, not just typed as IReadOnlyDictionary. A plain Dictionary handed out behind
         // that interface casts straight back to Dictionary, and this type's two instances are
@@ -44,13 +71,23 @@ public sealed class XlsxFormat
         // Copied as well as wrapped. The copy is what guarantees the case-insensitive comparer
         // survives every With... call, and it costs one allocation on a path nobody calls in a
         // loop - these maps hold a handful of column letters.
+        //
+        // EVERY collection below gets the same treatment, for the same reason. A List<T> handed
+        // out as IReadOnlyList<T> casts back just as a Dictionary does.
         ColumnNumberFormats = new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(columnNumberFormats, StringComparer.OrdinalIgnoreCase));
+        ColumnWidths = new ReadOnlyDictionary<string, double>(
+            new Dictionary<string, double>(columnWidths, StringComparer.OrdinalIgnoreCase));
+        Rules = new ReadOnlyCollection<XlsxRule>([.. rules]);
+        Validations = new ReadOnlyCollection<XlsxValidation>([.. validations]);
     }
 
     /// <summary>Applies nothing. The starting point for building a format up.</summary>
-    public static XlsxFormat None { get; } =
-        new(false, false, false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+    public static XlsxFormat None { get; } = new(
+        false, false,
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+        new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+        null, false, [], []);
 
     /// <summary>
     /// The three settings that make a generated sheet readable: a bold header row, that row frozen
@@ -61,8 +98,11 @@ public sealed class XlsxFormat
     /// have — "make this look like a report" — and because leaving it out would mean every caller
     /// rediscovering the same three settings.
     /// </remarks>
-    public static XlsxFormat Report { get; } =
-        new(true, true, true, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+    public static XlsxFormat Report { get; } = new(
+        true, true,
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+        new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+        new XlsxFreeze(1, 0), false, [], []);
 
     /// <summary>Whether the first row is bold.</summary>
     public bool BoldHeaderRow { get; }
@@ -70,7 +110,11 @@ public sealed class XlsxFormat
     /// <summary>
     /// Whether the first row stays visible while the rest of the sheet scrolls.
     /// </summary>
-    public bool FreezeHeaderRow { get; }
+    /// <remarks>
+    /// <b>Derived from <see cref="FreezeAt"/></b> rather than stored, so the two cannot disagree.
+    /// Freezing anywhere else makes this false, which is the honest answer rather than a stale one.
+    /// </remarks>
+    public bool FreezeHeaderRow => FreezeAt is { Row: 1, Column: 0 };
 
     /// <summary>Whether each column is widened to fit its contents.</summary>
     public bool AutoFitColumns { get; }
@@ -90,17 +134,45 @@ public sealed class XlsxFormat
     /// </remarks>
     public IReadOnlyDictionary<string, string> ColumnNumberFormats { get; }
 
-    /// <summary>Returns a copy with <see cref="BoldHeaderRow"/> set.</summary>
-    public XlsxFormat WithBoldHeaderRow(bool bold = true)
-        => new(bold, FreezeHeaderRow, AutoFitColumns, ColumnNumberFormats);
+    /// <summary>
+    /// An explicit width per column letter. Empty unless set.
+    /// </summary>
+    /// <remarks>
+    /// Applied <b>after</b> <see cref="AutoFitColumns"/>, so a named column takes this width while
+    /// the rest stay auto-fitted. A specific instruction beats a blanket one.
+    /// </remarks>
+    public IReadOnlyDictionary<string, double> ColumnWidths { get; }
 
-    /// <summary>Returns a copy with <see cref="FreezeHeaderRow"/> set.</summary>
+    /// <summary>Where the sheet is frozen, or <see langword="null"/> if it is not.</summary>
+    public XlsxFreeze? FreezeAt { get; }
+
+    /// <summary>Whether the sheet's used range carries an autofilter.</summary>
+    public bool AutoFilter { get; }
+
+    /// <summary>The conditional formats to apply, in the order given. Empty unless set.</summary>
+    public IReadOnlyList<XlsxRule> Rules { get; }
+
+    /// <summary>The data validations to apply, in the order given. Empty unless set.</summary>
+    public IReadOnlyList<XlsxValidation> Validations { get; }
+
+    /// <summary>Returns a copy with <see cref="BoldHeaderRow"/> set.</summary>
+    /// <param name="bold">Whether the first row is bold.</param>
+    public XlsxFormat WithBoldHeaderRow(bool bold = true) => With(boldHeaderRow: bold);
+
+    /// <summary>Returns a copy that freezes row 1, or that freezes nothing.</summary>
+    /// <remarks>
+    /// <b><paramref name="frozen"/> false clears whatever freeze is set</b>, not only a header-row
+    /// one — the state is a single position rather than two independent switches, and a method that
+    /// did something different depending on the current value would be worse than one that is blunt
+    /// about it.
+    /// </remarks>
+    /// <param name="frozen">Whether to freeze row 1.</param>
     public XlsxFormat WithFrozenHeaderRow(bool frozen = true)
-        => new(BoldHeaderRow, frozen, AutoFitColumns, ColumnNumberFormats);
+        => frozen ? With(freezeAt: new XlsxFreeze(1, 0)) : With(clearFreeze: true);
 
     /// <summary>Returns a copy with <see cref="AutoFitColumns"/> set.</summary>
-    public XlsxFormat WithAutoFitColumns(bool autoFit = true)
-        => new(BoldHeaderRow, FreezeHeaderRow, autoFit, ColumnNumberFormats);
+    /// <param name="autoFit">Whether each column is widened to fit its contents.</param>
+    public XlsxFormat WithAutoFitColumns(bool autoFit = true) => With(autoFitColumns: autoFit);
 
     /// <summary>
     /// Returns a copy that formats <paramref name="column"/> with <paramref name="numberFormat"/>.
@@ -116,15 +188,8 @@ public sealed class XlsxFormat
     /// </exception>
     public XlsxFormat WithNumberFormat(string column, string numberFormat)
     {
-        ArgumentNullException.ThrowIfNull(column);
+        RequireColumn(column);
         ArgumentNullException.ThrowIfNull(numberFormat);
-
-        if (column.Length == 0 || !column.All(char.IsAsciiLetter))
-        {
-            throw new ArgumentException(
-                $"Column must be one or more letters, such as \"B\". Got \"{column}\".",
-                nameof(column));
-        }
 
         if (string.IsNullOrWhiteSpace(numberFormat))
             throw new ArgumentException("Number format was blank.", nameof(numberFormat));
@@ -134,6 +199,120 @@ public sealed class XlsxFormat
             [column] = numberFormat,
         };
 
-        return new XlsxFormat(BoldHeaderRow, FreezeHeaderRow, AutoFitColumns, formats);
+        return With(columnNumberFormats: formats);
+    }
+
+    /// <summary>Returns a copy that gives <paramref name="column"/> an explicit width.</summary>
+    /// <remarks>
+    /// Applied after <see cref="AutoFitColumns"/>, so this wins for the column it names while the
+    /// rest stay auto-fitted.
+    /// </remarks>
+    /// <param name="column">A column letter, such as <c>"A"</c>. Case-insensitive.</param>
+    /// <param name="width">The width in Excel's character units. Must be positive.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="column"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="column"/> is not one or more letters.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="width"/> is not positive.</exception>
+    public XlsxFormat WithColumnWidth(string column, double width)
+    {
+        RequireColumn(column);
+        if (width <= 0)
+            throw new ArgumentOutOfRangeException(nameof(width), width, "A column width must be positive.");
+
+        var widths = new Dictionary<string, double>(ColumnWidths, StringComparer.OrdinalIgnoreCase)
+        {
+            [column] = width,
+        };
+
+        return With(columnWidths: widths);
+    }
+
+    /// <summary>Returns a copy frozen at a position.</summary>
+    /// <remarks>
+    /// <c>(0, 0)</c> is refused: it would freeze nothing while making <see cref="FreezeAt"/> report a
+    /// value, which is two spellings of one state. Use <see cref="WithFrozenHeaderRow"/> with false
+    /// to freeze nothing. Rows-only and columns-only are both legal.
+    /// </remarks>
+    /// <param name="row">How many rows stay visible.</param>
+    /// <param name="column">How many columns stay visible.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Either is negative, or both are zero.
+    /// </exception>
+    public XlsxFormat WithFreezeAt(int row, int column)
+    {
+        if (row < 0 || (row == 0 && column == 0))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(row), row, "Freeze at least one row or column; use WithFrozenHeaderRow(false) to freeze nothing.");
+        }
+
+        if (column < 0)
+            throw new ArgumentOutOfRangeException(nameof(column), column, "A freeze position cannot be negative.");
+
+        return With(freezeAt: new XlsxFreeze(row, column));
+    }
+
+    /// <summary>Returns a copy that puts an autofilter on the sheet's used range.</summary>
+    /// <param name="enabled">Whether to apply one.</param>
+    public XlsxFormat WithAutoFilter(bool enabled = true) => With(autoFilter: enabled);
+
+    /// <summary>Returns a copy carrying one more conditional format.</summary>
+    /// <param name="rule">The rule to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="rule"/> is null.</exception>
+    public XlsxFormat WithRule(XlsxRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        return With(rules: [.. Rules, rule]);
+    }
+
+    /// <summary>Returns a copy carrying one more data validation.</summary>
+    /// <param name="validation">The validation to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="validation"/> is null.</exception>
+    public XlsxFormat WithValidation(XlsxValidation validation)
+    {
+        ArgumentNullException.ThrowIfNull(validation);
+        return With(validations: [.. Validations, validation]);
+    }
+
+    /// <summary>
+    /// The one place a modified copy is made. Every <c>With…</c> method goes through it, so adding a
+    /// field means changing one call site rather than nine.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="clearFreeze"/> exists because <c>freezeAt: null</c> cannot otherwise be told
+    /// apart from "not supplied" — the one place C#'s optional-parameter pattern breaks down for a
+    /// nullable field.
+    /// </remarks>
+    private XlsxFormat With(
+        bool? boldHeaderRow = null,
+        bool? autoFitColumns = null,
+        IReadOnlyDictionary<string, string>? columnNumberFormats = null,
+        IReadOnlyDictionary<string, double>? columnWidths = null,
+        XlsxFreeze? freezeAt = null,
+        bool clearFreeze = false,
+        bool? autoFilter = null,
+        IReadOnlyList<XlsxRule>? rules = null,
+        IReadOnlyList<XlsxValidation>? validations = null)
+        => new(boldHeaderRow ?? BoldHeaderRow,
+               autoFitColumns ?? AutoFitColumns,
+               columnNumberFormats ?? ColumnNumberFormats,
+               columnWidths ?? ColumnWidths,
+               clearFreeze ? null : freezeAt ?? FreezeAt,
+               autoFilter ?? AutoFilter,
+               rules ?? Rules,
+               validations ?? Validations);
+
+    /// <summary>
+    /// Checked here rather than at apply time so a typo fails where it was written.
+    /// </summary>
+    private static void RequireColumn(string column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+
+        if (column.Length == 0 || !column.All(char.IsAsciiLetter))
+        {
+            throw new ArgumentException(
+                $"Column must be one or more letters, such as \"B\". Got \"{column}\".",
+                nameof(column));
+        }
     }
 }
