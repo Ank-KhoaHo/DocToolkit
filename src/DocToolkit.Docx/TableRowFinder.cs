@@ -36,12 +36,17 @@ internal static class TableRowFinder
 
     private static void Collect(OpenXmlElement scope, string marker, List<TableRow> found)
     {
-        foreach (var table in scope.ChildElements.OfType<Table>())
+        // ContentControls rather than a ChildElements walk, because a template row wrapped in a
+        // w:sdt - or sitting in a wrapped table - used to be invisible here. The refusal that
+        // followed was worse than a silent skip: it told the caller the marker "must appear inside
+        // a table cell", which it did. Still one unwrap at a time and never Descendants, so the
+        // nested-table scoping this class was written for is exactly as it was.
+        foreach (var table in ContentControls.Tables(scope))
         {
             // Materialised: expansion mutates the row collection while callers iterate this result.
-            foreach (var row in table.ChildElements.OfType<TableRow>().ToList())
+            foreach (var row in ContentControls.Rows(table).ToList())
             {
-                foreach (var cell in row.ChildElements.OfType<TableCell>())
+                foreach (var cell in ContentControls.Cells(row))
                     Collect(cell, marker, found);
 
                 if (OwnsMarker(row, marker)) found.Add(row);
@@ -54,8 +59,8 @@ internal static class TableRowFinder
         // Still ChildElements at BOTH levels, never Descendants: a table nested in one of these
         // cells must not have its rows or paragraphs read as if this row owned them. Collapsing
         // the two loops into Any() changes the shape, not the scoping.
-        return row.ChildElements.OfType<TableCell>()
-            .Any(cell => cell.ChildElements.OfType<Paragraph>()
+        return ContentControls.Cells(row)
+            .Any(cell => ContentControls.Paragraphs(cell)
                 .Any(p => p.InnerText.Contains(marker, StringComparison.Ordinal)));
     }
 }

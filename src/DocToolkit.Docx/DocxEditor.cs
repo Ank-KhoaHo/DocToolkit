@@ -466,41 +466,8 @@ public static class DocxEditor
     /// several paragraphs, or a nested table, keeps its own structure.
     /// </summary>
     private static string TableText(Table table) =>
-        string.Join("\n", Rows(table)
-            .Select(row => string.Join("\t", Cells(row).Select(BlockText))));
-
-    /// <summary>
-    /// A table's rows, including any wrapped in a row-level content control.
-    /// </summary>
-    /// <remarks>
-    /// <b><c>Elements&lt;TableRow&gt;()</c> alone loses a <c>w:sdt</c>-wrapped row entirely</b> —
-    /// measured: a table of one plain row and one wrapped row returned only the plain one, with
-    /// nothing to say the other existed. Word writes wrapped rows for a repeating-section control,
-    /// so this is ordinary content rather than an exotic case.
-    ///
-    /// Still <c>Elements</c>, never <c>Descendants</c>: this unwraps one level of control at a
-    /// time, so a table nested inside a cell keeps its own structure exactly as before.
-    /// </remarks>
-    private static IEnumerable<TableRow> Rows(Table table) =>
-        table.Elements().SelectMany<OpenXmlElement, TableRow>(child => child switch
-        {
-            TableRow row => [row],
-            SdtRow control => control.SdtContentRow?.Elements<TableRow>() ?? [],
-            _ => [],
-        });
-
-    /// <summary>
-    /// A row's cells, including any wrapped in a cell-level content control — the same blind spot
-    /// as <see cref="Rows"/>, one level further in. A wrapped cell used to vanish from its row,
-    /// which also shifted the <c>\t</c> positions of every cell beside it.
-    /// </summary>
-    private static IEnumerable<TableCell> Cells(TableRow row) =>
-        row.Elements().SelectMany<OpenXmlElement, TableCell>(child => child switch
-        {
-            TableCell cell => [cell],
-            SdtCell control => control.SdtContentCell?.Elements<TableCell>() ?? [],
-            _ => [],
-        });
+        string.Join("\n", ContentControls.Rows(table)
+            .Select(row => string.Join("\t", ContentControls.Cells(row).Select(BlockText))));
 
     /// <summary>
     /// How many tables the document body holds.
@@ -508,6 +475,15 @@ public static class DocxEditor
     /// <remarks>
     /// Top-level tables only. A table nested inside a cell is part of that cell's text rather than
     /// an entry of its own, so this count and the indexes it bounds stay stable.
+    ///
+    /// <b>A table wrapped in a content control counts.</b> Word puts a <c>w:sdt</c> around
+    /// content the author marked up, and it used to hide the table inside from this count
+    /// entirely — so a document whose only table was wrapped reported <b>0</b>. It reports 1.
+    ///
+    /// <b>That moves indexes, deliberately.</b> Where a wrapped table precedes an ordinary one,
+    /// index 0 used to return the ordinary one — the table that is physically second. Indexes are
+    /// now positional over every table a reader can see, which is what
+    /// <see cref="ExtractText(byte[])"/> has always reported.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
@@ -543,6 +519,12 @@ public static class DocxEditor
     /// <b>Rows are returned with the shape they have.</b> A horizontally merged cell means a row
     /// genuinely holds fewer cells than its neighbours; padding the grid to a rectangle would invent
     /// cells that are not in the document.
+    ///
+    /// <b>Content controls are transparent, at every level.</b> A table, a row or a cell wrapped in
+    /// a <c>w:sdt</c> is read like any other. A wrapped row used to vanish from an otherwise
+    /// correct table, and a wrapped cell used to shift every cell beside it — both of which look
+    /// like data rather than an error. See <see cref="TableCount(byte[])"/> for what this does to
+    /// indexes.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
@@ -625,7 +607,8 @@ public static class DocxEditor
 
             // Elements, not Descendants: a nested table belongs to its cell's text, and counting it
             // separately would report one table twice and make indexes shift under a caller.
-            return doc.MainDocumentPart?.Document?.Body?.Elements<Table>().Count() ?? 0;
+            var body = doc.MainDocumentPart?.Document?.Body;
+            return body is null ? 0 : ContentControls.Tables(body).Count();
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
@@ -639,8 +622,8 @@ public static class DocxEditor
         {
             using var doc = WordprocessingDocument.Open(ms, false);
 
-            var tables = doc.MainDocumentPart?.Document?.Body?.Elements<Table>().ToList()
-                         ?? [];
+            var body = doc.MainDocumentPart?.Document?.Body;
+            var tables = body is null ? [] : ContentControls.Tables(body).ToList();
 
             if (index >= tables.Count)
             {
@@ -649,10 +632,10 @@ public static class DocxEditor
                     $"The document has {tables.Count} table(s).");
             }
 
-            return tables[index].Elements<TableRow>()
-                .Select(row => (IReadOnlyList<string>)row.Elements<TableCell>()
-                                                         .Select(BlockText)
-                                                         .ToList())
+            return ContentControls.Rows(tables[index])
+                .Select(row => (IReadOnlyList<string>)ContentControls.Cells(row)
+                                                                     .Select(BlockText)
+                                                                     .ToList())
                 .ToList();
         }
         // ArgumentOutOfRangeException is thrown INSIDE this try and must escape as itself. The
@@ -668,6 +651,9 @@ public static class DocxEditor
     /// <summary>
     /// Expands a table row once per record, so a template can render a variable-length list such as
     /// invoice line items.
+    ///
+    /// A template row wrapped in a content control — or sitting in a wrapped table — is found and
+    /// expanded like any other, and its clones stay inside the control the author put it in.
     ///
     /// A row is a <b>template row</b> when one of its cells contains a placeholder prefixed with
     /// <paramref name="collection"/> — <c>{{item.Desc}}</c> when <paramref name="collection"/> is
@@ -808,10 +794,19 @@ public static class DocxEditor
         TableRow template, string collection,
         IReadOnlyList<IReadOnlyDictionary<string, string>> records)
     {
+        // The row's immediate parent is where clones go - which for a wrapped row is the
+        // control's content, not the table. Inserting into the table instead would move every
+        // generated row out of the control the author put it in.
         var parent = template.Parent
                      ?? throw new DocumentConversionException(
-                         "A template row had no parent table. FillRows only expands rows that are "
-                         + "direct children of a table — put the marker inside a table row.");
+                         "A template row had no parent element. FillRows expands rows that live in "
+                         + "a table, directly or inside a content control — put the marker inside a "
+                         + "table row.");
+
+        // Resolved BEFORE the template is detached. Ancestors() of a removed node is empty, so
+        // computing this after the Remove() below finds nothing and the table is never cleaned up -
+        // measured, and it is why the first attempt at this fix still failed its own test.
+        var owner = template.Ancestors<Table>().FirstOrDefault();
 
         foreach (var record in records)
         {
@@ -827,8 +822,16 @@ public static class DocxEditor
         // carrying tblPr and tblGrid but no rows validates clean. It is kept because an empty
         // one-cell frame left behind on a document whose list happened to be empty is worse than
         // rendering nothing, which is what "no records" means.
-        if (parent is Table table && !table.ChildElements.OfType<TableRow>().Any())
-            table.Remove();
+        // The OWNING table, not the immediate parent. For a row inside a content control the
+        // parent is the control's content, so `parent is Table` was silently false and the empty
+        // frame stayed on the page - making DocxEditor's own shipped documentation false on the
+        // very path this change opened. Ancestors, because the control may be nested.
+        //
+        // Emptiness is asked through ContentControls for the same reason: a table whose only
+        // remaining row is wrapped is NOT empty, and a direct-child count would call it empty and
+        // delete a row the caller can see.
+        if (owner is not null && !ContentControls.Rows(owner).Any())
+            owner.Remove();
     }
 
     private static void Substitute(

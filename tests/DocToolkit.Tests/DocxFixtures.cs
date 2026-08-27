@@ -61,11 +61,28 @@ internal static class DocxFixtures
     /// row. An earlier version of this helper omitted it and produced tables that passed every test
     /// while being schema-invalid.
     /// </summary>
-    public static Table Tbl(params TableRow[] rows)
+    /// <remarks>
+    /// <b>Takes <c>OpenXmlElement</c>, not <c>TableRow</c>.</b> A <c>w:sdt</c> at row level is an
+    /// <c>SdtRow</c>, which is not a <c>TableRow</c> at all — so a <c>TableRow[]</c> signature
+    /// cannot express a table with a wrapped row, and A77's tests had to declare a second builder
+    /// to say it. One builder, because two would be a second answer to "what does a table look
+    /// like" inside the very tests written to close a disagreement about what a table is.
+    ///
+    /// <para>The column count looks through a row-level control, so a wrapped row still counts
+    /// toward the grid width.</para>
+    /// </remarks>
+    public static Table Tbl(params OpenXmlElement[] rows)
     {
-        var columns = rows.Length == 0
-            ? 1
-            : rows.Max(r => r.ChildElements.OfType<TableCell>().Count());
+        static int CellCount(OpenXmlElement row) => row switch
+        {
+            TableRow plain => plain.ChildElements.OfType<TableCell>().Count(),
+            SdtRow control => control.SdtContentRow?.Elements<TableRow>()
+                                     .Select(r => r.ChildElements.OfType<TableCell>().Count())
+                                     .DefaultIfEmpty(0).Max() ?? 0,
+            _ => 0,
+        };
+
+        var columns = rows.Length == 0 ? 1 : rows.Max(CellCount);
 
         var grid = new TableGrid();
         for (var i = 0; i < Math.Max(columns, 1); i++) grid.AppendChild(new GridColumn());
@@ -73,6 +90,23 @@ internal static class DocxFixtures
         var table = new Table(new TableProperties(), grid);
         foreach (var row in rows) table.AppendChild(row);
         return table;
+    }
+
+    /// <summary>A table row of one cell per string, each holding a single paragraph.</summary>
+    /// <remarks>
+    /// The multi-cell sibling of <see cref="Row"/> and <see cref="RowOf"/>, which both build a
+    /// ONE-cell row. A dropped or shifted cell is only observable across several columns, so the
+    /// content-control tests need rows wider than one.
+    /// </remarks>
+    public static TableRow RowOfText(params string[] cells)
+    {
+        var row = new TableRow();
+        foreach (string cell in cells) row.AppendChild(new TableCell(P(new Run(new Text(cell)
+        {
+            Space = SpaceProcessingModeValues.Preserve,
+        }))));
+
+        return row;
     }
 
     /// <summary>Builds a .docx whose body is exactly <paramref name="bodyChildren"/>.</summary>
