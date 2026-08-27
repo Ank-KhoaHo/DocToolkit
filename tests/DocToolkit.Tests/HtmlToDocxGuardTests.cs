@@ -271,12 +271,11 @@ public class HtmlToDocxGuardTests
 
     private static RemoteImageOptions Bad() => new() { Timeout = TimeSpan.Zero };
 
-    private static CancellationToken Cancelled()
-    {
-        var source = new CancellationTokenSource();
-        source.Cancel();
-        return source.Token;
-    }
+    // new CancellationToken(true) rather than a CancellationTokenSource: the struct needs no
+    // disposal, which is the whole of what CodeQL flagged here. A source would have to be kept
+    // alive past the call that uses its token, and this repository FIXES cs/local-not-disposed
+    // rather than dismissing it, precisely so the rule keeps meaning something.
+    private static CancellationToken Cancelled() => new(canceled: true);
 
     private sealed class NonWritableForGuardTests : MemoryStream
     {
