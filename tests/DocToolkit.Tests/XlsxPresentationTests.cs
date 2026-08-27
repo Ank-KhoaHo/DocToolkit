@@ -616,6 +616,18 @@ public class XlsxPresentationTests
             Assert.Throws<ArgumentException>(() => XlsxRule.Blank(blank, XlsxHighlight.Grey));
             Assert.Throws<ArgumentException>(() => XlsxValidation.OneOf(blank, "x"));
         }
+
+        // Null, on BOTH vocabularies, naming the caller's argument. XlsxValidation had no
+        // null-range test at all - which matters because the ThrowIfNull(range) line above it
+        // is EXCLUDED from mutation as equivalent, and an exclusion resting on a test nobody
+        // wrote is not a measurement. With these here, that mutant surviving means the
+        // behaviour really is identical rather than merely unobserved.
+        Assert.Equal("range", Assert.Throws<ArgumentNullException>(
+            () => XlsxValidation.OneOf(null!, "x")).ParamName);
+        Assert.Equal("range", Assert.Throws<ArgumentNullException>(
+            () => XlsxValidation.WholeNumberBetween(null!, 1, 2)).ParamName);
+        Assert.Equal("range", Assert.Throws<ArgumentNullException>(
+            () => XlsxValidation.DateBetween(null!, DateTime.Today, DateTime.Today)).ParamName);
     }
 
     [Fact]
@@ -716,5 +728,38 @@ public class XlsxPresentationTests
         Assert.True(read.Filter);
         Assert.Equal(1, read.Rules);
         Assert.Equal(1, read.Validations);
+    }
+    [Fact]
+    public void SettingAFreezeTwiceKeepsTheLastOne_NotTheFirst()
+    {
+        // Kills the surviving `freezeAt ?? FreezeAt` -> `FreezeAt ?? freezeAt` mutant. The two
+        // differ ONLY when both are non-null, which is exactly the overwrite case - and every
+        // other freeze test sets the position once, so nothing reached it. Under the mutant a
+        // second WithFreezeAt is silently ignored, which is a wrong answer rather than a refusal.
+        XlsxFormat twice = XlsxFormat.None.WithFreezeAt(1, 1).WithFreezeAt(3, 2);
+
+        Assert.Equal(new XlsxFreeze(3, 2), twice.FreezeAt);
+    }
+
+    [Fact]
+    public void BothVocabulariesExplainTheSheetQualifierInFull_NotJustTheFirstHalf()
+    {
+        // XlsxValidation carries its own copy of the refusal message and the theory above asserts
+        // only ParamName, so every string in that copy survived. The message spans three literals
+        // and the LAST one names the fix, so asserting the opening phrase alone leaves the useful
+        // half unpinned - which is how a message decays into "no" with the "why" quietly gone.
+        foreach (string message in new[]
+        {
+            Assert.Throws<ArgumentException>(
+                () => XlsxRule.GreaterThan("Other!A1:B2", 1, XlsxHighlight.Red)).Message,
+            Assert.Throws<ArgumentException>(
+                () => XlsxValidation.WholeNumberBetween("Other!A1:B2", 1, 2)).Message,
+        })
+        {
+            Assert.Contains("silently discarded", message, StringComparison.Ordinal);
+            Assert.Contains("Pass the range alone", message, StringComparison.Ordinal);
+            Assert.Contains("sheetName parameter chooses", message, StringComparison.Ordinal);
+            Assert.Contains("the sheet.", message, StringComparison.Ordinal);
+        }
     }
 }

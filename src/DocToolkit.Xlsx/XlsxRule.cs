@@ -181,6 +181,9 @@ public sealed class XlsxRule
     /// </remarks>
     private static string Require(string range)
     {
+        // Stryker disable once Statement : equivalent - ThrowIfNullOrWhiteSpace below throws
+        // ArgumentNullException for null itself, so deleting this line changes nothing observable.
+        // Kept because it states the contract at the top, where a reader looks for it.
         ArgumentNullException.ThrowIfNull(range);
         ArgumentException.ThrowIfNullOrWhiteSpace(range);
         // A sheet-qualified range is REFUSED rather than accepted, because ClosedXML discards the
