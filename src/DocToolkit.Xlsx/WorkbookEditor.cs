@@ -727,11 +727,96 @@ public static class WorkbookEditor
         if (format.AutoFitColumns)
             sheet.Columns().AdjustToContents();
 
-        // Freezing splits at the TOP of row 2, which is what "freeze the header" means. Applied
-        // after AutoFit because adjusting a frozen pane's columns is the sort of interaction worth
-        // not relying on.
-        if (format.FreezeHeaderRow)
-            sheet.SheetView.FreezeRows(1);
+        // AFTER AutoFit, so a named column takes the width the caller asked for while the rest stay
+        // auto-fitted. A specific instruction beats a blanket one, and the ordering is asserted.
+        foreach (var (column, width) in format.ColumnWidths)
+            sheet.Column(column).Width = width;
+
+        // Freezing splits at the TOP of the row after the frozen ones, which is what "freeze the
+        // header" means for (1, 0). Applied after AutoFit because adjusting a frozen pane's columns
+        // is the sort of interaction worth not relying on.
+        if (format.FreezeAt is { } freeze)
+        {
+            if (freeze.Row > 0) sheet.SheetView.FreezeRows(freeze.Row);
+            if (freeze.Column > 0) sheet.SheetView.FreezeColumns(freeze.Column);
+        }
+
+        // RangeUsed() is null on an empty sheet, and SetAutoFilter on nothing would throw - so a
+        // caller asking for a filter on a sheet with no data gets a sheet with no filter rather
+        // than an exception.
+        if (format.AutoFilter && sheet.RangeUsed() is { } used)
+            used.SetAutoFilter();
+
+        foreach (XlsxRule rule in format.Rules)
+            ApplyRule(sheet, rule);
+
+        foreach (XlsxValidation validation in format.Validations)
+            ApplyValidation(sheet, validation);
+    }
+
+    /// <summary>
+    /// The one place a rule becomes a conditional format.
+    /// </summary>
+    /// <remarks>
+    /// Kept here beside <see cref="ApplyFormat"/> rather than on <see cref="XlsxRule"/>, so no
+    /// ClosedXML type appears in this library's public API — the same reason
+    /// <see cref="XlsxHighlight"/> names an intent instead of carrying a colour.
+    /// </remarks>
+    private static void ApplyRule(IXLWorksheet sheet, XlsxRule rule)
+    {
+        // `var`, not a named type: what the When... methods return is ClosedXML's business, and
+        // naming it here would be a guess that compiles until it does not. Text is dereferenced
+        // with `!` because the two kinds that read it are the two whose factories require it.
+        var style = rule.Kind switch
+        {
+            XlsxRuleKind.GreaterThan => sheet.Range(rule.Range).AddConditionalFormat().WhenGreaterThan(rule.Value),
+            XlsxRuleKind.LessThan => sheet.Range(rule.Range).AddConditionalFormat().WhenLessThan(rule.Value),
+            XlsxRuleKind.Between => sheet.Range(rule.Range).AddConditionalFormat().WhenBetween(rule.Value, rule.High),
+            XlsxRuleKind.EqualTo => sheet.Range(rule.Range).AddConditionalFormat().WhenEquals(rule.Text!),
+            XlsxRuleKind.Contains => sheet.Range(rule.Range).AddConditionalFormat().WhenContains(rule.Text!),
+            _ => sheet.Range(rule.Range).AddConditionalFormat().WhenIsBlank(),
+        };
+
+        style.Fill.SetBackgroundColor(Colour(rule.Highlight));
+    }
+
+    /// <summary>
+    /// Four intents to four colours, deliberately not a caller-supplied one — see
+    /// <see cref="XlsxHighlight"/>. They must stay DISTINCT: a mapping that collapsed two onto one
+    /// colour would make two intents indistinguishable on the page, and a test asserts the set.
+    /// </summary>
+    private static XLColor Colour(XlsxHighlight highlight) => highlight switch
+    {
+        XlsxHighlight.Red => XLColor.Red,
+        XlsxHighlight.Amber => XLColor.Orange,
+        XlsxHighlight.Green => XLColor.LightGreen,
+        _ => XLColor.LightGray,
+    };
+
+    /// <summary>The one place a validation becomes a data validation.</summary>
+    private static void ApplyValidation(IXLWorksheet sheet, XlsxValidation validation)
+    {
+        IXLDataValidation target = sheet.Range(validation.Range).CreateDataValidation();
+
+        switch (validation.Kind)
+        {
+            case XlsxValidationKind.WholeNumber:
+                target.WholeNumber.Between((int)validation.Min, (int)validation.Max);
+                break;
+            case XlsxValidationKind.Decimal:
+                target.Decimal.Between(validation.Min, validation.Max);
+                break;
+            case XlsxValidationKind.TextLength:
+                target.TextLength.Between((int)validation.Min, (int)validation.Max);
+                break;
+            case XlsxValidationKind.Date:
+                target.Date.Between(validation.MinDate, validation.MaxDate);
+                break;
+            default:
+                // An inline list is quoted and comma-joined, which is the form the file expects.
+                target.List($"\"{string.Join(",", validation.Options)}\"");
+                break;
+        }
     }
 
     private static MemoryStream SetCellCore(Stream xlsx, string sheetName, string cellRef, object? value)

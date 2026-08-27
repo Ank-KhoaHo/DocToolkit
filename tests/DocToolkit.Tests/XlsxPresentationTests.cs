@@ -154,4 +154,146 @@ public class XlsxPresentationTests
         Assert.Single(grown.Rules);
         Assert.Single(grown.Validations);
     }
+    // ---- applied, and read back out of the SAVED BYTES ------------------------------------------
+
+    private static byte[] Sheet() => WorkbookEditor.Create("Data",
+    [
+        ["Description", "Amount"],
+        ["A rather long description that would otherwise be truncated", 1234.5],
+        ["short", 9.0],
+    ]);
+
+    /// <summary>
+    /// Reads the presentation back out of the SAVED bytes. Asserting on the <see cref="XlsxFormat"/>
+    /// object would pass against an <c>ApplyFormat</c> that discarded every one of these.
+    /// </summary>
+    private static (double Width, int Rules, int Validations, bool Filter, int FrozenRows, int FrozenColumns, string Colour)
+        Read(byte[] xlsx)
+    {
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        ClosedXML.Excel.IXLWorksheet sheet = workbook.Worksheet("Data");
+
+        string colour = sheet.ConditionalFormats.Any()
+            ? sheet.ConditionalFormats.First().Style.Fill.BackgroundColor.ToString()
+            : string.Empty;
+
+        return (Math.Round(sheet.Column(1).Width, 2),
+                sheet.ConditionalFormats.Count(),
+                sheet.DataValidations.Count(),
+                sheet.AutoFilter is { IsEnabled: true },
+                sheet.SheetView.SplitRow,
+                sheet.SheetView.SplitColumn,
+                colour);
+    }
+
+    [Fact]
+    public void ApplyingNothing_ProducesASheetWithNoneOfIt()
+    {
+        // The positive control. Without it, an ApplyFormat that always added a rule would pass every
+        // assertion below.
+        var read = Read(WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None));
+
+        Assert.Equal(0, read.Rules);
+        Assert.Equal(0, read.Validations);
+        Assert.False(read.Filter);
+        Assert.Equal(0, read.FrozenRows);
+    }
+
+    [Fact]
+    public void AConditionalFormatReachesTheSavedWorkbook_WithItsColour()
+    {
+        // The colour matters as much as the rule: one that reloads without its formatting is a rule
+        // nobody can see.
+        var read = Read(WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithRule(XlsxRule.GreaterThan("B2:B3", 100, XlsxHighlight.Red))));
+
+        Assert.Equal(1, read.Rules);
+        Assert.Equal("FFFF0000", read.Colour);
+    }
+
+    [Fact]
+    public void EveryHighlightProducesADistinctColour()
+    {
+        // Four intents must not collapse onto one colour - a mapping that returned red for
+        // everything would satisfy the test above. Asserted as a SET, so any two colliding fails.
+        string[] colours =
+        [
+            .. new[] { XlsxHighlight.Red, XlsxHighlight.Amber, XlsxHighlight.Green, XlsxHighlight.Grey }
+                .Select(h => Read(WorkbookEditor.Format(Sheet(), "Data",
+                    XlsxFormat.None.WithRule(XlsxRule.Blank("A2:A3", h)))).Colour)
+        ];
+
+        Assert.Equal(4, colours.Distinct(StringComparer.Ordinal).Count());
+        Assert.DoesNotContain(string.Empty, colours);
+    }
+
+    [Fact]
+    public void EveryRuleKindReachesTheSavedWorkbook()
+    {
+        XlsxFormat format = XlsxFormat.None
+            .WithRule(XlsxRule.GreaterThan("B2:B3", 100, XlsxHighlight.Red))
+            .WithRule(XlsxRule.LessThan("B2:B3", 5000, XlsxHighlight.Green))
+            .WithRule(XlsxRule.Between("B2:B3", 1, 10000, XlsxHighlight.Amber))
+            .WithRule(XlsxRule.EqualTo("A2:A3", "short", XlsxHighlight.Grey))
+            .WithRule(XlsxRule.Contains("A2:A3", "long", XlsxHighlight.Amber))
+            .WithRule(XlsxRule.Blank("A2:A3", XlsxHighlight.Grey));
+
+        Assert.Equal(6, Read(WorkbookEditor.Format(Sheet(), "Data", format)).Rules);
+    }
+
+    [Fact]
+    public void EveryValidationKindReachesTheSavedWorkbook()
+    {
+        XlsxFormat format = XlsxFormat.None
+            .WithValidation(XlsxValidation.WholeNumberBetween("B2:B3", 0, 10000))
+            .WithValidation(XlsxValidation.DecimalBetween("C2:C3", 0, 1))
+            .WithValidation(XlsxValidation.TextLengthBetween("A2:A3", 1, 200))
+            .WithValidation(XlsxValidation.DateBetween("D2:D3", new DateTime(2020, 1, 1), new DateTime(2030, 1, 1)))
+            .WithValidation(XlsxValidation.OneOf("E2:E3", "Free", "Pro", "Team"));
+
+        Assert.Equal(5, Read(WorkbookEditor.Format(Sheet(), "Data", format)).Validations);
+    }
+
+    [Fact]
+    public void AnAutoFilterReachesTheSavedWorkbook()
+    {
+        Assert.True(Read(WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithAutoFilter())).Filter);
+    }
+
+    [Fact]
+    public void AnExplicitWidthBeatsAutoFitForTheColumnItNames()
+    {
+        // The composition rule. Auto-fit alone widens column A well past 20; the explicit width must
+        // then win, so applying them in the wrong order fails here.
+        double autoFitted = Read(WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithAutoFitColumns())).Width;
+        Assert.True(autoFitted > 20, $"auto-fit should widen column A, measured {autoFitted}");
+
+        var read = Read(WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithAutoFitColumns().WithColumnWidth("A", 12)));
+
+        Assert.Equal(12, read.Width);
+    }
+
+    [Fact]
+    public void AFreezePositionReachesTheSavedWorkbook()
+    {
+        var read = Read(WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithFreezeAt(3, 2)));
+
+        Assert.Equal(3, read.FrozenRows);
+        Assert.Equal(2, read.FrozenColumns);
+    }
+
+    [Fact]
+    public void XlsxFormatReport_StillDoesExactlyWhatItDidBefore()
+    {
+        // The guard against FreezeHeaderRow becoming derived being a regression. These are the same
+        // numbers the design opens with, measured before any of this existed.
+        var read = Read(WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.Report));
+
+        Assert.Equal(54.14, read.Width);
+        Assert.Equal(1, read.FrozenRows);
+        Assert.Equal(0, read.FrozenColumns);
+    }
 }
