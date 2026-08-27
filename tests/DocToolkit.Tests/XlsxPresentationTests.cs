@@ -687,4 +687,34 @@ public class XlsxPresentationTests
         var blankOption = Assert.Throws<ArgumentException>(() => XlsxValidation.OneOf("A1", "x", "  "));
         Assert.Contains("nobody can pick", blankOption.Message, StringComparison.Ordinal);
     }
+    [Fact]
+    public void TheChainTheNugetReadmeShows_ActuallyCompilesAndRuns()
+    {
+        // src/DocToolkit/README.md is what nuget.org renders, so its snippets are the first code
+        // a consumer copies. Its "Usage" fence says outright that it is a connected walkthrough
+        // rather than a script that compiles as pasted - placeholders like logoBytes stand in for
+        // the reader's own data - so gen-readme-snippets.py does not manage it and nothing
+        // compiled the XlsxFormat chain that was added to it.
+        //
+        // A narrative fence is a fair reason for the WHOLE block not to compile. It is not a
+        // reason for the individual calls to be unchecked: a wrong argument order or a renamed
+        // parameter would ship to nuget.org looking authoritative. This runs the exact chain.
+        byte[] report = WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.Report
+            .WithNumberFormat("B", "#,##0.00")
+            .WithColumnWidth("A", 42)
+            .WithFreezeAt(row: 2, column: 1)
+            .WithAutoFilter()
+            .WithRule(XlsxRule.GreaterThan("B2:B999", 10000, XlsxHighlight.Red))
+            .WithValidation(XlsxValidation.OneOf("C2:C999", "Free", "Pro", "Team")));
+
+        // Read back the two the chain would most easily get wrong: the explicit width must beat
+        // Report's own auto-fit, and the named freeze must beat Report's header-row freeze.
+        var read = Read(report);
+        Assert.Equal(42, read.Width);
+        Assert.Equal(2, read.FrozenRows);
+        Assert.Equal(1, read.FrozenColumns);
+        Assert.True(read.Filter);
+        Assert.Equal(1, read.Rules);
+        Assert.Equal(1, read.Validations);
+    }
 }
