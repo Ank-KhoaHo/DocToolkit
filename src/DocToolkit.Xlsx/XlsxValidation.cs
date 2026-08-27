@@ -197,6 +197,20 @@ public sealed class XlsxValidation
     {
         ArgumentNullException.ThrowIfNull(range);
         ArgumentException.ThrowIfNullOrWhiteSpace(range);
+        // A sheet-qualified range is REFUSED rather than accepted, because ClosedXML discards the
+        // qualifier instead of honouring it. Measured on a two-sheet workbook: a rule on
+        // "Other!A2:B2" - and even on "NoSuchSheet!A2:B2" - landed on the sheet Format names, with
+        // no error. A caller who writes a qualifier means it, so silently ignoring it is the worst
+        // available answer. Format already takes the sheet as its own parameter.
+        if (range.Contains('!'))
+        {
+            throw new ArgumentException(
+                $"\"{range}\" names a sheet, and the sheet qualifier is silently discarded rather "
+                + "than honoured. Pass the range alone; Format's own sheetName parameter chooses "
+                + "the sheet.",
+                nameof(range));
+        }
+
         return range;
     }
 }

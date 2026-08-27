@@ -778,7 +778,15 @@ public static class WorkbookEditor
             XlsxRuleKind.Between => sheet.Range(rule.Range).AddConditionalFormat().WhenBetween(rule.Value, rule.High),
             XlsxRuleKind.EqualTo => sheet.Range(rule.Range).AddConditionalFormat().WhenEquals(rule.Text!),
             XlsxRuleKind.Contains => sheet.Range(rule.Range).AddConditionalFormat().WhenContains(rule.Text!),
-            _ => sheet.Range(rule.Range).AddConditionalFormat().WhenIsBlank(),
+            XlsxRuleKind.Blank => sheet.Range(rule.Range).AddConditionalFormat().WhenIsBlank(),
+
+            // NOT a fall-through arm. C# lets any int be cast to an enum, so (XlsxRuleKind)99
+            // reaches here - and a `_` arm silently turned it into a Blank rule. Measured. For a
+            // type whose whole premise is a CLOSED vocabulary, quietly answering a value outside
+            // that vocabulary is the one thing it must not do.
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(rule), rule.Kind,
+                "Not a defined XlsxRuleKind. The vocabulary is closed; see XlsxRule's factories."),
         };
 
         style.Fill.SetBackgroundColor(Colour(rule.Highlight));
@@ -794,7 +802,11 @@ public static class WorkbookEditor
         XlsxHighlight.Red => XLColor.Red,
         XlsxHighlight.Amber => XLColor.Orange,
         XlsxHighlight.Green => XLColor.LightGreen,
-        _ => XLColor.LightGray,
+        XlsxHighlight.Grey => XLColor.LightGray,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(highlight), highlight,
+            "Not a defined XlsxHighlight. Measured: (XlsxHighlight)99 used to come back grey, "
+            + "which makes an out-of-range cast indistinguishable from a deliberate Grey."),
     };
 
     /// <summary>The one place a validation becomes a data validation.</summary>

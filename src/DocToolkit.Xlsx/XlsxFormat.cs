@@ -315,7 +315,11 @@ public sealed class XlsxFormat
                validations ?? Validations);
 
     /// <summary>
-    /// Checked here rather than at apply time so a typo fails where it was written.
+    /// A cheap SHAPE check, run here rather than at apply time so a typo fails where it was
+    /// written. It is deliberately not a column validator: "ZZZZZZ" is letters and passes, while
+    /// Excel stops at XFD. Whether a column exists is left to the library beneath, for the same
+    /// reason XlsxRule leaves ranges to it - a second source of truth about what a column is would
+    /// be one more thing to keep in step, and it would be the one that goes stale.
     /// </summary>
     private static void RequireColumn(string column)
     {

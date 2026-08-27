@@ -515,4 +515,53 @@ public class XlsxPresentationTests
         Assert.Throws<NotSupportedException>(
             () => ((IList<string>)XlsxValidation.OneOf("A1", "x").Options).Add("y"));
     }
+    // ---- the vocabulary is CLOSED, which means it must refuse what falls outside it ------------
+
+    // The two enums are NOT equally reachable, and it is worth being exact about which is which.
+    //
+    //   XlsxHighlight     is a PARAMETER of every factory, so (XlsxHighlight)99 is reachable from
+    //                     a consumer and is tested below.
+    //   XlsxRuleKind      is set by the factory itself and XlsxValidationKind likewise, so an
+    //                     out-of-range value cannot be constructed through the public API at all.
+    //
+    // Their throwing arms are therefore DEFENSIVE, and Stryker will report them uncovered. That is
+    // honest rather than a gap: the alternative was a `_` arm that silently answered Blank, and an
+    // unreachable throw is better than a reachable wrong answer. Recorded here so a future reader
+    // does not "fix" the coverage by making the kind settable.
+
+    [Fact]
+    public void AnUndefinedHighlightDoesNotSilentlyBecomeGrey()
+    {
+        // The specific measurement: (XlsxHighlight)99 came back FFD3D3D3 - the same colour a
+        // DELIBERATE Grey produces. An out-of-range cast was indistinguishable from a real choice.
+        byte[] grey = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithRule(XlsxRule.Blank("A2:A3", XlsxHighlight.Grey)));
+        Assert.NotEmpty(grey);
+
+        Assert.Throws<DocumentConversionException>(() => WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithRule(XlsxRule.Blank("A2:A3", (XlsxHighlight)99))));
+    }
+
+    [Theory]
+    [InlineData("Other!A2:B2")]
+    [InlineData("'Other'!A2:B2")]
+    [InlineData("NoSuchSheet!A2:B2")]
+    public void ASheetQualifiedRangeIsRefusedRatherThanSilentlyRetargeted(string range)
+    {
+        // MEASURED on a two-sheet workbook before the guard: every one of these applied to the
+        // sheet Format names, with no error - the qualifier was discarded, not honoured. Even
+        // "NoSuchSheet!" landed on Data. A caller who writes a qualifier means it.
+        Assert.Equal("range", Assert.Throws<ArgumentException>(
+            () => XlsxRule.GreaterThan(range, 1, XlsxHighlight.Red)).ParamName);
+        Assert.Equal("range", Assert.Throws<ArgumentException>(
+            () => XlsxValidation.WholeNumberBetween(range, 1, 2)).ParamName);
+    }
+
+    [Fact]
+    public void AnUnqualifiedRangeIsStillAccepted()
+    {
+        // The control. Without this, a guard that refused EVERY range would pass the theory above.
+        Assert.Equal("A2:B2", XlsxRule.GreaterThan("A2:B2", 1, XlsxHighlight.Red).Range);
+        Assert.Equal("A2:B2", XlsxValidation.WholeNumberBetween("A2:B2", 1, 2).Range);
+    }
 }
