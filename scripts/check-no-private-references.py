@@ -46,10 +46,22 @@ PRIVATE = [
     "LnDPrj",                         # the container folder
 ]
 
+# Two exemptions, each with its reason. Every entry is a hole in the check, so argue for one
+# rather than adding it to make a build green.
+#
 # CHANGELOG.md is written by release-please and its entries are published; one historical line
-# names AutoLnD as the SUBJECT of a removal. Editing it would not unpublish the release notes or
-# the commit, and release-please would overwrite the edit anyway.
-EXEMPT = {"CHANGELOG.md"}
+# names a private repo as the SUBJECT of a removal. Editing it would not unpublish the release
+# notes or the commit, and release-please would overwrite the edit anyway.
+EXEMPT = {
+    "CHANGELOG.md",
+    # THIS FILE, which must contain every name in order to search for them.
+    #
+    # Worth knowing how the exemption was found rather than designed: the first local run passed
+    # cleanly, because `git ls-files` lists TRACKED files and the script was not committed yet. It
+    # started failing the moment it was - on itself, eleven times. A guard whose first green run
+    # predates its own tracking has not been tested against the tree it guards.
+    "scripts/check-no-private-references.py",
+}
 
 PATTERN = re.compile("|".join(re.escape(p) for p in PRIVATE), re.IGNORECASE)
 
