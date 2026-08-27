@@ -10,6 +10,17 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.41.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.40.0...v0.41.0) (2026-08-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** `DocxEditor.ReadTable(index)` can return a different table, and `TableCount` a larger number, for documents containing Word content controls. Where a wrapped table preceded an ordinary one, `ReadTable(0)` previously returned the ordinary one — the table that is physically second. Indexes are now positional over every table a reader can see, matching `ExtractText`. Re-derive any stored table indexes for such documents. A document with no content controls is completely unaffected. See the 0.41.0 entry under Migrating in the package README.
+
+### Fixed
+
+* **core:** read tables, rows and cells wrapped in Word content controls ([#401](https://github.com/Ank-KhoaHo/DocToolkit/issues/401)) ([662460d](https://github.com/Ank-KhoaHo/DocToolkit/commit/662460df91e99d06b54be60eb73d773376cee9d1))
+
 ## [0.40.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.39.0...v0.40.0) (2026-08-27)
 
 
