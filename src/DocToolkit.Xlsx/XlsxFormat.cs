@@ -147,12 +147,22 @@ public sealed class XlsxFormat
     public XlsxFreeze? FreezeAt { get; }
 
     /// <summary>Whether the sheet's used range carries an autofilter.</summary>
+    /// <remarks>
+    /// A sheet with no data has no used range, so it gets no filter rather than an error.
+    /// </remarks>
     public bool AutoFilter { get; }
 
     /// <summary>The conditional formats to apply, in the order given. Empty unless set.</summary>
     public IReadOnlyList<XlsxRule> Rules { get; }
 
     /// <summary>The data validations to apply, in the order given. Empty unless set.</summary>
+    /// <remarks>
+    /// <b>Overlapping ranges are consolidated by the library beneath, and the LATER one wins.</b>
+    /// Measured: a whole-number validation on <c>B2:B10</c> followed by a list on <c>B5:B15</c>
+    /// leaves the first covering only <c>B2:B4</c>; the same range twice leaves only the second.
+    /// <see cref="Rules"/> does <b>not</b> behave this way — six conditional formats over two ranges
+    /// stay six — so do not reason from one to the other.
+    /// </remarks>
     public IReadOnlyList<XlsxValidation> Validations { get; }
 
     /// <summary>Returns a copy with <see cref="BoldHeaderRow"/> set.</summary>
@@ -239,7 +249,10 @@ public sealed class XlsxFormat
     /// </exception>
     public XlsxFormat WithFreezeAt(int row, int column)
     {
-        if (row < 0 || (row == 0 && column == 0))
+        if (row < 0)
+            throw new ArgumentOutOfRangeException(nameof(row), row, "A freeze position cannot be negative.");
+
+        if (row == 0 && column == 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(row), row, "Freeze at least one row or column; use WithFrozenHeaderRow(false) to freeze nothing.");

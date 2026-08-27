@@ -234,7 +234,8 @@ public interface IWorkbookEditor
     /// Formatting is applied to an existing workbook rather than being an argument to
     /// <c>Create</c>, so it composes with every way a workbook can arrive - built here, appended
     /// to, or handed in by a caller who never used this library. See
-    /// <see cref="DocToolkit.XlsxFormat"/> for why the set of settings is deliberately small.
+    /// <see cref="DocToolkit.XlsxFormat"/> for the boundary: a CLOSED vocabulary rather than a
+    /// small one, and what is still deliberately outside it.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="format"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty, or the sheet name is blank.</exception>

@@ -126,13 +126,21 @@ public sealed class XlsxValidation
     }
 
     /// <summary>Restricts the range to one of a fixed list of options.</summary>
+    /// <remarks>
+    /// <b>An option may not contain a comma or a double quote, and may not be blank.</b> The list is
+    /// written into the file as one quoted, comma-joined formula, so a comma inside an option would
+    /// silently become two options and a quote would produce a malformed formula — measured. This
+    /// type's premise is a vocabulary that can be enumerated and guaranteed, and accepting input it
+    /// cannot faithfully encode is the wrong failure.
+    /// </remarks>
     /// <param name="range">The cells this applies to.</param>
     /// <param name="options">The permitted values. At least one is required.</param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="range"/> or <paramref name="options"/> is null.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="range"/> is blank, or <paramref name="options"/> is empty.
+    /// <paramref name="range"/> is blank, <paramref name="options"/> is empty, or an option is null,
+    /// blank, or contains a comma or a double quote.
     /// </exception>
     public static XlsxValidation OneOf(string range, params string[] options)
     {
@@ -145,8 +153,27 @@ public sealed class XlsxValidation
                 nameof(options));
         }
 
+        foreach (string option in options)
+        {
+            if (string.IsNullOrWhiteSpace(option))
+            {
+                throw new ArgumentException(
+                    "An option was null or blank, which would become an unnamed choice nobody can pick.",
+                    nameof(options));
+            }
+
+            if (option.Contains(',') || option.Contains('"'))
+            {
+                throw new ArgumentException(
+                    $"The option \"{option}\" contains a comma or a double quote. The list is written as one "
+                    + "quoted, comma-joined formula, so either would corrupt it silently.",
+                    nameof(options));
+            }
+        }
+
         return new XlsxValidation(
-            checkedRange, XlsxValidationKind.List, 0, 0, default, default, [.. options]);
+            checkedRange, XlsxValidationKind.List, 0, 0, default, default,
+            new System.Collections.ObjectModel.ReadOnlyCollection<string>([.. options]));
     }
 
     private static XlsxValidation Bounded(

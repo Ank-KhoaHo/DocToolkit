@@ -630,7 +630,8 @@ public static class WorkbookEditor
     /// <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>, appended to, or handed in by
     /// a caller who never used this library to make it.
     ///
-    /// See <see cref="XlsxFormat"/> for why the set of settings is deliberately small.
+    /// See <see cref="XlsxFormat"/> for the boundary: a CLOSED vocabulary rather than a small
+    /// one, and what is still deliberately outside it.
     /// </remarks>
     /// <param name="xlsx">The workbook to format. It is not modified.</param>
     /// <param name="sheetName">The sheet to format.</param>
@@ -640,7 +641,10 @@ public static class WorkbookEditor
     /// <paramref name="xlsx"/> is empty, or <paramref name="sheetName"/> is blank.
     /// </exception>
     /// <exception cref="DocumentConversionException">
-    /// The workbook could not be opened, or the sheet does not exist.
+    /// The workbook could not be opened, the sheet does not exist, or a rule or validation named a
+    /// range the sheet rejects — a malformed one such as <c>"B2:B1"</c>, or a column letter beyond
+    /// the sheet's width. Ranges are checked by the library beneath rather than here, deliberately:
+    /// a second range parser would be a second source of truth about what a range is.
     /// </exception>
     public static byte[] Format(byte[] xlsx, string sheetName, XlsxFormat format)
     {

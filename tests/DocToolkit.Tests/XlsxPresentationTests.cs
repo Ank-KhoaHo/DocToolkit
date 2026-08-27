@@ -337,4 +337,170 @@ public class XlsxPresentationTests
             Assert.Equal(expected, workbook.Worksheet("Data").ConditionalFormats.Single().Operator);
         }
     }
+    // ---- the validation half, which a review found was essentially unmeasured -------------------
+
+    /// <summary>
+    /// Reads one validation back out of the SAVED bytes.
+    /// </summary>
+    /// <remarks>
+    /// <b>Counting validations is not enough, and that was the gap.</b> A review mutated three
+    /// things at once — the list kind to a text length, decimal to whole number, and a date range
+    /// collapsed to a point — and the whole suite stayed green, because the only test counted five
+    /// entries across five ranges. Kind, operator and bounds were all invisible.
+    /// </remarks>
+    private static ClosedXML.Excel.IXLDataValidation ReadValidation(byte[] xlsx, string range)
+    {
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        return workbook.Worksheet("Data").DataValidations
+            .Single(v => v.Ranges.Any(r => r.RangeAddress.ToStringRelative() == range));
+    }
+
+    [Fact]
+    public void AWholeNumberValidationCarriesItsKindAndBothBounds()
+    {
+        ClosedXML.Excel.IXLDataValidation read = ReadValidation(
+            WorkbookEditor.Format(Sheet(), "Data",
+                XlsxFormat.None.WithValidation(XlsxValidation.WholeNumberBetween("B2:B3", 5, 250))),
+            "B2:B3");
+
+        Assert.Equal(ClosedXML.Excel.XLAllowedValues.WholeNumber, read.AllowedValues);
+        Assert.Equal(ClosedXML.Excel.XLOperator.Between, read.Operator);
+        Assert.Equal("5", read.MinValue);
+        Assert.Equal("250", read.MaxValue);
+    }
+
+    [Fact]
+    public void EachValidationKindReachesTheFileAsItsOwnKind()
+    {
+        // A single mapping that answered every kind the same way would satisfy a counting test.
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None
+            .WithValidation(XlsxValidation.WholeNumberBetween("B2:B3", 0, 10))
+            .WithValidation(XlsxValidation.DecimalBetween("C2:C3", 0, 1))
+            .WithValidation(XlsxValidation.TextLengthBetween("A2:A3", 1, 200))
+            .WithValidation(XlsxValidation.DateBetween("D2:D3", new DateTime(2020, 1, 1), new DateTime(2030, 1, 1)))
+            .WithValidation(XlsxValidation.OneOf("E2:E3", "Free", "Pro", "Team")));
+
+        Assert.Equal(ClosedXML.Excel.XLAllowedValues.WholeNumber, ReadValidation(xlsx, "B2:B3").AllowedValues);
+        Assert.Equal(ClosedXML.Excel.XLAllowedValues.Decimal, ReadValidation(xlsx, "C2:C3").AllowedValues);
+        Assert.Equal(ClosedXML.Excel.XLAllowedValues.TextLength, ReadValidation(xlsx, "A2:A3").AllowedValues);
+        Assert.Equal(ClosedXML.Excel.XLAllowedValues.Date, ReadValidation(xlsx, "D2:D3").AllowedValues);
+        Assert.Equal(ClosedXML.Excel.XLAllowedValues.List, ReadValidation(xlsx, "E2:E3").AllowedValues);
+    }
+
+    [Fact]
+    public void ADateValidationCarriesBothOfItsDates_NotJustOne()
+    {
+        ClosedXML.Excel.IXLDataValidation read = ReadValidation(
+            WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithValidation(
+                XlsxValidation.DateBetween("D2:D3", new DateTime(2020, 1, 1), new DateTime(2030, 1, 1)))),
+            "D2:D3");
+
+        // A date lands as an Excel SERIAL number, not as text - 43831 is 2020-01-01. Converting it
+        // back is what makes this assertion about the dates rather than about the encoding, and it
+        // is why collapsing the range to a point cannot slip through.
+        Assert.NotEqual(read.MinValue, read.MaxValue);
+        Assert.Equal(new DateTime(2020, 1, 1), DateTime.FromOADate(double.Parse(read.MinValue,
+            System.Globalization.CultureInfo.InvariantCulture)));
+        Assert.Equal(new DateTime(2030, 1, 1), DateTime.FromOADate(double.Parse(read.MaxValue,
+            System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    [Fact]
+    public void AListValidationCarriesEveryOptionAndNoMore()
+    {
+        ClosedXML.Excel.IXLDataValidation read = ReadValidation(
+            WorkbookEditor.Format(Sheet(), "Data",
+                XlsxFormat.None.WithValidation(XlsxValidation.OneOf("E2:E3", "Free", "Pro", "Team"))),
+            "E2:E3");
+
+        // The hand-rolled quoting on the apply side is the most fragile line in this feature, and
+        // until now nothing exercised it at all.
+        Assert.Equal(ClosedXML.Excel.XLAllowedValues.List, read.AllowedValues);
+        Assert.Equal("\"Free,Pro,Team\"", read.MinValue);
+    }
+
+    [Fact]
+    public void OneOf_RefusesAnOptionItCannotFaithfullyEncode()
+    {
+        // Measured before the guard: "Free, Pro" became TWO options in the file, and an option
+        // containing a quote produced a malformed formula. For a type whose premise is a vocabulary
+        // that can be guaranteed, accepting input it cannot encode is the wrong failure.
+        Assert.Equal("options", Assert.Throws<ArgumentException>(
+            () => XlsxValidation.OneOf("A1", "Free, Pro", "Other")).ParamName);
+        Assert.Equal("options", Assert.Throws<ArgumentException>(
+            () => XlsxValidation.OneOf("A1", "Say \"hi\"", "Other")).ParamName);
+        Assert.Equal("options", Assert.Throws<ArgumentException>(
+            () => XlsxValidation.OneOf("A1", null!, "Other")).ParamName);
+        Assert.Equal("options", Assert.Throws<ArgumentException>(
+            () => XlsxValidation.OneOf("A1", "  ", "Other")).ParamName);
+    }
+
+    // ---- the two rule conditions the operator test cannot reach ---------------------------------
+
+    [Fact]
+    public void ContainsAndBlankReachTheFileAsTheirOwnTYPES_NotJustOperators()
+    {
+        // Both read back as XLCFOperator.Equal, so the operator test cannot tell them apart - and a
+        // review proved it: mapping Contains to WhenIsBlank passed the entire suite. The
+        // discriminator is ConditionalFormatType, which is what the design's own table records.
+        static ClosedXML.Excel.XLConditionalFormatType TypeOf(XlsxRule rule)
+        {
+            using var ms = new MemoryStream(
+                WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithRule(rule)));
+            using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+            return workbook.Worksheet("Data").ConditionalFormats.Single().ConditionalFormatType;
+        }
+
+        Assert.Equal(ClosedXML.Excel.XLConditionalFormatType.ContainsText,
+            TypeOf(XlsxRule.Contains("A2:A3", "long", XlsxHighlight.Amber)));
+        Assert.Equal(ClosedXML.Excel.XLConditionalFormatType.IsBlank,
+            TypeOf(XlsxRule.Blank("A2:A3", XlsxHighlight.Grey)));
+        Assert.Equal(ClosedXML.Excel.XLConditionalFormatType.CellIs,
+            TypeOf(XlsxRule.GreaterThan("B2:B3", 1, XlsxHighlight.Red)));
+    }
+
+    [Fact]
+    public void TheAutoFilterCoversTheUsedRangeRatherThanOneCell()
+    {
+        // A one-cell autofilter is useless in Excel, and asserting IsEnabled alone cannot see it -
+        // measured: narrowing the filter to A1:A1 passed.
+        using var ms = new MemoryStream(
+            WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithAutoFilter()));
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        ClosedXML.Excel.IXLAutoFilter filter = workbook.Worksheet("Data").AutoFilter;
+
+        Assert.True(filter.IsEnabled);
+        Assert.Equal("A1:B3", filter.Range.RangeAddress.ToStringRelative());
+    }
+
+    [Fact]
+    public void AnAutoFilterOnASheetWithNoDataIsSkippedRatherThanThrowing()
+    {
+        // The empty-sheet case lived only in an implementation comment. It is a documented promise
+        // on XlsxFormat.AutoFilter now, so it needs a test.
+        byte[] empty = WorkbookEditor.Create("Data", []);
+
+        byte[] formatted = WorkbookEditor.Format(empty, "Data", XlsxFormat.None.WithAutoFilter());
+
+        using var ms = new MemoryStream(formatted);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        Assert.False(workbook.Worksheet("Data").AutoFilter.IsEnabled);
+    }
+
+    [Fact]
+    public void TheNewCollectionsCannotBeMutatedThroughTheirRuntimeType()
+    {
+        // The other half of the immutability guard: XlsxFormat.None and .Report are STATIC, so a
+        // cast-back-and-write would poison them process-wide. The existing test covers only
+        // ColumnNumberFormats; these three were wrapped correctly but unpinned.
+        Assert.Throws<NotSupportedException>(
+            () => ((IDictionary<string, double>)XlsxFormat.None.ColumnWidths)["A"] = 99);
+        Assert.Throws<NotSupportedException>(
+            () => ((IList<XlsxRule>)XlsxFormat.None.Rules).Add(XlsxRule.Blank("A1", XlsxHighlight.Grey)));
+        Assert.Throws<NotSupportedException>(
+            () => ((IList<XlsxValidation>)XlsxFormat.None.Validations).Add(XlsxValidation.OneOf("A1", "x")));
+        Assert.Throws<NotSupportedException>(
+            () => ((IList<string>)XlsxValidation.OneOf("A1", "x").Options).Add("y"));
+    }
 }
