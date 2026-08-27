@@ -55,8 +55,12 @@ the operation you want for a log or an export that accumulates.
 
 A sheet written from data is correct and unreadable: no header emphasis, columns too narrow for
 their contents, and the header scrolling out of sight on the first flick of the wheel.
-`WorkbookEditor.Format` fixes those, and eight more things besides — an explicit column width, a
-freeze at any position, an autofilter, conditional formats and data validations.
+`WorkbookEditor.Format` fixes those, and more besides — a number format or an explicit width per
+column, a freeze at any position, an autofilter, conditional formats and data validations.
+
+The count that used to sit in that sentence said "eight" and then listed five, which is the shape of
+mistake this documentation keeps making: a number in prose is a claim nothing verifies. The settings
+are enumerable from @DocToolkit.XlsxFormat itself, so they are named here and counted nowhere.
 
 **The boundary is a CLOSED vocabulary rather than a small one.** Six rule conditions
 ([XlsxRuleKind](xref:DocToolkit.XlsxRuleKind)), five validation kinds ([XlsxValidationKind](xref:DocToolkit.XlsxValidationKind)) and four
@@ -66,8 +70,10 @@ enumerated, and the moment one exists the boundary is gone. If what you need fal
 set — arbitrary fonts, borders, colour scales — use ClosedXML directly rather than through a thinner
 API.
 
-The snippet below shows the preset and a number format. The newer settings are `With…` calls on the
-same object; @DocToolkit.XlsxFormat lists them.
+The snippet below starts from that preset and adds five of them. Every setting is a `With…` call on
+the same immutable object, so they compose in any order — with one rule worth knowing, visible in
+the snippet: an explicit width is applied *after* auto-fit, so naming one wins for that column while
+every other column is still sized to its contents.
 
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
 
