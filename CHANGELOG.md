@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.40.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.39.0...v0.40.0) (2026-08-27)
+
+
+### Added
+
+* **core:** expose XLSX conditional formats, validations, widths, freeze and autofilter ([#399](https://github.com/Ank-KhoaHo/DocToolkit/issues/399)) ([ec25376](https://github.com/Ank-KhoaHo/DocToolkit/commit/ec25376e8dd6531ff2ca60243e39fcf4c9e3460d))
+
 ## [0.39.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.38.0...v0.39.0) (2026-08-26)
 
 
