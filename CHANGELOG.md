@@ -10,6 +10,18 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.42.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.41.0...v0.42.0) (2026-08-27)
+
+
+### Added
+
+* **core:** report a content control in a table as a known PDF loss ([#404](https://github.com/Ank-KhoaHo/DocToolkit/issues/404)) ([3978708](https://github.com/Ank-KhoaHo/DocToolkit/commit/39787088fafa1640566456677e7935e4a2ece203))
+
+
+### Fixed
+
+* **core:** remove a private-repository path from a shipped doc comment ([#406](https://github.com/Ank-KhoaHo/DocToolkit/issues/406)) ([44eb726](https://github.com/Ank-KhoaHo/DocToolkit/commit/44eb7261e782231c73351c657040643e864de8a8))
+
 ## [0.41.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.40.0...v0.41.0) (2026-08-27)
 
 
