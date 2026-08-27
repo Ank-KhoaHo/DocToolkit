@@ -98,7 +98,10 @@ FLOORS = {
     "DocToolkit.Html": (93.5, 94.7),
     "DocToolkit.Pdf": (98.4, 95.6),
     "DocToolkit.Pptx": (96.3, 80.7),
-    "DocToolkit.Xlsx": (95.5, 92.4),
+    # Ratcheted 2026-08-26 with A68 (conditional formats, validations, widths, freeze,
+    # autofilter). Measured 97.25 / 96.21 - the branch floor was 3.81 points below
+    # reality, which is a floor that has stopped catching anything.
+    "DocToolkit.Xlsx": (96.3, 95.9),
     "DocToolkit.Extensions.DependencyInjection": (100.0, 100.0),
 }
 
