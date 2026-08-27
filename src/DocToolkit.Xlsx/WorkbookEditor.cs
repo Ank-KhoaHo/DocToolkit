@@ -630,7 +630,8 @@ public static class WorkbookEditor
     /// <see cref="Create(string, IEnumerable{IEnumerable{object}})"/>, appended to, or handed in by
     /// a caller who never used this library to make it.
     ///
-    /// See <see cref="XlsxFormat"/> for why the set of settings is deliberately small.
+    /// See <see cref="XlsxFormat"/> for the boundary: a CLOSED vocabulary rather than a small
+    /// one, and what is still deliberately outside it.
     /// </remarks>
     /// <param name="xlsx">The workbook to format. It is not modified.</param>
     /// <param name="sheetName">The sheet to format.</param>
@@ -640,7 +641,10 @@ public static class WorkbookEditor
     /// <paramref name="xlsx"/> is empty, or <paramref name="sheetName"/> is blank.
     /// </exception>
     /// <exception cref="DocumentConversionException">
-    /// The workbook could not be opened, or the sheet does not exist.
+    /// The workbook could not be opened, the sheet does not exist, or a rule or validation named a
+    /// range the sheet rejects — a malformed one such as <c>"B2:B1"</c>, or a column letter beyond
+    /// the sheet's width. Ranges are checked by the library beneath rather than here, deliberately:
+    /// a second range parser would be a second source of truth about what a range is.
     /// </exception>
     public static byte[] Format(byte[] xlsx, string sheetName, XlsxFormat format)
     {
@@ -727,11 +731,108 @@ public static class WorkbookEditor
         if (format.AutoFitColumns)
             sheet.Columns().AdjustToContents();
 
-        // Freezing splits at the TOP of row 2, which is what "freeze the header" means. Applied
-        // after AutoFit because adjusting a frozen pane's columns is the sort of interaction worth
-        // not relying on.
-        if (format.FreezeHeaderRow)
-            sheet.SheetView.FreezeRows(1);
+        // AFTER AutoFit, so a named column takes the width the caller asked for while the rest stay
+        // auto-fitted. A specific instruction beats a blanket one, and the ordering is asserted.
+        foreach (var (column, width) in format.ColumnWidths)
+            sheet.Column(column).Width = width;
+
+        // Freezing splits at the TOP of the row after the frozen ones, which is what "freeze the
+        // header" means for (1, 0). Applied after AutoFit because adjusting a frozen pane's columns
+        // is the sort of interaction worth not relying on.
+        if (format.FreezeAt is { } freeze)
+        {
+            if (freeze.Row > 0) sheet.SheetView.FreezeRows(freeze.Row);
+            if (freeze.Column > 0) sheet.SheetView.FreezeColumns(freeze.Column);
+        }
+
+        // RangeUsed() is null on an empty sheet, and SetAutoFilter on nothing would throw - so a
+        // caller asking for a filter on a sheet with no data gets a sheet with no filter rather
+        // than an exception.
+        if (format.AutoFilter && sheet.RangeUsed() is { } used)
+            used.SetAutoFilter();
+
+        foreach (XlsxRule rule in format.Rules)
+            ApplyRule(sheet, rule);
+
+        foreach (XlsxValidation validation in format.Validations)
+            ApplyValidation(sheet, validation);
+    }
+
+    /// <summary>
+    /// The one place a rule becomes a conditional format.
+    /// </summary>
+    /// <remarks>
+    /// Kept here beside <see cref="ApplyFormat"/> rather than on <see cref="XlsxRule"/>, so no
+    /// ClosedXML type appears in this library's public API — the same reason
+    /// <see cref="XlsxHighlight"/> names an intent instead of carrying a colour.
+    /// </remarks>
+    private static void ApplyRule(IXLWorksheet sheet, XlsxRule rule)
+    {
+        // `var`, not a named type: what the When... methods return is ClosedXML's business, and
+        // naming it here would be a guess that compiles until it does not. Text is dereferenced
+        // with `!` because the two kinds that read it are the two whose factories require it.
+        var style = rule.Kind switch
+        {
+            XlsxRuleKind.GreaterThan => sheet.Range(rule.Range).AddConditionalFormat().WhenGreaterThan(rule.Value),
+            XlsxRuleKind.LessThan => sheet.Range(rule.Range).AddConditionalFormat().WhenLessThan(rule.Value),
+            XlsxRuleKind.Between => sheet.Range(rule.Range).AddConditionalFormat().WhenBetween(rule.Value, rule.High),
+            XlsxRuleKind.EqualTo => sheet.Range(rule.Range).AddConditionalFormat().WhenEquals(rule.Text!),
+            XlsxRuleKind.Contains => sheet.Range(rule.Range).AddConditionalFormat().WhenContains(rule.Text!),
+            XlsxRuleKind.Blank => sheet.Range(rule.Range).AddConditionalFormat().WhenIsBlank(),
+
+            // NOT a fall-through arm. C# lets any int be cast to an enum, so (XlsxRuleKind)99
+            // reaches here - and a `_` arm silently turned it into a Blank rule. Measured. For a
+            // type whose whole premise is a CLOSED vocabulary, quietly answering a value outside
+            // that vocabulary is the one thing it must not do.
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(rule), rule.Kind,
+                "Not a defined XlsxRuleKind. The vocabulary is closed; see XlsxRule's factories."),
+        };
+
+        style.Fill.SetBackgroundColor(Colour(rule.Highlight));
+    }
+
+    /// <summary>
+    /// Four intents to four colours, deliberately not a caller-supplied one — see
+    /// <see cref="XlsxHighlight"/>. They must stay DISTINCT: a mapping that collapsed two onto one
+    /// colour would make two intents indistinguishable on the page, and a test asserts the set.
+    /// </summary>
+    private static XLColor Colour(XlsxHighlight highlight) => highlight switch
+    {
+        XlsxHighlight.Red => XLColor.Red,
+        XlsxHighlight.Amber => XLColor.Orange,
+        XlsxHighlight.Green => XLColor.LightGreen,
+        XlsxHighlight.Grey => XLColor.LightGray,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(highlight), highlight,
+            "Not a defined XlsxHighlight. Measured: (XlsxHighlight)99 used to come back grey, "
+            + "which makes an out-of-range cast indistinguishable from a deliberate Grey."),
+    };
+
+    /// <summary>The one place a validation becomes a data validation.</summary>
+    private static void ApplyValidation(IXLWorksheet sheet, XlsxValidation validation)
+    {
+        IXLDataValidation target = sheet.Range(validation.Range).CreateDataValidation();
+
+        switch (validation.Kind)
+        {
+            case XlsxValidationKind.WholeNumber:
+                target.WholeNumber.Between((int)validation.Min, (int)validation.Max);
+                break;
+            case XlsxValidationKind.Decimal:
+                target.Decimal.Between(validation.Min, validation.Max);
+                break;
+            case XlsxValidationKind.TextLength:
+                target.TextLength.Between((int)validation.Min, (int)validation.Max);
+                break;
+            case XlsxValidationKind.Date:
+                target.Date.Between(validation.MinDate, validation.MaxDate);
+                break;
+            default:
+                // An inline list is quoted and comma-joined, which is the form the file expects.
+                target.List($"\"{string.Join(",", validation.Options)}\"");
+                break;
+        }
     }
 
     private static MemoryStream SetCellCore(Stream xlsx, string sheetName, string cellRef, object? value)

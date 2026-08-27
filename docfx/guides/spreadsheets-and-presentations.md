@@ -55,7 +55,19 @@ the operation you want for a log or an export that accumulates.
 
 A sheet written from data is correct and unreadable: no header emphasis, columns too narrow for
 their contents, and the header scrolling out of sight on the first flick of the wheel.
-`WorkbookEditor.Format` fixes those four things and nothing else.
+`WorkbookEditor.Format` fixes those, and eight more things besides — an explicit column width, a
+freeze at any position, an autofilter, conditional formats and data validations.
+
+**The boundary is a CLOSED vocabulary rather than a small one.** Six rule conditions
+([XlsxRuleKind](xref:DocToolkit.XlsxRuleKind)), five validation kinds ([XlsxValidationKind](xref:DocToolkit.XlsxValidationKind)) and four
+highlights ([XlsxHighlight](xref:DocToolkit.XlsxHighlight)) — each enumerable, measured and guaranteed.
+`XlsxHighlight` names an *intent* rather than a colour on purpose: a colour picker cannot be
+enumerated, and the moment one exists the boundary is gone. If what you need falls outside a closed
+set — arbitrary fonts, borders, colour scales — use ClosedXML directly rather than through a thinner
+API.
+
+The snippet below shows the preset and a number format. The newer settings are `With…` calls on the
+same object; @DocToolkit.XlsxFormat lists them.
 
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
 
@@ -114,7 +126,7 @@ page they already have. Every cell is escaped.
 
 [!code-csharp[](../../samples/Presentations/Program.cs#create)]
 
-@DocToolkit.PptxSlide.Titled gives you a title and any number of bullets, emitted as real title and
+[`PptxSlide.Titled`](xref:DocToolkit.PptxSlide.Titled*) gives you a title and any number of bullets, emitted as real title and
 body placeholders rather than free-floating text boxes. That matters if anyone opens the deck in
 PowerPoint afterwards: placeholders inherit the theme, respond to layout changes, and appear in the
 outline view.

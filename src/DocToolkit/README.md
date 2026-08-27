@@ -123,13 +123,24 @@ string sheetCsv  = XlsxToCsvConverter.Convert(xlsx, "Sales");
 string sheetHtml = XlsxToHtmlConverter.Convert(xlsx, "Sales");
 
 // Make a generated sheet readable: XlsxFormat.Report is a bold header row, that row frozen,
-// and columns auto-fitted. Add a number format per column if you want one.
+// and columns auto-fitted. Everything else is a With... call on top of it.
 //
-// This set is deliberately SMALL and closed. Cell styling is an open-ended surface - fonts,
-// borders, fills, conditional rules - and this package's premise is a narrow one it can
-// guarantee. If you need more, use ClosedXML directly rather than through a thinner API.
-byte[] report = WorkbookEditor.Format(xlsx, "Sales",
-    XlsxFormat.Report.WithNumberFormat("B", "#,##0.00"));
+// The boundary is a CLOSED vocabulary rather than a small one: six rule conditions, five
+// validation kinds, four highlights, a freeze position, a column width - each enumerable,
+// measured and guaranteed. If what you need cannot be expressed as a closed set (arbitrary
+// fonts, borders, fills, colour scales), use ClosedXML directly rather than a thinner API.
+byte[] report = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.Report
+    .WithNumberFormat("B", "#,##0.00")
+    .WithColumnWidth("A", 42)                    // explicit; beats auto-fit for this column
+    .WithFreezeAt(row: 2, column: 1)             // an XlsxFreeze position, not just the header
+    .WithAutoFilter()
+    // XlsxRuleKind: GreaterThan, LessThan, Between, EqualTo, Contains, Blank.
+    // XlsxHighlight names an INTENT - Red, Amber, Green, Grey - never a colour, because a
+    // colour picker cannot be enumerated and the moment one exists the boundary is gone.
+    .WithRule(XlsxRule.GreaterThan("B2:B999", 10000, XlsxHighlight.Red))
+    // XlsxValidationKind: WholeNumber, Decimal, TextLength, Date, List. This is the half of a
+    // generated workbook that survives a human editing it.
+    .WithValidation(XlsxValidation.OneOf("C2:C999", "Free", "Pro", "Team")));
 
 // ...and, if you need to know what those conversions could NOT carry across, the same
 // call with a report. ConversionResult<T> gives you the output plus a ConversionWarning

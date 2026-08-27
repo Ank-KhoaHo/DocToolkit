@@ -25,6 +25,8 @@
       "**/XlsxToCsvConverter.cs",
       "**/XlsxToHtmlConverter.cs",
       "**/XlsxFormat.cs",
+      "**/XlsxRule.cs",
+      "**/XlsxValidation.cs",
       "**/ConversionDiagnostics.cs",
       "**/MarkdownImportOptions.cs"
     ],

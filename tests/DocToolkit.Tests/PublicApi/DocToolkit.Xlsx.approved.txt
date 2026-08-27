@@ -33,26 +33,96 @@ namespace DocToolkit
     }
     public sealed class XlsxFormat
     {
+        public bool AutoFilter { get; }
         public bool AutoFitColumns { get; }
         public bool BoldHeaderRow { get; }
         public System.Collections.Generic.IReadOnlyDictionary<string, string> ColumnNumberFormats { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, double> ColumnWidths { get; }
+        public DocToolkit.XlsxFreeze? FreezeAt { get; }
         public bool FreezeHeaderRow { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxRule> Rules { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxValidation> Validations { get; }
         public static DocToolkit.XlsxFormat None { get; }
         public static DocToolkit.XlsxFormat Report { get; }
+        public DocToolkit.XlsxFormat WithAutoFilter(bool enabled = true) { }
         public DocToolkit.XlsxFormat WithAutoFitColumns(bool autoFit = true) { }
         public DocToolkit.XlsxFormat WithBoldHeaderRow(bool bold = true) { }
+        public DocToolkit.XlsxFormat WithColumnWidth(string column, double width) { }
+        public DocToolkit.XlsxFormat WithFreezeAt(int row, int column) { }
         public DocToolkit.XlsxFormat WithFrozenHeaderRow(bool frozen = true) { }
         public DocToolkit.XlsxFormat WithNumberFormat(string column, string numberFormat) { }
+        public DocToolkit.XlsxFormat WithRule(DocToolkit.XlsxRule rule) { }
+        public DocToolkit.XlsxFormat WithValidation(DocToolkit.XlsxValidation validation) { }
     }
     public sealed class XlsxFormula
     {
         public string Formula { get; }
         public static DocToolkit.XlsxFormula From(string formula) { }
     }
+    public readonly struct XlsxFreeze : System.IEquatable<DocToolkit.XlsxFreeze>
+    {
+        public XlsxFreeze(int Row, int Column) { }
+        public int Column { get; init; }
+        public int Row { get; init; }
+    }
+    public enum XlsxHighlight
+    {
+        Red = 0,
+        Amber = 1,
+        Green = 2,
+        Grey = 3,
+    }
+    public sealed class XlsxRule
+    {
+        public double High { get; }
+        public DocToolkit.XlsxHighlight Highlight { get; }
+        public DocToolkit.XlsxRuleKind Kind { get; }
+        public string Range { get; }
+        public string? Text { get; }
+        public double Value { get; }
+        public static DocToolkit.XlsxRule Between(string range, double low, double high, DocToolkit.XlsxHighlight highlight) { }
+        public static DocToolkit.XlsxRule Blank(string range, DocToolkit.XlsxHighlight highlight) { }
+        public static DocToolkit.XlsxRule Contains(string range, string text, DocToolkit.XlsxHighlight highlight) { }
+        public static DocToolkit.XlsxRule EqualTo(string range, string value, DocToolkit.XlsxHighlight highlight) { }
+        public static DocToolkit.XlsxRule GreaterThan(string range, double value, DocToolkit.XlsxHighlight highlight) { }
+        public static DocToolkit.XlsxRule LessThan(string range, double value, DocToolkit.XlsxHighlight highlight) { }
+    }
+    public enum XlsxRuleKind
+    {
+        GreaterThan = 0,
+        LessThan = 1,
+        Between = 2,
+        EqualTo = 3,
+        Contains = 4,
+        Blank = 5,
+    }
     public sealed class XlsxSheet
     {
         public string Name { get; }
         public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<object?>> Rows { get; }
         public static DocToolkit.XlsxSheet Named(string name, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
+    }
+    public sealed class XlsxValidation
+    {
+        public DocToolkit.XlsxValidationKind Kind { get; }
+        public double Max { get; }
+        public System.DateTime MaxDate { get; }
+        public double Min { get; }
+        public System.DateTime MinDate { get; }
+        public System.Collections.Generic.IReadOnlyList<string> Options { get; }
+        public string Range { get; }
+        public static DocToolkit.XlsxValidation DateBetween(string range, System.DateTime min, System.DateTime max) { }
+        public static DocToolkit.XlsxValidation DecimalBetween(string range, double min, double max) { }
+        public static DocToolkit.XlsxValidation OneOf(string range, params string[] options) { }
+        public static DocToolkit.XlsxValidation TextLengthBetween(string range, int min, int max) { }
+        public static DocToolkit.XlsxValidation WholeNumberBetween(string range, int min, int max) { }
+    }
+    public enum XlsxValidationKind
+    {
+        WholeNumber = 0,
+        Decimal = 1,
+        TextLength = 2,
+        Date = 3,
+        List = 4,
     }
 }
