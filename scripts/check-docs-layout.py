@@ -49,7 +49,8 @@ HEADING = re.compile(r"#\s+([A-Z]+[0-9][A-Za-z0-9-]*)\s*$")
 # already held by the compiler and the other derived checks. A wider net was tried and produced
 # only false positives - both bugs below were found by running it, not by reading it.
 #
-# (?<![A-Za-z0-9-]) because "learning-docs/x.html" CONTAINS "docs/x.html", and a bare word
+# (?<![A-Za-z0-9-]) because a longer word ending in "-docs/x.html" CONTAINS "docs/x.html",
+# and a bare word
 # boundary matches happily after the hyphen. That is the same prefix collision that makes a
 # naive A1 match inside A18.
 #

@@ -758,6 +758,15 @@ jobs:
           python3 scripts/check-doc-blocks.py --self-test
           python3 scripts/check-doc-blocks.py
 
+      # DocToolkit is the only PUBLIC repository of five that sit side by side in one folder.
+      # A doc comment naming a private sibling is not merely untidy: it compiles into
+      # DocToolkit.xml, ships inside the .nupkg and renders on the API site. One reached
+      # nuget.org 0.41.0 that way, verified by downloading the published package.
+      - name: Assert no tracked file names a private sibling repository
+        run: |
+          python3 scripts/check-no-private-references.py --self-test
+          python3 scripts/check-no-private-references.py
+
       # THE DOCUMENTATION LAYOUT, and it runs here knowing CI can only see half of it.
       #
       # BACKLOG.html and docs/ are gitignored - this repository is public and a backlog is not a

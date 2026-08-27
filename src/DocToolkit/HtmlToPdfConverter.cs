@@ -5,7 +5,8 @@ namespace DocToolkit;
 ///
 /// There is no permissive, NuGet-only, Linux-safe library that renders HTML to PDF directly:
 /// the only free renderers are browsers, and a browser is a native binary. Pivoting through
-/// DOCX keeps the whole chain pure managed. See learning-docs/dotnet-doc-libs/report.html.
+/// DOCX keeps the whole chain pure managed. The package README says the same under
+/// <i>Why HTML to PDF goes through DOCX</i>.
 /// </summary>
 public static class HtmlToPdfConverter
 {
