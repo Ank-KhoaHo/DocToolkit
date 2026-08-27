@@ -72,7 +72,7 @@ same object; @DocToolkit.XlsxFormat lists them.
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
 
 ```text
-Formatted    : 7,576 bytes (was 7,370)
+Formatted    : 7,907 bytes (was 7,370)
 ```
 
 @DocToolkit.XlsxFormat is **immutable**, like @DocToolkit.PageSetup — every `With…` returns a new
