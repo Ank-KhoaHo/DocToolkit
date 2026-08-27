@@ -55,7 +55,19 @@ the operation you want for a log or an export that accumulates.
 
 A sheet written from data is correct and unreadable: no header emphasis, columns too narrow for
 their contents, and the header scrolling out of sight on the first flick of the wheel.
-`WorkbookEditor.Format` fixes those four things and nothing else.
+`WorkbookEditor.Format` fixes those, and eight more things besides — an explicit column width, a
+freeze at any position, an autofilter, conditional formats and data validations.
+
+**The boundary is a CLOSED vocabulary rather than a small one.** Six rule conditions
+(@DocToolkit.XlsxRuleKind), five validation kinds (@DocToolkit.XlsxValidationKind) and four
+highlights (@DocToolkit.XlsxHighlight) — each enumerable, measured and guaranteed.
+`XlsxHighlight` names an *intent* rather than a colour on purpose: a colour picker cannot be
+enumerated, and the moment one exists the boundary is gone. If what you need falls outside a closed
+set — arbitrary fonts, borders, colour scales — use ClosedXML directly rather than through a thinner
+API.
+
+The snippet below shows the preset and a number format. The newer settings are `With…` calls on the
+same object; @DocToolkit.XlsxFormat lists them.
 
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
 
