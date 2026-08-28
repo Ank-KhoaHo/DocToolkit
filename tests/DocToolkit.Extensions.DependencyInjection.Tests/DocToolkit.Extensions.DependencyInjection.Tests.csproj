@@ -12,6 +12,13 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="PublicApiGenerator" Version="11.5.4" />
+    <!--
+      ApiSurface.cs (linked in below) programs directly against Mono.Cecil's ModuleDefinition -
+      needs a direct reference of its own rather than relying on the transitive one
+      PublicApiGenerator's nuspec happens to declare. Pinned to the exact version
+      PublicApiGenerator 11.5.4 depends on; bump together.
+    -->
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
@@ -31,6 +38,16 @@
   -->
   <ItemGroup>
     <Content Include="PublicApi\*.approved.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    LINKED, not copied. The generation half of the approval tests has to be one implementation:
+    it carries the reason the assembly is read from a symbol-free copy, which is not obvious and
+    was learned expensively (B30). The comparison and the report wording stay per-project,
+    because the two say deliberately different things about what an ADDED member means.
+  -->
+  <ItemGroup>
+    <Compile Include="..\DocToolkit.Tests\ApiSurface.cs" Link="ApiSurface.cs" />
   </ItemGroup>
 
   <!--

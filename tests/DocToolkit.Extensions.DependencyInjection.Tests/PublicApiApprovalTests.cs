@@ -1,5 +1,5 @@
 using System.Reflection;
-using PublicApiGenerator;
+using DocToolkit.TestSupport;
 
 namespace DocToolkit.Extensions.DependencyInjection.Tests;
 
@@ -23,15 +23,7 @@ internal static class ApiApproval
 {
     public static void Verify(Assembly assembly, string name)
     {
-        var actual = Normalise(assembly.GeneratePublicApi(new ApiGeneratorOptions
-        {
-            ExcludeAttributes = new[]
-            {
-                "System.Runtime.Versioning.TargetFrameworkAttribute",
-                "System.Reflection.AssemblyMetadataAttribute",
-                "System.Runtime.CompilerServices.InternalsVisibleToAttribute",
-            },
-        }));
+        var actual = ApiSurface.Normalise(ApiSurface.Generate(assembly));
 
         var approvedPath = Path.Join(AppContext.BaseDirectory, "PublicApi", $"{name}.approved.txt");
 
@@ -43,7 +35,7 @@ internal static class ApiApproval
                 actual);
         }
 
-        var approved = Normalise(File.ReadAllText(approvedPath));
+        var approved = ApiSurface.Normalise(File.ReadAllText(approvedPath));
         if (string.Equals(approved, actual, StringComparison.Ordinal)) return;
 
         var receivedPath = Path.Join(AppContext.BaseDirectory, "PublicApi", $"{name}.received.txt");
@@ -72,7 +64,4 @@ internal static class ApiApproval
 
         Assert.Fail(report.ToString());
     }
-
-    private static string Normalise(string text) =>
-        text.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
 }

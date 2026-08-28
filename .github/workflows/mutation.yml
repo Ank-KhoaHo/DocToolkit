@@ -7,6 +7,23 @@ name: Mutation testing
 # afterwards with nothing re-checking it, which is exactly the shape of every
 # other stale claim this repository has had to correct. Stryker re-earns it.
 #
+# EVERY SCORE BELOW DATED BEFORE 2026-08-28 IS INFLATED - see B30. Stryker cannot
+# attribute a static mutant to a specific test, so it runs the whole suite and
+# counts any failure as a kill; PublicApiApprovalTests failed under Stryker's own
+# instrumentation for two independent reasons (a stale symbol file, and a `public`
+# type Stryker itself injects), so those six tests handed a free kill to every
+# static mutant in whichever assembly they happened to be checking. Fixed in
+# tests/DocToolkit.Tests/ApiSurface.cs.
+#
+# THE HONEST FIGURE ON THIS SCOPE, measured 2026-08-28 with the fix in place, is
+# 91.56% (603 killed, 39 survived, 15 timeout, 657 tested) - LOWER than every
+# figure below on the same scope, because the false kills had been hiding real
+# survivors. break: 95 is not expected to clear on account of this alone; that is
+# real, newly-visible work, not a reason to lower the threshold. See CLAUDE.md's
+# *Mutation testing* section and B30's *honest number* section for the full
+# breakdown, including a small pessimistic-direction residual of B30's own fix
+# that should not be mistaken for a code regression on a future red run.
+#
 # WHY THIS IS NOT A PULL-REQUEST CHECK. Measured 2026-08-08 on the scoped file
 # set: 3m52s locally for 409 mutants, and 11 of them timed out - mutation
 # testing deliberately runs code that loops forever, so timeouts are normal

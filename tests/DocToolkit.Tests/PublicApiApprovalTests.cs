@@ -1,5 +1,5 @@
 using System.Reflection;
-using PublicApiGenerator;
+using DocToolkit.TestSupport;
 
 namespace DocToolkit.Tests;
 
@@ -63,25 +63,15 @@ public class PublicApiApprovalTests
 }
 
 /// <summary>
-/// Shared by both test projects — the core assembly and the DI extensions assembly each pin their
-/// own surface.
+/// The comparison and the report. The GENERATION is <see cref="ApiSurface"/>, which really is
+/// shared with the DI extensions test project — this class is not, and said it was until
+/// 2026-08-27.
 /// </summary>
 internal static class ApiApproval
 {
     public static void Verify(Assembly assembly, string name)
     {
-        var actual = Normalise(assembly.GeneratePublicApi(new ApiGeneratorOptions
-        {
-            // Excluded because they are not part of the surface a consumer codes against, and they
-            // change with the build rather than with the API: including them would make the
-            // approved file churn on every release for no signal.
-            ExcludeAttributes = new[]
-            {
-                "System.Runtime.Versioning.TargetFrameworkAttribute",
-                "System.Reflection.AssemblyMetadataAttribute",
-                "System.Runtime.CompilerServices.InternalsVisibleToAttribute",
-            },
-        }));
+        var actual = ApiSurface.Normalise(ApiSurface.Generate(assembly));
 
         var approvedPath = Path.Join(AppContext.BaseDirectory, "PublicApi", $"{name}.approved.txt");
 
@@ -93,7 +83,7 @@ internal static class ApiApproval
                 actual);
         }
 
-        var approved = Normalise(File.ReadAllText(approvedPath));
+        var approved = ApiSurface.Normalise(File.ReadAllText(approvedPath));
         if (string.Equals(approved, actual, StringComparison.Ordinal)) return;
 
         // Written next to the test output so the whole new surface can be copied over the approved
@@ -126,8 +116,4 @@ internal static class ApiApproval
 
         Assert.Fail(report.ToString());
     }
-
-    /// <summary>Line endings only — the file is committed and checked out on both Windows and Linux.</summary>
-    private static string Normalise(string text) =>
-        text.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd();
 }
