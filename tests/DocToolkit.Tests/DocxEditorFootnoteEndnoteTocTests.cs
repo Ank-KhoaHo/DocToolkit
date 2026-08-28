@@ -1,4 +1,4 @@
-﻿using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
@@ -7,7 +7,7 @@ namespace DocToolkit.Tests;
 public class DocxEditorFootnoteEndnoteTocTests
 {
     /// <summary>
-    /// Asserts the package is schema-valid, not merely readable â€” the same discipline
+    /// Asserts the package is schema-valid, not merely readable — the same discipline
     /// <see cref="DocxEditorReplaceImageTests"/> uses for the same reason: extracted text says
     /// nothing about whether Word will open the file.
     /// </summary>
@@ -503,6 +503,79 @@ public class DocxEditorFootnoteEndnoteTocTests
             .Elements<UpdateFieldsOnOpen>().Single().Val?.Value));
     }
 
+    /// <summary>
+    /// A hand-authored package shaped the way a document <b>Word itself has saved</b> is shaped: the
+    /// root <c>w:document</c> declares <c>mc:Ignorable="w14 w15"</c>, and <c>word/settings.xml</c>
+    /// carries the two <c>w15:</c> extension children Word writes into every file it touches.
+    /// <see cref="BuildWithWordShapedSettings"/> stays inside the 2007 schema on purpose; this one
+    /// deliberately does not, because that is the difference the validator version can see.
+    /// </summary>
+    private static byte[] BuildWithW15ShapedSettings(params OpenXmlElement[] bodyChildren)
+    {
+        const string Word2010 = "http://schemas.microsoft.com/office/word/2010/wordml";
+        const string Word2012 = "http://schemas.microsoft.com/office/word/2012/wordml";
+
+        using var ms = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            main.Document = new Document(new Body(bodyChildren.Select(c => c.CloneNode(true))));
+            main.Document.AddNamespaceDeclaration("w14", Word2010);
+            main.Document.AddNamespaceDeclaration("w15", Word2012);
+            main.Document.MCAttributes = new MarkupCompatibilityAttributes { Ignorable = "w14 w15" };
+            main.Document.Save();
+
+            var settingsPart = main.AddNewPart<DocumentSettingsPart>();
+            settingsPart.Settings = new Settings(
+                new Zoom(),
+                new DefaultTabStop { Val = 720 },
+                new DocumentFormat.OpenXml.Office2013.Word.ChartTrackingRefBased(),
+                new DocumentFormat.OpenXml.Office2013.Word.PersistentDocumentId
+                {
+                    Val = "{2C9A7B1E-4F3D-4A21-9C55-6F0E1B2D3A44}",
+                });
+            settingsPart.Settings.AddNamespaceDeclaration("w14", Word2010);
+            settingsPart.Settings.AddNamespaceDeclaration("w15", Word2012);
+            settingsPart.Settings.MCAttributes = new MarkupCompatibilityAttributes { Ignorable = "w14 w15" };
+            settingsPart.Settings.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void AddTableOfContents_InsertsUpdateFieldsInAValidSlot_OnW15ShapedSettings()
+    {
+        // The regression this closes is one layer under the slot-search fix above: the search asked
+        // a `new OpenXmlValidator()`, which defaults to FileFormatVersions.Office2007 -- a schema
+        // that predates w15: entirely. So on a document Word itself had saved, the loop terminated
+        // one position too early and left w:updateFields AFTER w15:docId, invalid under the real
+        // schema and invisible to the 2007-era view that placed it there. Measured: 0 errors under
+        // Office2007 both before and after; 1 error under Office2013 after but not before.
+        var docx = BuildWithW15ShapedSettings(DocxFixtures.P(DocxFixtures.R("{{toc}}")));
+
+        // Positive control, and it is doing more work than its sibling above: it proves the fixture
+        // is legally ordered under the STRICTER validator, so a clean result below cannot be an
+        // artefact either of a broken fixture or of a validator that cannot see w15: at all.
+        Assert.Empty(DocxFixtures.Validate(docx));
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        AssertValid(withToc);
+
+        var order = DocxFixtures.Read(withToc, m => m.DocumentSettingsPart!.Settings!
+            .ChildElements.Select(e => e.LocalName).ToArray());
+
+        // The exact literal. "updateFields is present somewhere" passes with the defect in place,
+        // because the defect leaves it present -- at the end, in the one slot that is illegal.
+        Assert.Equal(
+            new[] { "zoom", "defaultTabStop", "updateFields", "chartTrackingRefBased", "docId" },
+            order);
+
+        Assert.True(DocxFixtures.Read(withToc, m => m.DocumentSettingsPart!.Settings!
+            .Elements<UpdateFieldsOnOpen>().Single().Val?.Value));
+    }
+
     [Fact]
     public void AddTableOfContents_OnADocumentBuiltByThisLibrarysOwnCreate_ValidatesClean()
     {
@@ -549,7 +622,81 @@ public class DocxEditorFootnoteEndnoteTocTests
             () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
 
         Assert.Contains("{{toc}}", ex.Message);
-        Assert.Contains("non-text content", ex.Message);
+        Assert.Contains("content other than plain text", ex.Message, StringComparison.Ordinal);
+
+        // Names what it actually found. The message used to assert "an inline image, a text box or
+        // a field" whatever the content was, which is a guess printed as a fact -- see the tab case
+        // below, where all three of those were wrong.
+        Assert.Contains("w:pict", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RefusingATabbedPlaceholder_NamesTheTabRatherThanGuessing()
+    {
+        // Correctly refused before and after -- a w:tab is content the paragraph would lose. What
+        // was wrong was the explanation: the message claimed an inline image, a text box or a
+        // field, none of which is true of a tab-indented placeholder.
+        var docx = DocxFixtures.Build(DocxFixtures.P(
+            new Run(new TabChar(), new Text("{{toc}}"))));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+
+        Assert.Contains("w:tab", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("inline image", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RefusesAPlaceholderParagraphWhoseParagraphPropertiesCarryASectionBreak()
+    {
+        // w:pPr was on the allow-list unconditionally, as "formatting a caller cannot lose". It can
+        // legally hold a w:sectPr, which is a SECTION BREAK, not paragraph formatting -- so a
+        // placeholder that also ended a section (front matter in lower-roman page numbers, body in
+        // arabic: an ordinary Word shape) had its section properties destroyed along with the
+        // paragraph. Measured before the fix: 2 w:sectPr before, 1 after, "lowerRoman" gone
+        // entirely, and the package still schema-valid, so nothing caught it automatically.
+        static SectionProperties A4Section(NumberFormatValues? pageNumbers = null)
+        {
+            var sectPr = new SectionProperties(
+                new PageSize { Width = 11906U, Height = 16838U },
+                // Top/Bottom are Int32Value and the rest UInt32Value -- the ECMA schema's own
+                // asymmetry, which CLAUDE.md records: a top margin may be negative, a left may not.
+                new PageMargin
+                {
+                    Top = 1134,
+                    Bottom = 1134,
+                    Left = 1134U,
+                    Right = 1134U,
+                    Header = 709U,
+                    Footer = 709U,
+                    Gutter = 0U,
+                });
+
+            if (pageNumbers is { } format)
+                sectPr.AppendChild(new PageNumberType { Format = format });
+
+            return sectPr;
+        }
+
+        var docx = DocxFixtures.Build(
+            DocxFixtures.P(DocxFixtures.R("Cover page")),
+            DocxFixtures.P(
+                new ParagraphProperties(A4Section(NumberFormatValues.LowerRoman)),
+                DocxFixtures.R("{{toc}}")),
+            DocxFixtures.P(DocxFixtures.R("Chapter 1")),
+            A4Section());
+
+        // Positive control on the fixture itself: the section break really is there to be lost, and
+        // the document is legal before the edit. Without this, a refusal below could just as well
+        // mean the fixture never had two sections.
+        Assert.Empty(DocxFixtures.Validate(docx));
+        Assert.Equal(2, DocxFixtures.ReadBody(docx, b => b.Descendants<SectionProperties>().Count()));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+
+        Assert.Contains("{{toc}}", ex.Message);
+        Assert.Contains("sectPr", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

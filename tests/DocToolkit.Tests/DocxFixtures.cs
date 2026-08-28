@@ -194,10 +194,20 @@ internal static class DocxFixtures
         .ToArray();
 
     /// <summary>Schema-validation errors for the whole package (empty means valid).</summary>
+    /// <remarks>
+    /// <b>The version is explicit, and <c>Office2007</c> — the parameterless default — is the wrong
+    /// one here.</b> That schema predates the <c>w14:</c>/<c>w15:</c> extension elements an ordinary
+    /// Word-saved document carries (<c>w15:chartTrackingRefBased</c>, <c>w15:docId</c>), so a
+    /// validator built for it cannot see an ordering violation involving one and reports clean. Every
+    /// validity assertion in this suite went through this helper, which meant no test in the
+    /// repository could observe that class of bug — see
+    /// <c>DocxEditorFootnoteEndnoteTocTests.AddTableOfContents_InsertsUpdateFieldsInAValidSlot_OnW15ShapedSettings</c>,
+    /// which is red under <c>Office2007</c> and green under this.
+    /// </remarks>
     public static IReadOnlyList<ValidationErrorInfo> Validate(byte[] docx)
     {
         using var ms = new MemoryStream(docx);
         using var doc = WordprocessingDocument.Open(ms, false);
-        return new OpenXmlValidator().Validate(doc).ToList();
+        return new OpenXmlValidator(FileFormatVersions.Office2013).Validate(doc).ToList();
     }
 }

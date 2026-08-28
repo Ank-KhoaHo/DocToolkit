@@ -1839,7 +1839,10 @@ public static class DocxEditor
     /// spliced inline, preserving whatever text shares its run — a table of contents cannot: its
     /// content is whole paragraphs, and replacing a paragraph has no way to keep a neighbour's
     /// text. A placeholder paragraph carrying anything besides the placeholder is refused rather
-    /// than silently trimmed — other text, an inline image and a text box alike.
+    /// than silently trimmed — other text, an inline image, a text box and a tab alike, and so is
+    /// a paragraph whose own <c>w:pPr</c> holds a <c>w:sectPr</c>, since that is a section break
+    /// carrying its section's paper size, margins and page numbering rather than formatting the
+    /// paragraph could lose harmlessly.
     /// </para>
     /// <para>
     /// <b>Only a top-level paragraph is matched.</b> A placeholder that lives only inside a text
@@ -1859,14 +1862,16 @@ public static class DocxEditor
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="placeholder"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
-    /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
+    /// <paramref name="docx"/> is empty, <paramref name="placeholder"/> is blank, or
     /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
     /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
+    /// </exception>
     /// <exception cref="DocumentConversionException">
-    /// The package could not be edited, or no paragraph containing only the placeholder was found.
+    /// The package could not be edited; no paragraph containing only the placeholder was found; the
+    /// paragraph holding it also holds content other than plain text; or that paragraph's
+    /// <c>w:pPr</c> carries a <c>w:sectPr</c>, so replacing it would discard a section break.
     /// </exception>
     public static byte[] AddTableOfContents(
         byte[] docx, string placeholder, int minLevel = 1, int maxLevel = 3)
@@ -1904,15 +1909,17 @@ public static class DocxEditor
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
-    /// is not writable, or <paramref name="placeholder"/> is blank.
+    /// is not writable, <paramref name="placeholder"/> is blank, or <paramref name="minLevel"/> is
+    /// greater than <paramref name="maxLevel"/>.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
-    /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
-    /// The package could not be edited, or no matching paragraph was found.
+    /// The package could not be edited; no matching paragraph was found; the paragraph holding the
+    /// placeholder also holds content other than plain text; or that paragraph's <c>w:pPr</c>
+    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break.
     /// </exception>
     public static async Task AddTableOfContentsAsync(
         Stream source, string placeholder, Stream destination,
@@ -1952,12 +1959,12 @@ public static class DocxEditor
     /// <param name="ct">Cancels the read and the write.</param>
     /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
-    /// <paramref name="placeholder"/> is blank.
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty,
+    /// <paramref name="placeholder"/> is blank, or <paramref name="minLevel"/> is greater than
+    /// <paramref name="maxLevel"/>.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
-    /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
     /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
     /// <exception cref="DirectoryNotFoundException">
@@ -1965,7 +1972,9 @@ public static class DocxEditor
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
-    /// The package could not be edited, or no matching paragraph was found.
+    /// The package could not be edited; no matching paragraph was found; the paragraph holding the
+    /// placeholder also holds content other than plain text; or that paragraph's <c>w:pPr</c>
+    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break.
     /// </exception>
     public static async Task AddTableOfContentsAsync(
         string inputPath, string outputPath, string placeholder,
@@ -2013,7 +2022,7 @@ public static class DocxEditor
                            + "example it was renamed from another format) or the upload is corrupt.");
 
                 Paragraph? target = null;
-                Paragraph? carriesOtherContent = null;
+                OpenXmlElement? blocker = null;
                 Paragraph? partialMatch = null;
 
                 foreach (var paragraph in TopLevelParagraphsOf(body))
@@ -2021,12 +2030,12 @@ public static class DocxEditor
                     var ownText = OwnParagraphText(paragraph);
                     if (ownText == placeholder)
                     {
-                        // The text matching exactly is only half the question. A text box or an
-                        // inline image sharing the paragraph is invisible to OwnParagraphText -- it
-                        // reads w:t elements -- and removing the paragraph would take that content
-                        // with it, silently. Same refusal as the "other text" case below.
-                        if (!OwnsNonTextContent(paragraph)) { target = paragraph; break; }
-                        carriesOtherContent ??= paragraph;
+                        // The text matching exactly is only half the question. A text box, an
+                        // inline image or a section break sharing the paragraph is invisible to
+                        // OwnParagraphText -- it reads w:t elements -- and removing the paragraph
+                        // would take that with it, silently. Same refusal as "other text" below.
+                        if (NonTextContentIn(paragraph) is not { } offending) { target = paragraph; break; }
+                        blocker ??= offending;
                         continue;
                     }
 
@@ -2036,11 +2045,22 @@ public static class DocxEditor
 
                 if (target is null)
                 {
-                    if (carriesOtherContent is not null)
+                    if (blocker is SectionProperties)
+                    {
+                        throw new DocumentConversionException(
+                            $"A paragraph whose text is exactly '{placeholder}' was found, but its w:pPr carries "
+                            + "a w:sectPr -- a section break, not paragraph formatting. AddTableOfContents "
+                            + "replaces the whole paragraph, which would take the section break with it and "
+                            + "silently give that section the FOLLOWING section's paper size, margins and "
+                            + "page-numbering format. Put the placeholder in a paragraph of its own, ahead of "
+                            + "the one that ends the section.");
+                    }
+
+                    if (blocker is not null)
                     {
                         throw new DocumentConversionException(
                             $"A paragraph whose text is exactly '{placeholder}' was found, but it also holds "
-                            + "non-text content such as an inline image, a text box or a field. "
+                            + $"content other than plain text (a '{Describe(blocker)}' element). "
                             + "AddTableOfContents needs the placeholder to be the paragraph's entire content, "
                             + "since inserting a table of contents replaces the whole paragraph and would "
                             + "discard that content along with it.");
@@ -2106,22 +2126,44 @@ public static class DocxEditor
         => body.Descendants<Paragraph>().Where(p => !p.Ancestors<Paragraph>().Any());
 
     /// <summary>
-    /// True when <paramref name="paragraph"/> owns content that is not plain text — an inline
-    /// image, a text box, a field, a hyperlink, a nested control.
+    /// The first element <paramref name="paragraph"/> owns that is not plain text — an inline
+    /// image, a text box, a field, a tab, a line break, a hyperlink, a nested control, or a section
+    /// break — or <see langword="null"/> when the paragraph really does hold nothing but text.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This is an ALLOW-list rather than a deny-list on purpose: an unrecognised element is treated
     /// as content and the paragraph is refused, so the failure direction is a spurious refusal the
     /// caller can see rather than the silent data loss a missed entry in a deny-list would cause.
     /// Only the elements that genuinely carry nothing a caller could lose are listed —
     /// formatting (<c>w:pPr</c>, <c>w:rPr</c>), bookmarks, proofing marks and layout hints.
+    /// </para>
+    /// <para>
+    /// <b><c>w:pPr</c> is on that list only when it holds no <c>w:sectPr</c>.</b> A <c>w:sectPr</c>
+    /// nested in a paragraph's own properties is a <em>section break</em>, not paragraph formatting
+    /// — it carries that section's paper size, margins and page-numbering format, and the paragraph
+    /// holding it is simply the last paragraph of the section. Allowing <c>w:pPr</c>
+    /// unconditionally therefore discarded a whole section's page setup along with the placeholder
+    /// paragraph, leaving that content to inherit whatever the FOLLOWING section specifies, with no
+    /// exception and a package that still validates. Same family as the <c>w:sectPr</c>-placement
+    /// trap this codebase already records: nothing about a section break is visible to a test that
+    /// reads text back.
+    /// </para>
+    /// <para>
+    /// It returns the offending element rather than a bool so the refusal can name what it found.
+    /// The message used to assert the content was "an inline image, a text box or a field", which
+    /// was simply untrue for the tab- and line-break cases it also (correctly) refuses.
+    /// </para>
     /// </remarks>
-    private static bool OwnsNonTextContent(Paragraph paragraph)
+    private static OpenXmlElement? NonTextContentIn(Paragraph paragraph)
     {
         foreach (var child in paragraph.ChildElements)
         {
             switch (child)
             {
+                case ParagraphProperties { SectionProperties: not null } sectionBreak:
+                    return sectionBreak.SectionProperties!;
+
                 case ParagraphProperties:
                 case BookmarkStart:
                 case BookmarkEnd:
@@ -2129,21 +2171,23 @@ public static class DocxEditor
                     continue;
 
                 case Run run:
-                    if (run.ChildElements.Any(
-                            c => c is not RunProperties and not Text and not LastRenderedPageBreak))
-                    {
-                        return true;
-                    }
+                    var carried = run.ChildElements.FirstOrDefault(
+                        c => c is not RunProperties and not Text and not LastRenderedPageBreak);
+                    if (carried is not null) return carried;
 
                     continue;
 
                 default:
-                    return true;
+                    return child;
             }
         }
 
-        return false;
+        return null;
     }
+
+    /// <summary>The prefixed name of <paramref name="element"/>, e.g. <c>w:pict</c>.</summary>
+    private static string Describe(OpenXmlElement element)
+        => string.IsNullOrEmpty(element.Prefix) ? element.LocalName : $"{element.Prefix}:{element.LocalName}";
 
     /// <summary>
     /// The <c>w14:</c> namespace — Word 2010's revision bookkeeping. See
@@ -2233,6 +2277,18 @@ public static class DocxEditor
     /// validator stops rejecting it answers the ordering question from the schema itself, so it is
     /// correct for any legally-ordered <c>CT_Settings</c> rather than for one example's shape.
     /// </para>
+    /// <para>
+    /// <b>Which schema version the validator is asked about is part of that derivation, not a
+    /// detail.</b> <c>new OpenXmlValidator()</c> defaults to <c>FileFormatVersions.Office2007</c>,
+    /// which predates the <c>w14:</c>/<c>w15:</c> extension elements every document Word itself has
+    /// saved carries — <c>w15:chartTrackingRefBased</c> and <c>w15:docId</c> in <c>w:settings</c>,
+    /// under an <c>mc:Ignorable="w14 w15"</c> root. A 2007-era validator cannot see those children
+    /// at all, so it reports the appended element clean, the loop stops one position too early, and
+    /// <c>w:updateFields</c> is left in a slot that is invalid under the real schema — invisible
+    /// precisely because the thing asked to check it is the thing that cannot see it. Measured on
+    /// <c>[w:zoom, w:defaultTabStop, w15:chartTrackingRefBased, w15:docId]</c>: zero errors under
+    /// <c>Office2007</c> before and after, one error under <c>Office2013</c> after but not before.
+    /// </para>
     /// </remarks>
     private static void EnsureFieldsUpdateOnOpen(MainDocumentPart main)
     {
@@ -2250,12 +2306,13 @@ public static class DocxEditor
         var newElement = new UpdateFieldsOnOpen { Val = true };
         settingsPart.Settings.AppendChild(newElement);
 
-        // Bounded by the child count: w:settings has on the order of fifteen legal children, and
-        // each pass moves the element exactly one slot earlier, so this converges in a handful of
-        // iterations at most. The discriminator is RelatedNode rather than the message text, so
-        // validation errors the caller's own settings already carried are ignored rather than
-        // driving the element to the front of a document that was invalid before this ran.
-        var validator = new OpenXmlValidator();
+        // Bounded by THIS document's own child count, not by any assumed schema size: each pass
+        // moves the element exactly one slot earlier, so it can need at most as many passes as
+        // there are children to move past, and the loop terminates whatever w:settings turns out to
+        // hold. The discriminator is RelatedNode rather than the message text, so validation errors
+        // the caller's own settings already carried are ignored rather than driving the element to
+        // the front of a document that was invalid before this ran.
+        var validator = new OpenXmlValidator(FileFormatVersions.Office2013);
         for (var remaining = settingsPart.Settings.ChildElements.Count; remaining > 0; remaining--)
         {
             var rejected = validator.Validate(settingsPart.Settings)
