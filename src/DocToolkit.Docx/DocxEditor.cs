@@ -1130,7 +1130,7 @@ public static class DocxEditor
                 // real alt text or none. Do not "unify" these - they differ because the inputs do.
                 var drawing = DrawingFactory.InlineImage(
                     relationshipId, name, nextId++, widthEmu, heightEmu, description: name);
-                SpliceDrawingIn(texts, offsets[i], placeholder.Length, drawing);
+                SpliceElementIn(texts, offsets[i], placeholder.Length, new Run(drawing));
                 inserted++;
             }
         }
@@ -1158,13 +1158,17 @@ public static class DocxEditor
 
     /// <summary>
     /// Removes <paramref name="length"/> characters at <paramref name="start"/> from the
-    /// concatenation of <paramref name="texts"/> and puts <paramref name="drawing"/> there instead.
+    /// concatenation of <paramref name="texts"/> and puts <paramref name="replacement"/> there
+    /// instead.
     ///
     /// This cannot use <see cref="RunTextSplicer"/>: that maps match offsets back onto runs and
     /// writes <i>text</i>, whereas this has to remove a span and insert an <i>element</i> at that
-    /// position. Same principle — never touch a run the match does not overlap — different mechanism.
+    /// position. Same principle — never touch a run the match does not overlap — different
+    /// mechanism. Shared by every caller that inserts a non-text element at a placeholder: an
+    /// image (<see cref="ReplaceImage(byte[], string, byte[], double?, double?)"/>), a footnote or
+    /// endnote reference (AddFootnote, AddEndnote).
     /// </summary>
-    private static void SpliceDrawingIn(List<Text> texts, int start, int length, Drawing drawing)
+    private static void SpliceElementIn(List<Text> texts, int start, int length, Run replacement)
     {
         var end = start + length;
         var position = 0;
@@ -1196,13 +1200,13 @@ public static class DocxEditor
 
         if (anchor is null) return;
 
-        var imageRun = new Run(drawing);
-        anchor.InsertAfterSelf(imageRun);
+        anchor.InsertAfterSelf(replacement);
 
-        // A match wholly inside one run leaves a tail that needs a run of its own after the image.
+        // A match wholly inside one run leaves a tail that needs a run of its own after the
+        // inserted element.
         if (suffix.Length > 0)
         {
-            imageRun.InsertAfterSelf(new Run(
+            replacement.InsertAfterSelf(new Run(
                 new Text(suffix) { Space = SpaceProcessingModeValues.Preserve }));
         }
     }
@@ -1345,6 +1349,246 @@ public static class DocxEditor
         var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceImage(bytes, placeholder, image, widthPoints, heightPoints);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Adds a footnote at every occurrence of <paramref name="placeholder"/>, inline, across the
+    /// document body.
+    ///
+    /// Only the matched text goes: text sharing a run with the placeholder keeps its place and its
+    /// formatting, so <c>See the note{{note}} here.</c> becomes <c>See the note</c>, the footnote
+    /// reference, then <c> here.</c> Each occurrence gets its own footnote entry, all carrying
+    /// <paramref name="footnoteText"/>.
+    ///
+    /// <paramref name="placeholder"/> is the literal text including braces, like
+    /// <see cref="ReplaceImage(byte[], string, byte[], double?, double?)"/>. Only the document
+    /// body is searched — headers, footers, and content already inside another footnote or
+    /// endnote are not.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or <paramref name="placeholder"/> does not appear in the
+    /// body — a call matching nothing is a bug in the call or the template, not a no-op.
+    /// </exception>
+    public static byte[] AddFootnote(byte[] docx, string placeholder, string footnoteText)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(footnoteText);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        AddFootnoteCore(ms, placeholder, footnoteText);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, adds a footnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="destination"/> —
+    /// see <see cref="AddFootnote(byte[], string, string)"/> for exactly what is matched.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="footnoteText">The footnote's own text.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddFootnoteAsync(
+        Stream source, string placeholder, string footnoteText, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(footnoteText);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to add a footnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        AddFootnoteCore(buffer, placeholder, footnoteText);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to add a footnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="inputPath"/>, adds a footnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="outputPath"/> —
+    /// see <see cref="AddFootnote(byte[], string, string)"/> for exactly what is matched. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .docx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="footnoteText">The footnote's own text.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddFootnoteAsync(
+        string inputPath, string outputPath, string placeholder, string footnoteText,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(footnoteText);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddFootnote(bytes, placeholder, footnoteText);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void AddFootnoteCore(MemoryStream ms, string placeholder, string footnoteText)
+    {
+        try
+        {
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+
+                var inserted = InsertFootnoteReferencesIn(main, body, placeholder, footnoteText);
+
+                if (inserted == 0)
+                {
+                    throw new DocumentConversionException(
+                        $"The placeholder '{placeholder}' was not found, so there was no footnote to add. "
+                        + "Check the placeholder text, braces included, matches the document exactly.");
+                }
+
+                main.Document!.Save();
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add a footnote to the DOCX package. See the inner exception for details.", ex);
+        }
+    }
+
+    private static int InsertFootnoteReferencesIn(
+        MainDocumentPart main, Body body, string placeholder, string footnoteText)
+    {
+        var inserted = 0;
+        var nextId = NextFootnoteId(main);
+
+        foreach (var paragraph in body.Descendants<Paragraph>().ToList())
+        {
+            var texts = paragraph.Descendants<Text>()
+                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                                 .ToList();
+            if (texts.Count == 0) continue;
+
+            var merged = string.Concat(texts.Select(t => t.Text));
+
+            var offsets = new List<int>();
+            for (var at = merged.IndexOf(placeholder, StringComparison.Ordinal);
+                 at >= 0;
+                 at = merged.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal))
+            {
+                offsets.Add(at);
+            }
+
+            // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
+            for (var i = offsets.Count - 1; i >= 0; i--)
+            {
+                var id = nextId++;
+                AddFootnoteEntry(main, id, footnoteText);
+
+                var referenceRun = new Run(
+                    new RunProperties(new RunStyle { Val = "FootnoteReference" }),
+                    new FootnoteReference { Id = id });
+                SpliceElementIn(texts, offsets[i], placeholder.Length, referenceRun);
+                inserted++;
+            }
+        }
+
+        return inserted;
+    }
+
+    /// <summary>
+    /// One above the highest existing footnote id in <paramref name="main"/>'s
+    /// <see cref="FootnotesPart"/>, or 1 if the part does not exist yet. Footnote and endnote ids
+    /// are independent numbering spaces — measured, not assumed — so this scans only the
+    /// footnotes part, never the endnotes part too.
+    /// </summary>
+    private static int NextFootnoteId(MainDocumentPart main)
+    {
+        if (main.FootnotesPart?.Footnotes is not { } footnotes) return 1;
+
+        var highest = footnotes.Elements<Footnote>()
+            .Select(f => f.Id?.Value)
+            .Where(id => id.HasValue)
+            .Select(id => (int)id!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return highest + 1;
+    }
+
+    /// <summary>
+    /// Appends one footnote entry to <paramref name="main"/>'s <see cref="FootnotesPart"/>,
+    /// creating the part on first use. No separator/continuationSeparator boilerplate: measured
+    /// against a real OpenXmlValidator run, a minimal part with only real footnote
+    /// entries validates with zero errors — the boilerplate is a Word authoring convention, not a
+    /// schema requirement.
+    /// </summary>
+    private static void AddFootnoteEntry(MainDocumentPart main, int id, string footnoteText)
+    {
+        var footnotesPart = main.FootnotesPart ?? main.AddNewPart<FootnotesPart>();
+        footnotesPart.Footnotes ??= new Footnotes();
+
+        footnotesPart.Footnotes.AppendChild(new Footnote(
+            new Paragraph(
+                new ParagraphProperties(new ParagraphStyleId { Val = "FootnoteText" }),
+                new Run(
+                    new RunProperties(new RunStyle { Val = "FootnoteReference" }),
+                    new FootnoteReferenceMark()),
+                new Run(new Text(footnoteText) { Space = SpaceProcessingModeValues.Preserve })))
+        { Id = id });
+
+        footnotesPart.Footnotes.Save();
     }
 
     /// <summary>Reads a .docx from <paramref name="path"/> and returns its body text.</summary>
