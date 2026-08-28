@@ -354,6 +354,18 @@ byte[] signed = DocxEditor.ReplaceImage(withLogo, "{{signature}}", sigBytes, wid
 
 <!-- END SNIPPET -->
 
+```csharp
+
+// Add a footnote, an endnote, or a table of contents at a placeholder in an existing document —
+// the same placeholder shape ReplaceImage uses.
+byte[] withFootnote = DocxEditor.AddFootnote(docx, "{{note}}", "See the appendix for detail.");
+byte[] withEndnote  = DocxEditor.AddEndnote(withFootnote, "{{cite}}", "Source: internal audit, 2026.");
+
+// The placeholder paragraph must contain nothing else -- inserting a table of contents replaces
+// the whole paragraph, which cannot preserve neighbouring text the way an inline splice can.
+byte[] withToc = DocxEditor.AddTableOfContents(withEndnote, "{{toc}}", minLevel: 1, maxLevel: 3);
+```
+
 **PNG and JPEG**, identified by their own magic bytes rather than a filename. Omit the size and the
 image's intrinsic dimensions are read from its header at 96 DPI; give one dimension and the other
 scales; give both and it is stretched to fit.
