@@ -89,6 +89,20 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, DocToolkit.HtmlToPdfOptions options, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ConvertToFileAsync(string html, DocToolkit.PageSetup page, string outputPath, System.Threading.CancellationToken ct = default) { }
     }
+    public static class MarkdownEditor
+    {
+        public static DocToolkit.MarkdownHeading? FindHeading(string markdown, string headingText, System.StringComparison comparison = 5) { }
+        public static System.Collections.Generic.IReadOnlyDictionary<string, object> ReadFrontMatter(string markdown) { }
+        public static System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>> ReadTable(string markdown, int index) { }
+        public static string ReplaceSection(string markdown, string headingText, string newContent, System.StringComparison comparison = 5) { }
+        public static int TableCount(string markdown) { }
+    }
+    public sealed class MarkdownHeading
+    {
+        public string Anchor { get; }
+        public int Level { get; }
+        public string Text { get; }
+    }
     public static class MarkdownToDocxConverter
     {
         public static byte[] Convert(string markdown) { }
