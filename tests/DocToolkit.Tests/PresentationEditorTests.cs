@@ -615,6 +615,7 @@ public class PresentationEditorTests
             new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
 
         var edited = PresentationEditor.RemoveSlides(deck, new[] { 3, 1 });
+        Assert.Empty(PptxFixtures.Validate(edited));
 
         Assert.Equal(new[] { "Slide 2" }, PresentationEditor.ExtractText(edited));
     }
@@ -659,7 +660,53 @@ public class PresentationEditorTests
 
         await PresentationEditor.RemoveSlidesAsync(input.Path, output.Path, new[] { 2 });
 
+        var outputBytes = await File.ReadAllBytesAsync(output.Path);
+        Assert.Empty(PptxFixtures.Validate(outputBytes));
+
         var text = await PresentationEditor.ExtractTextAsync(output.Path);
         Assert.Equal(new[] { "Slide 1", "Slide 3" }, text);
+    }
+
+    [Fact]
+    public void RemoveSlides_DeletesASlidesOwnNotesSlidePart_LeavingNoOrphan()
+    {
+        // A removed slide's OWN uniquely-referenced child part (speaker notes) must not survive
+        // as an orphan in the output package. Verified by hand first, separately from this test:
+        // DeletePart on a SlidePart DOES cascade to its own NotesSlidePart, confirmed against a
+        // real build+run before writing this - so this pins correct behaviour rather than
+        // testing for a defect that turned out not to exist.
+        var deck = BuildDeckWhereSlideOneHasItsOwnNotesSlidePart();
+
+        var edited = PresentationEditor.RemoveSlides(deck, new[] { 1 });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using var zip = new System.IO.Compression.ZipArchive(
+            new MemoryStream(edited), System.IO.Compression.ZipArchiveMode.Read);
+        Assert.DoesNotContain(
+            zip.Entries, e => e.FullName.Contains("notesSlide", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static byte[] BuildDeckWhereSlideOneHasItsOwnNotesSlidePart()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var ms = new MemoryStream();
+        ms.Write(deck, 0, deck.Length);
+        ms.Position = 0;
+
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var slide1 = doc.PresentationPart!.SlideParts.First();
+            var notesPart = slide1.AddNewPart<NotesSlidePart>();
+            notesPart.NotesSlide = new P.NotesSlide(new P.CommonSlideData(new P.ShapeTree(
+                new P.NonVisualGroupShapeProperties(
+                    new P.NonVisualDrawingProperties { Id = 1U, Name = string.Empty },
+                    new P.NonVisualGroupShapeDrawingProperties(),
+                    new P.ApplicationNonVisualDrawingProperties()),
+                new P.GroupShapeProperties())));
+            notesPart.NotesSlide.Save();
+        }
+
+        return ms.ToArray();
     }
 }

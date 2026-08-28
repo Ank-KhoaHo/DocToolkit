@@ -95,6 +95,10 @@ public class StreamOverloadTests
 
     private static readonly byte[] Pptx = PptxFixtures.Sample();
 
+    /// <summary>A two-slide deck, for overloads a one-slide source can't meaningfully exercise (RemoveSlidesAsync's non-empty-set removal, and ReorderSlidesAsync's permutation once that overload exists).</summary>
+    private static readonly byte[] MultiSlidePptx =
+        PptxFixtures.MultiSlideDeck(new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
     /// <summary>
     /// A real Word 97-2003 binary .doc, for the DocToDocxConverter overloads.
     ///
@@ -198,6 +202,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
         "MarkdownToDocxConverter.ConvertAsync",
@@ -252,8 +257,10 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.SlideCountAsync",
+        "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PdfEditor.PageCountAsync",
         "PdfEditor.MergeAsync",
@@ -326,6 +333,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
         "MarkdownToDocxConverter.ConvertAsync",
@@ -1164,10 +1172,14 @@ public class StreamOverloadTests
                 WorkbookEditor.FormatAsync(source!, "Sales", XlsxFormat.Report, destination!, ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
+            "PresentationEditor.ReadSlideAsync" =>
+                PresentationEditor.ReadSlideAsync(source!, 1, ct),
             "PresentationEditor.ExtractTextAsync" =>
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>
                 PresentationEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
+            "PresentationEditor.RemoveSlidesAsync" =>
+                PresentationEditor.RemoveSlidesAsync(source!, new[] { 1 }, destination!, ct),
             "PresentationEditor.ReplaceImageAsync" =>
                 PresentationEditor.ReplaceImageAsync(source!, "{{chart}}", ImageFixtures.Png(), destination!, ct),
             "PresentationEditor.CreateAsync" =>
@@ -1220,6 +1232,7 @@ public class StreamOverloadTests
         "DocxEditor.UnprotectAsync" => ProtectedDocx,
         "WorkbookEditor.UnprotectAsync" => ProtectedXlsx,
         "PresentationEditor.UnprotectAsync" => ProtectedPptx,
+        "PresentationEditor.RemoveSlidesAsync" => MultiSlidePptx,
         _ when api.StartsWith("DocToDocxConverter", StringComparison.Ordinal) => LegacyDoc,
         _ when api.StartsWith("XlsxTo", StringComparison.Ordinal) => Xlsx,
         _ when api.StartsWith("PdfEditor", StringComparison.Ordinal) => Pdf,
