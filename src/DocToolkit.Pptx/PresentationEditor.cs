@@ -618,6 +618,136 @@ public static class PresentationEditor
     }
 
     /// <summary>
+    /// A copy of <paramref name="pptx"/> with the slides at <paramref name="indices"/> removed.
+    /// </summary>
+    /// <param name="pptx">The presentation to remove slides from. It is not modified.</param>
+    /// <param name="indices">
+    /// 1-based slide numbers to remove, each exactly once and in any order — not a contiguous
+    /// range, so <c>[2, 7]</c> removes exactly those two slides in one call.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="indices"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static byte[] RemoveSlides(byte[] pptx, IEnumerable<int> indices)
+    {
+        ArgumentNullException.ThrowIfNull(indices);
+        var wanted = indices.ToArray();
+
+        using var ms = OpenForWrite(pptx);
+        RemoveSlidesCore(ms, wanted);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, removes the slides at
+    /// <paramref name="indices"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="RemoveSlides"/> for exactly what <paramref name="indices"/> accepts.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="indices">1-based slide numbers to remove, each exactly once, any order.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task RemoveSlidesAsync(
+        Stream source, IEnumerable<int> indices, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(indices);
+        var wanted = indices.ToArray();
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        RemoveSlidesCore(ms, wanted);
+
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    private static void RemoveSlidesCore(MemoryStream ms, IReadOnlyList<int> indices)
+    {
+        try
+        {
+            using (var doc = OpenDocument(ms, true))
+            {
+                var presentationPart = PresentationPartOf(doc);
+                var slideParts = SlidesInDeckOrder(presentationPart).ToList();
+
+                if (indices.Distinct().Count() != indices.Count)
+                {
+                    throw new ArgumentException(
+                        $"The indices must not repeat. Got [{string.Join(", ", indices)}].",
+                        nameof(indices));
+                }
+
+                foreach (var index in indices)
+                {
+                    if (index < 1 || index > slideParts.Count)
+                    {
+                        throw new ArgumentOutOfRangeException(
+                            nameof(indices), index,
+                            $"Slide {index} was requested for removal from a deck with " +
+                            $"{slideParts.Count} slide(s).");
+                    }
+                }
+
+                if (indices.Count >= slideParts.Count)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(indices), indices.Count,
+                        $"Removing {indices.Count} of {slideParts.Count} slide(s) would leave " +
+                        "nothing. A zero-slide deck is not a presentation.");
+                }
+
+                var presentation = presentationPart.Presentation!;
+                var slideIdList = presentation.SlideIdList!;
+                var toRemove = indices.Select(i => slideParts[i - 1]).ToList();
+                var idsToRemove = toRemove.Select(part => presentationPart.GetIdOfPart(part)).ToHashSet();
+
+                foreach (var slideId in slideIdList.Elements<P.SlideId>().ToList())
+                {
+                    if (idsToRemove.Contains(slideId.RelationshipId!.Value!))
+                    {
+                        slideId.Remove();
+                    }
+                }
+
+                foreach (var part in toRemove)
+                {
+                    presentationPart.DeletePart(part);
+                }
+
+                presentation.Save();
+            }
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException and not ArgumentException)
+        {
+            throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
     /// Slide parts in the order the deck presents them.
     ///
     /// <c>PresentationPart.SlideParts</c> is part-relationship order, which has nothing to do with
@@ -834,6 +964,44 @@ public static class PresentationEditor
 
         var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceImage(bytes, placeholder, image);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="inputPath"/>, removes the slides at
+    /// <paramref name="indices"/>, and writes the result to <paramref name="outputPath"/> — see
+    /// <see cref="RemoveSlides"/> for exactly what <paramref name="indices"/> accepts. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .pptx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="indices">1-based slide numbers to remove, each exactly once, any order.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="indices"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task RemoveSlidesAsync(
+        string inputPath, string outputPath, IEnumerable<int> indices, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(indices);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = RemoveSlides(bytes, indices);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
 

@@ -590,4 +590,76 @@ public class PresentationEditorTests
             PresentationEditor.ReadSlide(pptx, 2),
             await PresentationEditor.ReadSlideAsync(input.Path, 2));
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: RemoveSlides — an arbitrary set of indices, not a contiguous range.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void RemoveSlides_RemovesTheGivenIndicesAndKeepsTheRest()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3", "Slide 4" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.RemoveSlides(deck, new[] { 2, 4 });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(2, PresentationEditor.SlideCount(edited));
+        Assert.Equal(new[] { "Slide 1", "Slide 3" }, PresentationEditor.ExtractText(edited));
+    }
+
+    [Fact]
+    public void RemoveSlides_AcceptsANonContiguousSetInAnyOrder()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.RemoveSlides(deck, new[] { 3, 1 });
+
+        Assert.Equal(new[] { "Slide 2" }, PresentationEditor.ExtractText(edited));
+    }
+
+    [Fact]
+    public void RemoveSlides_RejectsRemovingEverySlide()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.RemoveSlides(deck, new[] { 1, 2 }));
+    }
+
+    [Fact]
+    public void RemoveSlides_RejectsADuplicateIndex()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentException>(() => PresentationEditor.RemoveSlides(deck, new[] { 1, 1 }));
+    }
+
+    [Fact]
+    public void RemoveSlides_RejectsAnOutOfRangeIndex()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => PresentationEditor.RemoveSlides(deck, new[] { 3 }));
+    }
+
+    [Fact]
+    public async Task RemoveSlidesAsync_FromFileToFile_RemovesTheGivenIndices()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.RemoveSlidesAsync(input.Path, output.Path, new[] { 2 });
+
+        var text = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Equal(new[] { "Slide 1", "Slide 3" }, text);
+    }
 }
