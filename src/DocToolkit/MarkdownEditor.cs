@@ -7,9 +7,29 @@ namespace DocToolkit;
 /// section's content — without converting to another format first.
 /// </summary>
 /// <remarks>
-/// <b>No <c>Stream source</c> or async overload, on any method here.</b> The input is a
-/// <see cref="string"/> rather than a document, the same reason
-/// <see cref="MarkdownToDocxConverter"/> has none.
+/// <para>
+/// <b>No <c>Stream source</c> overload, on any method here.</b> The input is a
+/// <see cref="string"/> rather than a document, so a caller holding bytes decides their own
+/// encoding — the same reason <see cref="MarkdownToDocxConverter"/> has no <c>Stream source</c>
+/// overload either.
+/// </para>
+/// <para>
+/// <b>No async overload either, for a different reason.</b> An overload here is async only where
+/// there is real I/O to await — that is what a <c>Stream</c> overload earns, because draining or
+/// emitting a stream genuinely awaits. Every method on this class is CPU-bound: it parses a string
+/// and returns a value. Wrapping that in a <see cref="System.Threading.Tasks.Task"/> would make it
+/// look async without making it so.
+/// </para>
+/// <para>
+/// <b>No <c>*Core</c> split, and no dependency-injection mirror — both deliberate.</b> The
+/// <c>*Core</c> convention exists so a <c>byte[]</c> overload and a <c>Stream</c> overload cannot
+/// drift apart; no method here has more than one overload, so there is nothing for a split to keep
+/// in sync. And there is no <c>IMarkdownEditor</c> in
+/// <c>DocToolkit.Extensions.DependencyInjection</c> because the two existing Markdown converters,
+/// <see cref="MarkdownToDocxConverter"/> and <see cref="MarkdownToPdfConverter"/>, are not mirrored
+/// there either. If DI support for Markdown is ever wanted, it should arrive for all three types in
+/// one change rather than singling this one out.
+/// </para>
 /// </remarks>
 public static class MarkdownEditor
 {
@@ -22,10 +42,41 @@ public static class MarkdownEditor
     /// </summary>
     /// <param name="markdown">The Markdown to read.</param>
     /// <remarks>
-    /// A YAML scalar's runtime type follows the underlying reader: a quoted or bare word is a
-    /// <see cref="string"/>, a number is a <see cref="double"/> (never <c>int</c> or
-    /// <c>long</c> — <c>version: 3</c> comes back as <c>3.0</c>), and <c>true</c>/<c>false</c> is
-    /// a <see cref="bool"/>.
+    /// <para>
+    /// <b>Values are whatever the underlying reader produced, and not every YAML shape survives.</b>
+    /// Every statement below was measured against the pinned <c>OfficeIMO.Markdown</c> 3.2.6 rather
+    /// than inferred from YAML in general.
+    /// </para>
+    /// <para>
+    /// A <b>scalar</b> arrives as one of three runtime types: a quoted or bare word is a
+    /// <see cref="string"/>, a number is a <see cref="double"/> (never <c>int</c> or <c>long</c> —
+    /// <c>version: 3</c> comes back as <c>3.0</c>), and <c>true</c>/<c>false</c> is a
+    /// <see cref="bool"/>. An absent value is the empty string: <c>key:</c> with nothing after it,
+    /// <c>key: null</c>, <c>key: ~</c> and <c>key: ""</c> are read as <c>""</c>, <c>"null"</c>,
+    /// <c>"~"</c> and <c>""</c> respectively. No value is ever <see langword="null"/>.
+    /// </para>
+    /// <para>
+    /// An <b>inline sequence</b> — <c>tags: [alpha, beta]</c> — is a fourth runtime type, a
+    /// <c>List&lt;string&gt;</c>. Its items are always strings, so <c>nums: [1, 2]</c> yields
+    /// <c>"1"</c> and <c>"2"</c> rather than two <see cref="double"/>s, and <c>tags: []</c> yields
+    /// an empty list.
+    /// </para>
+    /// <para>
+    /// A <b>block sequence</b> — a <c>tags:</c> line with indented <c>- alpha</c> / <c>- beta</c>
+    /// items beneath it — is <b>not read</b>. The key is present and maps to an empty string; the
+    /// items are lost entirely, with nothing raised. Write the sequence inline if you need to read
+    /// it back.
+    /// </para>
+    /// <para>
+    /// A <b>nested mapping</b> does not nest — it <b>flattens</b>. Given an <c>author:</c> line with
+    /// indented <c>name:</c> and <c>email:</c> beneath it, <c>author</c> maps to an empty string
+    /// while <c>name</c> and <c>email</c> appear as their own top-level keys of the returned
+    /// dictionary; deeper indentation flattens the same way, to the same one level. If a flattened
+    /// key collides with another key in the same front matter, only one entry survives and it
+    /// carries the <b>later</b> value — silently, exactly as a duplicate top-level key does. A
+    /// single-line <b>inline</b> mapping is neither parsed nor flattened: <c>author: {name: Ada}</c>
+    /// comes back as the literal string <c>{name: Ada}</c>.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="markdown"/> is null.</exception>
     /// <exception cref="DocumentConversionException">The Markdown could not be parsed.</exception>
@@ -38,6 +89,11 @@ public static class MarkdownEditor
         var result = new Dictionary<string, object>();
         foreach (var entry in doc.FrontMatterEntries)
         {
+            // The `!` is measured rather than assumed, so a future reader need not re-derive it.
+            // `Entry.Value` came back non-null for every front-matter shape tried against
+            // OfficeIMO.Markdown 3.2.6: an empty value, the literal `null`, `~`, an empty quoted
+            // string, duplicate keys, a block sequence, an inline sequence (including an empty
+            // one), a nested mapping and an inline mapping. An absent value is the empty string.
             result[entry.Key] = entry.Value!;
         }
 
@@ -54,6 +110,13 @@ public static class MarkdownEditor
     /// The heading's text to match, without the leading <c>#</c> markers.
     /// </param>
     /// <param name="comparison">How <paramref name="headingText"/> is compared. Case-insensitive by default.</param>
+    /// <remarks>
+    /// <b>Every heading is searched, including a nested one</b> — a heading inside a blockquote or a
+    /// list item is found here like any other. That is deliberately wider than
+    /// <see cref="ReplaceSection"/>, which considers top-level headings only because it has to index
+    /// the document's own block list to find a section's boundaries. Reading a heading has no such
+    /// constraint, so it does not inherit the restriction.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="markdown"/> or <paramref name="headingText"/> is null.
     /// </exception>
@@ -113,8 +176,18 @@ public static class MarkdownEditor
         }
 
         var table = tables[index];
-        var rows = new List<IReadOnlyList<string>> { table.Headers };
-        rows.AddRange(table.Rows);
+
+        // Genuine read-only copies, not the parser's own lists. `table.Headers` and every entry of
+        // `table.Rows` are concrete `List<string>` instances; handing them straight back behind an
+        // `IReadOnlyList<string>` lets a caller cast the reference and mutate the parsed document,
+        // which is not what read-only means. `DocxEditor.ReadTableCore` builds a fresh list per row
+        // for the same reason, and this matches that convention.
+        var rows = new List<IReadOnlyList<string>> { new List<string>(table.Headers).AsReadOnly() };
+        foreach (var row in table.Rows)
+        {
+            rows.Add(new List<string>(row).AsReadOnly());
+        }
+
         return rows;
     }
 
@@ -124,11 +197,18 @@ public static class MarkdownEditor
     /// every other section are left untouched.
     /// </summary>
     /// <param name="markdown">The Markdown to edit.</param>
-    /// <param name="headingText">The target heading's text — see <see cref="FindHeading"/>.</param>
+    /// <param name="headingText">
+    /// The target heading's text, without the leading <c>#</c> markers, matched against the
+    /// document's <b>top-level</b> headings only. This is deliberately narrower than
+    /// <see cref="FindHeading"/>, which also matches a heading nested inside a blockquote or a list
+    /// item — see the remarks for why the two differ.
+    /// </param>
     /// <param name="newContent">
-    /// The section's new body, inserted verbatim in place of everything between the heading's own
-    /// line and the start of the next section. Include your own surrounding newlines — this method
-    /// does not add or normalise whitespace around what you pass.
+    /// The section's new body, inserted verbatim in place of the <b>blocks</b> between the heading's
+    /// own line and the start of the next section. Include your own surrounding newlines — this
+    /// method does not add or normalise whitespace around what you pass. "Blocks" is meant
+    /// literally: a CommonMark link reference definition leaves no block behind, so one immediately
+    /// after the heading is kept rather than replaced. See the remarks.
     /// </param>
     /// <param name="comparison">How <paramref name="headingText"/> is compared. Case-insensitive by default.</param>
     /// <remarks>
@@ -139,24 +219,39 @@ public static class MarkdownEditor
     /// document if there is no such heading.
     /// </para>
     /// <para>
-    /// <b>Line endings in the returned document are normalised to <c>\n</c></b>, whatever
-    /// <paramref name="markdown"/> used. This is not a stylistic choice: every boundary above is
-    /// an offset that <c>OfficeIMO.Markdown</c> computes against <b>LF-normalised</b> text, so
-    /// splicing those offsets into an original <c>\r\n</c> string would misalign every one of them
-    /// by the number of line breaks preceding it — silently truncating the heading and corrupting
-    /// an unrelated line further down. The input is normalised once, then parsed and spliced as
-    /// one consistent string, which is why the result comes back normalised too.
+    /// <b>Line endings that came from <paramref name="markdown"/> are normalised to <c>\n</c></b>,
+    /// and only <c>\r\n</c> is recognised as a line ending here — a lone <c>\r</c> is left exactly
+    /// as it is. Normalising is not a stylistic choice: every boundary above is an offset that
+    /// <c>OfficeIMO.Markdown</c> computes against <b>LF-normalised</b> text, so splicing those
+    /// offsets into an original <c>\r\n</c> string would misalign every one of them by the number of
+    /// line breaks preceding it — silently truncating the heading and corrupting an unrelated line
+    /// further down. The input is normalised once, then parsed and spliced as one consistent string.
+    /// <paramref name="newContent"/> is inserted verbatim and keeps whatever line endings you pass
+    /// it, so a <c>\r\n</c> written there survives into the result.
     /// </para>
     /// <para>
-    /// The target must be a <b>top-level</b> heading. A heading nested inside a blockquote or a
-    /// list item is rejected, because the section boundaries are found by walking the document's
-    /// own top-level block list, which a nested heading is not a member of.
+    /// <b>Only top-level headings are ever considered.</b> A heading nested inside a blockquote or a
+    /// list item is not a candidate — it is not searched, rather than found and then refused — even
+    /// when no top-level heading shares its text, in which case the call reports that no heading
+    /// matched. It has to be invisible rather than merely refused: the section boundaries are
+    /// computed by walking the document's own top-level block list, and searching the whole document
+    /// first made a legitimate top-level heading uneditable whenever a nested heading earlier in the
+    /// document happened to share its text.
+    /// </para>
+    /// <para>
+    /// <b>One measured limitation.</b> A CommonMark link reference definition
+    /// (<c>[label]: https://example.com</c>) is consumed into the parser's link registry and leaves
+    /// no block in the document, so the body's start is found past it. One sitting immediately after
+    /// the target heading is therefore not treated as part of the section body and survives
+    /// untouched even when the rest of the section is replaced. One sitting after other content in
+    /// the same section falls inside the replaced range and does go. Rewriting the splice to track
+    /// them was judged the worse trade — the offset arithmetic here is correct and heavily pinned,
+    /// and link reference definitions are rare in the section bodies this method exists for.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
-    /// No heading matches <paramref name="headingText"/>, or the heading it matches is nested
-    /// inside another block rather than being a top-level heading.
+    /// No <b>top-level</b> heading matches <paramref name="headingText"/>.
     /// </exception>
     /// <exception cref="DocumentConversionException">The Markdown could not be parsed.</exception>
     public static string ReplaceSection(
@@ -178,35 +273,47 @@ public static class MarkdownEditor
         var normalized = markdown.Replace("\r\n", "\n", StringComparison.Ordinal);
 
         var doc = ParseOrThrow(normalized);
-        var found = doc.FindHeading(headingText, comparison);
-        if (found is null)
+
+        // The document's own top-level blocks are searched directly, rather than through
+        // doc.FindHeading. FindHeading matches ANY heading, including one nested inside a
+        // blockquote or a list item — and the boundary walk below indexes doc.ChildObjects using
+        // the heading's IndexInParent, which for a nested heading counts within its QuoteBlock or
+        // ListItem instead. Measured against OfficeIMO.Markdown 3.2.6: both `> ## Deep` and
+        // `- # Nested` report IndexInParent = 0, a perfectly valid index into an unrelated list,
+        // and the splice duplicates the document's tail. Nothing raises.
+        //
+        // Searching only top-level blocks makes a nested heading INVISIBLE here rather than merely
+        // refused, which is the honest contract and also closes a bug the refusing form had: a
+        // nested heading sharing text with a real top-level heading later in the document matched
+        // first, and rejecting that match made the legitimate heading impossible to edit, with no
+        // workaround available to a caller.
+        //
+        // OfficeIMO.Markdown.HeadingBlock is fully qualified, and the hazard is general rather than
+        // specific to this one type: DocToolkit.Docx declares internal block types in this same
+        // `DocToolkit` namespace (see DocxBlock.cs) named HeadingBlock, ParagraphBlock, TableBlock
+        // and ImageBlock — every one of which also exists as a public type in OfficeIMO.Markdown —
+        // and InternalsVisibleTo makes them visible here. A type in the enclosing namespace always
+        // wins over one brought in by `using`, silently and with no ambiguity warning. So ANY
+        // OfficeIMO.Markdown type named in this file whose name a DocToolkit.Docx block type shares
+        // must be written out in full, not only the two occurrences that exist today.
+        OfficeIMO.Markdown.HeadingBlock? headingBlock = null;
+        foreach (var child in doc.ChildObjects)
+        {
+            if (child is OfficeIMO.Markdown.HeadingBlock candidate
+                && string.Equals(candidate.Text, headingText, comparison))
+            {
+                headingBlock = candidate;
+                break;
+            }
+        }
+
+        if (headingBlock is null)
         {
             throw new ArgumentException(
                 $"No heading matching '{headingText}' was found.", nameof(headingText));
         }
 
-        var headingBlock = found.Block;
-        var level = found.Level;
-
-        // FindHeading matches ANY heading in the document, including one nested inside a
-        // blockquote or a list item. The boundary walk below indexes the document's own top-level
-        // block list using this heading's IndexInParent — which, for a nested heading, counts
-        // within its QuoteBlock or ListItem instead, so it indexes an unrelated list and the
-        // result is either a duplicated document tail or a silent no-op. Neither raises.
-        //
-        // Measured against OfficeIMO.Markdown 3.2.6 rather than assumed: a top-level heading's
-        // Parent IS this MarkdownDoc by reference, while `> ## Deep` reports a QuoteBlock and
-        // `- # Nested` a ListItem. Reference equality therefore separates the two exactly, and is
-        // preferred over re-deriving the position from IndexInParent/ChildObjects because it asks
-        // the tree the question directly instead of inferring the answer from an index.
-        if (!ReferenceEquals(headingBlock.Parent, doc))
-        {
-            throw new ArgumentException(
-                $"The heading '{headingText}' is nested inside another block (for example a " +
-                "blockquote or list item). ReplaceSection only supports top-level headings, because " +
-                "its section boundaries are computed by walking the document's own top-level block " +
-                "list.", nameof(headingText));
-        }
+        var level = headingBlock.Level;
 
         // The body starts where the very next block starts, which cleanly includes any blank
         // line between the heading and its content. A heading with nothing after it at all (no
@@ -223,11 +330,8 @@ public static class MarkdownEditor
         var startIndex = (headingBlock.IndexInParent ?? -1) + 1;
         for (var i = startIndex; i < siblings.Count; i++)
         {
-            // Fully qualified: DocToolkit.Docx declares its own internal `HeadingBlock` in this
-            // same `DocToolkit` namespace (see DocxBlock.cs), visible here via InternalsVisibleTo.
-            // An unqualified `HeadingBlock` binds to THAT type instead of
-            // OfficeIMO.Markdown.HeadingBlock, because a type in the enclosing namespace always
-            // wins over one brought in by `using` — silently, with no ambiguity warning.
+            // Fully qualified for the reason spelled out above the top-level search: an
+            // unqualified `HeadingBlock` binds to DocToolkit.Docx's internal type, silently.
             if (siblings[i] is OfficeIMO.Markdown.HeadingBlock sibling && sibling.Level <= level)
             {
                 sectionEnd = sibling.SourceSpan?.StartOffset ?? normalized.Length;
@@ -252,31 +356,16 @@ public static class MarkdownEditor
         }
         catch (Exception ex)
         {
+            // Describe cannot return non-null for anything THIS class can raise, and that is
+            // expected rather than an untested branch to close. Both shapes it recognises are
+            // identified by a stack frame from the DOCX/PDF *conversion* path
+            // (MarkdownToWordConverter.AddRun, NumberedListBlock), which a plain
+            // MarkdownReader.Parse never produces — so every failure reachable from here falls
+            // through to FailureMessage, and no test written against MarkdownEditor can exercise
+            // the diagnosed arm. It is still called, so this class cannot drift out of step with
+            // MarkdownToDocxConverter if the reader ever starts surfacing those frames itself.
             throw new DocumentConversionException(
                 MarkdownFailureDiagnosis.Describe(ex, markdown) ?? FailureMessage, ex);
         }
     }
-}
-
-/// <summary>One heading found in a Markdown document by <see cref="MarkdownEditor.FindHeading"/>.</summary>
-public sealed class MarkdownHeading
-{
-    internal MarkdownHeading(int level, string text, string anchor)
-    {
-        Level = level;
-        Text = text;
-        Anchor = anchor;
-    }
-
-    /// <summary>The heading's level: 1 for <c>#</c>, 2 for <c>##</c>, and so on.</summary>
-    public int Level { get; }
-
-    /// <summary>The heading's text, with any inline formatting markers stripped.</summary>
-    public string Text { get; }
-
-    /// <summary>
-    /// The slug an in-document anchor link to this heading would use — for example
-    /// <c>changed</c> for a heading reading "Changed".
-    /// </summary>
-    public string Anchor { get; }
 }

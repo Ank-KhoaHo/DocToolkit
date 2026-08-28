@@ -46,6 +46,52 @@ public class MarkdownEditorTests
         Assert.Throws<ArgumentNullException>(() => MarkdownEditor.ReadFrontMatter(null!));
     }
 
+    [Fact]
+    public void ReadFrontMatter_OnASequenceOrANestedMapping_ReturnsTheMeasuredShape()
+    {
+        // Pins the three non-scalar shapes the <remarks> now documents. Each was measured against
+        // the pinned OfficeIMO.Markdown 3.2.6 before being written down, and each is surprising
+        // enough that a doc comment alone would drift: two of the three LOSE data, and one
+        // introduces a fourth runtime type the summary of "string, double or bool" did not cover.
+
+        // 1. A BLOCK sequence is not read at all. `tags` is present and empty; alpha and beta are
+        //    gone, with nothing raised. Asserted as the exact value, because "the items are
+        //    missing" and "the key is missing" are different bugs.
+        var block = MarkdownEditor.ReadFrontMatter(
+            "---\ntags:\n  - alpha\n  - beta\n---\n\n# Body\n");
+        Assert.Equal(string.Empty, Assert.IsType<string>(block["tags"]));
+
+        // 2. An INLINE sequence is read, as a List<string> — the fourth runtime type. Its items are
+        //    always strings, so a numeric one does NOT become a double the way a bare scalar does.
+        var inline = MarkdownEditor.ReadFrontMatter(
+            "---\ntags: [alpha, beta]\nnums: [1, 2]\n---\n\n# Body\n");
+        Assert.Equal(new[] { "alpha", "beta" }, Assert.IsType<List<string>>(inline["tags"]));
+        Assert.Equal(new[] { "1", "2" }, Assert.IsType<List<string>>(inline["nums"]));
+
+        // 3. A NESTED mapping FLATTENS rather than nesting: the parent maps to an empty string and
+        //    its children become top-level keys of the returned dictionary.
+        var nested = MarkdownEditor.ReadFrontMatter(
+            "---\nauthor:\n  name: Ada\n  email: a@b.c\n---\n\n# Body\n");
+        Assert.Equal(3, nested.Count);
+        Assert.Equal(string.Empty, nested["author"]);
+        Assert.Equal("Ada", nested["name"]);
+        Assert.Equal("a@b.c", nested["email"]);
+    }
+
+    [Fact]
+    public void ReadFrontMatter_WhenAFlattenedKeyCollides_TheLaterValueSilentlyWins()
+    {
+        // The consequence of the flattening above that actually loses a caller's data, kept as its
+        // own test because it is the one worth being warned about: a top-level `name` and a nested
+        // `author.name` are the SAME key by the time this returns, and only one value survives.
+        var frontMatter = MarkdownEditor.ReadFrontMatter(
+            "---\nname: Outer\nauthor:\n  name: Ada\n---\n\n# Body\n");
+
+        Assert.Equal(2, frontMatter.Count);
+        Assert.Equal("Ada", frontMatter["name"]);
+        Assert.Equal(string.Empty, frontMatter["author"]);
+    }
+
     // -----------------------------------------------------------------------------------------
     // A69: FindHeading
     // -----------------------------------------------------------------------------------------
@@ -85,11 +131,34 @@ public class MarkdownEditorTests
     [Fact]
     public void FindHeading_OnDuplicateHeadingText_ReturnsTheFirstMatch()
     {
-        const string markdown = "# Notes\n\n## Changed\n\nFirst.\n\n## Changed\n\nSecond.\n";
+        // The two headings deliberately differ in LEVEL. With both at `##` this test asserted only
+        // that something came back, so a "return the LAST match" implementation passed it too —
+        // and the distinction is load-bearing rather than pedantic: a changelog repeating a section
+        // title once per version is this capability's own motivating example, and
+        // ReplaceSection resolves exactly this shape by taking the first top-level match.
+        const string markdown = "# Notes\n\n## Changed\n\nFirst.\n\n### Changed\n\nSecond.\n";
 
         var heading = MarkdownEditor.FindHeading(markdown, "Changed");
 
         Assert.NotNull(heading);
+        Assert.Equal(2, heading!.Level);
+    }
+
+    [Fact]
+    public void FindHeading_FindsANestedHeading_UnlikeReplaceSection()
+    {
+        // Pins the asymmetry both doc comments now name. FindHeading searches every heading;
+        // ReplaceSection considers only top-level ones, because it has to index the document's own
+        // block list to find a section's boundaries. Asserted from both sides in one test, so the
+        // two claims cannot drift apart independently.
+        const string markdown = "> ## Quoted\n>\n> body\n\n# Real\n\ntail\n";
+
+        var heading = MarkdownEditor.FindHeading(markdown, "Quoted");
+        Assert.NotNull(heading);
+        Assert.Equal(2, heading!.Level);
+
+        Assert.Throws<ArgumentException>(
+            () => MarkdownEditor.ReplaceSection(markdown, "Quoted", "x"));
     }
 
     [Fact]
@@ -159,6 +228,42 @@ public class MarkdownEditorTests
     public void ReadTable_RejectsAnIndexAtOrBeyondTableCount()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => MarkdownEditor.ReadTable(TwoTableMarkdown, 2));
+    }
+
+    [Fact]
+    public void TableCount_RejectsNullMarkdown()
+    {
+        Assert.Throws<ArgumentNullException>(() => MarkdownEditor.TableCount(null!));
+    }
+
+    [Fact]
+    public void ReadTable_RejectsNullMarkdown()
+    {
+        Assert.Throws<ArgumentNullException>(() => MarkdownEditor.ReadTable(null!, 0));
+    }
+
+    [Fact]
+    public void ReadTable_ReturnsRowsTheCallerCannotMutate()
+    {
+        // The parser hands back concrete List<string> instances for its headers and rows. Returning
+        // those references behind an IReadOnlyList<string> would let a caller cast the reference
+        // back and edit the parsed document, which is not what read-only means — and would diverge
+        // from DocxEditor.ReadTableCore, which builds a fresh list per row.
+        //
+        // Asserted as "casting to List<string> fails" rather than by comparing values: a copy and
+        // the original hold identical strings, so only the returned TYPE discriminates here.
+        var rows = MarkdownEditor.ReadTable(TwoTableMarkdown, 0);
+
+        foreach (var row in rows)
+        {
+            Assert.IsNotType<List<string>>(row);
+            Assert.Throws<NotSupportedException>(() => ((IList<string>)row).Add("injected"));
+        }
+
+        // Positive control: the values are unchanged by the copying, so this is a type change and
+        // not a quiet behaviour change.
+        Assert.Equal(new[] { "a", "b" }, rows[0]);
+        Assert.Equal(new[] { "1", "2" }, rows[1]);
     }
 
     [Fact]
@@ -415,40 +520,100 @@ public class MarkdownEditorTests
     }
 
     [Fact]
-    public void ReplaceSection_OnAHeadingNestedInABlockquote_Throws()
+    public void ReplaceSection_NormalisesOnlyWhatCameFromMarkdown_AndOnlyCrLf()
     {
-        // FindHeading matches this heading, but its IndexInParent counts within the QuoteBlock,
-        // not within the document — so the boundary walk would index the wrong list. Measured
-        // before the guard existed: the document's tail came back duplicated, silently.
+        // The <remarks> used to claim, flatly, that line endings in the result are normalised to
+        // \n. Measured false in two directions — neither of them a bug, both of them a documented
+        // claim that was wider than the code — so this pins the narrowed statement.
+
+        // 1. newContent is spliced in VERBATIM. A \r\n written there survives.
+        var fromNewContent = MarkdownEditor.ReplaceSection("## S\n\nold\n", "S", "\r\nnew\r\n");
+        Assert.Equal("## S\n\n\r\nnew\r\n", fromNewContent);
+
+        // 2. Only \r\n is recognised as a line ending. A LONE \r in a part of `markdown` the edit
+        //    keeps is left exactly as it is.
+        var loneCarriageReturn = MarkdownEditor.ReplaceSection(
+            "## S\n\nbody\n\n## T\n\nkeep\rme\n", "S", "\nnew\n");
+        Assert.Equal("## S\n\n\nnew\n## T\n\nkeep\rme\n", loneCarriageReturn);
+    }
+
+    [Fact]
+    public void ReplaceSection_OnAHeadingNestedInABlockquote_ReportsNoMatch()
+    {
+        // ReplaceSection searches only the document's own top-level blocks, so this heading is
+        // never a candidate — not found and refused, simply not looked at. The reason it must not
+        // be a candidate: its IndexInParent counts within the QuoteBlock rather than within the
+        // document, so the boundary walk would index an unrelated list. Measured before any guard
+        // existed, on this exact fixture, the document's tail came back DUPLICATED, silently.
         var ex = Assert.Throws<ArgumentException>(() => MarkdownEditor.ReplaceSection(
             "> ## Deep\n>\n> p3\n\n## Boundary\n\ntail\n", "Deep", "x"));
 
         Assert.Equal("headingText", ex.ParamName);
-        Assert.Contains("nested inside another block", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("No heading matching 'Deep' was found", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ReplaceSection_OnAHeadingNestedInAListItem_Throws()
+    public void ReplaceSection_OnAHeadingNestedInAListItem_ReportsNoMatch()
     {
-        // The same mismatch through the other container. This shape's measured symptom was the
-        // opposite one — the edit silently did nothing at all — which is why both are pinned.
+        // The same mismatch through the other container, pinned separately because the containers
+        // are different code paths in the parser. Both shapes were measured to produce the SAME
+        // symptom without the guard — a duplicated document tail — rather than one duplicating and
+        // the other silently doing nothing.
         var ex = Assert.Throws<ArgumentException>(() => MarkdownEditor.ReplaceSection(
             "- # Nested\n\n# Boundary\n\ntail\n", "Nested", "x"));
 
         Assert.Equal("headingText", ex.ParamName);
-        Assert.Contains("nested inside another block", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("No heading matching 'Nested' was found", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ReplaceSection_OnATopLevelHeading_IsNotRejectedByTheNestingGuard()
+    public void ReplaceSection_WhenANestedHeadingShadowsARealTopLevelOne_EditsTheTopLevelOne()
     {
-        // The positive control for the two tests above. A guard that rejected everything would
-        // satisfy them both, so this asserts the ordinary case still edits — and asserts it
-        // against an exact document, so "did not throw" is not mistaken for "did the right thing".
+        // The regression this rewrite exists to close. Searching the whole document and then
+        // rejecting a nested hit matched the BLOCKQUOTE's "Changed" first — it is earlier in
+        // document order — and refused the whole call, making the perfectly good top-level
+        // "Changed" below it uneditable with no workaround available to a caller.
+        //
+        // Asserted as the exact document: the blockquote must come back byte-for-byte, and the
+        // edit must land under the top-level heading.
+        var result = MarkdownEditor.ReplaceSection(
+            "> ## Changed\n>\n> quoted\n\n## Changed\n\nreal\n", "Changed", "\nnew\n");
+
+        Assert.Equal("> ## Changed\n>\n> quoted\n\n## Changed\n\n\nnew\n", result);
+    }
+
+    [Fact]
+    public void ReplaceSection_OnATopLevelHeading_IsStillFoundAndEdited()
+    {
+        // The positive control for the three tests above. A search that found nothing at all would
+        // satisfy all three, so this asserts the ordinary case still edits — and asserts it against
+        // an exact document, so "did not throw" is not mistaken for "did the right thing".
         var result = MarkdownEditor.ReplaceSection(
             "## Boundary\n\nold\n", "Boundary", "\nnew\n");
 
         Assert.Equal("## Boundary\n\n\nnew\n", result);
+    }
+
+    [Fact]
+    public void ReplaceSection_ALinkReferenceDefinitionRightAfterTheHeading_SurvivesTheReplacement()
+    {
+        // Pins the one limitation the <remarks> names, so the documented claim cannot drift into
+        // being false. A link reference definition is consumed into the parser's link registry and
+        // leaves no block, so `bodyStart` — the next BLOCK's start offset — lands past it and it
+        // ends up in the kept prefix.
+        var kept = MarkdownEditor.ReplaceSection(
+            "## Changed\n\n[x]: http://example.com\n\nbody\n\n## Next\n\ntail\n", "Changed", "\nnew\n");
+
+        Assert.Equal(
+            "## Changed\n\n[x]: http://example.com\n\n\nnew\n## Next\n\ntail\n", kept);
+
+        // The counterpart, which is what makes the behaviour position-dependent rather than simply
+        // "definitions are preserved": the same definition after other content is inside the
+        // replaced range and goes.
+        var removed = MarkdownEditor.ReplaceSection(
+            "## Changed\n\nbody\n\n[x]: http://example.com\n\n## Next\n\ntail\n", "Changed", "\nnew\n");
+
+        Assert.Equal("## Changed\n\n\nnew\n## Next\n\ntail\n", removed);
     }
 
     [Fact]
