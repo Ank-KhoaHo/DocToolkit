@@ -193,6 +193,41 @@ public class DocxEditorFootnoteEndnoteTocTests
     }
 
     [Fact]
+    public void AddEndnote_EmbedsOneEntryPerOccurrence()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(
+            DocxFixtures.R("one{{note}} two{{note}} three")));
+
+        var filled = DocxEditor.AddEndnote(docx, "{{note}}", "Repeated endnote text.");
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.Equal(2, doc.MainDocumentPart!.EndnotesPart!.Endnotes!.Elements<Endnote>().Count());
+        Assert.Equal(2, doc.MainDocumentPart.Document!.Body!.Descendants<EndnoteReference>().Count());
+
+        AssertValid(filled);
+    }
+
+    [Fact]
+    public void AddEndnote_OnADocumentWithAnExistingEndnote_PicksTheNextId()
+    {
+        // First call creates endnote id 1; the second must not collide with it.
+        var docx = DocxFixtures.Build(DocxFixtures.P(
+            DocxFixtures.R("first{{a}} and second{{b}}")));
+
+        var oneAdded = DocxEditor.AddEndnote(docx, "{{a}}", "First endnote.");
+        var bothAdded = DocxEditor.AddEndnote(oneAdded, "{{b}}", "Second endnote.");
+
+        using var ms = new MemoryStream(bothAdded);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var ids = doc.MainDocumentPart!.EndnotesPart!.Endnotes!.Elements<Endnote>()
+            .Select(e => (int)e.Id!.Value).OrderBy(id => id).ToList();
+
+        Assert.Equal(new[] { 1, 2 }, ids);
+        AssertValid(bothAdded);
+    }
+
+    [Fact]
     public void AddEndnote_AndAddFootnote_UseIndependentIdSpaces()
     {
         // Measured: footnote and endnote ids are independent numbering spaces. Adding a footnote

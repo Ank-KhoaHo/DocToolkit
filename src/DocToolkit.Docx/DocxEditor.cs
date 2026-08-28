@@ -1603,7 +1603,7 @@ public static class DocxEditor
     /// </exception>
     /// <exception cref="DocumentConversionException">
     /// The package could not be edited, or <paramref name="placeholder"/> does not appear in the
-    /// body.
+    /// body — a call matching nothing is a bug in the call or the template, not a no-op.
     /// </exception>
     public static byte[] AddEndnote(byte[] docx, string placeholder, string endnoteText)
     {
@@ -1762,6 +1762,7 @@ public static class DocxEditor
                 offsets.Add(at);
             }
 
+            // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
             for (var i = offsets.Count - 1; i >= 0; i--)
             {
                 var id = nextId++;
