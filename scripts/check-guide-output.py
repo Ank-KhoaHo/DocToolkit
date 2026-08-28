@@ -31,10 +31,21 @@ measured, not assumed:
     no longer claims "byte-for-byte", which measured to be false.
   - The XLSX byte count (Spreadsheets' "Formatted" line) IS compared exactly. Measured
     separately: five consecutive identical `WorkbookEditor.Format` calls produced the same byte
-    count all five times - ClosedXML does not carry the same random-ID behaviour. This check
-    also always runs on one pinned CI leg (ubuntu-24.04, the same runner the `formatting` job
-    already uses for every other generated-content guard), so there is no cross-platform DEFLATE
-    question to hedge against even if there were.
+    count all five times, on one platform - ClosedXML does not carry the same random-ID
+    behaviour. This check also always runs on one pinned CI leg (ubuntu-24.04, the same runner
+    the `formatting` job already uses for every other generated-content guard), so run-to-run
+    drift on THAT leg is not a risk this check has to hedge against.
+
+    **The claim that follows from that ("no cross-platform DEFLATE question to hedge against
+    even if there were") was wrong, and cost this PR a red CI run to find out.** The number this
+    file first shipped with (7,907 bytes) was captured on Windows, not on ubuntu-24.04, and a
+    live run on the pinned CI leg produced 7,880 - measured directly, same .NET SDK version on
+    both machines (10.0.302), so the 27-byte difference is `System.IO.Compression`'s DEFLATE
+    output differing by OS, not by SDK patch or by anything in this code. The check itself was
+    never wrong: it is comparing against exactly the platform it always runs on, which is the
+    whole reason exact comparison is safe here. What was wrong is generating or hand-verifying
+    the recorded guide text anywhere other than that same platform - a local Windows (or macOS)
+    run is not a substitute for what `--check` will actually compare against on the next push.
 
 Run with --check to fail on drift (CI); without it, rewrites every affected guide block in place
 so `git diff` shows exactly what changed (the maintainer's own workflow for a real drift, one

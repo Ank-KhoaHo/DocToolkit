@@ -78,7 +78,7 @@ every other column is still sized to its contents.
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
 
 ```text
-Formatted    : 7,907 bytes (was 7,370)
+Formatted    : 7,880 bytes (was 7,351)
 ```
 
 @DocToolkit.XlsxFormat is **immutable**, like @DocToolkit.PageSetup — every `With…` returns a new
