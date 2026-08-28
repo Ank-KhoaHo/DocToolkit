@@ -748,6 +748,108 @@ public static class PresentationEditor
     }
 
     /// <summary>
+    /// A copy of <paramref name="pptx"/> with its slides in the order given by
+    /// <paramref name="order"/>, which holds 1-based slide numbers.
+    /// </summary>
+    /// <param name="pptx">The presentation to reorder. It is not modified.</param>
+    /// <param name="order">
+    /// A <b>permutation of every slide</b> — the same slides, in a different order. Not a subset,
+    /// and no repeats.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="order"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or <paramref name="order"/> is not a permutation of
+    /// 1..<c>SlideCount</c>.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static byte[] ReorderSlides(byte[] pptx, IEnumerable<int> order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        var wanted = order.ToArray();
+
+        using var ms = OpenForWrite(pptx);
+        ReorderSlidesCore(ms, wanted);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, reorders its slides per
+    /// <paramref name="order"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="ReorderSlides"/> for exactly what <paramref name="order"/> must contain.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="order">A permutation of every slide's 1-based number.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="order"/> is not a permutation of every slide.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task ReorderSlidesAsync(
+        Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        var wanted = order.ToArray();
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        ReorderSlidesCore(ms, wanted);
+
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    private static void ReorderSlidesCore(MemoryStream ms, IReadOnlyList<int> order)
+    {
+        try
+        {
+            using (var doc = OpenDocument(ms, true))
+            {
+                var presentationPart = PresentationPartOf(doc);
+                var slideParts = SlidesInDeckOrder(presentationPart).ToList();
+
+                var expected = Enumerable.Range(1, slideParts.Count);
+                if (!order.OrderBy(i => i).SequenceEqual(expected))
+                {
+                    throw new ArgumentException(
+                        $"The order must be a permutation of slides 1-{slideParts.Count}, each " +
+                        $"exactly once. Got [{string.Join(", ", order)}].",
+                        nameof(order));
+                }
+
+                var presentation = presentationPart.Presentation!;
+                var slideIdList = presentation.SlideIdList!;
+                var existingIds = slideIdList.Elements<P.SlideId>().ToList();
+
+                foreach (var id in existingIds) id.Remove();
+
+                foreach (var index in order)
+                {
+                    var relationshipId = presentationPart.GetIdOfPart(slideParts[index - 1]);
+                    var originalId = existingIds.Single(id => id.RelationshipId!.Value == relationshipId);
+                    slideIdList.Append(originalId);
+                }
+
+                presentation.Save();
+            }
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentException)
+        {
+            throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
     /// Slide parts in the order the deck presents them.
     ///
     /// <c>PresentationPart.SlideParts</c> is part-relationship order, which has nothing to do with
@@ -1002,6 +1104,40 @@ public static class PresentationEditor
 
         var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = RemoveSlides(bytes, indices);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="inputPath"/>, reorders its slides per
+    /// <paramref name="order"/>, and writes the result to <paramref name="outputPath"/> — see
+    /// <see cref="ReorderSlides"/> for exactly what <paramref name="order"/> must contain. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .pptx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="order">A permutation of every slide's 1-based number.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="order"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="order"/> is not a permutation of every slide.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task ReorderSlidesAsync(
+        string inputPath, string outputPath, IEnumerable<int> order, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(order);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = ReorderSlides(bytes, order);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
 

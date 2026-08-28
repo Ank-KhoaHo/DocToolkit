@@ -95,7 +95,7 @@ public class StreamOverloadTests
 
     private static readonly byte[] Pptx = PptxFixtures.Sample();
 
-    /// <summary>A two-slide deck, for overloads a one-slide source can't meaningfully exercise (RemoveSlidesAsync's non-empty-set removal, and ReorderSlidesAsync's permutation once that overload exists).</summary>
+    /// <summary>A two-slide deck, for overloads a one-slide source can't meaningfully exercise (ReorderSlidesAsync's permutation, RemoveSlidesAsync's non-empty-set removal).</summary>
     private static readonly byte[] MultiSlidePptx =
         PptxFixtures.MultiSlideDeck(new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
 
@@ -202,6 +202,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
@@ -260,6 +261,7 @@ public class StreamOverloadTests
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PdfEditor.PageCountAsync",
@@ -333,6 +335,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
         "PresentationEditor.CreateAsync",
@@ -1178,6 +1181,8 @@ public class StreamOverloadTests
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>
                 PresentationEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
+            "PresentationEditor.ReorderSlidesAsync" =>
+                PresentationEditor.ReorderSlidesAsync(source!, new[] { 2, 1 }, destination!, ct),
             "PresentationEditor.RemoveSlidesAsync" =>
                 PresentationEditor.RemoveSlidesAsync(source!, new[] { 1 }, destination!, ct),
             "PresentationEditor.ReplaceImageAsync" =>
@@ -1232,6 +1237,7 @@ public class StreamOverloadTests
         "DocxEditor.UnprotectAsync" => ProtectedDocx,
         "WorkbookEditor.UnprotectAsync" => ProtectedXlsx,
         "PresentationEditor.UnprotectAsync" => ProtectedPptx,
+        "PresentationEditor.ReorderSlidesAsync" => MultiSlidePptx,
         "PresentationEditor.RemoveSlidesAsync" => MultiSlidePptx,
         _ when api.StartsWith("DocToDocxConverter", StringComparison.Ordinal) => LegacyDoc,
         _ when api.StartsWith("XlsxTo", StringComparison.Ordinal) => Xlsx,

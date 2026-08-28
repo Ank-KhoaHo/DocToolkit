@@ -709,4 +709,54 @@ public class PresentationEditorTests
 
         return ms.ToArray();
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: ReorderSlides — a full permutation, matching PdfEditor.ReorderPages exactly.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReorderSlides_AppliesTheGivenPermutation()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.ReorderSlides(deck, new[] { 3, 1, 2 });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(new[] { "Slide 3", "Slide 1", "Slide 2" }, PresentationEditor.ExtractText(edited));
+    }
+
+    [Fact]
+    public void ReorderSlides_RejectsAnOrderMissingASlide()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentException>(() => PresentationEditor.ReorderSlides(deck, new[] { 1, 2 }));
+    }
+
+    [Fact]
+    public void ReorderSlides_RejectsAnOrderWithADuplicate()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentException>(() => PresentationEditor.ReorderSlides(deck, new[] { 1, 1, 2 }));
+    }
+
+    [Fact]
+    public async Task ReorderSlidesAsync_FromFileToFile_AppliesThePermutation()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.ReorderSlidesAsync(input.Path, output.Path, new[] { 2, 1 });
+
+        var text = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Equal(new[] { "Slide 2", "Slide 1" }, text);
+    }
 }
