@@ -21,8 +21,8 @@ internal sealed class GuardedResourceLoader : IWebRequest
     {
         AllowAutoRedirect = false,      // each hop would need re-validating; an unvalidated hop is
                                         // the standard way past the address check below
-        UseCookies = false,
-        UseProxy = false,
+        UseCookies = false,             // see FetchAsync_DoesNotSendBackACookieASiteTriedToSet...
+        UseProxy = false,               // a proxy is not tested against - see GuardedResourceLoaderTests
     })
     {
         Timeout = System.Threading.Timeout.InfiniteTimeSpan,   // per-request, via a linked token

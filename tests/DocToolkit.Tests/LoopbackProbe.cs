@@ -30,6 +30,7 @@ internal sealed class LoopbackProbe : IDisposable
     private readonly TcpListener _listener;
     private readonly CancellationTokenSource _stopping = new();
     private readonly ConcurrentQueue<string> _requestLines = new();
+    private readonly ConcurrentQueue<string> _requestHeaderBlocks = new();
     private readonly ITestOutputHelper _output;
     private readonly Func<NetworkStream, string, CancellationToken, Task> _respond;
     private int _connections;
@@ -61,6 +62,14 @@ internal sealed class LoopbackProbe : IDisposable
     public string BaseUrl => $"http://127.0.0.1:{Port}";
 
     public int Connections => Volatile.Read(ref _connections);
+
+    /// <summary>
+    /// The header block (everything between the request line and the blank line, exclusive of
+    /// both) of each accepted connection, in acceptance order. Most suites only need
+    /// <see cref="Connections"/> or the request line; this exists for the few that need to assert
+    /// on a specific header, such as whether a <c>Cookie</c> header was sent.
+    /// </summary>
+    public IReadOnlyCollection<string> RequestHeaderBlocks => _requestHeaderBlocks;
 
     /// <summary>Waits out the settle window, then requires that nothing ever connected.</summary>
     public async Task AssertSilentAsync(string api)
@@ -116,8 +125,9 @@ internal sealed class LoopbackProbe : IDisposable
             try
             {
                 var stream = client.GetStream();
-                var requestLine = await ReadRequestLineAsync(stream);
+                var (requestLine, headerBlock) = await ReadRequestAsync(stream);
                 _requestLines.Enqueue(requestLine);
+                _requestHeaderBlocks.Enqueue(headerBlock);
 
                 await _respond(stream, requestLine, _stopping.Token);
             }
@@ -142,12 +152,19 @@ internal sealed class LoopbackProbe : IDisposable
         await stream.FlushAsync(ct);
     }
 
-    private static async Task<string> ReadRequestLineAsync(NetworkStream stream)
+    /// <summary>
+    /// Reads up to and including the blank line that ends the headers (these fixtures only ever
+    /// serve GETs, which carry no body), and splits the result into the request line and the raw
+    /// header block after it. A request this never completes for - truncated mid-header - reads
+    /// until the 8192-byte guard the request-line-only version already had, then returns whatever
+    /// was seen; nothing here changes what <see cref="Connections"/> already counted.
+    /// </summary>
+    private static async Task<(string RequestLine, string HeaderBlock)> ReadRequestAsync(NetworkStream stream)
     {
         var buffer = new byte[2048];
         var seen = new StringBuilder();
 
-        while (seen.ToString().IndexOf("\r\n", StringComparison.Ordinal) < 0 && seen.Length < 8192)
+        while (seen.ToString().IndexOf("\r\n\r\n", StringComparison.Ordinal) < 0 && seen.Length < 8192)
         {
             var read = await stream.ReadAsync(buffer);
             if (read == 0) break;
@@ -155,8 +172,13 @@ internal sealed class LoopbackProbe : IDisposable
         }
 
         var text = seen.ToString();
-        var end = text.IndexOf("\r\n", StringComparison.Ordinal);
-        return end < 0 ? text : text[..end];
+        var headersEnd = text.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        var upToBlankLine = headersEnd < 0 ? text : text[..headersEnd];
+
+        var lineEnd = upToBlankLine.IndexOf("\r\n", StringComparison.Ordinal);
+        return lineEnd < 0
+            ? (upToBlankLine, string.Empty)
+            : (upToBlankLine[..lineEnd], upToBlankLine[(lineEnd + 2)..]);
     }
 
     public void Dispose()
