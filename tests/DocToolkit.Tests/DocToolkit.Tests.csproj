@@ -11,6 +11,13 @@
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="PublicApiGenerator" Version="11.5.4" />
+    <!--
+      ApiSurface.cs programs directly against Mono.Cecil's ModuleDefinition/TypeDefinition, not
+      only against PublicApiGenerator's own surface - so it needs a direct reference of its own
+      rather than relying on the transitive one PublicApiGenerator's nuspec happens to declare.
+      Pinned to the exact version PublicApiGenerator 11.5.4 depends on; bump together.
+    -->
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
   </ItemGroup>
