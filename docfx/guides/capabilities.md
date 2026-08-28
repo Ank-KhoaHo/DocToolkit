@@ -33,7 +33,7 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 
 | Format | Operations |
 |---|---|
-| **DOCX** (`DocxEditor`) | `Create`, `ExtractText`, `FillRows`, `IsProtected`, `Protect`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect` |
+| **DOCX** (`DocxEditor`) | `AddEndnote`, `AddFootnote`, `AddTableOfContents`, `Create`, `ExtractText`, `FillRows`, `IsProtected`, `Protect`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect` |
 | **Markdown** (`MarkdownEditor`) | `FindHeading`, `ReadFrontMatter`, `ReadTable`, `ReplaceSection`, `TableCount` |
 | **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |
 | **PPTX** (`PresentationEditor`) | `Create`, `ExtractText`, `InsertSlides`, `IsProtected`, `Protect`, `ReadSlide`, `RemoveSlides`, `ReorderSlides`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect` |

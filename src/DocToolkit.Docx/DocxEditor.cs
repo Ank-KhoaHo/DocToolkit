@@ -1,6 +1,7 @@
 using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Validation;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 using OfficeIMOWordWordDocument = OfficeIMO.Word.WordDocument;
@@ -1130,7 +1131,7 @@ public static class DocxEditor
                 // real alt text or none. Do not "unify" these - they differ because the inputs do.
                 var drawing = DrawingFactory.InlineImage(
                     relationshipId, name, nextId++, widthEmu, heightEmu, description: name);
-                SpliceDrawingIn(texts, offsets[i], placeholder.Length, drawing);
+                SpliceElementIn(texts, offsets[i], placeholder.Length, new Run(drawing));
                 inserted++;
             }
         }
@@ -1158,13 +1159,17 @@ public static class DocxEditor
 
     /// <summary>
     /// Removes <paramref name="length"/> characters at <paramref name="start"/> from the
-    /// concatenation of <paramref name="texts"/> and puts <paramref name="drawing"/> there instead.
+    /// concatenation of <paramref name="texts"/> and puts <paramref name="replacement"/> there
+    /// instead.
     ///
     /// This cannot use <see cref="RunTextSplicer"/>: that maps match offsets back onto runs and
     /// writes <i>text</i>, whereas this has to remove a span and insert an <i>element</i> at that
-    /// position. Same principle — never touch a run the match does not overlap — different mechanism.
+    /// position. Same principle — never touch a run the match does not overlap — different
+    /// mechanism. Shared by every caller that inserts a non-text element at a placeholder: an
+    /// image (<see cref="ReplaceImage(byte[], string, byte[], double?, double?)"/>), a footnote or
+    /// endnote reference (AddFootnote, AddEndnote).
     /// </summary>
-    private static void SpliceDrawingIn(List<Text> texts, int start, int length, Drawing drawing)
+    private static void SpliceElementIn(List<Text> texts, int start, int length, Run replacement)
     {
         var end = start + length;
         var position = 0;
@@ -1196,13 +1201,13 @@ public static class DocxEditor
 
         if (anchor is null) return;
 
-        var imageRun = new Run(drawing);
-        anchor.InsertAfterSelf(imageRun);
+        anchor.InsertAfterSelf(replacement);
 
-        // A match wholly inside one run leaves a tail that needs a run of its own after the image.
+        // A match wholly inside one run leaves a tail that needs a run of its own after the
+        // inserted element.
         if (suffix.Length > 0)
         {
-            imageRun.InsertAfterSelf(new Run(
+            replacement.InsertAfterSelf(new Run(
                 new Text(suffix) { Space = SpaceProcessingModeValues.Preserve }));
         }
     }
@@ -1345,6 +1350,1010 @@ public static class DocxEditor
         var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceImage(bytes, placeholder, image, widthPoints, heightPoints);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Adds a footnote at every occurrence of <paramref name="placeholder"/>, inline, across the
+    /// document body.
+    ///
+    /// Only the matched text goes: text sharing a run with the placeholder keeps its place and its
+    /// formatting, so <c>See the note{{note}} here.</c> becomes <c>See the note</c>, the footnote
+    /// reference, then <c> here.</c> Each occurrence gets its own footnote entry, all carrying
+    /// <paramref name="footnoteText"/>.
+    ///
+    /// <paramref name="placeholder"/> is the literal text including braces, like
+    /// <see cref="ReplaceImage(byte[], string, byte[], double?, double?)"/>. Only the document
+    /// body is searched — headers, footers, and content already inside another footnote or
+    /// endnote are not.
+    ///
+    /// A document built with this method is correctly reported by <c>DocxToPdfPreflight</c> as
+    /// carrying footnote content that does not reach a PDF conversion.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or <paramref name="placeholder"/> does not appear in the
+    /// body — a call matching nothing is a bug in the call or the template, not a no-op.
+    /// </exception>
+    public static byte[] AddFootnote(byte[] docx, string placeholder, string footnoteText)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(footnoteText);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        AddFootnoteCore(ms, placeholder, footnoteText);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, adds a footnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="destination"/> —
+    /// see <see cref="AddFootnote(byte[], string, string)"/> for exactly what is matched.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="footnoteText">The footnote's own text.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddFootnoteAsync(
+        Stream source, string placeholder, string footnoteText, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(footnoteText);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to add a footnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        AddFootnoteCore(buffer, placeholder, footnoteText);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to add a footnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="inputPath"/>, adds a footnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="outputPath"/> —
+    /// see <see cref="AddFootnote(byte[], string, string)"/> for exactly what is matched. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .docx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="footnoteText">The footnote's own text.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddFootnoteAsync(
+        string inputPath, string outputPath, string placeholder, string footnoteText,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(footnoteText);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddFootnote(bytes, placeholder, footnoteText);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void AddFootnoteCore(MemoryStream ms, string placeholder, string footnoteText)
+    {
+        try
+        {
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+
+                var inserted = InsertFootnoteReferencesIn(main, body, placeholder, footnoteText);
+
+                if (inserted == 0)
+                {
+                    throw new DocumentConversionException(
+                        $"The placeholder '{placeholder}' was not found, so there was no footnote to add. "
+                        + "Check the placeholder text, braces included, matches the document exactly.");
+                }
+
+                main.Document!.Save();
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add a footnote to the DOCX package. See the inner exception for details.", ex);
+        }
+    }
+
+    private static int InsertFootnoteReferencesIn(
+        MainDocumentPart main, Body body, string placeholder, string footnoteText)
+    {
+        var inserted = 0;
+        var nextId = NextFootnoteId(main);
+
+        foreach (var paragraph in body.Descendants<Paragraph>().ToList())
+        {
+            var texts = paragraph.Descendants<Text>()
+                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                                 .ToList();
+            if (texts.Count == 0) continue;
+
+            var merged = string.Concat(texts.Select(t => t.Text));
+
+            var offsets = new List<int>();
+            for (var at = merged.IndexOf(placeholder, StringComparison.Ordinal);
+                 at >= 0;
+                 at = merged.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal))
+            {
+                offsets.Add(at);
+            }
+
+            // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
+            for (var i = offsets.Count - 1; i >= 0; i--)
+            {
+                var id = nextId++;
+                AddFootnoteEntry(main, id, footnoteText);
+
+                var referenceRun = new Run(
+                    new RunProperties(new RunStyle { Val = "FootnoteReference" }),
+                    new FootnoteReference { Id = id });
+                SpliceElementIn(texts, offsets[i], placeholder.Length, referenceRun);
+                inserted++;
+            }
+        }
+
+        return inserted;
+    }
+
+    /// <summary>
+    /// One above the highest existing footnote id in <paramref name="main"/>'s
+    /// <see cref="FootnotesPart"/>, or 1 if the part does not exist yet. Footnote and endnote ids
+    /// are independent numbering spaces — measured, not assumed — so this scans only the
+    /// footnotes part, never the endnotes part too.
+    /// </summary>
+    private static int NextFootnoteId(MainDocumentPart main)
+    {
+        if (main.FootnotesPart?.Footnotes is not { } footnotes) return 1;
+
+        var highest = footnotes.Elements<Footnote>()
+            .Select(f => f.Id?.Value)
+            .Where(id => id.HasValue)
+            .Select(id => (int)id!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return highest + 1;
+    }
+
+    /// <summary>
+    /// Appends one footnote entry to <paramref name="main"/>'s <see cref="FootnotesPart"/>,
+    /// creating the part on first use. No separator/continuationSeparator boilerplate: measured
+    /// against a real OpenXmlValidator run, a minimal part with only real footnote
+    /// entries validates with zero errors — the boilerplate is a Word authoring convention, not a
+    /// schema requirement.
+    /// </summary>
+    private static void AddFootnoteEntry(MainDocumentPart main, int id, string footnoteText)
+    {
+        var footnotesPart = main.FootnotesPart ?? main.AddNewPart<FootnotesPart>();
+        footnotesPart.Footnotes ??= new Footnotes();
+
+        footnotesPart.Footnotes.AppendChild(new Footnote(
+            new Paragraph(
+                new ParagraphProperties(new ParagraphStyleId { Val = "FootnoteText" }),
+                new Run(
+                    new RunProperties(new RunStyle { Val = "FootnoteReference" }),
+                    new FootnoteReferenceMark()),
+                new Run(new Text(footnoteText) { Space = SpaceProcessingModeValues.Preserve })))
+        { Id = id });
+
+        footnotesPart.Footnotes.Save();
+    }
+
+    /// <summary>
+    /// Adds an endnote at every occurrence of <paramref name="placeholder"/>, inline, across the
+    /// document body — see <see cref="AddFootnote(byte[], string, string)"/> for exactly what is
+    /// matched and how each occurrence is handled. The only difference is where the note ends up:
+    /// the document's endnotes, not its footnotes.
+    ///
+    /// Unlike footnotes, <c>DocxToPdfPreflight</c> does not currently inspect endnotes, so whether
+    /// endnote content survives a <c>DocxToPdfConverter</c> conversion has not been measured either
+    /// way.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or <paramref name="placeholder"/> does not appear in the
+    /// body — a call matching nothing is a bug in the call or the template, not a no-op.
+    /// </exception>
+    public static byte[] AddEndnote(byte[] docx, string placeholder, string endnoteText)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(endnoteText);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        AddEndnoteCore(ms, placeholder, endnoteText);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, adds an endnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="destination"/> —
+    /// see <see cref="AddEndnote(byte[], string, string)"/> for exactly what is matched.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="endnoteText">The endnote's own text.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddEndnoteAsync(
+        Stream source, string placeholder, string endnoteText, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(endnoteText);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to add an endnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        AddEndnoteCore(buffer, placeholder, endnoteText);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to add an endnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="inputPath"/>, adds an endnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="outputPath"/> —
+    /// see <see cref="AddEndnote(byte[], string, string)"/> for exactly what is matched. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .docx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="endnoteText">The endnote's own text.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddEndnoteAsync(
+        string inputPath, string outputPath, string placeholder, string endnoteText,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(endnoteText);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddEndnote(bytes, placeholder, endnoteText);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void AddEndnoteCore(MemoryStream ms, string placeholder, string endnoteText)
+    {
+        try
+        {
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+
+                var inserted = InsertEndnoteReferencesIn(main, body, placeholder, endnoteText);
+
+                if (inserted == 0)
+                {
+                    throw new DocumentConversionException(
+                        $"The placeholder '{placeholder}' was not found, so there was no endnote to add. "
+                        + "Check the placeholder text, braces included, matches the document exactly.");
+                }
+
+                main.Document!.Save();
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add an endnote to the DOCX package. See the inner exception for details.", ex);
+        }
+    }
+
+    private static int InsertEndnoteReferencesIn(
+        MainDocumentPart main, Body body, string placeholder, string endnoteText)
+    {
+        var inserted = 0;
+        var nextId = NextEndnoteId(main);
+
+        foreach (var paragraph in body.Descendants<Paragraph>().ToList())
+        {
+            var texts = paragraph.Descendants<Text>()
+                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                                 .ToList();
+            if (texts.Count == 0) continue;
+
+            var merged = string.Concat(texts.Select(t => t.Text));
+
+            var offsets = new List<int>();
+            for (var at = merged.IndexOf(placeholder, StringComparison.Ordinal);
+                 at >= 0;
+                 at = merged.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal))
+            {
+                offsets.Add(at);
+            }
+
+            // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
+            for (var i = offsets.Count - 1; i >= 0; i--)
+            {
+                var id = nextId++;
+                AddEndnoteEntry(main, id, endnoteText);
+
+                var referenceRun = new Run(
+                    new RunProperties(new RunStyle { Val = "EndnoteReference" }),
+                    new EndnoteReference { Id = id });
+                SpliceElementIn(texts, offsets[i], placeholder.Length, referenceRun);
+                inserted++;
+            }
+        }
+
+        return inserted;
+    }
+
+    /// <summary>
+    /// One above the highest existing endnote id in <paramref name="main"/>'s
+    /// <see cref="EndnotesPart"/>, or 1 if the part does not exist yet — independent of whatever
+    /// footnote ids exist, per <see cref="NextFootnoteId"/>'s own doc comment.
+    /// </summary>
+    private static int NextEndnoteId(MainDocumentPart main)
+    {
+        if (main.EndnotesPart?.Endnotes is not { } endnotes) return 1;
+
+        var highest = endnotes.Elements<Endnote>()
+            .Select(e => e.Id?.Value)
+            .Where(id => id.HasValue)
+            .Select(id => (int)id!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return highest + 1;
+    }
+
+    /// <summary>
+    /// Appends one endnote entry to <paramref name="main"/>'s <see cref="EndnotesPart"/>, creating
+    /// the part on first use — see <see cref="AddFootnoteEntry"/> for why no separator boilerplate
+    /// is written.
+    /// </summary>
+    private static void AddEndnoteEntry(MainDocumentPart main, int id, string endnoteText)
+    {
+        var endnotesPart = main.EndnotesPart ?? main.AddNewPart<EndnotesPart>();
+        endnotesPart.Endnotes ??= new Endnotes();
+
+        endnotesPart.Endnotes.AppendChild(new Endnote(
+            new Paragraph(
+                new ParagraphProperties(new ParagraphStyleId { Val = "EndnoteText" }),
+                new Run(
+                    new RunProperties(new RunStyle { Val = "EndnoteReference" }),
+                    new EndnoteReferenceMark()),
+                new Run(new Text(endnoteText) { Space = SpaceProcessingModeValues.Preserve })))
+        { Id = id });
+
+        endnotesPart.Endnotes.Save();
+    }
+
+    /// <summary>
+    /// Replaces the paragraph containing only <paramref name="placeholder"/> with a table of
+    /// contents spanning heading levels <paramref name="minLevel"/> through
+    /// <paramref name="maxLevel"/>.
+    /// </summary>
+    /// <param name="docx">The .docx to edit. It is not modified.</param>
+    /// <param name="placeholder">
+    /// The literal placeholder text, braces included. Must be the <b>entire</b> text of the
+    /// paragraph it appears in — see the remarks.
+    /// </param>
+    /// <param name="minLevel">The shallowest heading level to include. 1-9.</param>
+    /// <param name="maxLevel">The deepest heading level to include. 1-9, and at least <paramref name="minLevel"/>.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>The placeholder paragraph must contain nothing else.</b> A footnote or an image can be
+    /// spliced inline, preserving whatever text shares its run — a table of contents cannot: its
+    /// content is whole paragraphs, and replacing a paragraph has no way to keep a neighbour's
+    /// text. A placeholder paragraph carrying anything besides the placeholder is refused rather
+    /// than silently trimmed — other text, an inline image, a text box and a tab alike, and so is
+    /// a paragraph whose own <c>w:pPr</c> holds a <c>w:sectPr</c>, since that is a section break
+    /// carrying its section's paper size, margins and page numbering rather than formatting the
+    /// paragraph could lose harmlessly.
+    /// </para>
+    /// <para>
+    /// <b>Only a top-level paragraph is matched.</b> A placeholder that lives only inside a text
+    /// box counts as absent, for the same reason every other edit in this class stays out of
+    /// <c>w:txbxContent</c>: a table of contents spliced into a text box is not what any caller
+    /// writing <c>{{toc}}</c> meant.
+    /// </para>
+    /// <para>
+    /// <b>The field is written dirty on purpose, not populated with real heading text.</b> Measured
+    /// against the pinned <c>OfficeIMO.Word</c> 3.2.6: the field this produces carries
+    /// <c>w:dirty="true"</c>, and the document gains <c>w:updateFields="true"</c> in its settings —
+    /// both regardless of anything else. Word recomputes a dirty field before display, and this
+    /// library's own <c>DocxToPdfConverter</c> recomputes it live rather than trusting the
+    /// cache — so a caller sees the real table of contents either way, even though the file itself
+    /// never contains one as plain, pre-rendered text.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, <paramref name="placeholder"/> is blank, or
+    /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited; no paragraph containing only the placeholder was found; the
+    /// paragraph holding it also holds content other than plain text; that paragraph's
+    /// <c>w:pPr</c> carries a <c>w:sectPr</c>, so replacing it would discard a section break; or
+    /// more than one paragraph's text exactly matches the placeholder, since AddTableOfContents
+    /// replaces a single paragraph and refuses to guess which one was meant.
+    /// </exception>
+    public static byte[] AddTableOfContents(
+        byte[] docx, string placeholder, int minLevel = 1, int maxLevel = 3)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+        ValidateTocLevels(minLevel, maxLevel);
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        AddTableOfContentsCore(ms, placeholder, minLevel, maxLevel);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, replaces the paragraph containing only
+    /// <paramref name="placeholder"/> with a table of contents, and writes the result to
+    /// <paramref name="destination"/> — see
+    /// <see cref="AddTableOfContents(byte[], string, int, int)"/> for exactly what is matched.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="minLevel">The shallowest heading level to include. 1-9.</param>
+    /// <param name="maxLevel">The deepest heading level to include. 1-9, and at least <paramref name="minLevel"/>.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, <paramref name="placeholder"/> is blank, or <paramref name="minLevel"/> is
+    /// greater than <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited; no matching paragraph was found; the paragraph holding the
+    /// placeholder also holds content other than plain text; that paragraph's <c>w:pPr</c>
+    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break; or more than one
+    /// paragraph's text exactly matches the placeholder, since AddTableOfContents replaces a single
+    /// paragraph and refuses to guess which one was meant.
+    /// </exception>
+    public static async Task AddTableOfContentsAsync(
+        Stream source, string placeholder, Stream destination,
+        int minLevel = 1, int maxLevel = 3, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+        ValidateTocLevels(minLevel, maxLevel);
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to add a table of contents to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        AddTableOfContentsCore(buffer, placeholder, minLevel, maxLevel);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to add a table of contents to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="inputPath"/>, replaces the paragraph containing only
+    /// <paramref name="placeholder"/> with a table of contents, and writes the result to
+    /// <paramref name="outputPath"/> — see
+    /// <see cref="AddTableOfContents(byte[], string, int, int)"/> for exactly what is matched. The
+    /// two paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .docx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="minLevel">The shallowest heading level to include. 1-9.</param>
+    /// <param name="maxLevel">The deepest heading level to include. 1-9, and at least <paramref name="minLevel"/>.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty,
+    /// <paramref name="placeholder"/> is blank, or <paramref name="minLevel"/> is greater than
+    /// <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited; no matching paragraph was found; the paragraph holding the
+    /// placeholder also holds content other than plain text; that paragraph's <c>w:pPr</c>
+    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break; or more than one
+    /// paragraph's text exactly matches the placeholder, since AddTableOfContents replaces a single
+    /// paragraph and refuses to guess which one was meant.
+    /// </exception>
+    public static async Task AddTableOfContentsAsync(
+        string inputPath, string outputPath, string placeholder,
+        int minLevel = 1, int maxLevel = 3, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ValidateTocLevels(minLevel, maxLevel);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddTableOfContents(bytes, placeholder, minLevel, maxLevel);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    private static void ValidateTocLevels(int minLevel, int maxLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(minLevel, 1, nameof(minLevel));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(minLevel, 9, nameof(minLevel));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxLevel, 1, nameof(maxLevel));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxLevel, 9, nameof(maxLevel));
+        if (minLevel > maxLevel)
+        {
+            throw new ArgumentException(
+                $"minLevel ({minLevel}) must not be greater than maxLevel ({maxLevel}).",
+                nameof(minLevel));
+        }
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void AddTableOfContentsCore(
+        MemoryStream ms, string placeholder, int minLevel, int maxLevel)
+    {
+        try
+        {
+            var fragment = BuildTableOfContentsFragment(minLevel, maxLevel);
+
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+
+                var exactMatches = new List<Paragraph>();
+                OpenXmlElement? blocker = null;
+                Paragraph? partialMatch = null;
+
+                foreach (var paragraph in TopLevelParagraphsOf(body))
+                {
+                    var ownText = OwnParagraphText(paragraph);
+                    if (ownText == placeholder)
+                    {
+                        // The text matching exactly is only half the question. A text box, an
+                        // inline image or a section break sharing the paragraph is invisible to
+                        // OwnParagraphText -- it reads w:t elements -- and removing the paragraph
+                        // would take that with it, silently. Same refusal as "other text" below.
+                        if (NonTextContentIn(paragraph) is not { } offending) { exactMatches.Add(paragraph); continue; }
+                        blocker ??= offending;
+                        continue;
+                    }
+
+                    if (partialMatch is null && ownText.Contains(placeholder, StringComparison.Ordinal))
+                        partialMatch = paragraph;
+                }
+
+                if (exactMatches.Count > 1)
+                {
+                    throw new DocumentConversionException(
+                        $"{exactMatches.Count} paragraphs whose text is exactly '{placeholder}' were found. "
+                        + "AddTableOfContents replaces a single paragraph and refuses to guess which one you "
+                        + "meant -- make the placeholder unique in the document, or replace one occurrence at a "
+                        + "time by renaming the others first.");
+                }
+
+                var target = exactMatches.Count == 1 ? exactMatches[0] : null;
+
+                if (target is null)
+                {
+                    if (blocker is SectionProperties)
+                    {
+                        throw new DocumentConversionException(
+                            $"A paragraph whose text is exactly '{placeholder}' was found, but its w:pPr carries "
+                            + "a w:sectPr -- a section break, not paragraph formatting. AddTableOfContents "
+                            + "replaces the whole paragraph, which would take the section break with it and "
+                            + "silently give that section the FOLLOWING section's paper size, margins and "
+                            + "page-numbering format. Put the placeholder in a paragraph of its own, ahead of "
+                            + "the one that ends the section.");
+                    }
+
+                    if (blocker is not null)
+                    {
+                        throw new DocumentConversionException(
+                            $"A paragraph whose text is exactly '{placeholder}' was found, but it also holds "
+                            + $"content other than plain text (a '{Describe(blocker)}' element). "
+                            + "AddTableOfContents needs the placeholder to be the paragraph's entire content, "
+                            + "since inserting a table of contents replaces the whole paragraph and would "
+                            + "discard that content along with it.");
+                    }
+
+                    if (partialMatch is not null)
+                    {
+                        throw new DocumentConversionException(
+                            $"A paragraph containing '{placeholder}' was found, but it also holds other text "
+                            + $"('{OwnParagraphText(partialMatch)}'). AddTableOfContents needs the placeholder "
+                            + "to be the paragraph's entire content, since inserting a table of contents "
+                            + "replaces the whole paragraph and cannot preserve neighbouring text the way an "
+                            + "inline splice can.");
+                    }
+
+                    throw new DocumentConversionException(
+                        $"No paragraph containing only '{placeholder}' was found, so there was nothing to "
+                        + "replace with a table of contents. Check the placeholder text, braces included, "
+                        + "matches the document exactly and has nothing else in its paragraph.");
+                }
+
+                target.InsertBeforeSelf((SdtBlock)fragment.CloneNode(true));
+                target.Remove();
+
+                main.Document!.Save();
+
+                EnsureFieldsUpdateOnOpen(main);
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add a table of contents to the DOCX package. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// The text a paragraph owns itself, excluding anything nested inside it via a text box —
+    /// same scoping <see cref="InsertFootnoteReferencesIn"/> and <see cref="ReplaceInParagraph"/>
+    /// already use for the identical reason.
+    /// </summary>
+    private static string OwnParagraphText(Paragraph paragraph) => string.Concat(
+        paragraph.Descendants<Text>()
+                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                 .Select(t => t.Text));
+
+    /// <summary>
+    /// The paragraphs of <paramref name="body"/> that are not themselves nested inside another
+    /// paragraph — i.e. everything except the paragraphs a text box holds in its
+    /// <c>w:txbxContent</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>Descendants&lt;Paragraph&gt;()</c> reaches into a text box, and reaching into one is the
+    /// trap this codebase already records twice — for <c>DocxEditor</c>'s own edits and for
+    /// <c>TableRowFinder</c>. <see cref="OwnParagraphText"/> scopes the text it READS to a single
+    /// paragraph for that reason; scoping the text alone is not enough, because a placeholder
+    /// living only inside a text box would still be enumerated and would get a table of contents
+    /// spliced into the text box's content. Table-cell paragraphs are deliberately still in scope:
+    /// their ancestors are <c>w:tbl</c>/<c>w:tr</c>/<c>w:tc</c>, never another <c>w:p</c>.
+    /// </remarks>
+    private static IEnumerable<Paragraph> TopLevelParagraphsOf(Body body)
+        => body.Descendants<Paragraph>().Where(p => !p.Ancestors<Paragraph>().Any());
+
+    /// <summary>
+    /// The first element <paramref name="paragraph"/> owns that is not plain text — an inline
+    /// image, a text box, a field, a tab, a line break, a hyperlink, a nested control, or a section
+    /// break — or <see langword="null"/> when the paragraph really does hold nothing but text.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is an ALLOW-list rather than a deny-list on purpose: an unrecognised element is treated
+    /// as content and the paragraph is refused, so the failure direction is a spurious refusal the
+    /// caller can see rather than the silent data loss a missed entry in a deny-list would cause.
+    /// Formatting (<c>w:pPr</c>, <c>w:rPr</c>) and proofing marks genuinely carry nothing a caller
+    /// could lose. Bookmarks are allow-listed for a narrower, practical reason instead: real Word
+    /// writes a <c>_GoBack</c> bookmark into nearly every file it saves, so refusing on any
+    /// bookmark would reject most ordinary Word-authored templates. A bookmark IS lost along with
+    /// the paragraph — a <c>REF</c>/<c>PAGEREF</c> field elsewhere pointing at it would go dangling
+    /// — but that loss is judged less severe than blocking the common case, unlike the
+    /// section-break loss below, which is why the two are not treated the same way.
+    /// </para>
+    /// <para>
+    /// <b><c>w:pPr</c> is on that list only when it holds no <c>w:sectPr</c>.</b> A <c>w:sectPr</c>
+    /// nested in a paragraph's own properties is a <em>section break</em>, not paragraph formatting
+    /// — it carries that section's paper size, margins and page-numbering format, and the paragraph
+    /// holding it is simply the last paragraph of the section. Allowing <c>w:pPr</c>
+    /// unconditionally therefore discarded a whole section's page setup along with the placeholder
+    /// paragraph, leaving that content to inherit whatever the FOLLOWING section specifies, with no
+    /// exception and a package that still validates. Same family as the <c>w:sectPr</c>-placement
+    /// trap this codebase already records: nothing about a section break is visible to a test that
+    /// reads text back.
+    /// </para>
+    /// <para>
+    /// It returns the offending element rather than a bool so the refusal can name what it found.
+    /// The message used to assert the content was "an inline image, a text box or a field", which
+    /// was simply untrue for the tab- and line-break cases it also (correctly) refuses.
+    /// </para>
+    /// </remarks>
+    private static OpenXmlElement? NonTextContentIn(Paragraph paragraph)
+    {
+        foreach (var child in paragraph.ChildElements)
+        {
+            switch (child)
+            {
+                case ParagraphProperties { SectionProperties: not null } sectionBreak:
+                    return sectionBreak.SectionProperties!;
+
+                case ParagraphProperties:
+                case BookmarkStart:
+                case BookmarkEnd:
+                case ProofError:
+                    continue;
+
+                case Run run:
+                    var carried = run.ChildElements.FirstOrDefault(
+                        c => c is not RunProperties and not Text and not LastRenderedPageBreak);
+                    if (carried is not null) return carried;
+
+                    continue;
+
+                default:
+                    return child;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The prefixed name of <paramref name="element"/>, e.g. <c>w:pict</c>.</summary>
+    private static string Describe(OpenXmlElement element)
+        => string.IsNullOrEmpty(element.Prefix) ? element.LocalName : $"{element.Prefix}:{element.LocalName}";
+
+    /// <summary>
+    /// The <c>w14:</c> namespace — Word 2010's revision bookkeeping. See
+    /// <see cref="StripWord2010Bookkeeping"/> for why a cloned fragment must not carry any of it.
+    /// </summary>
+    private const string Word2010Namespace = "http://schemas.microsoft.com/office/word/2010/wordml";
+
+    /// <summary>
+    /// Removes every <c>w14:</c> attribute from <paramref name="root"/> and its descendants —
+    /// <c>w14:paraId</c> and <c>w14:textId</c> in practice.
+    /// </summary>
+    /// <remarks>
+    /// Those attributes are Word's own per-paragraph revision ids, meaningless on a fragment that
+    /// has just been cloned out of a throwaway document, and they are only <em>legal</em> in a
+    /// document whose <c>w:document</c> element declares <c>mc:Ignorable="w14 …"</c>.
+    /// <c>OfficeIMO.Word</c>'s documents do; documents this library's own
+    /// <see cref="Create(IEnumerable{DocxBlock})"/> and any hand-built package produce do not — so
+    /// carrying them across made the most natural composition in the whole library (build with
+    /// <c>Create</c>, then add a table of contents) emit an invalid document. Measured with
+    /// <c>OpenXmlValidator</c>: four errors before, none after.
+    /// </remarks>
+    private static void StripWord2010Bookkeeping(OpenXmlElement root)
+    {
+        foreach (var element in root.Descendants().Prepend(root))
+        {
+            var bookkeeping = element.GetAttributes()
+                                     .Where(a => a.NamespaceUri == Word2010Namespace)
+                                     .ToList();
+
+            foreach (var attribute in bookkeeping)
+                element.RemoveAttribute(attribute.LocalName, attribute.NamespaceUri);
+        }
+    }
+
+    /// <summary>
+    /// Builds a correctly-shaped table-of-contents <c>w:sdt</c> fragment via a throwaway
+    /// <c>OfficeIMO.Word</c> document — the only place this class uses that library's own
+    /// load/save cycle rather than raw <c>DocumentFormat.OpenXml</c>, because reproducing the
+    /// field's exact instruction text, styling, and dirty-flag shape by hand would be a second,
+    /// unverified copy of what <c>WordDocument.AddTableOfContent</c> already gets right. The
+    /// fragment is cloned out before the throwaway document is disposed and never touches the
+    /// caller's real document directly.
+    /// </summary>
+    /// <returns>The cloned <c>w:sdt</c> fragment, stripped of the source document's own
+    /// <c>w14:</c> bookkeeping — see <see cref="StripWord2010Bookkeeping"/>.</returns>
+    private static SdtBlock BuildTableOfContentsFragment(int minLevel, int maxLevel)
+    {
+        using var word = OfficeIMOWordWordDocument.Create();
+        word.AddTableOfContent(OfficeIMO.Word.WordTableOfContentsStyle.Template1, minLevel, maxLevel);
+
+        using var fragmentStream = new MemoryStream();
+        word.Save(fragmentStream);
+        fragmentStream.Position = 0;
+
+        using var packaged = WordprocessingDocument.Open(fragmentStream, false);
+        var sdt = packaged.MainDocumentPart!.Document!.Body!.Descendants<SdtBlock>().Single();
+
+        var fragment = (SdtBlock)sdt.CloneNode(true);
+        StripWord2010Bookkeeping(fragment);
+        return fragment;
+    }
+
+    /// <summary>
+    /// Marks the document dirty for a field refresh on open, matching what
+    /// <c>OfficeIMO.Word</c> itself writes into <em>its own</em> <c>w:settings</c> the moment a
+    /// table of contents is added — <c>WordDocument.AddTableOfContent</c> sets it unconditionally,
+    /// so <see cref="AddTableOfContentsCore"/> does too, rather than leaving Word to trust a field
+    /// this method knows is stale.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>w:updateFields</c> sits in a fixed position within <c>CT_Settings</c>' schema sequence —
+    /// the same order-matters trap this file already tracks for <c>w:sectPr</c> — so it cannot
+    /// simply be appended or prepended into whatever settings a caller's real document already
+    /// carries; <c>OpenXmlValidator</c> rejects both, measured directly.
+    /// </para>
+    /// <para>
+    /// <b>The slot is derived from the SDK's own schema, not from an example document's order.</b>
+    /// An earlier version read the order off one throwaway <c>OfficeIMO.Word</c> document's
+    /// <c>w:settings</c> and anchored against it — which is a hand-maintained list wearing a
+    /// derivation's clothes, because it can only ever describe the children THAT document happens
+    /// to carry. An ordinary Word document with <c>w:footnotePr</c>/<c>w:endnotePr</c> present —
+    /// exactly what this class's own <see cref="AddFootnote(byte[], string, string)"/> and
+    /// <see cref="AddEndnote(byte[], string, string)"/> leave behind — has no anchor in that list
+    /// until <c>w:compat</c>, which sorts three slots too late: measured, five
+    /// <c>OpenXmlValidator</c> errors. Inserting and then walking the element earlier until the
+    /// validator stops rejecting it answers the ordering question from the schema itself, so it is
+    /// correct for any legally-ordered <c>CT_Settings</c> rather than for one example's shape.
+    /// </para>
+    /// <para>
+    /// <b>Which schema version the validator is asked about is part of that derivation, not a
+    /// detail.</b> <c>new OpenXmlValidator()</c> defaults to <c>FileFormatVersions.Office2007</c>,
+    /// which predates the <c>w14:</c>/<c>w15:</c> extension elements every document Word itself has
+    /// saved carries — <c>w15:chartTrackingRefBased</c> and <c>w15:docId</c> in <c>w:settings</c>,
+    /// under an <c>mc:Ignorable="w14 w15"</c> root. A 2007-era validator cannot see those children
+    /// at all, so it reports the appended element clean, the loop stops one position too early, and
+    /// <c>w:updateFields</c> is left in a slot that is invalid under the real schema — invisible
+    /// precisely because the thing asked to check it is the thing that cannot see it. Measured on
+    /// <c>[w:zoom, w:defaultTabStop, w15:chartTrackingRefBased, w15:docId]</c>: zero errors under
+    /// <c>Office2007</c> before and after, one error under <c>Office2013</c> after but not before.
+    /// </para>
+    /// </remarks>
+    private static void EnsureFieldsUpdateOnOpen(MainDocumentPart main)
+    {
+        var settingsPart = main.DocumentSettingsPart ?? main.AddNewPart<DocumentSettingsPart>();
+        settingsPart.Settings ??= new Settings();
+
+        var existing = settingsPart.Settings.Elements<UpdateFieldsOnOpen>().FirstOrDefault();
+        if (existing is not null)
+        {
+            existing.Val = true;
+            settingsPart.Settings.Save();
+            return;
+        }
+
+        var newElement = new UpdateFieldsOnOpen { Val = true };
+        settingsPart.Settings.AppendChild(newElement);
+
+        // Bounded by THIS document's own child count, not by any assumed schema size: each pass
+        // moves the element exactly one slot earlier, so it can need at most as many passes as
+        // there are children to move past, and the loop terminates whatever w:settings turns out to
+        // hold. The discriminator is RelatedNode rather than the message text, so validation errors
+        // the caller's own settings already carried are ignored rather than driving the element to
+        // the front of a document that was invalid before this ran.
+        var validator = new OpenXmlValidator(FileFormatVersions.Office2013);
+        for (var remaining = settingsPart.Settings.ChildElements.Count; remaining > 0; remaining--)
+        {
+            var rejected = validator.Validate(settingsPart.Settings)
+                                    .Any(e => ReferenceEquals(e.RelatedNode, newElement));
+            if (!rejected) break;
+
+            if (newElement.PreviousSibling() is not { } earlier) break;
+            newElement.Remove();
+            earlier.InsertBeforeSelf(newElement);
+        }
+
+        settingsPart.Settings.Save();
     }
 
     /// <summary>Reads a .docx from <paramref name="path"/> and returns its body text.</summary>

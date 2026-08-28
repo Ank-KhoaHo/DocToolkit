@@ -67,6 +67,17 @@ public class StreamOverloadTests
     /// </summary>
     private static readonly byte[] ImagePptx = PptxFixtures.DeckWithPlaceholderBox("{{chart}}");
 
+    /// <summary>
+    /// A .docx whose only paragraph's text is exactly the placeholder, for AddTableOfContentsAsync
+    /// — unlike AddFootnoteAsync/AddEndnoteAsync, which splice an inline reference the way
+    /// ReplaceImageAsync does and so can share <see cref="ImageDocx"/>, AddTableOfContentsAsync
+    /// replaces a whole paragraph and refuses one carrying anything besides the placeholder text.
+    /// Built through raw OpenXml (via <see cref="DocxFixtures.Build"/>), not OfficeIMO, so this
+    /// also exercises the "not OfficeIMO-authored" composition the ticket's fix specifically
+    /// closed (no mc:Ignorable="w14 ..." declared at the document root).
+    /// </summary>
+    private static readonly byte[] TocDocx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{toc}}")));
+
     /// <summary>Blocks for DocxEditor.CreateAsync, which takes no source.</summary>
     private static readonly DocxBlock[] Blocks =
     {
@@ -194,6 +205,9 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
+        "DocxEditor.AddFootnoteAsync",
+        "DocxEditor.AddEndnoteAsync",
+        "DocxEditor.AddTableOfContentsAsync",
         "DocxEditor.CreateAsync",
         "DocxEditor.CreateAsync(PageSetup)",
         "WorkbookEditor.CreateAsync",
@@ -241,6 +255,9 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
+        "DocxEditor.AddFootnoteAsync",
+        "DocxEditor.AddEndnoteAsync",
+        "DocxEditor.AddTableOfContentsAsync",
         "DocxEditor.ExtractTextAsync",
         "PdfEditor.ExtractTextAsync",
         "DocxToHtmlConverter.ConvertAsync",
@@ -329,6 +346,9 @@ public class StreamOverloadTests
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
+        "DocxEditor.AddFootnoteAsync",
+        "DocxEditor.AddEndnoteAsync",
+        "DocxEditor.AddTableOfContentsAsync",
         "DocxEditor.CreateAsync",
         "DocxEditor.CreateAsync(PageSetup)",
         "WorkbookEditor.CreateAsync",
@@ -1132,6 +1152,12 @@ public class StreamOverloadTests
                 DocxEditor.FillRowsAsync(source!, "item", FillRowsRecords, destination!, ct),
             "DocxEditor.ReplaceImageAsync" =>
                 DocxEditor.ReplaceImageAsync(source!, "{{logo}}", ImageFixtures.Png(), destination!, ct: ct),
+            "DocxEditor.AddFootnoteAsync" =>
+                DocxEditor.AddFootnoteAsync(source!, "{{logo}}", "A footnote.", destination!, ct),
+            "DocxEditor.AddEndnoteAsync" =>
+                DocxEditor.AddEndnoteAsync(source!, "{{logo}}", "An endnote.", destination!, ct),
+            "DocxEditor.AddTableOfContentsAsync" =>
+                DocxEditor.AddTableOfContentsAsync(source!, "{{toc}}", destination!, ct: ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
             "PdfEditor.ExtractTextAsync" =>
@@ -1235,6 +1261,9 @@ public class StreamOverloadTests
         "DocxEditor.FillRowsAsync" => TableDocx,
         "DocxEditor.ReadTableAsync" => TableDocx,
         "DocxEditor.ReplaceImageAsync" => ImageDocx,
+        "DocxEditor.AddFootnoteAsync" => ImageDocx,
+        "DocxEditor.AddEndnoteAsync" => ImageDocx,
+        "DocxEditor.AddTableOfContentsAsync" => TocDocx,
         "PresentationEditor.ReplaceImageAsync" => ImagePptx,
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
