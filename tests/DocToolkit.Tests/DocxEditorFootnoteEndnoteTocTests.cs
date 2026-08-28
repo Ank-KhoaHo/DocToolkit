@@ -85,7 +85,35 @@ public class DocxEditorFootnoteEndnoteTocTests
             .Select(f => (int)f.Id!.Value).OrderBy(id => id).ToList();
 
         Assert.Equal(new[] { 1, 2 }, ids);
+
+        // The design's Testing section also asks for "existing content untouched" alongside the
+        // id-continuation proof -- the first call's own footnote must still read exactly as it did
+        // before the second call touched the document.
+        var firstFootnoteText = doc.MainDocumentPart.FootnotesPart!.Footnotes!.Elements<Footnote>()
+            .Single(f => f.Id!.Value == 1).InnerText;
+        Assert.Equal("First footnote.", firstFootnoteText);
+
         AssertValid(bothAdded);
+    }
+
+    [Fact]
+    public void AddFootnote_DoesNotRescanTheInsertedFootnoteTextForFurtherMatches()
+    {
+        // The footnote's own text carries the SAME placeholder. AddFootnoteEntry appends to the
+        // footnotes part, a tree InsertFootnoteReferencesIn's body-scanning loop never enumerates,
+        // so a single left-to-right pass over the ORIGINAL body content is a design guarantee --
+        // pinned here rather than left unpinned, per the design doc's own Testing section.
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("See {{note}} here.")));
+
+        var filled = DocxEditor.AddFootnote(docx, "{{note}}", "See {{note}} again.");
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+
+        Assert.Single(doc.MainDocumentPart!.Document!.Body!.Descendants<FootnoteReference>());
+        Assert.Single(doc.MainDocumentPart.FootnotesPart!.Footnotes!.Elements<Footnote>());
+
+        AssertValid(filled);
     }
 
     [Fact]
@@ -225,7 +253,35 @@ public class DocxEditorFootnoteEndnoteTocTests
             .Select(e => (int)e.Id!.Value).OrderBy(id => id).ToList();
 
         Assert.Equal(new[] { 1, 2 }, ids);
+
+        // The design's Testing section also asks for "existing content untouched" alongside the
+        // id-continuation proof -- the first call's own endnote must still read exactly as it did
+        // before the second call touched the document.
+        var firstEndnoteText = doc.MainDocumentPart.EndnotesPart!.Endnotes!.Elements<Endnote>()
+            .Single(e => e.Id!.Value == 1).InnerText;
+        Assert.Equal("First endnote.", firstEndnoteText);
+
         AssertValid(bothAdded);
+    }
+
+    [Fact]
+    public void AddEndnote_DoesNotRescanTheInsertedEndnoteTextForFurtherMatches()
+    {
+        // The endnote's own text carries the SAME placeholder. AddEndnoteEntry appends to the
+        // endnotes part, a tree InsertEndnoteReferencesIn's body-scanning loop never enumerates, so
+        // a single left-to-right pass over the ORIGINAL body content is a design guarantee --
+        // pinned here rather than left unpinned, per the design doc's own Testing section.
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("See {{note}} here.")));
+
+        var filled = DocxEditor.AddEndnote(docx, "{{note}}", "See {{note}} again.");
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+
+        Assert.Single(doc.MainDocumentPart!.Document!.Body!.Descendants<EndnoteReference>());
+        Assert.Single(doc.MainDocumentPart.EndnotesPart!.Endnotes!.Elements<Endnote>());
+
+        AssertValid(filled);
     }
 
     [Fact]
@@ -391,6 +447,25 @@ public class DocxEditorFootnoteEndnoteTocTests
         var ex = Assert.Throws<DocumentConversionException>(
             () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
 
+        Assert.Contains("{{toc}}", ex.Message);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RefusesWhenThePlaceholderMatchesMoreThanOneParagraph()
+    {
+        // AddFootnote/AddEndnote insert at EVERY occurrence and say so in their own doc comments;
+        // AddTableOfContents replaces a single PARAGRAPH, so a second exact match is genuinely
+        // ambiguous rather than something a loop can just also handle -- refuse rather than
+        // silently taking the first one and leaving the second's placeholder text visible.
+        var docx = DocxFixtures.Build(
+            DocxFixtures.P(DocxFixtures.R("{{toc}}")),
+            DocxFixtures.P(DocxFixtures.R("Some content in between.")),
+            DocxFixtures.P(DocxFixtures.R("{{toc}}")));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+
+        Assert.Contains("2", ex.Message);
         Assert.Contains("{{toc}}", ex.Message);
     }
 

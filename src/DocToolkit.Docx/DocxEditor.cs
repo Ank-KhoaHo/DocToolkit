@@ -1365,6 +1365,9 @@ public static class DocxEditor
     /// <see cref="ReplaceImage(byte[], string, byte[], double?, double?)"/>. Only the document
     /// body is searched — headers, footers, and content already inside another footnote or
     /// endnote are not.
+    ///
+    /// A document built with this method is correctly reported by <c>DocxToPdfPreflight</c> as
+    /// carrying footnote content that does not reach a PDF conversion.
     /// </summary>
     /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
     /// <exception cref="ArgumentException">
@@ -1597,6 +1600,10 @@ public static class DocxEditor
     /// document body — see <see cref="AddFootnote(byte[], string, string)"/> for exactly what is
     /// matched and how each occurrence is handled. The only difference is where the note ends up:
     /// the document's endnotes, not its footnotes.
+    ///
+    /// Unlike footnotes, <c>DocxToPdfPreflight</c> does not currently inspect endnotes, so whether
+    /// endnote content survives a <c>DocxToPdfConverter</c> conversion has not been measured either
+    /// way.
     /// </summary>
     /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
     /// <exception cref="ArgumentException">
@@ -1870,8 +1877,10 @@ public static class DocxEditor
     /// </exception>
     /// <exception cref="DocumentConversionException">
     /// The package could not be edited; no paragraph containing only the placeholder was found; the
-    /// paragraph holding it also holds content other than plain text; or that paragraph's
-    /// <c>w:pPr</c> carries a <c>w:sectPr</c>, so replacing it would discard a section break.
+    /// paragraph holding it also holds content other than plain text; that paragraph's
+    /// <c>w:pPr</c> carries a <c>w:sectPr</c>, so replacing it would discard a section break; or
+    /// more than one paragraph's text exactly matches the placeholder, since AddTableOfContents
+    /// replaces a single paragraph and refuses to guess which one was meant.
     /// </exception>
     public static byte[] AddTableOfContents(
         byte[] docx, string placeholder, int minLevel = 1, int maxLevel = 3)
@@ -1918,8 +1927,10 @@ public static class DocxEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The package could not be edited; no matching paragraph was found; the paragraph holding the
-    /// placeholder also holds content other than plain text; or that paragraph's <c>w:pPr</c>
-    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break.
+    /// placeholder also holds content other than plain text; that paragraph's <c>w:pPr</c>
+    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break; or more than one
+    /// paragraph's text exactly matches the placeholder, since AddTableOfContents replaces a single
+    /// paragraph and refuses to guess which one was meant.
     /// </exception>
     public static async Task AddTableOfContentsAsync(
         Stream source, string placeholder, Stream destination,
@@ -1973,8 +1984,10 @@ public static class DocxEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The package could not be edited; no matching paragraph was found; the paragraph holding the
-    /// placeholder also holds content other than plain text; or that paragraph's <c>w:pPr</c>
-    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break.
+    /// placeholder also holds content other than plain text; that paragraph's <c>w:pPr</c>
+    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break; or more than one
+    /// paragraph's text exactly matches the placeholder, since AddTableOfContents replaces a single
+    /// paragraph and refuses to guess which one was meant.
     /// </exception>
     public static async Task AddTableOfContentsAsync(
         string inputPath, string outputPath, string placeholder,
@@ -2022,6 +2035,7 @@ public static class DocxEditor
                            + "example it was renamed from another format) or the upload is corrupt.");
 
                 Paragraph? target = null;
+                var exactMatches = new List<Paragraph>();
                 OpenXmlElement? blocker = null;
                 Paragraph? partialMatch = null;
 
@@ -2034,7 +2048,7 @@ public static class DocxEditor
                         // inline image or a section break sharing the paragraph is invisible to
                         // OwnParagraphText -- it reads w:t elements -- and removing the paragraph
                         // would take that with it, silently. Same refusal as "other text" below.
-                        if (NonTextContentIn(paragraph) is not { } offending) { target = paragraph; break; }
+                        if (NonTextContentIn(paragraph) is not { } offending) { exactMatches.Add(paragraph); continue; }
                         blocker ??= offending;
                         continue;
                     }
@@ -2042,6 +2056,17 @@ public static class DocxEditor
                     if (partialMatch is null && ownText.Contains(placeholder, StringComparison.Ordinal))
                         partialMatch = paragraph;
                 }
+
+                if (exactMatches.Count > 1)
+                {
+                    throw new DocumentConversionException(
+                        $"{exactMatches.Count} paragraphs whose text is exactly '{placeholder}' were found. "
+                        + "AddTableOfContents replaces a single paragraph and refuses to guess which one you "
+                        + "meant -- make the placeholder unique in the document, or replace one occurrence at a "
+                        + "time by renaming the others first.");
+                }
+
+                target = exactMatches.Count == 1 ? exactMatches[0] : null;
 
                 if (target is null)
                 {
@@ -2092,7 +2117,7 @@ public static class DocxEditor
 
             ms.Position = 0;
         }
-        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException and not ArgumentException)
+        catch (Exception ex) when (ex is not DocumentConversionException)
         {
             throw new DocumentConversionException("Failed to add a table of contents to the DOCX package. See the inner exception for details.", ex);
         }
@@ -2135,8 +2160,13 @@ public static class DocxEditor
     /// This is an ALLOW-list rather than a deny-list on purpose: an unrecognised element is treated
     /// as content and the paragraph is refused, so the failure direction is a spurious refusal the
     /// caller can see rather than the silent data loss a missed entry in a deny-list would cause.
-    /// Only the elements that genuinely carry nothing a caller could lose are listed —
-    /// formatting (<c>w:pPr</c>, <c>w:rPr</c>), bookmarks, proofing marks and layout hints.
+    /// Formatting (<c>w:pPr</c>, <c>w:rPr</c>) and proofing marks genuinely carry nothing a caller
+    /// could lose. Bookmarks are allow-listed for a narrower, practical reason instead: real Word
+    /// writes a <c>_GoBack</c> bookmark into nearly every file it saves, so refusing on any
+    /// bookmark would reject most ordinary Word-authored templates. A bookmark IS lost along with
+    /// the paragraph — a <c>REF</c>/<c>PAGEREF</c> field elsewhere pointing at it would go dangling
+    /// — but that loss is judged less severe than blocking the common case, unlike the
+    /// section-break loss below, which is why the two are not treated the same way.
     /// </para>
     /// <para>
     /// <b><c>w:pPr</c> is on that list only when it holds no <c>w:sectPr</c>.</b> A <c>w:sectPr</c>

@@ -354,18 +354,6 @@ byte[] signed = DocxEditor.ReplaceImage(withLogo, "{{signature}}", sigBytes, wid
 
 <!-- END SNIPPET -->
 
-```csharp
-
-// Add a footnote, an endnote, or a table of contents at a placeholder in an existing document —
-// the same placeholder shape ReplaceImage uses.
-byte[] withFootnote = DocxEditor.AddFootnote(docx, "{{note}}", "See the appendix for detail.");
-byte[] withEndnote  = DocxEditor.AddEndnote(withFootnote, "{{cite}}", "Source: internal audit, 2026.");
-
-// The placeholder paragraph must contain nothing else -- inserting a table of contents replaces
-// the whole paragraph, which cannot preserve neighbouring text the way an inline splice can.
-byte[] withToc = DocxEditor.AddTableOfContents(withEndnote, "{{toc}}", minLevel: 1, maxLevel: 3);
-```
-
 **PNG and JPEG**, identified by their own magic bytes rather than a filename. Omit the size and the
 image's intrinsic dimensions are read from its header at 96 DPI; give one dimension and the other
 scales; give both and it is stretched to fit.
@@ -400,6 +388,23 @@ document that is still schema-valid. That is refused instead, with a
 
 **PNG and JPEG**, identified by their own magic bytes rather than a filename, same as the DOCX
 form above.
+
+## Footnotes, endnotes and a table of contents
+
+`DocxEditor.AddFootnote` and `DocxEditor.AddEndnote` insert a footnote or endnote reference at
+every occurrence of a placeholder — the same placeholder shape `ReplaceImage` uses.
+`DocxEditor.AddTableOfContents` replaces a placeholder **paragraph** instead: unlike a footnote or
+an image, a table of contents is whole paragraphs rather than something that splices into a run,
+so the placeholder must be that paragraph's entire content.
+
+```csharp
+byte[] withFootnote = DocxEditor.AddFootnote(docx, "{{note}}", "See the appendix for detail.");
+byte[] withEndnote  = DocxEditor.AddEndnote(withFootnote, "{{cite}}", "Source: internal audit, 2026.");
+
+// The placeholder paragraph must contain nothing else -- inserting a table of contents replaces
+// the whole paragraph, which cannot preserve neighbouring text the way an inline splice can.
+byte[] withToc = DocxEditor.AddTableOfContents(withEndnote, "{{toc}}", minLevel: 1, maxLevel: 3);
+```
 
 ## Placeholder replacement
 
