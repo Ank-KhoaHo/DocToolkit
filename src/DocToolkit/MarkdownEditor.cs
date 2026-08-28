@@ -119,6 +119,77 @@ public static class MarkdownEditor
     }
 
     /// <summary>
+    /// Replaces the content of the section under the heading matching <paramref name="headingText"/>
+    /// with <paramref name="newContent"/>, and returns the whole updated document. Front matter and
+    /// every other section are left untouched.
+    /// </summary>
+    /// <param name="markdown">The Markdown to edit.</param>
+    /// <param name="headingText">The target heading's text — see <see cref="FindHeading"/>.</param>
+    /// <param name="newContent">
+    /// The section's new body, inserted verbatim in place of everything between the heading's own
+    /// line and the start of the next section. Include your own surrounding newlines — this method
+    /// does not add or normalise whitespace around what you pass.
+    /// </param>
+    /// <param name="comparison">How <paramref name="headingText"/> is compared. Case-insensitive by default.</param>
+    /// <remarks>
+    /// A section runs from immediately after the target heading's own line to the start of the
+    /// next heading at the <b>same or a shallower level</b> (a level-2 target's section can only be
+    /// closed by another level-1 or level-2 heading, never by a level-3 one), or to the end of the
+    /// document if there is no such heading.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">No heading matches <paramref name="headingText"/>.</exception>
+    /// <exception cref="DocumentConversionException">The Markdown could not be parsed.</exception>
+    public static string ReplaceSection(
+        string markdown, string headingText, string newContent,
+        StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        ArgumentNullException.ThrowIfNull(headingText);
+        ArgumentNullException.ThrowIfNull(newContent);
+
+        var doc = ParseOrThrow(markdown);
+        var found = doc.FindHeading(headingText, comparison);
+        if (found is null)
+        {
+            throw new ArgumentException(
+                $"No heading matching '{headingText}' was found.", nameof(headingText));
+        }
+
+        var headingBlock = found.Block;
+        var level = found.Level;
+
+        // The body starts where the very next block starts, which cleanly includes any blank
+        // line between the heading and its content. A heading with nothing after it at all (no
+        // NextSibling) has an empty body sitting at the end of the document — falling back to
+        // the heading's own SourceSpan.EndOffset + 1 here is measured to be off by one and drops
+        // the heading line's trailing newline.
+        var bodyStart = headingBlock.NextSibling?.SourceSpan?.StartOffset ?? markdown.Length;
+
+        // The section ends at the next heading of the SAME OR SHALLOWER level, found by walking
+        // the document's flat top-level block list from just after this heading. Absent such a
+        // heading, the section runs to the end of the document.
+        var sectionEnd = markdown.Length;
+        var siblings = doc.ChildObjects;
+        var startIndex = (headingBlock.IndexInParent ?? -1) + 1;
+        for (var i = startIndex; i < siblings.Count; i++)
+        {
+            // Fully qualified: DocToolkit.Docx declares its own internal `HeadingBlock` in this
+            // same `DocToolkit` namespace (see DocxBlock.cs), visible here via InternalsVisibleTo.
+            // An unqualified `HeadingBlock` binds to THAT type instead of
+            // OfficeIMO.Markdown.HeadingBlock, because a type in the enclosing namespace always
+            // wins over one brought in by `using` — silently, with no ambiguity warning.
+            if (siblings[i] is OfficeIMO.Markdown.HeadingBlock sibling && sibling.Level <= level)
+            {
+                sectionEnd = sibling.SourceSpan?.StartOffset ?? markdown.Length;
+                break;
+            }
+        }
+
+        return markdown.Substring(0, bodyStart) + newContent + markdown.Substring(sectionEnd);
+    }
+
+    /// <summary>
     /// Parses <paramref name="markdown"/>, wrapping any failure the reader itself raises in a
     /// <see cref="DocumentConversionException"/> — the one place every method in this class does
     /// so, matching <see cref="MarkdownToDocxConverter.ConvertCore"/>'s own wrapping around the

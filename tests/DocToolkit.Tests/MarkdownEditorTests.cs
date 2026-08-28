@@ -1,4 +1,5 @@
 using DocToolkit;
+using OfficeIMO.Markdown;
 using Xunit;
 
 namespace DocToolkit.Tests;
@@ -180,5 +181,140 @@ public class MarkdownEditorTests
         Assert.Equal(new[] { "a", "b", "c" }, rows[0]);
         Assert.Equal(new[] { "1", "2" }, rows[1]);
         Assert.Equal(new[] { "x", "y", "z", "extra" }, rows[2]);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // A69: ReplaceSection
+    // -----------------------------------------------------------------------------------------
+
+    private const string ThreeSectionMarkdown = """
+        ---
+        title: Sample
+        ---
+
+        # Overview
+
+        Intro paragraph.
+
+        ## Changed
+
+        - item one
+        - item two
+
+        ## Table of things
+
+        | a | b |
+        |---|---|
+        | 1 | 2 |
+
+        # Appendix
+
+        Appendix content.
+        """;
+
+    [Fact]
+    public void ReplaceSection_ReplacesOnlyTheNamedSectionsBody()
+    {
+        var result = MarkdownEditor.ReplaceSection(
+            ThreeSectionMarkdown, "Changed", "\n- a whole new list\n\n");
+
+        Assert.Contains("- a whole new list", result);
+        Assert.DoesNotContain("item one", result);
+        Assert.DoesNotContain("item two", result);
+    }
+
+    [Fact]
+    public void ReplaceSection_LeavesFrontMatterAndOtherSectionsUntouched()
+    {
+        var result = MarkdownEditor.ReplaceSection(
+            ThreeSectionMarkdown, "Changed", "\n- replaced\n\n");
+
+        Assert.Equal("Sample", MarkdownEditor.ReadFrontMatter(result)["title"]);
+        Assert.NotNull(MarkdownEditor.FindHeading(result, "Overview"));
+        Assert.NotNull(MarkdownEditor.FindHeading(result, "Table of things"));
+        Assert.NotNull(MarkdownEditor.FindHeading(result, "Appendix"));
+        Assert.Equal(1, MarkdownEditor.TableCount(result));
+        Assert.Equal(new[] { "a", "b" }, MarkdownEditor.ReadTable(result, 0)[0]);
+        Assert.Contains("Intro paragraph.", result);
+        Assert.Contains("Appendix content.", result);
+        Assert.Contains("- replaced", result);
+        Assert.DoesNotContain("item one", result);
+    }
+
+    [Fact]
+    public void ReplaceSection_StopsAtANextHeadingOfTheSameOrShallowerLevel()
+    {
+        // "Changed" is level 2. Its section must stop at "Table of things" (also level 2),
+        // not run past it into "Appendix" (level 1) or beyond.
+        var result = MarkdownEditor.ReplaceSection(
+            ThreeSectionMarkdown, "Changed", "\nreplaced\n\n");
+
+        Assert.NotNull(MarkdownEditor.FindHeading(result, "Table of things"));
+        Assert.Equal(1, MarkdownEditor.TableCount(result));
+    }
+
+    [Fact]
+    public void ReplaceSection_OnTheLastSectionInTheDocument_AppendsCleanly()
+    {
+        const string markdown = "# Title\n\nBody.\n\n## Last Section\n\nOld tail.\n";
+
+        var result = MarkdownEditor.ReplaceSection(markdown, "Last Section", "\nNew tail.\n");
+
+        Assert.DoesNotContain("Old tail.", result);
+        Assert.Contains("New tail.", result);
+        Assert.Contains("## Last Section", result);
+
+        var doc = MarkdownReader.Parse(result);
+        Assert.NotNull(doc.FindHeading("Title"));
+        Assert.NotNull(doc.FindHeading("Last Section"));
+    }
+
+    [Fact]
+    public void ReplaceSection_OnAHeadingWithNoBodyAtAll_InsertsCleanlyRightAfterIt()
+    {
+        const string markdown = "# Title\n\n## Empty Section\n";
+
+        var result = MarkdownEditor.ReplaceSection(markdown, "Empty Section", "\nNew content.\n");
+
+        Assert.Contains("## Empty Section", result);
+        Assert.Contains("New content.", result);
+
+        var doc = MarkdownReader.Parse(result);
+        Assert.NotNull(doc.FindHeading("Title"));
+        Assert.NotNull(doc.FindHeading("Empty Section"));
+    }
+
+    [Fact]
+    public void ReplaceSection_OnAMissingHeading_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => MarkdownEditor.ReplaceSection(ThreeSectionMarkdown, "Does Not Exist", "x"));
+
+        Assert.Equal("headingText", ex.ParamName);
+    }
+
+    [Fact]
+    public void ReplaceSection_RejectsNullArguments()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => MarkdownEditor.ReplaceSection(null!, "Changed", "x"));
+        Assert.Throws<ArgumentNullException>(
+            () => MarkdownEditor.ReplaceSection(ThreeSectionMarkdown, null!, "x"));
+        Assert.Throws<ArgumentNullException>(
+            () => MarkdownEditor.ReplaceSection(ThreeSectionMarkdown, "Changed", null!));
+    }
+
+    [Fact]
+    public void ReplaceSection_OutputRoundTripsThroughAFreshParse()
+    {
+        var result = MarkdownEditor.ReplaceSection(
+            ThreeSectionMarkdown, "Table of things", "\nNo table anymore.\n\n");
+
+        // Must remain parseable, and every OTHER capability must still resolve correctly
+        // against the edited document.
+        Assert.Equal("Sample", MarkdownEditor.ReadFrontMatter(result)["title"]);
+        Assert.NotNull(MarkdownEditor.FindHeading(result, "Overview"));
+        Assert.NotNull(MarkdownEditor.FindHeading(result, "Appendix"));
+        Assert.Equal(0, MarkdownEditor.TableCount(result));
     }
 }
