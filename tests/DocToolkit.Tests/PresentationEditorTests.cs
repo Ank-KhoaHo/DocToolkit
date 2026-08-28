@@ -851,6 +851,11 @@ public class PresentationEditorTests
 
         Assert.Equal(1, PresentationEditor.SlideCount(edited));
         Assert.Contains("New", PresentationEditor.ReadSlide(edited, 1)[0]);
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts.Single();
+        Assert.NotNull(insertedSlide.SlideLayoutPart);
     }
 
     [Fact]
@@ -912,5 +917,39 @@ public class PresentationEditorTests
 
         var titles = await PresentationEditor.ExtractTextAsync(output.Path);
         Assert.Equal(new[] { "Slide 1", "New", "Slide 2" }, titles);
+    }
+
+    [Fact]
+    public void InsertSlides_ScalesContentToFitADeckOfADifferentSize()
+    {
+        // sample.pptx (and every other fixture) is 16:9, the same canvas BuildSlide's hard-coded
+        // geometry assumes - so inserting into a DIFFERENTLY-SIZED deck is the one case that can
+        // silently overhang the canvas edge without any existing test noticing. Built by hand
+        // rather than from a fixture: a 4:3 deck, using the sample's own layout/master unchanged.
+        var deck = PptxFixtures.Sample();
+        using var ms = new MemoryStream();
+        ms.Write(deck, 0, deck.Length);
+        ms.Position = 0;
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var slideSize = doc.PresentationPart!.Presentation!.SlideSize!;
+            slideSize.Cx = 9144000; // 4:3 width - narrower than the 16:9 design width (12192000)
+            slideSize.Cy = 6858000;
+            doc.PresentationPart.Presentation.Save();
+        }
+        var fourByThreeDeck = ms.ToArray();
+
+        var edited = PresentationEditor.InsertSlides(fourByThreeDeck, 2, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using var checkMs = new MemoryStream(edited);
+        using var checkDoc = PresentationDocument.Open(checkMs, false);
+        var insertedSlide = checkDoc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "New"));
+        var titleXfrm = insertedSlide.Slide!.Descendants<A.Transform2D>().First();
+
+        var rightEdge = titleXfrm.Offset!.X!.Value + titleXfrm.Extents!.Cx!.Value;
+        Assert.True(rightEdge <= 9144000,
+            $"Inserted title shape's right edge ({rightEdge}) overhangs the 4:3 deck's width (9144000).");
     }
 }

@@ -21,8 +21,11 @@ internal static class PptxDocumentWriter
 {
     // 16:9. Absent, PowerPoint substitutes its own default and every slide is the wrong shape.
     // int, not long: p:sldSz/@cx is ST_SlideSizeCoordinate, which the SDK types as Int32Value.
-    private const int SlideWidthEmu = 12192000;
-    private const int SlideHeightEmu = 6858000;
+    // internal: PresentationEditor.InsertSlidesCore needs this to rescale BuildSlide's fixed-size
+    // geometry when inserting into a deck of a DIFFERENT size (a 4:3 deck, most commonly) - the
+    // same schema-range reasoning documented above still applies, this is not a new constraint.
+    internal const int SlideWidthEmu = 12192000;
+    internal const int SlideHeightEmu = 6858000;
 
     // p:notesSz is required by the schema. US Letter portrait, which is what PowerPoint itself
     // writes for a 16:9 deck - the notes page is a printed page and does not track the slide's

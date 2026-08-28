@@ -961,13 +961,15 @@ public static class PresentationEditor
                 // Resolved BEFORE any insertion: inserting shifts what "the element currently at
                 // atIndex" would mean if looked up again mid-loop.
                 var insertBeforeId = atIndex <= existingSlideParts.Count
-                    ? slideIdList.Elements<P.SlideId>().ElementAt(atIndex - 1)
+                    ? slideIdList.Elements<P.SlideId>().Single(id =>
+                        id.RelationshipId!.Value == presentationPart.GetIdOfPart(existingSlideParts[atIndex - 1]))
                     : null;
 
                 foreach (var slide in slides)
                 {
                     var slidePart = presentationPart.AddNewPart<SlidePart>();
                     slidePart.Slide = PptxDocumentWriter.BuildSlide(slide);
+                    ScaleToFitDeck(slidePart.Slide, presentation.SlideSize);
                     slidePart.AddPart(layoutPart);
                     slidePart.Slide.Save();
 
@@ -993,6 +995,38 @@ public static class PresentationEditor
         catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
         {
             throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Rescales every shape's position and size on <paramref name="slide"/> from the fixed design
+    /// size <c>PptxDocumentWriter.BuildSlide</c> assumes (the same 16:9 canvas <see cref="Create"/>
+    /// always writes) to <paramref name="targetSize"/>, so a slide inserted into a deck of a
+    /// DIFFERENT size — a 4:3 deck, most commonly — is not left overhanging the canvas edge.
+    /// <c>BuildSlide</c> itself stays unchanged and keeps producing content sized for its own
+    /// writer's deck; this is the one place inserted content is adapted to a foreign one.
+    /// </summary>
+    private static void ScaleToFitDeck(P.Slide slide, P.SlideSize? targetSize)
+    {
+        if (targetSize?.Cx?.Value is not int targetCx || targetSize.Cy?.Value is not int targetCy)
+            return;
+
+        var scaleX = (double)targetCx / PptxDocumentWriter.SlideWidthEmu;
+        var scaleY = (double)targetCy / PptxDocumentWriter.SlideHeightEmu;
+        if (scaleX == 1.0 && scaleY == 1.0) return;
+
+        foreach (var xfrm in slide.Descendants<A.Transform2D>())
+        {
+            if (xfrm.Offset is { } offset)
+            {
+                if (offset.X is not null) offset.X = (int)(offset.X.Value * scaleX);
+                if (offset.Y is not null) offset.Y = (int)(offset.Y.Value * scaleY);
+            }
+            if (xfrm.Extents is { } extents)
+            {
+                if (extents.Cx is not null) extents.Cx = (int)(extents.Cx.Value * scaleX);
+                if (extents.Cy is not null) extents.Cy = (int)(extents.Cy.Value * scaleY);
+            }
         }
     }
 
@@ -1361,6 +1395,7 @@ public static class PresentationEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         ArgumentOutOfRangeException.ThrowIfLessThan(atIndex, 1);
+        ArgumentNullException.ThrowIfNull(slides);
 
         var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = InsertSlides(bytes, atIndex, slides);
