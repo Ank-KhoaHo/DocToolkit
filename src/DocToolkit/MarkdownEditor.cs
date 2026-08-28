@@ -21,14 +21,16 @@ namespace DocToolkit;
 /// look async without making it so.
 /// </para>
 /// <para>
-/// <b>No <c>*Core</c> split, and no dependency-injection mirror — both deliberate.</b> The
-/// <c>*Core</c> convention exists so a <c>byte[]</c> overload and a <c>Stream</c> overload cannot
-/// drift apart; no method here has more than one overload, so there is nothing for a split to keep
-/// in sync. And there is no <c>IMarkdownEditor</c> in
-/// <c>DocToolkit.Extensions.DependencyInjection</c> because the two existing Markdown converters,
-/// <see cref="MarkdownToDocxConverter"/> and <see cref="MarkdownToPdfConverter"/>, are not mirrored
-/// there either. If DI support for Markdown is ever wanted, it should arrive for all three types in
-/// one change rather than singling this one out.
+/// <b>No <c>*Core</c> split.</b> That convention exists so a <c>byte[]</c> overload and a
+/// <c>Stream</c> overload cannot drift apart; no method here has more than one overload, so there
+/// is nothing for a split to keep in sync.
+/// </para>
+/// <para>
+/// <b>No dependency-injection mirror yet, deliberately deferred rather than argued by analogy.</b>
+/// <c>DocToolkit.Extensions.DependencyInjection</c> references the <b>published</b> core package
+/// (see that project's own notes), so an interface can only wrap a method that has already
+/// shipped — <c>IMarkdownEditor</c> cannot exist before this class does. That is a scheduling
+/// constraint, not a design decision to leave it unmirrored.
 /// </para>
 /// </remarks>
 public static class MarkdownEditor
@@ -177,11 +179,12 @@ public static class MarkdownEditor
 
         var table = tables[index];
 
-        // Genuine read-only copies, not the parser's own lists. `table.Headers` and every entry of
-        // `table.Rows` are concrete `List<string>` instances; handing them straight back behind an
-        // `IReadOnlyList<string>` lets a caller cast the reference and mutate the parsed document,
-        // which is not what read-only means. `DocxEditor.ReadTableCore` builds a fresh list per row
-        // for the same reason, and this matches that convention.
+        // Genuine read-only copies, not the parser's own collections. `table.Headers` is a
+        // concrete `List<string>` and each entry of `table.Rows` is a `string[]`; handing either
+        // straight back behind an `IReadOnlyList<string>` lets a caller cast the reference and
+        // mutate the parsed document (a List via Add/Remove/indexer, an array via its indexer) —
+        // not what read-only means. `DocxEditor.ReadTableCore` builds a fresh list per row for the
+        // same reason, and this matches that convention.
         var rows = new List<IReadOnlyList<string>> { new List<string>(table.Headers).AsReadOnly() };
         foreach (var row in table.Rows)
         {
@@ -294,8 +297,9 @@ public static class MarkdownEditor
         // and ImageBlock — every one of which also exists as a public type in OfficeIMO.Markdown —
         // and InternalsVisibleTo makes them visible here. A type in the enclosing namespace always
         // wins over one brought in by `using`, silently and with no ambiguity warning. So ANY
-        // OfficeIMO.Markdown type named in this file whose name a DocToolkit.Docx block type shares
-        // must be written out in full, not only the two occurrences that exist today.
+        // OfficeIMO.Markdown type named anywhere in this file whose name a DocToolkit.Docx block
+        // type shares must be written out in full — a count of how many places do this today would
+        // only go stale the next time one is added.
         OfficeIMO.Markdown.HeadingBlock? headingBlock = null;
         foreach (var child in doc.ChildObjects)
         {

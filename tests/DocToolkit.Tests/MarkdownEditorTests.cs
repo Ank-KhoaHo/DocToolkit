@@ -245,19 +245,23 @@ public class MarkdownEditorTests
     [Fact]
     public void ReadTable_ReturnsRowsTheCallerCannotMutate()
     {
-        // The parser hands back concrete List<string> instances for its headers and rows. Returning
-        // those references behind an IReadOnlyList<string> would let a caller cast the reference
-        // back and edit the parsed document, which is not what read-only means — and would diverge
+        // The parser's own header row is a List<string>; each data row is a string[]. Returning
+        // either straight back behind an IReadOnlyList<string> would let a caller cast the
+        // reference and edit the parsed document — not what read-only means — and would diverge
         // from DocxEditor.ReadTableCore, which builds a fresh list per row.
         //
-        // Asserted as "casting to List<string> fails" rather than by comparing values: a copy and
-        // the original hold identical strings, so only the returned TYPE discriminates here.
+        // Both source shapes are checked by their OWN real mutation vector, not the same one for
+        // both: a List<string> cast back rejects on .Add (a fixed-size array already does too, so
+        // that alone would pass for an unwrapped array and prove nothing for it); an array cast
+        // back accepts an indexer write silently. The genuine read-only wrapper must refuse both.
         var rows = MarkdownEditor.ReadTable(TwoTableMarkdown, 0);
 
         foreach (var row in rows)
         {
             Assert.IsNotType<List<string>>(row);
+            Assert.IsNotType<string[]>(row);
             Assert.Throws<NotSupportedException>(() => ((IList<string>)row).Add("injected"));
+            Assert.Throws<NotSupportedException>(() => ((IList<string>)row)[0] = "MUTATED");
         }
 
         // Positive control: the values are unchanged by the copying, so this is a type change and
