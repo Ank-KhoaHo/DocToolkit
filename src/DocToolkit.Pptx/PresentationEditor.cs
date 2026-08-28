@@ -206,23 +206,108 @@ public static class PresentationEditor
             foreach (var slide in SlidesInDeckOrder(PresentationPartOf(doc))
                          .Select(p => p.Slide).Where(s => s is not null).Select(s => s!))
             {
-
-                // PowerPoint stores shape text as a:t runs under a:p paragraphs - Wordprocessing's
-                // w:t is the DOCX equivalent, not what PPTX uses. Grouping by the paragraph's
-                // parent yields one entry per text body while preserving document order.
-                foreach (var body in slide.Descendants<A.Paragraph>().GroupBy(p => p.Parent))
-                {
-                    var bodyText = string.Join(
-                        "\n",
-                        body.Select(p => string.Concat(p.Descendants<A.Text>().Select(t => t.Text))));
-
-                    if (bodyText.Length > 0) results.Add(bodyText);
-                }
+                results.AddRange(TextBodiesOf(slide));
             }
 
             return results;
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// All text-bearing bodies on one slide, in document order — shared by <see cref="ExtractTextCore"/>
+    /// (all slides) and <see cref="ReadSlideCore"/> (one slide), so the two can never disagree
+    /// about what counts as a text-bearing body.
+    ///
+    /// PowerPoint stores shape text as a:t runs under a:p paragraphs - Wordprocessing's w:t is the
+    /// DOCX equivalent, not what PPTX uses. Grouping by the paragraph's parent yields one entry per
+    /// text body while preserving document order.
+    /// </summary>
+    private static IReadOnlyList<string> TextBodiesOf(P.Slide slide)
+    {
+        var results = new List<string>();
+
+        foreach (var body in slide.Descendants<A.Paragraph>().GroupBy(p => p.Parent))
+        {
+            var bodyText = string.Join(
+                "\n",
+                body.Select(p => string.Concat(p.Descendants<A.Text>().Select(t => t.Text))));
+
+            if (bodyText.Length > 0) results.Add(bodyText);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// All text found on slide <paramref name="index"/> — see <see cref="ExtractText(byte[])"/>
+    /// for exactly what counts as a text-bearing body. Same per-body granularity as that method,
+    /// scoped to one slide.
+    /// </summary>
+    /// <param name="pptx">The presentation to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static IReadOnlyList<string> ReadSlide(byte[] pptx, int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+
+        using var ms = OpenForWrite(pptx);
+        return ReadSlideCore(ms, index);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns all text found on slide
+    /// <paramref name="index"/> — see <see cref="ReadSlide(byte[], int)"/> for exactly what counts
+    /// as a text-bearing body. <paramref name="source"/> is <b>read</b> to its end and is neither
+    /// disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ReadSlideAsync(
+        Stream source, int index, CancellationToken ct = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return ReadSlideCore(ms, index);
+    }
+
+    private static IReadOnlyList<string> ReadSlideCore(MemoryStream ms, int index)
+    {
+        try
+        {
+            using var doc = OpenDocument(ms, false);
+
+            var slideParts = SlidesInDeckOrder(PresentationPartOf(doc)).ToList();
+            if (index > slideParts.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(index), index,
+                    $"Slide {index} was requested from a deck with {slideParts.Count} slide(s).");
+            }
+
+            var slide = slideParts[index - 1].Slide;
+            return slide is null ? Array.Empty<string>() : TextBodiesOf(slide);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
         {
             throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
         }
@@ -533,6 +618,463 @@ public static class PresentationEditor
     }
 
     /// <summary>
+    /// A copy of <paramref name="pptx"/> with the slides at <paramref name="indices"/> removed.
+    /// </summary>
+    /// <param name="pptx">The presentation to remove slides from. It is not modified.</param>
+    /// <param name="indices">
+    /// 1-based slide numbers to remove, each exactly once and in any order — not a contiguous
+    /// range, so <c>[2, 7]</c> removes exactly those two slides in one call.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="indices"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static byte[] RemoveSlides(byte[] pptx, IEnumerable<int> indices)
+    {
+        ArgumentNullException.ThrowIfNull(indices);
+        var wanted = indices.ToArray();
+
+        using var ms = OpenForWrite(pptx);
+        RemoveSlidesCore(ms, wanted);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, removes the slides at
+    /// <paramref name="indices"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="RemoveSlides"/> for exactly what <paramref name="indices"/> accepts.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="indices">1-based slide numbers to remove, each exactly once, any order.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task RemoveSlidesAsync(
+        Stream source, IEnumerable<int> indices, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(indices);
+        var wanted = indices.ToArray();
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        RemoveSlidesCore(ms, wanted);
+
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    private static void RemoveSlidesCore(MemoryStream ms, IReadOnlyList<int> indices)
+    {
+        try
+        {
+            using (var doc = OpenDocument(ms, true))
+            {
+                var presentationPart = PresentationPartOf(doc);
+                var slideParts = SlidesInDeckOrder(presentationPart).ToList();
+
+                if (indices.Distinct().Count() != indices.Count)
+                {
+                    throw new ArgumentException(
+                        $"The indices must not repeat. Got [{string.Join(", ", indices)}].",
+                        nameof(indices));
+                }
+
+                foreach (var index in indices)
+                {
+                    if (index < 1 || index > slideParts.Count)
+                    {
+                        throw new ArgumentOutOfRangeException(
+                            nameof(indices), index,
+                            $"Slide {index} was requested for removal from a deck with " +
+                            $"{slideParts.Count} slide(s).");
+                    }
+                }
+
+                if (indices.Count >= slideParts.Count)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(indices), indices.Count,
+                        $"Removing {indices.Count} of {slideParts.Count} slide(s) would leave " +
+                        "nothing. A zero-slide deck is not a presentation.");
+                }
+
+                var presentation = presentationPart.Presentation!;
+                var slideIdList = presentation.SlideIdList!;
+                var toRemove = indices.Select(i => slideParts[i - 1]).ToList();
+                var idsToRemove = toRemove.Select(part => presentationPart.GetIdOfPart(part)).ToHashSet();
+
+                foreach (var slideId in slideIdList.Elements<P.SlideId>().ToList())
+                {
+                    if (idsToRemove.Contains(slideId.RelationshipId!.Value!))
+                    {
+                        slideId.Remove();
+                    }
+                }
+
+                foreach (var part in toRemove)
+                {
+                    presentationPart.DeletePart(part);
+                }
+
+                presentation.Save();
+            }
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException and not ArgumentException)
+        {
+            throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> with its slides in the order given by
+    /// <paramref name="order"/>, which holds 1-based slide numbers.
+    /// </summary>
+    /// <param name="pptx">The presentation to reorder. It is not modified.</param>
+    /// <param name="order">
+    /// A <b>permutation of every slide</b> — the same slides, in a different order. Not a subset,
+    /// and no repeats.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="order"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or <paramref name="order"/> is not a permutation of
+    /// 1..<c>SlideCount</c>.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static byte[] ReorderSlides(byte[] pptx, IEnumerable<int> order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        var wanted = order.ToArray();
+
+        using var ms = OpenForWrite(pptx);
+        ReorderSlidesCore(ms, wanted);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, reorders its slides per
+    /// <paramref name="order"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="ReorderSlides"/> for exactly what <paramref name="order"/> must contain.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="order">A permutation of every slide's 1-based number.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="order"/> is not a permutation of every slide.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task ReorderSlidesAsync(
+        Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        var wanted = order.ToArray();
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        ReorderSlidesCore(ms, wanted);
+
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    private static void ReorderSlidesCore(MemoryStream ms, IReadOnlyList<int> order)
+    {
+        try
+        {
+            using (var doc = OpenDocument(ms, true))
+            {
+                var presentationPart = PresentationPartOf(doc);
+                var slideParts = SlidesInDeckOrder(presentationPart).ToList();
+
+                var expected = Enumerable.Range(1, slideParts.Count);
+                if (!order.OrderBy(i => i).SequenceEqual(expected))
+                {
+                    throw new ArgumentException(
+                        $"The order must be a permutation of slides 1-{slideParts.Count}, each " +
+                        $"exactly once. Got [{string.Join(", ", order)}].",
+                        nameof(order));
+                }
+
+                var presentation = presentationPart.Presentation!;
+                var slideIdList = presentation.SlideIdList!;
+                var existingIds = slideIdList.Elements<P.SlideId>().ToList();
+
+                foreach (var id in existingIds) id.Remove();
+
+                foreach (var index in order)
+                {
+                    var relationshipId = presentationPart.GetIdOfPart(slideParts[index - 1]);
+                    var originalId = existingIds.Single(id => id.RelationshipId!.Value == relationshipId);
+                    slideIdList.Append(originalId);
+                }
+
+                presentation.Save();
+            }
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentException)
+        {
+            throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> with <paramref name="slides"/> inserted so that the
+    /// first of them becomes slide <paramref name="atIndex"/>. See <see cref="Create"/> for what
+    /// a <see cref="PptxSlide"/> becomes.
+    ///
+    /// Each inserted slide attaches to the layout of the slide immediately before the insertion
+    /// point — or, when inserting at position 1 of a non-empty deck, the layout of what is
+    /// currently the first slide — so it renders consistently with its neighbours rather than
+    /// requiring a caller to name one. A deck with no slides at all falls back to its first slide
+    /// master's first layout.
+    ///
+    /// The inserted slide's title and body boxes are positioned at this library's own fixed
+    /// coordinates, rescaled to fit the target deck's canvas size — not at the positions the target
+    /// layout's own placeholders use. An inserted slide therefore inherits the target deck's theme
+    /// (through the layout relationship) but not necessarily its placeholder geometry: a
+    /// hand-designed deck whose layouts position title/body boxes differently from this library's
+    /// defaults will get a slide positioned by this library's choice, not the deck's own.
+    /// </summary>
+    /// <param name="pptx">The presentation to insert into. It is not modified.</param>
+    /// <param name="atIndex">
+    /// 1-based position the first inserted slide will occupy. <c>1</c> puts them in front of
+    /// everything; <c>SlideCount + 1</c> appends, which is deliberately allowed — it is the
+    /// obvious way to say "after everything".
+    /// </param>
+    /// <param name="slides">The slides to insert, in order.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="slides"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or an element of <paramref name="slides"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="atIndex"/> is below 1 or more than one past the last slide.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be opened or edited, or the slide the new content would attach to has
+    /// no layout of its own.
+    /// </exception>
+    public static byte[] InsertSlides(byte[] pptx, int atIndex, IEnumerable<PptxSlide> slides)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(atIndex, 1);
+        var materialised = ValidateSlides(slides);
+
+        using var ms = OpenForWrite(pptx);
+        InsertSlidesCore(ms, atIndex, materialised);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, inserts <paramref name="slides"/> at
+    /// <paramref name="atIndex"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="InsertSlides"/> for the insertion and layout rules.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="atIndex">1-based insertion position; <c>SlideCount + 1</c> appends.</param>
+    /// <param name="slides">The slides to insert, in order.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or an element of <paramref name="slides"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="atIndex"/> is below 1 or more than one past the last slide.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be opened or edited, or the slide the new content would attach to has
+    /// no layout of its own.
+    /// </exception>
+    public static async Task InsertSlidesAsync(
+        Stream source, int atIndex, IEnumerable<PptxSlide> slides, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(atIndex, 1);
+        var materialised = ValidateSlides(slides);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to edit PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        InsertSlidesCore(ms, atIndex, materialised);
+
+        await StreamPipeline.EmitAsync(ms, destination, "Failed to edit PPTX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    private static void InsertSlidesCore(MemoryStream ms, int atIndex, IReadOnlyList<PptxSlide> slides)
+    {
+        try
+        {
+            using (var doc = OpenDocument(ms, true))
+            {
+                var presentationPart = PresentationPartOf(doc);
+                var existingSlideParts = SlidesInDeckOrder(presentationPart).ToList();
+
+                if (atIndex > existingSlideParts.Count + 1)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(atIndex), atIndex,
+                        $"Cannot insert at slide {atIndex} of a deck with " +
+                        $"{existingSlideParts.Count} slide(s); {existingSlideParts.Count + 1} " +
+                        "appends and is the highest position allowed.");
+                }
+
+                var layoutPart = ResolveLayoutForInsertion(presentationPart, existingSlideParts, atIndex);
+                var presentation = presentationPart.Presentation!;
+                var slideIdList = presentation.SlideIdList!;
+
+                var nextSlideId = slideIdList.Elements<P.SlideId>().Select(s => s.Id!.Value)
+                    .DefaultIfEmpty(PptxDocumentWriter.FirstSlideId - 1).Max() + 1;
+
+                // Resolved BEFORE any insertion: inserting shifts what "the element currently at
+                // atIndex" would mean if looked up again mid-loop.
+                var insertBeforeId = atIndex <= existingSlideParts.Count
+                    ? slideIdList.Elements<P.SlideId>().Single(id =>
+                        id.RelationshipId!.Value == presentationPart.GetIdOfPart(existingSlideParts[atIndex - 1]))
+                    : null;
+
+                foreach (var slide in slides)
+                {
+                    var slidePart = presentationPart.AddNewPart<SlidePart>();
+                    slidePart.Slide = PptxDocumentWriter.BuildSlide(slide);
+                    ScaleToFitDeck(slidePart.Slide, presentation.SlideSize);
+                    slidePart.AddPart(layoutPart);
+                    slidePart.Slide.Save();
+
+                    var newSlideId = new P.SlideId
+                    {
+                        Id = nextSlideId++,
+                        RelationshipId = presentationPart.GetIdOfPart(slidePart),
+                    };
+
+                    if (insertBeforeId is not null)
+                    {
+                        slideIdList.InsertBefore(newSlideId, insertBeforeId);
+                    }
+                    else
+                    {
+                        slideIdList.Append(newSlideId);
+                    }
+                }
+
+                presentation.Save();
+            }
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
+        {
+            throw new DocumentConversionException("Failed to edit PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Rescales every shape's position and size on <paramref name="slide"/> from the fixed design
+    /// size <c>PptxDocumentWriter.BuildSlide</c> assumes (the same 16:9 canvas <see cref="Create"/>
+    /// always writes) to <paramref name="targetSize"/>, so a slide inserted into a deck of a
+    /// DIFFERENT size — a 4:3 deck, most commonly — is not left overhanging the canvas edge.
+    /// <c>BuildSlide</c> itself stays unchanged and keeps producing content sized for its own
+    /// writer's deck; this is the one place inserted content is adapted to a foreign one.
+    /// </summary>
+    private static void ScaleToFitDeck(P.Slide slide, P.SlideSize? targetSize)
+    {
+        if (targetSize?.Cx?.Value is not int targetCx || targetSize.Cy?.Value is not int targetCy)
+            return;
+
+        var scaleX = (double)targetCx / PptxDocumentWriter.SlideWidthEmu;
+        var scaleY = (double)targetCy / PptxDocumentWriter.SlideHeightEmu;
+        if (scaleX == 1.0 && scaleY == 1.0) return;
+
+        foreach (var xfrm in slide.Descendants<A.Transform2D>())
+        {
+            if (xfrm.Offset is { } offset)
+            {
+                if (offset.X is not null) offset.X = (int)(offset.X.Value * scaleX);
+                if (offset.Y is not null) offset.Y = (int)(offset.Y.Value * scaleY);
+            }
+            if (xfrm.Extents is { } extents)
+            {
+                if (extents.Cx is not null) extents.Cx = (int)(extents.Cx.Value * scaleX);
+                if (extents.Cy is not null) extents.Cy = (int)(extents.Cy.Value * scaleY);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The layout a slide inserted at <paramref name="atIndex"/> should attach to: the layout of
+    /// the slide immediately before the insertion point, or — when inserting at position 1 of a
+    /// non-empty deck — the layout of what is currently the first slide. Only an empty deck has no
+    /// neighbour to borrow from, and then the first layout of the first slide master is used.
+    /// </summary>
+    /// <exception cref="DocumentConversionException">
+    /// The relevant slide has no layout of its own, or the deck has no slide master with a layout
+    /// to fall back on.
+    /// </exception>
+    private static SlideLayoutPart ResolveLayoutForInsertion(
+        PresentationPart presentationPart, IReadOnlyList<SlidePart> slidesInDeckOrder, int atIndex)
+    {
+        if (slidesInDeckOrder.Count > 0)
+        {
+            var neighbourIndex = atIndex > 1 ? atIndex - 2 : 0;
+            var neighbour = slidesInDeckOrder[neighbourIndex];
+
+            return neighbour.SlideLayoutPart
+                ?? throw new DocumentConversionException(
+                    $"Slide {neighbourIndex + 1} has no layout of its own, so there is nothing " +
+                    "for the inserted slide to attach to.");
+        }
+
+        var master = presentationPart.SlideMasterParts.FirstOrDefault()
+            ?? throw new DocumentConversionException(
+                "The deck has no slide master, so there is no layout for the inserted slide to " +
+                "attach to.");
+
+        var firstLayoutId = master.SlideMaster?.SlideLayoutIdList?.Elements<P.SlideLayoutId>().FirstOrDefault()
+            ?? throw new DocumentConversionException(
+                "The deck's slide master has no layout, so there is no layout for the inserted " +
+                "slide to attach to.");
+
+        return (SlideLayoutPart)master.GetPartById(firstLayoutId.RelationshipId!.Value!);
+    }
+
+    /// <summary>
     /// Slide parts in the order the deck presents them.
     ///
     /// <c>PresentationPart.SlideParts</c> is part-relationship order, which has nothing to do with
@@ -642,6 +1184,35 @@ public static class PresentationEditor
     }
 
     /// <summary>
+    /// Reads a .pptx from <paramref name="path"/> and returns all text found on slide
+    /// <paramref name="index"/> — see <see cref="ReadSlide(byte[], int)"/> for exactly what counts
+    /// as a text-bearing body.
+    /// </summary>
+    /// <param name="path">The .pptx to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank, or the file it names is empty.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ReadSlideAsync(
+        string path, int index, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
+        return ReadSlide(bytes, index);
+    }
+
+    /// <summary>
     /// Reads a .pptx from <paramref name="inputPath"/>, replaces every key with its value across
     /// all slide text, and writes the result to <paramref name="outputPath"/> — see
     /// <see cref="ReplaceText"/> for exactly what counts as a match and how formatting survives
@@ -720,6 +1291,121 @@ public static class PresentationEditor
 
         var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
         var result = ReplaceImage(bytes, placeholder, image);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="inputPath"/>, removes the slides at
+    /// <paramref name="indices"/>, and writes the result to <paramref name="outputPath"/> — see
+    /// <see cref="RemoveSlides"/> for exactly what <paramref name="indices"/> accepts. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .pptx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="indices">1-based slide numbers to remove, each exactly once, any order.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="indices"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task RemoveSlidesAsync(
+        string inputPath, string outputPath, IEnumerable<int> indices, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(indices);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = RemoveSlides(bytes, indices);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="inputPath"/>, reorders its slides per
+    /// <paramref name="order"/>, and writes the result to <paramref name="outputPath"/> — see
+    /// <see cref="ReorderSlides"/> for exactly what <paramref name="order"/> must contain. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .pptx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="order">A permutation of every slide's 1-based number.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="order"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="order"/> is not a permutation of every slide.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task ReorderSlidesAsync(
+        string inputPath, string outputPath, IEnumerable<int> order, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(order);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = ReorderSlides(bytes, order);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="inputPath"/>, inserts <paramref name="slides"/> at
+    /// <paramref name="atIndex"/>, and writes the result to <paramref name="outputPath"/> — see
+    /// <see cref="InsertSlides"/> for the insertion and layout rules. The two paths may be the
+    /// same file: the updated bytes are computed in full before <paramref name="outputPath"/> is
+    /// opened.
+    /// </summary>
+    /// <param name="inputPath">The .pptx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="atIndex">1-based insertion position; <c>SlideCount + 1</c> appends.</param>
+    /// <param name="slides">The slides to insert, in order.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="slides"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or an element of
+    /// <paramref name="slides"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="atIndex"/> is below 1 or more than one past the last slide.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be opened or edited, or the slide the new content would attach to has
+    /// no layout of its own.
+    /// </exception>
+    public static async Task InsertSlidesAsync(
+        string inputPath, string outputPath, int atIndex, IEnumerable<PptxSlide> slides,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentOutOfRangeException.ThrowIfLessThan(atIndex, 1);
+        ArgumentNullException.ThrowIfNull(slides);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = InsertSlides(bytes, atIndex, slides);
         await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
     }
 

@@ -72,6 +72,63 @@ internal static class PptxFixtures
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// A two-slide deck where each slide has its OWN, DISTINCT layout — unlike every other
+    /// fixture in this file, which clones <c>sample.pptx</c>'s single layout onto every slide.
+    /// Needed to prove <c>InsertSlides</c> picks the layout of the slide ADJACENT to the
+    /// insertion point rather than always the deck's first layout: a deck built with only one
+    /// layout could never tell the two apart.
+    ///
+    /// The second layout is a clone of the first (so it is schema-shaped correctly) added to the
+    /// same slide master, named <c>"Second Layout"</c> so a test can identify it by name.
+    /// </summary>
+    public static byte[] MultiLayoutDeck(string firstSlideText, string secondSlideText)
+    {
+        using var ms = Load(Sample());
+
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var presentationPart = doc.PresentationPart!;
+            var slideIdList = presentationPart.Presentation!.SlideIdList!;
+            var firstSlidePart = presentationPart.SlideParts.Single();
+            var masterPart = firstSlidePart.SlideLayoutPart!.SlideMasterPart!;
+
+            SetSoleText(firstSlidePart, firstSlideText);
+
+            var secondLayoutPart = masterPart.AddNewPart<SlideLayoutPart>();
+            secondLayoutPart.SlideLayout =
+                (P.SlideLayout)firstSlidePart.SlideLayoutPart!.SlideLayout!.CloneNode(true);
+            secondLayoutPart.SlideLayout.CommonSlideData!.Name = "Second Layout";
+            secondLayoutPart.AddPart(masterPart);
+            secondLayoutPart.SlideLayout.Save();
+
+            var layoutIdList = masterPart.SlideMaster!.SlideLayoutIdList!;
+            var nextLayoutId = layoutIdList.Elements<P.SlideLayoutId>().Max(l => l.Id!.Value) + 1;
+            layoutIdList.Append(new P.SlideLayoutId
+            {
+                Id = nextLayoutId,
+                RelationshipId = masterPart.GetIdOfPart(secondLayoutPart),
+            });
+            masterPart.SlideMaster.Save();
+
+            var secondSlidePart = presentationPart.AddNewPart<SlidePart>();
+            secondSlidePart.Slide = (P.Slide)firstSlidePart.Slide!.CloneNode(true);
+            secondSlidePart.AddPart(secondLayoutPart);
+            SetSoleText(secondSlidePart, secondSlideText);
+
+            var nextSlideId = slideIdList.Elements<P.SlideId>().Max(s => s.Id!.Value) + 1;
+            slideIdList.Append(new P.SlideId
+            {
+                Id = nextSlideId,
+                RelationshipId = presentationPart.GetIdOfPart(secondSlidePart),
+            });
+
+            presentationPart.Presentation.Save();
+        }
+
+        return ms.ToArray();
+    }
+
     /// <summary>Rewrites the sample deck's single text-box paragraph as the given runs.</summary>
     public static byte[] SampleWithRuns(params (string Text, bool Bold)[] runs) => Mutate(slide =>
     {

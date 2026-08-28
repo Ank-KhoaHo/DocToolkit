@@ -514,4 +514,456 @@ public class PresentationEditorTests
         using var doc = PresentationDocument.Open(ms, false);
         Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: fixture pin. MultiLayoutDeck must genuinely produce two DIFFERENT layouts, not two
+    // slides sharing one — otherwise the layout-selection tests in Task 5 would pass vacuously.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void MultiLayoutDeck_ProducesTwoSlidesWithGenuinelyDifferentLayouts()
+    {
+        var deck = PptxFixtures.MultiLayoutDeck("First", "Second");
+        Assert.Empty(PptxFixtures.Validate(deck));
+
+        using var ms = new MemoryStream(deck);
+        using var doc = PresentationDocument.Open(ms, false);
+
+        var slideParts = doc.PresentationPart!.Presentation!.SlideIdList!.Elements<P.SlideId>()
+            .Select(id => (SlidePart)doc.PresentationPart!.GetPartById(id.RelationshipId!.Value!))
+            .ToList();
+
+        Assert.Equal(2, slideParts.Count);
+        Assert.Equal("Title Slide", slideParts[0].SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+        Assert.Equal("Second Layout", slideParts[1].SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+        Assert.NotEqual(slideParts[0].SlideLayoutPart, slideParts[1].SlideLayoutPart);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: ReadSlide — per-slide text, same granularity as ExtractText.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReadSlide_ReturnsOnlyThatSlidesText()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        Assert.Equal(new[] { "Slide 2" }, PresentationEditor.ReadSlide(deck, 2));
+    }
+
+    [Fact]
+    public void ReadSlide_MatchesTheCorrespondingSliceOfExtractText()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var all = PresentationEditor.ExtractText(deck);
+        for (var i = 1; i <= 3; i++)
+        {
+            Assert.Equal(new[] { all[i - 1] }, PresentationEditor.ReadSlide(deck, i));
+        }
+    }
+
+    [Fact]
+    public void ReadSlide_RejectsAnIndexBelowOne()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => PresentationEditor.ReadSlide(SampleDeck(), 0));
+    }
+
+    [Fact]
+    public void ReadSlide_RejectsAnIndexPastTheLastSlide()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => PresentationEditor.ReadSlide(SampleDeck(), 2));
+    }
+
+    [Fact]
+    public async Task ReadSlideAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        Assert.Equal(
+            PresentationEditor.ReadSlide(pptx, 2),
+            await PresentationEditor.ReadSlideAsync(input.Path, 2));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: RemoveSlides — an arbitrary set of indices, not a contiguous range.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void RemoveSlides_RemovesTheGivenIndicesAndKeepsTheRest()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3", "Slide 4" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.RemoveSlides(deck, new[] { 2, 4 });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(2, PresentationEditor.SlideCount(edited));
+        Assert.Equal(new[] { "Slide 1", "Slide 3" }, PresentationEditor.ExtractText(edited));
+    }
+
+    [Fact]
+    public void RemoveSlides_AcceptsANonContiguousSetInAnyOrder()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.RemoveSlides(deck, new[] { 3, 1 });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(new[] { "Slide 2" }, PresentationEditor.ExtractText(edited));
+    }
+
+    [Fact]
+    public void RemoveSlides_RejectsRemovingEverySlide()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.RemoveSlides(deck, new[] { 1, 2 }));
+    }
+
+    [Fact]
+    public void RemoveSlides_RejectsADuplicateIndex()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentException>(() => PresentationEditor.RemoveSlides(deck, new[] { 1, 1 }));
+    }
+
+    [Fact]
+    public void RemoveSlides_RejectsAnOutOfRangeIndex()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => PresentationEditor.RemoveSlides(deck, new[] { 3 }));
+    }
+
+    [Fact]
+    public async Task RemoveSlidesAsync_FromFileToFile_RemovesTheGivenIndices()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.RemoveSlidesAsync(input.Path, output.Path, new[] { 2 });
+
+        var outputBytes = await File.ReadAllBytesAsync(output.Path);
+        Assert.Empty(PptxFixtures.Validate(outputBytes));
+
+        var text = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Equal(new[] { "Slide 1", "Slide 3" }, text);
+    }
+
+    [Fact]
+    public void RemoveSlides_DeletesASlidesOwnNotesSlidePart_LeavingNoOrphan()
+    {
+        // A removed slide's OWN uniquely-referenced child part (speaker notes) must not survive
+        // as an orphan in the output package. Verified by hand first, separately from this test:
+        // DeletePart on a SlidePart DOES cascade to its own NotesSlidePart, confirmed against a
+        // real build+run before writing this - so this pins correct behaviour rather than
+        // testing for a defect that turned out not to exist.
+        var deck = BuildDeckWhereSlideOneHasItsOwnNotesSlidePart();
+
+        // Positive control: the notes part must actually be there before removal, or the
+        // negative assertion below would pass vacuously.
+        using (var beforeZip = new System.IO.Compression.ZipArchive(
+            new MemoryStream(deck), System.IO.Compression.ZipArchiveMode.Read))
+        {
+            Assert.Contains(
+                beforeZip.Entries, e => e.FullName.Contains("notesSlide", StringComparison.OrdinalIgnoreCase));
+        }
+
+        var edited = PresentationEditor.RemoveSlides(deck, new[] { 1 });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using var zip = new System.IO.Compression.ZipArchive(
+            new MemoryStream(edited), System.IO.Compression.ZipArchiveMode.Read);
+        Assert.DoesNotContain(
+            zip.Entries, e => e.FullName.Contains("notesSlide", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static byte[] BuildDeckWhereSlideOneHasItsOwnNotesSlidePart()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var ms = new MemoryStream();
+        ms.Write(deck, 0, deck.Length);
+        ms.Position = 0;
+
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var slide1 = doc.PresentationPart!.SlideParts.First();
+            var notesPart = slide1.AddNewPart<NotesSlidePart>();
+            notesPart.NotesSlide = new P.NotesSlide(new P.CommonSlideData(new P.ShapeTree(
+                new P.NonVisualGroupShapeProperties(
+                    new P.NonVisualDrawingProperties { Id = 1U, Name = string.Empty },
+                    new P.NonVisualGroupShapeDrawingProperties(),
+                    new P.ApplicationNonVisualDrawingProperties()),
+                new P.GroupShapeProperties())));
+            notesPart.NotesSlide.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: ReorderSlides — a full permutation, matching PdfEditor.ReorderPages exactly.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReorderSlides_AppliesTheGivenPermutation()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.ReorderSlides(deck, new[] { 3, 1, 2 });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(new[] { "Slide 3", "Slide 1", "Slide 2" }, PresentationEditor.ExtractText(edited));
+    }
+
+    [Fact]
+    public void ReorderSlides_RejectsAnOrderMissingASlide()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentException>(() => PresentationEditor.ReorderSlides(deck, new[] { 1, 2 }));
+    }
+
+    [Fact]
+    public void ReorderSlides_RejectsAnOrderWithADuplicate()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentException>(() => PresentationEditor.ReorderSlides(deck, new[] { 1, 1, 2 }));
+    }
+
+    [Fact]
+    public async Task ReorderSlidesAsync_FromFileToFile_AppliesThePermutation()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.ReorderSlidesAsync(input.Path, output.Path, new[] { 2, 1 });
+
+        var text = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Equal(new[] { "Slide 2", "Slide 1" }, text);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: InsertSlides — new content via PptxSlide, matching PdfEditor.InsertPages' atIndex
+    // convention (SlideCount + 1 appends).
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InsertSlides_AtOne_PutsTheNewSlidesInFront()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(deck, 1, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(3, PresentationEditor.SlideCount(edited));
+        Assert.Contains("New", PresentationEditor.ReadSlide(edited, 1)[0]);
+    }
+
+    [Fact]
+    public void InsertSlides_AtSlideCountPlusOne_Appends()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(deck, 3, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(3, PresentationEditor.SlideCount(edited));
+        Assert.Contains("New", PresentationEditor.ReadSlide(edited, 3)[0]);
+    }
+
+    [Fact]
+    public void InsertSlides_InTheMiddle_PreservesTheSurroundingOrder()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(deck, 2, new[] { PptxSlide.Titled("New") });
+
+        var titles = new[] { 1, 2, 3, 4 }.Select(i => PresentationEditor.ReadSlide(edited, i)[0]);
+        Assert.Equal(new[] { "Slide 1", "New", "Slide 2", "Slide 3" }, titles);
+    }
+
+    [Fact]
+    public void InsertSlides_AttachesToTheLayoutOfTheSlideBeforeTheInsertionPoint()
+    {
+        var deck = PptxFixtures.MultiLayoutDeck("First", "Second");
+
+        var edited = PresentationEditor.InsertSlides(deck, 2, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "New"));
+
+        Assert.Equal(
+            "Title Slide",
+            insertedSlide.SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+    }
+
+    [Fact]
+    public void InsertSlides_AfterTheSecondSlide_AttachesToTheSecondSlidesLayoutNotTheFirst()
+    {
+        // The discriminating case: insert AFTER "Second" (layout B), so the new slide must
+        // attach to layout B, not the deck's first layout (layout A) - proving the rule is
+        // genuinely "the adjacent slide", not "always slide one".
+        var deck = PptxFixtures.MultiLayoutDeck("First", "Second");
+
+        var edited = PresentationEditor.InsertSlides(deck, 3, new[] { PptxSlide.Titled("New") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "New"));
+
+        Assert.Equal(
+            "Second Layout",
+            insertedSlide.SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+    }
+
+    [Fact]
+    public void InsertSlides_IntoAnEmptyDeck_UsesTheFirstMastersFirstLayout()
+    {
+        var empty = PresentationEditor.Create(Array.Empty<PptxSlide>());
+
+        var edited = PresentationEditor.InsertSlides(empty, 1, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(1, PresentationEditor.SlideCount(edited));
+        Assert.Contains("New", PresentationEditor.ReadSlide(edited, 1)[0]);
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts.Single();
+        Assert.NotNull(insertedSlide.SlideLayoutPart);
+    }
+
+    [Fact]
+    public void InsertSlides_ABatch_KeepsThemInTheOrderGiven()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 1, new[] { PptxSlide.Titled("A"), PptxSlide.Titled("B") });
+
+        var titles = new[] { 1, 2, 3 }.Select(i => PresentationEditor.ReadSlide(edited, i)[0]);
+        Assert.Equal(new[] { "A", "B", "Slide 1" }, titles);
+    }
+
+    [Fact]
+    public void InsertSlides_RejectsAnIndexPastTheAppendPosition()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.InsertSlides(deck, 3, new[] { PptxSlide.Titled("New") }));
+    }
+
+    [Fact]
+    public void InsertSlides_RejectsAnIndexBelowOne()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.InsertSlides(deck, 0, new[] { PptxSlide.Titled("New") }));
+    }
+
+    [Fact]
+    public void InsertSlides_SlideIdsStayUniqueEvenWhenExistingIdsAreNotContiguous()
+    {
+        // Simulates a deck that has already had a slide removed and re-added: existing ids are
+        // not a tidy 256, 257, 258, ... run. The new slide's id must still not collide.
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+        deck = PresentationEditor.RemoveSlides(deck, new[] { 2 });
+        deck = PresentationEditor.InsertSlides(deck, 2, new[] { PptxSlide.Titled("Replacement") });
+
+        Assert.Empty(PptxFixtures.Validate(deck));
+        Assert.Equal(3, PresentationEditor.SlideCount(deck));
+    }
+
+    [Fact]
+    public async Task InsertSlidesAsync_FromFileToFile_InsertsAtTheGivenPosition()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.InsertSlidesAsync(
+            input.Path, output.Path, 2, new[] { PptxSlide.Titled("New") });
+
+        var titles = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Equal(new[] { "Slide 1", "New", "Slide 2" }, titles);
+    }
+
+    [Fact]
+    public void InsertSlides_ScalesContentToFitADeckOfADifferentSize()
+    {
+        // sample.pptx (and every other fixture) is 16:9, the same canvas BuildSlide's hard-coded
+        // geometry assumes - so inserting into a DIFFERENTLY-SIZED deck is the one case that can
+        // silently overhang the canvas edge without any existing test noticing. Built by hand
+        // rather than from a fixture: a deck whose width AND height both differ from the 16:9
+        // design size (12192000 x 6858000), using the sample's own layout/master unchanged - a
+        // deck that only varied one axis could not catch the two scale factors being swapped.
+        var deck = PptxFixtures.Sample();
+        using var ms = new MemoryStream();
+        ms.Write(deck, 0, deck.Length);
+        ms.Position = 0;
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var slideSize = doc.PresentationPart!.Presentation!.SlideSize!;
+            slideSize.Cx = 9144000; // narrower than the 16:9 design width (12192000)
+            slideSize.Cy = 5143500; // shorter than the 16:9 design height (6858000)
+            doc.PresentationPart.Presentation.Save();
+        }
+        var differentlySizedDeck = ms.ToArray();
+
+        var edited = PresentationEditor.InsertSlides(differentlySizedDeck, 2, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using var checkMs = new MemoryStream(edited);
+        using var checkDoc = PresentationDocument.Open(checkMs, false);
+        var insertedSlide = checkDoc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "New"));
+        var titleXfrm = insertedSlide.Slide!.Descendants<A.Transform2D>().First();
+
+        var rightEdge = titleXfrm.Offset!.X!.Value + titleXfrm.Extents!.Cx!.Value;
+        var bottomEdge = titleXfrm.Offset.Y!.Value + titleXfrm.Extents.Cy!.Value;
+        Assert.True(rightEdge <= 9144000,
+            $"Inserted title shape's right edge ({rightEdge}) overhangs the deck's width (9144000).");
+        Assert.True(bottomEdge <= 5143500,
+            $"Inserted title shape's bottom edge ({bottomEdge}) overhangs the deck's height (5143500).");
+    }
 }
