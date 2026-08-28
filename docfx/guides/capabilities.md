@@ -35,7 +35,7 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 |---|---|
 | **DOCX** (`DocxEditor`) | `Create`, `ExtractText`, `FillRows`, `IsProtected`, `Protect`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect` |
 | **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |
-| **PPTX** (`PresentationEditor`) | `Create`, `ExtractText`, `IsProtected`, `Protect`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect` |
+| **PPTX** (`PresentationEditor`) | `Create`, `ExtractText`, `InsertSlides`, `IsProtected`, `Protect`, `ReadSlide`, `RemoveSlides`, `ReorderSlides`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect` |
 | **XLSX** (`WorkbookEditor`) | `AppendRows`, `Create`, `Format`, `IsProtected`, `Protect`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect` |
 
 Method names only. What each one does, and the traps in it, are in the guides — this table exists to be complete and current, which prose has repeatedly failed to be.

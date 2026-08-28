@@ -677,6 +677,15 @@ public class PresentationEditorTests
         // testing for a defect that turned out not to exist.
         var deck = BuildDeckWhereSlideOneHasItsOwnNotesSlidePart();
 
+        // Positive control: the notes part must actually be there before removal, or the
+        // negative assertion below would pass vacuously.
+        using (var beforeZip = new System.IO.Compression.ZipArchive(
+            new MemoryStream(deck), System.IO.Compression.ZipArchiveMode.Read))
+        {
+            Assert.Contains(
+                beforeZip.Entries, e => e.FullName.Contains("notesSlide", StringComparison.OrdinalIgnoreCase));
+        }
+
         var edited = PresentationEditor.RemoveSlides(deck, new[] { 1 });
         Assert.Empty(PptxFixtures.Validate(edited));
 
@@ -925,7 +934,9 @@ public class PresentationEditorTests
         // sample.pptx (and every other fixture) is 16:9, the same canvas BuildSlide's hard-coded
         // geometry assumes - so inserting into a DIFFERENTLY-SIZED deck is the one case that can
         // silently overhang the canvas edge without any existing test noticing. Built by hand
-        // rather than from a fixture: a 4:3 deck, using the sample's own layout/master unchanged.
+        // rather than from a fixture: a deck whose width AND height both differ from the 16:9
+        // design size (12192000 x 6858000), using the sample's own layout/master unchanged - a
+        // deck that only varied one axis could not catch the two scale factors being swapped.
         var deck = PptxFixtures.Sample();
         using var ms = new MemoryStream();
         ms.Write(deck, 0, deck.Length);
@@ -933,13 +944,13 @@ public class PresentationEditorTests
         using (var doc = PresentationDocument.Open(ms, true))
         {
             var slideSize = doc.PresentationPart!.Presentation!.SlideSize!;
-            slideSize.Cx = 9144000; // 4:3 width - narrower than the 16:9 design width (12192000)
-            slideSize.Cy = 6858000;
+            slideSize.Cx = 9144000; // narrower than the 16:9 design width (12192000)
+            slideSize.Cy = 5143500; // shorter than the 16:9 design height (6858000)
             doc.PresentationPart.Presentation.Save();
         }
-        var fourByThreeDeck = ms.ToArray();
+        var differentlySizedDeck = ms.ToArray();
 
-        var edited = PresentationEditor.InsertSlides(fourByThreeDeck, 2, new[] { PptxSlide.Titled("New") });
+        var edited = PresentationEditor.InsertSlides(differentlySizedDeck, 2, new[] { PptxSlide.Titled("New") });
         Assert.Empty(PptxFixtures.Validate(edited));
 
         using var checkMs = new MemoryStream(edited);
@@ -949,7 +960,10 @@ public class PresentationEditorTests
         var titleXfrm = insertedSlide.Slide!.Descendants<A.Transform2D>().First();
 
         var rightEdge = titleXfrm.Offset!.X!.Value + titleXfrm.Extents!.Cx!.Value;
+        var bottomEdge = titleXfrm.Offset.Y!.Value + titleXfrm.Extents.Cy!.Value;
         Assert.True(rightEdge <= 9144000,
-            $"Inserted title shape's right edge ({rightEdge}) overhangs the 4:3 deck's width (9144000).");
+            $"Inserted title shape's right edge ({rightEdge}) overhangs the deck's width (9144000).");
+        Assert.True(bottomEdge <= 5143500,
+            $"Inserted title shape's bottom edge ({bottomEdge}) overhangs the deck's height (5143500).");
     }
 }

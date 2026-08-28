@@ -219,7 +219,7 @@ public static class PresentationEditor
 
     /// <summary>
     /// All text-bearing bodies on one slide, in document order — shared by <see cref="ExtractTextCore"/>
-    /// (all slides) and <c>ReadSlideCore</c> (one slide), so the two can never disagree
+    /// (all slides) and <see cref="ReadSlideCore"/> (one slide), so the two can never disagree
     /// about what counts as a text-bearing body.
     ///
     /// PowerPoint stores shape text as a:t runs under a:p paragraphs - Wordprocessing's w:t is the
@@ -859,6 +859,13 @@ public static class PresentationEditor
     /// currently the first slide — so it renders consistently with its neighbours rather than
     /// requiring a caller to name one. A deck with no slides at all falls back to its first slide
     /// master's first layout.
+    ///
+    /// The inserted slide's title and body boxes are positioned at this library's own fixed
+    /// coordinates, rescaled to fit the target deck's canvas size — not at the positions the target
+    /// layout's own placeholders use. An inserted slide therefore inherits the target deck's theme
+    /// (through the layout relationship) but not necessarily its placeholder geometry: a
+    /// hand-designed deck whose layouts position title/body boxes differently from this library's
+    /// defaults will get a slide positioned by this library's choice, not the deck's own.
     /// </summary>
     /// <param name="pptx">The presentation to insert into. It is not modified.</param>
     /// <param name="atIndex">
