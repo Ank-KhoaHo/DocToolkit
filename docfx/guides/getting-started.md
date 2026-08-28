@@ -113,7 +113,7 @@ in a log.
 [!code-csharp[](../../samples/HtmlConversion/Program.cs#errors)]
 
 ```text
-Rejected     : Failed to render DOCX to PDF.
+Rejected     : Failed to render DOCX to PDF. See the inner exception for details.
 Inner cause  : FileFormatException
 ```
 

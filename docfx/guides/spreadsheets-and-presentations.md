@@ -78,7 +78,7 @@ every other column is still sized to its contents.
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
 
 ```text
-Formatted    : 7,907 bytes (was 7,370)
+Formatted    : 7,880 bytes (was 7,351)
 ```
 
 @DocToolkit.XlsxFormat is **immutable**, like @DocToolkit.PageSetup — every `With…` returns a new
@@ -107,7 +107,7 @@ the exporters below still see `1200`, per the note further up.
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#export)]
 
 ```text
-As CSV       : Region,Revenue / EMEA,1200 / APAC,980 / AMER,1450 /
+As CSV       : Region,Revenue / EMEA,1200 / APAC,980 / AMER,1450 / 
 As HTML      : 222 chars, starts "<table>
 ```
 
