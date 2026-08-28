@@ -71,6 +71,53 @@ public static class MarkdownEditor
         return found is null ? null : new MarkdownHeading(found.Level, found.Text, found.Anchor);
     }
 
+    /// <summary>The number of tables in <paramref name="markdown"/>, in document order.</summary>
+    /// <param name="markdown">The Markdown to read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="markdown"/> is null.</exception>
+    /// <exception cref="DocumentConversionException">The Markdown could not be parsed.</exception>
+    public static int TableCount(string markdown)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+
+        var doc = ParseOrThrow(markdown);
+        return doc.DescendantTables().Count();
+    }
+
+    /// <summary>
+    /// The table at <paramref name="index"/>, as rows of cell text — the header row is row 0,
+    /// followed by every data row in document order. A row is returned with the shape it has: a
+    /// row with fewer or more cells than its neighbours is not padded into a rectangle.
+    /// </summary>
+    /// <param name="markdown">The Markdown to read.</param>
+    /// <param name="index">
+    /// <b>0-based</b>, indexing what <see cref="TableCount(string)"/> reports.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="markdown"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is negative, or at or beyond <see cref="TableCount(string)"/>.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The Markdown could not be parsed.</exception>
+    public static IReadOnlyList<IReadOnlyList<string>> ReadTable(string markdown, int index)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+
+        var doc = ParseOrThrow(markdown);
+        var tables = doc.DescendantTables().ToList();
+
+        if (index >= tables.Count)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index), index,
+                $"Table {index} was requested from a document with {tables.Count} table(s).");
+        }
+
+        var table = tables[index];
+        var rows = new List<IReadOnlyList<string>> { table.Headers };
+        rows.AddRange(table.Rows);
+        return rows;
+    }
+
     /// <summary>
     /// Parses <paramref name="markdown"/>, wrapping any failure the reader itself raises in a
     /// <see cref="DocumentConversionException"/> — the one place every method in this class does

@@ -97,4 +97,88 @@ public class MarkdownEditorTests
         Assert.Throws<ArgumentNullException>(() => MarkdownEditor.FindHeading(null!, "x"));
         Assert.Throws<ArgumentNullException>(() => MarkdownEditor.FindHeading("# x", null!));
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A69: TableCount / ReadTable
+    // -----------------------------------------------------------------------------------------
+
+    private const string TwoTableMarkdown = """
+        # Doc
+
+        | a | b |
+        |---|---|
+        | 1 | 2 |
+        | 3 | 4 |
+
+        Some text between the tables.
+
+        | x |
+        |---|
+        | y |
+        """;
+
+    [Fact]
+    public void TableCount_CountsEveryTableInTheDocument()
+    {
+        Assert.Equal(2, MarkdownEditor.TableCount(TwoTableMarkdown));
+    }
+
+    [Fact]
+    public void TableCount_OnADocumentWithNoTable_ReturnsZero()
+    {
+        Assert.Equal(0, MarkdownEditor.TableCount("# Doc\n\nNo tables here.\n"));
+    }
+
+    [Fact]
+    public void ReadTable_ReturnsTheHeaderRowFirstThenDataRows()
+    {
+        var rows = MarkdownEditor.ReadTable(TwoTableMarkdown, 0);
+
+        Assert.Equal(new[] { "a", "b" }, rows[0]);
+        Assert.Equal(new[] { "1", "2" }, rows[1]);
+        Assert.Equal(new[] { "3", "4" }, rows[2]);
+    }
+
+    [Fact]
+    public void ReadTable_IndexIsZeroBasedAgainstDocumentOrder()
+    {
+        var rows = MarkdownEditor.ReadTable(TwoTableMarkdown, 1);
+
+        Assert.Equal(new[] { "x" }, rows[0]);
+        Assert.Equal(new[] { "y" }, rows[1]);
+    }
+
+    [Fact]
+    public void ReadTable_RejectsANegativeIndex()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => MarkdownEditor.ReadTable(TwoTableMarkdown, -1));
+    }
+
+    [Fact]
+    public void ReadTable_RejectsAnIndexAtOrBeyondTableCount()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => MarkdownEditor.ReadTable(TwoTableMarkdown, 2));
+    }
+
+    [Fact]
+    public void ReadTable_ARowWithADifferentCellCountThanTheHeader_IsReturnedWithTheShapeItHas()
+    {
+        // Measured directly against OfficeIMO.Markdown: a short row is not padded, and a long
+        // row is not truncated — matching DocxEditor.ReadTable's own "rows are returned with the
+        // shape they have" precedent for DOCX tables.
+        const string markdown = """
+            # Doc
+
+            | a | b | c |
+            |---|---|---|
+            | 1 | 2 |
+            | x | y | z | extra |
+            """;
+
+        var rows = MarkdownEditor.ReadTable(markdown, 0);
+
+        Assert.Equal(new[] { "a", "b", "c" }, rows[0]);
+        Assert.Equal(new[] { "1", "2" }, rows[1]);
+        Assert.Equal(new[] { "x", "y", "z", "extra" }, rows[2]);
+    }
 }
