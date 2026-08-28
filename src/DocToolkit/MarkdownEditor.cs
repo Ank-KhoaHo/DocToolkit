@@ -45,6 +45,33 @@ public static class MarkdownEditor
     }
 
     /// <summary>
+    /// The heading in <paramref name="markdown"/> whose text matches <paramref name="headingText"/>,
+    /// or <see langword="null"/> if none does. When more than one heading shares the same text,
+    /// the first one in document order is returned.
+    /// </summary>
+    /// <param name="markdown">The Markdown to search.</param>
+    /// <param name="headingText">
+    /// The heading's text to match, without the leading <c>#</c> markers.
+    /// </param>
+    /// <param name="comparison">How <paramref name="headingText"/> is compared. Case-insensitive by default.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="markdown"/> or <paramref name="headingText"/> is null.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The Markdown could not be parsed.</exception>
+    public static MarkdownHeading? FindHeading(
+        string markdown, string headingText,
+        StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        ArgumentNullException.ThrowIfNull(headingText);
+
+        var doc = ParseOrThrow(markdown);
+        var found = doc.FindHeading(headingText, comparison);
+
+        return found is null ? null : new MarkdownHeading(found.Level, found.Text, found.Anchor);
+    }
+
+    /// <summary>
     /// Parses <paramref name="markdown"/>, wrapping any failure the reader itself raises in a
     /// <see cref="DocumentConversionException"/> — the one place every method in this class does
     /// so, matching <see cref="MarkdownToDocxConverter.ConvertCore"/>'s own wrapping around the
@@ -62,4 +89,27 @@ public static class MarkdownEditor
                 MarkdownFailureDiagnosis.Describe(ex, markdown) ?? FailureMessage, ex);
         }
     }
+}
+
+/// <summary>One heading found in a Markdown document by <see cref="MarkdownEditor.FindHeading"/>.</summary>
+public sealed class MarkdownHeading
+{
+    internal MarkdownHeading(int level, string text, string anchor)
+    {
+        Level = level;
+        Text = text;
+        Anchor = anchor;
+    }
+
+    /// <summary>The heading's level: 1 for <c>#</c>, 2 for <c>##</c>, and so on.</summary>
+    public int Level { get; }
+
+    /// <summary>The heading's text, with any inline formatting markers stripped.</summary>
+    public string Text { get; }
+
+    /// <summary>
+    /// The slug an in-document anchor link to this heading would use — for example
+    /// <c>changed</c> for a heading reading "Changed".
+    /// </summary>
+    public string Anchor { get; }
 }
