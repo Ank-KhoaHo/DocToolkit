@@ -1,3 +1,4 @@
+﻿using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 
@@ -6,7 +7,7 @@ namespace DocToolkit.Tests;
 public class DocxEditorFootnoteEndnoteTocTests
 {
     /// <summary>
-    /// Asserts the package is schema-valid, not merely readable — the same discipline
+    /// Asserts the package is schema-valid, not merely readable â€” the same discipline
     /// <see cref="DocxEditorReplaceImageTests"/> uses for the same reason: extracted text says
     /// nothing about whether Word will open the file.
     /// </summary>
@@ -432,5 +433,176 @@ public class DocxEditorFootnoteEndnoteTocTests
 
         Assert.Equal(expectedText, DocxEditor.ExtractText(actual));
         AssertValid(actual);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // A71 review fixes: every success-path fixture above is authored by OfficeIMO.Word itself, and
+    // that one shared property masked two real defects. The tests below author their input the way
+    // a caller's own document is really shaped -- by hand, or through this library's own Create.
+    // Same lesson CLAUDE.md already records for DocxForm: a fixture must be authored the way the
+    // library under test authors one, or what you measure is the fixture.
+    // -----------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A hand-authored package whose <c>word/settings.xml</c> carries the children an ordinary
+    /// Word document has, in schema order -- including <c>w:footnotePr</c> and <c>w:endnotePr</c>,
+    /// which is exactly the shape a document already carrying footnotes or endnotes has.
+    /// <see cref="DocxFixtures"/> writes no settings part at all, so this cannot come from there.
+    /// </summary>
+    private static byte[] BuildWithWordShapedSettings(params OpenXmlElement[] bodyChildren)
+    {
+        using var ms = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            main.Document = new Document(new Body(bodyChildren.Select(c => c.CloneNode(true))));
+            main.Document.Save();
+
+            var settingsPart = main.AddNewPart<DocumentSettingsPart>();
+            settingsPart.Settings = new Settings(
+                new Zoom(),
+                new DefaultTabStop { Val = 720 },
+                new CharacterSpacingControl { Val = CharacterSpacingValues.DoNotCompress },
+                new FootnoteDocumentWideProperties(),
+                new EndnoteDocumentWideProperties(),
+                new Compatibility(),
+                new Rsids());
+            settingsPart.Settings.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void AddTableOfContents_InsertsUpdateFieldsInAValidSlot_OnWordShapedSettings()
+    {
+        // The regression this closes: the insertion slot used to be read off ONE throwaway
+        // OfficeIMO.Word document's settings order, which lists no w:footnotePr or w:endnotePr --
+        // so the first anchor it recognised here was w:compat, three slots too late. Measured
+        // before the fix: 5 OpenXmlValidator errors. The slot now comes from the SDK's schema.
+        var docx = BuildWithWordShapedSettings(DocxFixtures.P(DocxFixtures.R("{{toc}}")));
+
+        // Positive control: the fixture is legally ordered to begin with, so a clean result below
+        // cannot be an artefact of measuring an already-broken package.
+        Assert.Empty(DocxFixtures.Validate(docx));
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        AssertValid(withToc);
+
+        var order = DocxFixtures.Read(withToc, m => m.DocumentSettingsPart!.Settings!
+            .ChildElements.Select(e => e.LocalName).ToArray());
+
+        // The exact literal, not just "updateFields is somewhere in there": the defect placed it
+        // between endnotePr and compat, which is still "present" and still invalid.
+        Assert.Equal(
+            new[] { "zoom", "defaultTabStop", "characterSpacingControl", "updateFields", "footnotePr", "endnotePr", "compat", "rsids" },
+            order);
+
+        Assert.True(DocxFixtures.Read(withToc, m => m.DocumentSettingsPart!.Settings!
+            .Elements<UpdateFieldsOnOpen>().Single().Val?.Value));
+    }
+
+    [Fact]
+    public void AddTableOfContents_OnADocumentBuiltByThisLibrarysOwnCreate_ValidatesClean()
+    {
+        // The most natural composition in the whole library -- build with Create, then add a TOC --
+        // and it produced an invalid document until the w14: bookkeeping was stripped from the
+        // cloned fragment. Those attributes are only declared where the root w:document carries
+        // mc:Ignorable="w14 ...", which OfficeIMO.Word emits and DocxDocumentWriter does not.
+        // Measured before the fix: 4 "attribute is not declared" errors.
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Heading("Overview", 1),
+            DocxBlock.Paragraph("{{toc}}"),
+            DocxBlock.Heading("Details", 2),
+            DocxBlock.Paragraph("Some detail text."),
+        });
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        AssertValid(withToc);
+        Assert.DoesNotContain("{{toc}}", DocxEditor.ExtractText(withToc));
+
+        // Names the mechanism, so a future change that fixes validity some other way still says
+        // whether this one is still doing anything.
+        const string Word2010 = "http://schemas.microsoft.com/office/word/2010/wordml";
+        var stale = DocxFixtures.ReadBody(withToc, b => b.Descendants<Paragraph>()
+            .SelectMany(p => p.GetAttributes())
+            .Where(a => a.NamespaceUri == Word2010)
+            .Select(a => a.LocalName)
+            .ToArray());
+        Assert.Empty(stale);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RefusesAPlaceholderParagraphThatAlsoHoldsATextBox()
+    {
+        // The refusal check reads the paragraph's own w:t elements, which cannot see a text box or
+        // an inline image sharing the paragraph. Before the fix this was ACCEPTED and the sidebar
+        // text was silently gone from the output -- no exception, no warning.
+        var docx = DocxFixtures.Build(DocxFixtures.P(
+            DocxFixtures.TextBoxRun("IMPORTANT SIDEBAR TEXT"),
+            DocxFixtures.R("{{toc}}")));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+
+        Assert.Contains("{{toc}}", ex.Message);
+        Assert.Contains("non-text content", ex.Message);
+    }
+
+    [Fact]
+    public void AddTableOfContents_DoesNotMatchAPlaceholderThatLivesOnlyInATextBox()
+    {
+        // Same discipline as "DocxEditor must not reach into nested paragraphs" and "TableRowFinder
+        // must not use Descendants<TableRow>()": the paragraph ENUMERATION is scoped, not just the
+        // text reading. Before the fix a TOC was spliced into the text box's own w:txbxContent.
+        var docx = DocxFixtures.Build(DocxFixtures.P(
+            DocxFixtures.TextBoxRun("{{toc}}"),
+            DocxFixtures.R("outer text")));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+
+        // The "not found" refusal specifically -- not the "found but holds other text" one, which
+        // would mean the text box had been enumerated after all.
+        Assert.Contains("No paragraph containing only", ex.Message);
+    }
+
+    [Fact]
+    public void AddTableOfContents_ReplacingTheOnlyParagraphInATableCell_StaysSchemaValid()
+    {
+        // Known, accepted edge case, pinned rather than "fixed": the cell ends up holding the
+        // w:sdt and no w:p at all, which is not how Word conventionally writes a cell but IS
+        // schema-valid -- measured with OpenXmlValidator rather than assumed. Nothing here
+        // proposes inserting a fallback empty paragraph; if the validator ever starts rejecting
+        // this, that is the signal to revisit, and this test is what will say so.
+        var docx = DocxFixtures.Build(DocxFixtures.Tbl(DocxFixtures.Row(DocxFixtures.R("{{toc}}"))));
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        AssertValid(withToc);
+
+        var cell = DocxFixtures.ReadBody(withToc, b => b.Descendants<TableCell>().Single());
+        Assert.Empty(cell.Elements<Paragraph>());
+        Assert.Single(cell.Elements<SdtBlock>());
+    }
+
+    [Fact]
+    public void AddTableOfContents_OnADocumentWithNoSettingsPart_CreatesOne()
+    {
+        // DocxFixtures writes no settings part, so this is the "there is nothing to insert into"
+        // branch of EnsureFieldsUpdateOnOpen -- which worked, and which nothing pinned.
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{toc}}")));
+        Assert.Null(DocxFixtures.Read(docx, m => m.DocumentSettingsPart));
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        AssertValid(withToc);
+
+        var settings = DocxFixtures.Read(withToc, m => m.DocumentSettingsPart!.Settings!);
+        Assert.Equal(new[] { "updateFields" }, settings.ChildElements.Select(e => e.LocalName).ToArray());
+        Assert.True(settings.Elements<UpdateFieldsOnOpen>().Single().Val?.Value);
     }
 }

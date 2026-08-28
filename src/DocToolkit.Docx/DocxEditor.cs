@@ -1,6 +1,7 @@
 using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Validation;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 using OfficeIMOWordWordDocument = OfficeIMO.Word.WordDocument;
@@ -1838,7 +1839,13 @@ public static class DocxEditor
     /// spliced inline, preserving whatever text shares its run — a table of contents cannot: its
     /// content is whole paragraphs, and replacing a paragraph has no way to keep a neighbour's
     /// text. A placeholder paragraph carrying anything besides the placeholder is refused rather
-    /// than silently trimmed.
+    /// than silently trimmed — other text, an inline image and a text box alike.
+    /// </para>
+    /// <para>
+    /// <b>Only a top-level paragraph is matched.</b> A placeholder that lives only inside a text
+    /// box counts as absent, for the same reason every other edit in this class stays out of
+    /// <c>w:txbxContent</c>: a table of contents spliced into a text box is not what any caller
+    /// writing <c>{{toc}}</c> meant.
     /// </para>
     /// <para>
     /// <b>The field is written dirty on purpose, not populated with real heading text.</b> Measured
@@ -1852,8 +1859,7 @@ public static class DocxEditor
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="placeholder"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="docx"/> is empty, <paramref name="placeholder"/> is blank, or the paragraph
-    /// containing it also holds other text.
+    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
@@ -1898,8 +1904,7 @@ public static class DocxEditor
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
-    /// is not writable, <paramref name="placeholder"/> is blank, or the paragraph containing it
-    /// also holds other text.
+    /// is not writable, or <paramref name="placeholder"/> is blank.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
@@ -1947,8 +1952,8 @@ public static class DocxEditor
     /// <param name="ct">Cancels the read and the write.</param>
     /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
     /// <exception cref="ArgumentException">
-    /// A path is blank, the file at <paramref name="inputPath"/> is empty, <paramref name="placeholder"/>
-    /// is blank, or the paragraph containing it also holds other text.
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="placeholder"/> is blank.
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
@@ -1996,7 +2001,7 @@ public static class DocxEditor
     {
         try
         {
-            var (fragment, settingsOrder) = BuildTableOfContentsFragment(minLevel, maxLevel);
+            var fragment = BuildTableOfContentsFragment(minLevel, maxLevel);
 
             using (var doc = WordprocessingDocument.Open(ms, true))
             {
@@ -2008,18 +2013,39 @@ public static class DocxEditor
                            + "example it was renamed from another format) or the upload is corrupt.");
 
                 Paragraph? target = null;
+                Paragraph? carriesOtherContent = null;
                 Paragraph? partialMatch = null;
 
-                foreach (var paragraph in body.Descendants<Paragraph>())
+                foreach (var paragraph in TopLevelParagraphsOf(body))
                 {
                     var ownText = OwnParagraphText(paragraph);
-                    if (ownText == placeholder) { target = paragraph; break; }
+                    if (ownText == placeholder)
+                    {
+                        // The text matching exactly is only half the question. A text box or an
+                        // inline image sharing the paragraph is invisible to OwnParagraphText -- it
+                        // reads w:t elements -- and removing the paragraph would take that content
+                        // with it, silently. Same refusal as the "other text" case below.
+                        if (!OwnsNonTextContent(paragraph)) { target = paragraph; break; }
+                        carriesOtherContent ??= paragraph;
+                        continue;
+                    }
+
                     if (partialMatch is null && ownText.Contains(placeholder, StringComparison.Ordinal))
                         partialMatch = paragraph;
                 }
 
                 if (target is null)
                 {
+                    if (carriesOtherContent is not null)
+                    {
+                        throw new DocumentConversionException(
+                            $"A paragraph whose text is exactly '{placeholder}' was found, but it also holds "
+                            + "non-text content such as an inline image, a text box or a field. "
+                            + "AddTableOfContents needs the placeholder to be the paragraph's entire content, "
+                            + "since inserting a table of contents replaces the whole paragraph and would "
+                            + "discard that content along with it.");
+                    }
+
                     if (partialMatch is not null)
                     {
                         throw new DocumentConversionException(
@@ -2041,7 +2067,7 @@ public static class DocxEditor
 
                 main.Document!.Save();
 
-                EnsureFieldsUpdateOnOpen(main, settingsOrder);
+                EnsureFieldsUpdateOnOpen(main);
             }
 
             ms.Position = 0;
@@ -2063,6 +2089,96 @@ public static class DocxEditor
                  .Select(t => t.Text));
 
     /// <summary>
+    /// The paragraphs of <paramref name="body"/> that are not themselves nested inside another
+    /// paragraph — i.e. everything except the paragraphs a text box holds in its
+    /// <c>w:txbxContent</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>Descendants&lt;Paragraph&gt;()</c> reaches into a text box, and reaching into one is the
+    /// trap this codebase already records twice — for <c>DocxEditor</c>'s own edits and for
+    /// <c>TableRowFinder</c>. <see cref="OwnParagraphText"/> scopes the text it READS to a single
+    /// paragraph for that reason; scoping the text alone is not enough, because a placeholder
+    /// living only inside a text box would still be enumerated and would get a table of contents
+    /// spliced into the text box's content. Table-cell paragraphs are deliberately still in scope:
+    /// their ancestors are <c>w:tbl</c>/<c>w:tr</c>/<c>w:tc</c>, never another <c>w:p</c>.
+    /// </remarks>
+    private static IEnumerable<Paragraph> TopLevelParagraphsOf(Body body)
+        => body.Descendants<Paragraph>().Where(p => !p.Ancestors<Paragraph>().Any());
+
+    /// <summary>
+    /// True when <paramref name="paragraph"/> owns content that is not plain text — an inline
+    /// image, a text box, a field, a hyperlink, a nested control.
+    /// </summary>
+    /// <remarks>
+    /// This is an ALLOW-list rather than a deny-list on purpose: an unrecognised element is treated
+    /// as content and the paragraph is refused, so the failure direction is a spurious refusal the
+    /// caller can see rather than the silent data loss a missed entry in a deny-list would cause.
+    /// Only the elements that genuinely carry nothing a caller could lose are listed —
+    /// formatting (<c>w:pPr</c>, <c>w:rPr</c>), bookmarks, proofing marks and layout hints.
+    /// </remarks>
+    private static bool OwnsNonTextContent(Paragraph paragraph)
+    {
+        foreach (var child in paragraph.ChildElements)
+        {
+            switch (child)
+            {
+                case ParagraphProperties:
+                case BookmarkStart:
+                case BookmarkEnd:
+                case ProofError:
+                    continue;
+
+                case Run run:
+                    if (run.ChildElements.Any(
+                            c => c is not RunProperties and not Text and not LastRenderedPageBreak))
+                    {
+                        return true;
+                    }
+
+                    continue;
+
+                default:
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The <c>w14:</c> namespace — Word 2010's revision bookkeeping. See
+    /// <see cref="StripWord2010Bookkeeping"/> for why a cloned fragment must not carry any of it.
+    /// </summary>
+    private const string Word2010Namespace = "http://schemas.microsoft.com/office/word/2010/wordml";
+
+    /// <summary>
+    /// Removes every <c>w14:</c> attribute from <paramref name="root"/> and its descendants —
+    /// <c>w14:paraId</c> and <c>w14:textId</c> in practice.
+    /// </summary>
+    /// <remarks>
+    /// Those attributes are Word's own per-paragraph revision ids, meaningless on a fragment that
+    /// has just been cloned out of a throwaway document, and they are only <em>legal</em> in a
+    /// document whose <c>w:document</c> element declares <c>mc:Ignorable="w14 …"</c>.
+    /// <c>OfficeIMO.Word</c>'s documents do; documents this library's own
+    /// <see cref="Create(IEnumerable{DocxBlock})"/> and any hand-built package produce do not — so
+    /// carrying them across made the most natural composition in the whole library (build with
+    /// <c>Create</c>, then add a table of contents) emit an invalid document. Measured with
+    /// <c>OpenXmlValidator</c>: four errors before, none after.
+    /// </remarks>
+    private static void StripWord2010Bookkeeping(OpenXmlElement root)
+    {
+        foreach (var element in root.Descendants().Prepend(root))
+        {
+            var bookkeeping = element.GetAttributes()
+                                     .Where(a => a.NamespaceUri == Word2010Namespace)
+                                     .ToList();
+
+            foreach (var attribute in bookkeeping)
+                element.RemoveAttribute(attribute.LocalName, attribute.NamespaceUri);
+        }
+    }
+
+    /// <summary>
     /// Builds a correctly-shaped table-of-contents <c>w:sdt</c> fragment via a throwaway
     /// <c>OfficeIMO.Word</c> document — the only place this class uses that library's own
     /// load/save cycle rather than raw <c>DocumentFormat.OpenXml</c>, because reproducing the
@@ -2071,12 +2187,9 @@ public static class DocxEditor
     /// fragment is cloned out before the throwaway document is disposed and never touches the
     /// caller's real document directly.
     /// </summary>
-    /// <returns>
-    /// The cloned <c>w:sdt</c> fragment, alongside the child-element order the same throwaway
-    /// document's own <c>w:settings</c> came out in — see <see cref="EnsureFieldsUpdateOnOpen"/>
-    /// for why that second piece is captured here rather than guessed at the call site.
-    /// </returns>
-    private static (SdtBlock Fragment, List<Type> SettingsOrder) BuildTableOfContentsFragment(int minLevel, int maxLevel)
+    /// <returns>The cloned <c>w:sdt</c> fragment, stripped of the source document's own
+    /// <c>w14:</c> bookkeeping — see <see cref="StripWord2010Bookkeeping"/>.</returns>
+    private static SdtBlock BuildTableOfContentsFragment(int minLevel, int maxLevel)
     {
         using var word = OfficeIMOWordWordDocument.Create();
         word.AddTableOfContent(OfficeIMO.Word.WordTableOfContentsStyle.Template1, minLevel, maxLevel);
@@ -2088,10 +2201,9 @@ public static class DocxEditor
         using var packaged = WordprocessingDocument.Open(fragmentStream, false);
         var sdt = packaged.MainDocumentPart!.Document!.Body!.Descendants<SdtBlock>().Single();
 
-        var settingsOrder = packaged.MainDocumentPart!.DocumentSettingsPart?.Settings?
-            .ChildElements.Select(e => e.GetType()).ToList() ?? new List<Type>();
-
-        return ((SdtBlock)sdt.CloneNode(true), settingsOrder);
+        var fragment = (SdtBlock)sdt.CloneNode(true);
+        StripWord2010Bookkeeping(fragment);
+        return fragment;
     }
 
     /// <summary>
@@ -2102,17 +2214,27 @@ public static class DocxEditor
     /// this method knows is stale.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <c>w:updateFields</c> sits in a fixed position within <c>CT_Settings</c>' schema sequence —
     /// the same order-matters trap this file already tracks for <c>w:sectPr</c> — so it cannot
     /// simply be appended or prepended into whatever settings a caller's real document already
-    /// carries; <c>OpenXmlValidator</c> rejects both, measured directly. <paramref
-    /// name="referenceOrder"/> is the order the element actually comes out in from
-    /// <c>OfficeIMO.Word</c>'s own output — the same shape <see cref="BuildTableOfContentsFragment"/>
-    /// already trusts for the fragment itself — so the correct slot is read off that real output
-    /// instead of a hand-typed copy of the ECMA-376 sequence, which is exactly the kind of
-    /// hand-maintained list this codebase avoids where a derivation is available.
+    /// carries; <c>OpenXmlValidator</c> rejects both, measured directly.
+    /// </para>
+    /// <para>
+    /// <b>The slot is derived from the SDK's own schema, not from an example document's order.</b>
+    /// An earlier version read the order off one throwaway <c>OfficeIMO.Word</c> document's
+    /// <c>w:settings</c> and anchored against it — which is a hand-maintained list wearing a
+    /// derivation's clothes, because it can only ever describe the children THAT document happens
+    /// to carry. An ordinary Word document with <c>w:footnotePr</c>/<c>w:endnotePr</c> present —
+    /// exactly what this class's own <see cref="AddFootnote(byte[], string, string)"/> and
+    /// <see cref="AddEndnote(byte[], string, string)"/> leave behind — has no anchor in that list
+    /// until <c>w:compat</c>, which sorts three slots too late: measured, five
+    /// <c>OpenXmlValidator</c> errors. Inserting and then walking the element earlier until the
+    /// validator stops rejecting it answers the ordering question from the schema itself, so it is
+    /// correct for any legally-ordered <c>CT_Settings</c> rather than for one example's shape.
+    /// </para>
     /// </remarks>
-    private static void EnsureFieldsUpdateOnOpen(MainDocumentPart main, List<Type> referenceOrder)
+    private static void EnsureFieldsUpdateOnOpen(MainDocumentPart main)
     {
         var settingsPart = main.DocumentSettingsPart ?? main.AddNewPart<DocumentSettingsPart>();
         settingsPart.Settings ??= new Settings();
@@ -2125,15 +2247,25 @@ public static class DocxEditor
             return;
         }
 
-        var updateFieldsIndex = referenceOrder.IndexOf(typeof(UpdateFieldsOnOpen));
-        var laterTypes = updateFieldsIndex < 0
-            ? new HashSet<Type>()
-            : referenceOrder.Skip(updateFieldsIndex + 1).Distinct().ToHashSet();
-
-        var anchor = settingsPart.Settings.ChildElements.FirstOrDefault(e => laterTypes.Contains(e.GetType()));
         var newElement = new UpdateFieldsOnOpen { Val = true };
-        if (anchor is not null) anchor.InsertBeforeSelf(newElement);
-        else settingsPart.Settings.AppendChild(newElement);
+        settingsPart.Settings.AppendChild(newElement);
+
+        // Bounded by the child count: w:settings has on the order of fifteen legal children, and
+        // each pass moves the element exactly one slot earlier, so this converges in a handful of
+        // iterations at most. The discriminator is RelatedNode rather than the message text, so
+        // validation errors the caller's own settings already carried are ignored rather than
+        // driving the element to the front of a document that was invalid before this ran.
+        var validator = new OpenXmlValidator();
+        for (var remaining = settingsPart.Settings.ChildElements.Count; remaining > 0; remaining--)
+        {
+            var rejected = validator.Validate(settingsPart.Settings)
+                                    .Any(e => ReferenceEquals(e.RelatedNode, newElement));
+            if (!rejected) break;
+
+            if (newElement.PreviousSibling() is not { } earlier) break;
+            newElement.Remove();
+            earlier.InsertBeforeSelf(newElement);
+        }
 
         settingsPart.Settings.Save();
     }
