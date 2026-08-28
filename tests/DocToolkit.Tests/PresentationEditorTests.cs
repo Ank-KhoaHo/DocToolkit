@@ -514,4 +514,28 @@ public class PresentationEditorTests
         using var doc = PresentationDocument.Open(ms, false);
         Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: fixture pin. MultiLayoutDeck must genuinely produce two DIFFERENT layouts, not two
+    // slides sharing one — otherwise the layout-selection tests in Task 5 would pass vacuously.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void MultiLayoutDeck_ProducesTwoSlidesWithGenuinelyDifferentLayouts()
+    {
+        var deck = PptxFixtures.MultiLayoutDeck("First", "Second");
+        Assert.Empty(PptxFixtures.Validate(deck));
+
+        using var ms = new MemoryStream(deck);
+        using var doc = PresentationDocument.Open(ms, false);
+
+        var slideParts = doc.PresentationPart!.Presentation!.SlideIdList!.Elements<P.SlideId>()
+            .Select(id => (SlidePart)doc.PresentationPart!.GetPartById(id.RelationshipId!.Value!))
+            .ToList();
+
+        Assert.Equal(2, slideParts.Count);
+        Assert.Equal("Title Slide", slideParts[0].SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+        Assert.Equal("Second Layout", slideParts[1].SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+        Assert.NotEqual(slideParts[0].SlideLayoutPart, slideParts[1].SlideLayoutPart);
+    }
 }
