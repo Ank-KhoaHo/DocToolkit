@@ -141,4 +141,114 @@ public class DocxEditorFootnoteEndnoteTocTests
         Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));
         AssertValid(actual);
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A71: AddEndnote
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AddEndnote_InsertsAReferenceAndCreatesTheEndnotesPart()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("See the note{{note}} here.")));
+
+        var filled = DocxEditor.AddEndnote(docx, "{{note}}", "This is the endnote text.");
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+
+        Assert.NotNull(doc.MainDocumentPart!.EndnotesPart);
+        var endnote = doc.MainDocumentPart.EndnotesPart!.Endnotes!.Elements<Endnote>().Single();
+        Assert.Equal("This is the endnote text.", endnote.InnerText);
+
+        var reference = doc.MainDocumentPart.Document!.Body!.Descendants<EndnoteReference>().Single();
+        Assert.Equal(endnote.Id!.Value, reference.Id!.Value);
+
+        var text = DocxEditor.ExtractText(filled);
+        Assert.Contains("See the note", text);
+        Assert.Contains(" here.", text);
+        Assert.DoesNotContain("{{note}}", text);
+
+        AssertValid(filled);
+    }
+
+    [Fact]
+    public void AddEndnote_MatchesAPlaceholderSplitAcrossRuns()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(
+            DocxFixtures.R("start {{no"),
+            DocxFixtures.R("te}} end")));
+
+        var filled = DocxEditor.AddEndnote(docx, "{{note}}", "Split-run endnote.");
+
+        var text = DocxEditor.ExtractText(filled);
+        Assert.Contains("start ", text);
+        Assert.Contains(" end", text);
+        Assert.DoesNotContain("{{no", text);
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.Single(doc.MainDocumentPart!.Document!.Body!.Descendants<EndnoteReference>());
+
+        AssertValid(filled);
+    }
+
+    [Fact]
+    public void AddEndnote_AndAddFootnote_UseIndependentIdSpaces()
+    {
+        // Measured: footnote and endnote ids are independent numbering spaces. Adding a footnote
+        // then an endnote to the same document must not produce a collision, and neither should
+        // be forced to skip past the other's ids.
+        var docx = DocxFixtures.Build(DocxFixtures.P(
+            DocxFixtures.R("first{{a}} and second{{b}}")));
+
+        var withFootnote = DocxEditor.AddFootnote(docx, "{{a}}", "A footnote.");
+        var withBoth = DocxEditor.AddEndnote(withFootnote, "{{b}}", "An endnote.");
+
+        using var ms = new MemoryStream(withBoth);
+        using var doc = WordprocessingDocument.Open(ms, false);
+
+        Assert.Equal(1, doc.MainDocumentPart!.FootnotesPart!.Footnotes!.Elements<Footnote>().Single().Id!.Value);
+        Assert.Equal(1, doc.MainDocumentPart.EndnotesPart!.Endnotes!.Elements<Endnote>().Single().Id!.Value);
+
+        AssertValid(withBoth);
+    }
+
+    [Fact]
+    public void AddEndnote_ThrowsWhenThePlaceholderIsAbsent()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("nothing to add a note to")));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddEndnote(docx, "{{note}}", "text"));
+
+        Assert.Contains("{{note}}", ex.Message);
+    }
+
+    [Fact]
+    public void AddEndnote_RejectsNullArguments()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("{{note}}")));
+
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.AddEndnote(null!, "{{note}}", "text"));
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.AddEndnote(docx, null!, "text"));
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.AddEndnote(docx, "{{note}}", null!));
+    }
+
+    [Fact]
+    public async Task AddEndnoteAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("See{{note}}here.")));
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, docx);
+
+        await DocxEditor.AddEndnoteAsync(input.Path, output.Path, "{{note}}", "Async endnote.");
+
+        var expected = DocxEditor.AddEndnote(docx, "{{note}}", "Async endnote.");
+        var actual = await File.ReadAllBytesAsync(output.Path);
+
+        Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));
+        AssertValid(actual);
+    }
 }

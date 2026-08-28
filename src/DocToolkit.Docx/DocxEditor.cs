@@ -1591,6 +1591,234 @@ public static class DocxEditor
         footnotesPart.Footnotes.Save();
     }
 
+    /// <summary>
+    /// Adds an endnote at every occurrence of <paramref name="placeholder"/>, inline, across the
+    /// document body — see <see cref="AddFootnote(byte[], string, string)"/> for exactly what is
+    /// matched and how each occurrence is handled. The only difference is where the note ends up:
+    /// the document's endnotes, not its footnotes.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or <paramref name="placeholder"/> does not appear in the
+    /// body.
+    /// </exception>
+    public static byte[] AddEndnote(byte[] docx, string placeholder, string endnoteText)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(endnoteText);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        AddEndnoteCore(ms, placeholder, endnoteText);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, adds an endnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="destination"/> —
+    /// see <see cref="AddEndnote(byte[], string, string)"/> for exactly what is matched.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="endnoteText">The endnote's own text.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddEndnoteAsync(
+        Stream source, string placeholder, string endnoteText, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(endnoteText);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to add an endnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        AddEndnoteCore(buffer, placeholder, endnoteText);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to add an endnote to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="inputPath"/>, adds an endnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="outputPath"/> —
+    /// see <see cref="AddEndnote(byte[], string, string)"/> for exactly what is matched. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .docx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="endnoteText">The endnote's own text.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    public static async Task AddEndnoteAsync(
+        string inputPath, string outputPath, string placeholder, string endnoteText,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ArgumentNullException.ThrowIfNull(endnoteText);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddEndnote(bytes, placeholder, endnoteText);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void AddEndnoteCore(MemoryStream ms, string placeholder, string endnoteText)
+    {
+        try
+        {
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+
+                var inserted = InsertEndnoteReferencesIn(main, body, placeholder, endnoteText);
+
+                if (inserted == 0)
+                {
+                    throw new DocumentConversionException(
+                        $"The placeholder '{placeholder}' was not found, so there was no endnote to add. "
+                        + "Check the placeholder text, braces included, matches the document exactly.");
+                }
+
+                main.Document!.Save();
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add an endnote to the DOCX package. See the inner exception for details.", ex);
+        }
+    }
+
+    private static int InsertEndnoteReferencesIn(
+        MainDocumentPart main, Body body, string placeholder, string endnoteText)
+    {
+        var inserted = 0;
+        var nextId = NextEndnoteId(main);
+
+        foreach (var paragraph in body.Descendants<Paragraph>().ToList())
+        {
+            var texts = paragraph.Descendants<Text>()
+                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                                 .ToList();
+            if (texts.Count == 0) continue;
+
+            var merged = string.Concat(texts.Select(t => t.Text));
+
+            var offsets = new List<int>();
+            for (var at = merged.IndexOf(placeholder, StringComparison.Ordinal);
+                 at >= 0;
+                 at = merged.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal))
+            {
+                offsets.Add(at);
+            }
+
+            for (var i = offsets.Count - 1; i >= 0; i--)
+            {
+                var id = nextId++;
+                AddEndnoteEntry(main, id, endnoteText);
+
+                var referenceRun = new Run(
+                    new RunProperties(new RunStyle { Val = "EndnoteReference" }),
+                    new EndnoteReference { Id = id });
+                SpliceElementIn(texts, offsets[i], placeholder.Length, referenceRun);
+                inserted++;
+            }
+        }
+
+        return inserted;
+    }
+
+    /// <summary>
+    /// One above the highest existing endnote id in <paramref name="main"/>'s
+    /// <see cref="EndnotesPart"/>, or 1 if the part does not exist yet — independent of whatever
+    /// footnote ids exist, per <see cref="NextFootnoteId"/>'s own doc comment.
+    /// </summary>
+    private static int NextEndnoteId(MainDocumentPart main)
+    {
+        if (main.EndnotesPart?.Endnotes is not { } endnotes) return 1;
+
+        var highest = endnotes.Elements<Endnote>()
+            .Select(e => e.Id?.Value)
+            .Where(id => id.HasValue)
+            .Select(id => (int)id!.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return highest + 1;
+    }
+
+    /// <summary>
+    /// Appends one endnote entry to <paramref name="main"/>'s <see cref="EndnotesPart"/>, creating
+    /// the part on first use — see <see cref="AddFootnoteEntry"/> for why no separator boilerplate
+    /// is written.
+    /// </summary>
+    private static void AddEndnoteEntry(MainDocumentPart main, int id, string endnoteText)
+    {
+        var endnotesPart = main.EndnotesPart ?? main.AddNewPart<EndnotesPart>();
+        endnotesPart.Endnotes ??= new Endnotes();
+
+        endnotesPart.Endnotes.AppendChild(new Endnote(
+            new Paragraph(
+                new ParagraphProperties(new ParagraphStyleId { Val = "EndnoteText" }),
+                new Run(
+                    new RunProperties(new RunStyle { Val = "EndnoteReference" }),
+                    new EndnoteReferenceMark()),
+                new Run(new Text(endnoteText) { Space = SpaceProcessingModeValues.Preserve })))
+        { Id = id });
+
+        endnotesPart.Endnotes.Save();
+    }
+
     /// <summary>Reads a .docx from <paramref name="path"/> and returns its body text.</summary>
     /// <param name="path">The .docx to read.</param>
     /// <param name="ct">Cancels the read.</param>
