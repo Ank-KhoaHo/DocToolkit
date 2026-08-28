@@ -286,4 +286,151 @@ public class DocxEditorFootnoteEndnoteTocTests
         Assert.Equal(DocxEditor.ExtractText(expected), DocxEditor.ExtractText(actual));
         AssertValid(actual);
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A71: AddTableOfContents
+    // -----------------------------------------------------------------------------------------
+
+    private static byte[] BuildDocumentWithHeadingsAndTocPlaceholder()
+    {
+        using var word = OfficeIMO.Word.WordDocument.Create();
+        word.AddParagraph("{{toc}}");
+        word.AddParagraph("Overview").Style = OfficeIMO.Word.WordParagraphStyles.Heading1;
+        word.AddParagraph("Some intro text.");
+        word.AddParagraph("Details").Style = OfficeIMO.Word.WordParagraphStyles.Heading2;
+        word.AddParagraph("Some detail text.");
+
+        using var ms = new MemoryStream();
+        word.Save(ms);
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void AddTableOfContents_ReplacesThePlaceholderParagraphWithADirtyToc()
+    {
+        var docx = BuildDocumentWithHeadingsAndTocPlaceholder();
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        using var ms = new MemoryStream(withToc);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var body = doc.MainDocumentPart!.Document!.Body!;
+
+        // The placeholder is gone; the TOC's own field is present and marked dirty, matching the
+        // exact mechanism this ticket's design measured: w:dirty is what keeps Word (and any
+        // consumer honouring it) from trusting the cached "No table of contents entries found."
+        Assert.DoesNotContain("{{toc}}", DocxEditor.ExtractText(withToc));
+
+        var field = body.Descendants<SimpleField>().Single();
+        Assert.True(field.Dirty?.Value);
+
+        var updateFields = doc.MainDocumentPart.DocumentSettingsPart!.Settings!
+            .Elements<UpdateFieldsOnOpen>().SingleOrDefault();
+        Assert.NotNull(updateFields);
+        Assert.True(updateFields!.Val?.Value);
+
+        AssertValid(withToc);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RendersRealHeadingsWhenConvertedToPdf()
+    {
+        // The measurement this whole task is built on, pinned rather than only observed once:
+        // DocToolkit's OWN DocxToPdfConverter recomputes the field live, so the rendered PDF shows
+        // real heading text and page numbers, not the field's own cached placeholder string.
+        var docx = BuildDocumentWithHeadingsAndTocPlaceholder();
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+        var pdf = DocxToPdfConverter.Convert(withToc);
+        var pageText = string.Join("\n", PdfEditor.ExtractText(pdf));
+
+        Assert.DoesNotContain("No table of contents entries found.", pageText);
+        Assert.Contains("Overview", pageText);
+        Assert.Contains("Details", pageText);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RespectsMinAndMaxLevel()
+    {
+        using var word = OfficeIMO.Word.WordDocument.Create();
+        word.AddParagraph("{{toc}}");
+        word.AddParagraph("Top").Style = OfficeIMO.Word.WordParagraphStyles.Heading1;
+        word.AddParagraph("Deep").Style = OfficeIMO.Word.WordParagraphStyles.Heading3;
+        using var ms = new MemoryStream();
+        word.Save(ms);
+        var docx = ms.ToArray();
+
+        var withToc = DocxEditor.AddTableOfContents(docx, "{{toc}}", minLevel: 1, maxLevel: 1);
+
+        using var check = new MemoryStream(withToc);
+        using var doc = WordprocessingDocument.Open(check, false);
+        var instr = doc.MainDocumentPart!.Document!.Body!.Descendants<SimpleField>().Single()
+            .Instruction!.Value!;
+        Assert.Contains("\"1-1\"", instr);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RejectsAnOutOfRangeLevel()
+    {
+        var docx = BuildDocumentWithHeadingsAndTocPlaceholder();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}", minLevel: 0, maxLevel: 3));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}", minLevel: 1, maxLevel: 10));
+        Assert.Throws<ArgumentException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}", minLevel: 3, maxLevel: 1));
+    }
+
+    [Fact]
+    public void AddTableOfContents_ThrowsWhenThePlaceholderIsAbsent()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("nothing here")));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+
+        Assert.Contains("{{toc}}", ex.Message);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RefusesAPlaceholderParagraphWithOtherContent()
+    {
+        // Refuses rather than silently discarding the paragraph's other content -- replacing a
+        // whole paragraph has no way to preserve a neighbour the way an inline splice can.
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("Table of contents: {{toc}}")));
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+
+        Assert.Contains("{{toc}}", ex.Message);
+        Assert.Contains("other text", ex.Message);
+    }
+
+    [Fact]
+    public void AddTableOfContents_RejectsNullArguments()
+    {
+        var docx = BuildDocumentWithHeadingsAndTocPlaceholder();
+
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.AddTableOfContents(null!, "{{toc}}"));
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.AddTableOfContents(docx, null!));
+    }
+
+    [Fact]
+    public async Task AddTableOfContentsAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var docx = BuildDocumentWithHeadingsAndTocPlaceholder();
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, docx);
+
+        await DocxEditor.AddTableOfContentsAsync(input.Path, output.Path, "{{toc}}");
+
+        var expectedText = DocxEditor.ExtractText(DocxEditor.AddTableOfContents(docx, "{{toc}}"));
+        var actual = await File.ReadAllBytesAsync(output.Path);
+
+        Assert.Equal(expectedText, DocxEditor.ExtractText(actual));
+        AssertValid(actual);
+    }
 }

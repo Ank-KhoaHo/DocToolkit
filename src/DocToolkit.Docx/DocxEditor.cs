@@ -1820,6 +1820,324 @@ public static class DocxEditor
         endnotesPart.Endnotes.Save();
     }
 
+    /// <summary>
+    /// Replaces the paragraph containing only <paramref name="placeholder"/> with a table of
+    /// contents spanning heading levels <paramref name="minLevel"/> through
+    /// <paramref name="maxLevel"/>.
+    /// </summary>
+    /// <param name="docx">The .docx to edit. It is not modified.</param>
+    /// <param name="placeholder">
+    /// The literal placeholder text, braces included. Must be the <b>entire</b> text of the
+    /// paragraph it appears in — see the remarks.
+    /// </param>
+    /// <param name="minLevel">The shallowest heading level to include. 1-9.</param>
+    /// <param name="maxLevel">The deepest heading level to include. 1-9, and at least <paramref name="minLevel"/>.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>The placeholder paragraph must contain nothing else.</b> A footnote or an image can be
+    /// spliced inline, preserving whatever text shares its run — a table of contents cannot: its
+    /// content is whole paragraphs, and replacing a paragraph has no way to keep a neighbour's
+    /// text. A placeholder paragraph carrying anything besides the placeholder is refused rather
+    /// than silently trimmed.
+    /// </para>
+    /// <para>
+    /// <b>The field is written dirty on purpose, not populated with real heading text.</b> Measured
+    /// against the pinned <c>OfficeIMO.Word</c> 3.2.6: the field this produces carries
+    /// <c>w:dirty="true"</c>, and the document gains <c>w:updateFields="true"</c> in its settings —
+    /// both regardless of anything else. Word recomputes a dirty field before display, and this
+    /// library's own <c>DocxToPdfConverter</c> recomputes it live rather than trusting the
+    /// cache — so a caller sees the real table of contents either way, even though the file itself
+    /// never contains one as plain, pre-rendered text.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, <paramref name="placeholder"/> is blank, or the paragraph
+    /// containing it also holds other text.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
+    /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or no paragraph containing only the placeholder was found.
+    /// </exception>
+    public static byte[] AddTableOfContents(
+        byte[] docx, string placeholder, int minLevel = 1, int maxLevel = 3)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+        ValidateTocLevels(minLevel, maxLevel);
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        AddTableOfContentsCore(ms, placeholder, minLevel, maxLevel);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, replaces the paragraph containing only
+    /// <paramref name="placeholder"/> with a table of contents, and writes the result to
+    /// <paramref name="destination"/> — see
+    /// <see cref="AddTableOfContents(byte[], string, int, int)"/> for exactly what is matched.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="minLevel">The shallowest heading level to include. 1-9.</param>
+    /// <param name="maxLevel">The deepest heading level to include. 1-9, and at least <paramref name="minLevel"/>.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, <paramref name="placeholder"/> is blank, or the paragraph containing it
+    /// also holds other text.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
+    /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or no matching paragraph was found.
+    /// </exception>
+    public static async Task AddTableOfContentsAsync(
+        Stream source, string placeholder, Stream destination,
+        int minLevel = 1, int maxLevel = 3, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(placeholder);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        if (string.IsNullOrWhiteSpace(placeholder))
+            throw new ArgumentException("Placeholder was blank.", nameof(placeholder));
+        ValidateTocLevels(minLevel, maxLevel);
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to add a table of contents to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        AddTableOfContentsCore(buffer, placeholder, minLevel, maxLevel);
+
+        await StreamPipeline
+            .EmitAsync(buffer, destination, "Failed to add a table of contents to the DOCX package. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="inputPath"/>, replaces the paragraph containing only
+    /// <paramref name="placeholder"/> with a table of contents, and writes the result to
+    /// <paramref name="outputPath"/> — see
+    /// <see cref="AddTableOfContents(byte[], string, int, int)"/> for exactly what is matched. The
+    /// two paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The .docx to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="placeholder">The literal placeholder text, braces included.</param>
+    /// <param name="minLevel">The shallowest heading level to include. 1-9.</param>
+    /// <param name="maxLevel">The deepest heading level to include. 1-9, and at least <paramref name="minLevel"/>.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or <paramref name="placeholder"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path is blank, the file at <paramref name="inputPath"/> is empty, <paramref name="placeholder"/>
+    /// is blank, or the paragraph containing it also holds other text.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9, or
+    /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be edited, or no matching paragraph was found.
+    /// </exception>
+    public static async Task AddTableOfContentsAsync(
+        string inputPath, string outputPath, string placeholder,
+        int minLevel = 1, int maxLevel = 3, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+        ArgumentNullException.ThrowIfNull(placeholder);
+        ValidateTocLevels(minLevel, maxLevel);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddTableOfContents(bytes, placeholder, minLevel, maxLevel);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    private static void ValidateTocLevels(int minLevel, int maxLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(minLevel, 1, nameof(minLevel));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(minLevel, 9, nameof(minLevel));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxLevel, 1, nameof(maxLevel));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxLevel, 9, nameof(maxLevel));
+        if (minLevel > maxLevel)
+        {
+            throw new ArgumentException(
+                $"minLevel ({minLevel}) must not be greater than maxLevel ({maxLevel}).",
+                nameof(minLevel));
+        }
+    }
+
+    /// <summary>The one real implementation; every overload calls it so they cannot drift apart.</summary>
+    private static void AddTableOfContentsCore(
+        MemoryStream ms, string placeholder, int minLevel, int maxLevel)
+    {
+        try
+        {
+            var (fragment, settingsOrder) = BuildTableOfContentsFragment(minLevel, maxLevel);
+
+            using (var doc = WordprocessingDocument.Open(ms, true))
+            {
+                var main = doc.MainDocumentPart
+                           ?? throw new DocumentConversionException("Document has no main part. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+                var body = main.Document?.Body
+                           ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
+                           + "example it was renamed from another format) or the upload is corrupt.");
+
+                Paragraph? target = null;
+                Paragraph? partialMatch = null;
+
+                foreach (var paragraph in body.Descendants<Paragraph>())
+                {
+                    var ownText = OwnParagraphText(paragraph);
+                    if (ownText == placeholder) { target = paragraph; break; }
+                    if (partialMatch is null && ownText.Contains(placeholder, StringComparison.Ordinal))
+                        partialMatch = paragraph;
+                }
+
+                if (target is null)
+                {
+                    if (partialMatch is not null)
+                    {
+                        throw new DocumentConversionException(
+                            $"A paragraph containing '{placeholder}' was found, but it also holds other text "
+                            + $"('{OwnParagraphText(partialMatch)}'). AddTableOfContents needs the placeholder "
+                            + "to be the paragraph's entire content, since inserting a table of contents "
+                            + "replaces the whole paragraph and cannot preserve neighbouring text the way an "
+                            + "inline splice can.");
+                    }
+
+                    throw new DocumentConversionException(
+                        $"No paragraph containing only '{placeholder}' was found, so there was nothing to "
+                        + "replace with a table of contents. Check the placeholder text, braces included, "
+                        + "matches the document exactly and has nothing else in its paragraph.");
+                }
+
+                target.InsertBeforeSelf((SdtBlock)fragment.CloneNode(true));
+                target.Remove();
+
+                main.Document!.Save();
+
+                EnsureFieldsUpdateOnOpen(main, settingsOrder);
+            }
+
+            ms.Position = 0;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException and not ArgumentException)
+        {
+            throw new DocumentConversionException("Failed to add a table of contents to the DOCX package. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// The text a paragraph owns itself, excluding anything nested inside it via a text box —
+    /// same scoping <see cref="InsertFootnoteReferencesIn"/> and <see cref="ReplaceInParagraph"/>
+    /// already use for the identical reason.
+    /// </summary>
+    private static string OwnParagraphText(Paragraph paragraph) => string.Concat(
+        paragraph.Descendants<Text>()
+                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                 .Select(t => t.Text));
+
+    /// <summary>
+    /// Builds a correctly-shaped table-of-contents <c>w:sdt</c> fragment via a throwaway
+    /// <c>OfficeIMO.Word</c> document — the only place this class uses that library's own
+    /// load/save cycle rather than raw <c>DocumentFormat.OpenXml</c>, because reproducing the
+    /// field's exact instruction text, styling, and dirty-flag shape by hand would be a second,
+    /// unverified copy of what <c>WordDocument.AddTableOfContent</c> already gets right. The
+    /// fragment is cloned out before the throwaway document is disposed and never touches the
+    /// caller's real document directly.
+    /// </summary>
+    /// <returns>
+    /// The cloned <c>w:sdt</c> fragment, alongside the child-element order the same throwaway
+    /// document's own <c>w:settings</c> came out in — see <see cref="EnsureFieldsUpdateOnOpen"/>
+    /// for why that second piece is captured here rather than guessed at the call site.
+    /// </returns>
+    private static (SdtBlock Fragment, List<Type> SettingsOrder) BuildTableOfContentsFragment(int minLevel, int maxLevel)
+    {
+        using var word = OfficeIMOWordWordDocument.Create();
+        word.AddTableOfContent(OfficeIMO.Word.WordTableOfContentsStyle.Template1, minLevel, maxLevel);
+
+        using var fragmentStream = new MemoryStream();
+        word.Save(fragmentStream);
+        fragmentStream.Position = 0;
+
+        using var packaged = WordprocessingDocument.Open(fragmentStream, false);
+        var sdt = packaged.MainDocumentPart!.Document!.Body!.Descendants<SdtBlock>().Single();
+
+        var settingsOrder = packaged.MainDocumentPart!.DocumentSettingsPart?.Settings?
+            .ChildElements.Select(e => e.GetType()).ToList() ?? new List<Type>();
+
+        return ((SdtBlock)sdt.CloneNode(true), settingsOrder);
+    }
+
+    /// <summary>
+    /// Marks the document dirty for a field refresh on open, matching what
+    /// <c>OfficeIMO.Word</c> itself writes into <em>its own</em> <c>w:settings</c> the moment a
+    /// table of contents is added — <c>WordDocument.AddTableOfContent</c> sets it unconditionally,
+    /// so <see cref="AddTableOfContentsCore"/> does too, rather than leaving Word to trust a field
+    /// this method knows is stale.
+    /// </summary>
+    /// <remarks>
+    /// <c>w:updateFields</c> sits in a fixed position within <c>CT_Settings</c>' schema sequence —
+    /// the same order-matters trap this file already tracks for <c>w:sectPr</c> — so it cannot
+    /// simply be appended or prepended into whatever settings a caller's real document already
+    /// carries; <c>OpenXmlValidator</c> rejects both, measured directly. <paramref
+    /// name="referenceOrder"/> is the order the element actually comes out in from
+    /// <c>OfficeIMO.Word</c>'s own output — the same shape <see cref="BuildTableOfContentsFragment"/>
+    /// already trusts for the fragment itself — so the correct slot is read off that real output
+    /// instead of a hand-typed copy of the ECMA-376 sequence, which is exactly the kind of
+    /// hand-maintained list this codebase avoids where a derivation is available.
+    /// </remarks>
+    private static void EnsureFieldsUpdateOnOpen(MainDocumentPart main, List<Type> referenceOrder)
+    {
+        var settingsPart = main.DocumentSettingsPart ?? main.AddNewPart<DocumentSettingsPart>();
+        settingsPart.Settings ??= new Settings();
+
+        var existing = settingsPart.Settings.Elements<UpdateFieldsOnOpen>().FirstOrDefault();
+        if (existing is not null)
+        {
+            existing.Val = true;
+            settingsPart.Settings.Save();
+            return;
+        }
+
+        var updateFieldsIndex = referenceOrder.IndexOf(typeof(UpdateFieldsOnOpen));
+        var laterTypes = updateFieldsIndex < 0
+            ? new HashSet<Type>()
+            : referenceOrder.Skip(updateFieldsIndex + 1).Distinct().ToHashSet();
+
+        var anchor = settingsPart.Settings.ChildElements.FirstOrDefault(e => laterTypes.Contains(e.GetType()));
+        var newElement = new UpdateFieldsOnOpen { Val = true };
+        if (anchor is not null) anchor.InsertBeforeSelf(newElement);
+        else settingsPart.Settings.AppendChild(newElement);
+
+        settingsPart.Settings.Save();
+    }
+
     /// <summary>Reads a .docx from <paramref name="path"/> and returns its body text.</summary>
     /// <param name="path">The .docx to read.</param>
     /// <param name="ct">Cancels the read.</param>
