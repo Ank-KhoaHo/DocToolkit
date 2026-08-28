@@ -245,15 +245,17 @@ public class MarkdownEditorTests
     [Fact]
     public void ReadTable_ReturnsRowsTheCallerCannotMutate()
     {
-        // The parser's own header row is a List<string>; each data row is a string[]. Returning
-        // either straight back behind an IReadOnlyList<string> would let a caller cast the
-        // reference and edit the parsed document — not what read-only means — and would diverge
-        // from DocxEditor.ReadTableCore, which builds a fresh list per row.
+        // Measured against the pinned OfficeIMO.Markdown 3.2.6: the parser's own header row is a
+        // List<string>, and each data row is a string[]. Returning either straight back behind an
+        // IReadOnlyList<string> would let a caller cast the reference and edit the parsed document
+        // — not what read-only means — and would diverge from DocxEditor.ReadTableCore, which
+        // builds a fresh list per row.
         //
         // Both source shapes are checked by their OWN real mutation vector, not the same one for
-        // both: a List<string> cast back rejects on .Add (a fixed-size array already does too, so
-        // that alone would pass for an unwrapped array and prove nothing for it); an array cast
-        // back accepts an indexer write silently. The genuine read-only wrapper must refuse both.
+        // both: an unwrapped List<string> would ACCEPT .Add (proving the wrapper), while a
+        // fixed-size array already rejects .Add regardless of wrapping — so .Add alone would pass
+        // for an unwrapped array and prove nothing for it; only the indexer write does, since an
+        // unwrapped array accepts that silently. The genuine read-only wrapper must refuse both.
         var rows = MarkdownEditor.ReadTable(TwoTableMarkdown, 0);
 
         foreach (var row in rows)

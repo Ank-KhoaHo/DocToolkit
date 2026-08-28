@@ -28,9 +28,9 @@ namespace DocToolkit;
 /// <para>
 /// <b>No dependency-injection mirror yet, deliberately deferred rather than argued by analogy.</b>
 /// <c>DocToolkit.Extensions.DependencyInjection</c> references the <b>published</b> core package
-/// (see that project's own notes), so an interface can only wrap a method that has already
-/// shipped — <c>IMarkdownEditor</c> cannot exist before this class does. That is a scheduling
-/// constraint, not a design decision to leave it unmirrored.
+/// (see that project's own notes), so the service delegating to this class — the mirror itself —
+/// cannot be implemented before this class has shipped. That is a scheduling constraint, not a
+/// design decision to leave it unmirrored.
 /// </para>
 /// </remarks>
 public static class MarkdownEditor
