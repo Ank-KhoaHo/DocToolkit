@@ -132,13 +132,32 @@ public static class MarkdownEditor
     /// </param>
     /// <param name="comparison">How <paramref name="headingText"/> is compared. Case-insensitive by default.</param>
     /// <remarks>
+    /// <para>
     /// A section runs from immediately after the target heading's own line to the start of the
     /// next heading at the <b>same or a shallower level</b> (a level-2 target's section can only be
     /// closed by another level-1 or level-2 heading, never by a level-3 one), or to the end of the
     /// document if there is no such heading.
+    /// </para>
+    /// <para>
+    /// <b>Line endings in the returned document are normalised to <c>\n</c></b>, whatever
+    /// <paramref name="markdown"/> used. This is not a stylistic choice: every boundary above is
+    /// an offset that <c>OfficeIMO.Markdown</c> computes against <b>LF-normalised</b> text, so
+    /// splicing those offsets into an original <c>\r\n</c> string would misalign every one of them
+    /// by the number of line breaks preceding it — silently truncating the heading and corrupting
+    /// an unrelated line further down. The input is normalised once, then parsed and spliced as
+    /// one consistent string, which is why the result comes back normalised too.
+    /// </para>
+    /// <para>
+    /// The target must be a <b>top-level</b> heading. A heading nested inside a blockquote or a
+    /// list item is rejected, because the section boundaries are found by walking the document's
+    /// own top-level block list, which a nested heading is not a member of.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
-    /// <exception cref="ArgumentException">No heading matches <paramref name="headingText"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// No heading matches <paramref name="headingText"/>, or the heading it matches is nested
+    /// inside another block rather than being a top-level heading.
+    /// </exception>
     /// <exception cref="DocumentConversionException">The Markdown could not be parsed.</exception>
     public static string ReplaceSection(
         string markdown, string headingText, string newContent,
@@ -148,7 +167,17 @@ public static class MarkdownEditor
         ArgumentNullException.ThrowIfNull(headingText);
         ArgumentNullException.ThrowIfNull(newContent);
 
-        var doc = ParseOrThrow(markdown);
+        // Normalise ONCE, up front, and then parse and splice against this same string
+        // throughout. See the <remarks> above for why: SourceSpan offsets are measured against
+        // LF-normalised text, so `markdown` and the offsets taken from it are two different
+        // coordinate systems the moment the input carries a single \r\n.
+        //
+        // This is deliberately local to ReplaceSection. ReadFrontMatter, FindHeading, TableCount
+        // and ReadTable read parsed structure and never touch a raw offset, so they are unaffected
+        // and must keep returning what the reader gives them.
+        var normalized = markdown.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        var doc = ParseOrThrow(normalized);
         var found = doc.FindHeading(headingText, comparison);
         if (found is null)
         {
@@ -159,17 +188,37 @@ public static class MarkdownEditor
         var headingBlock = found.Block;
         var level = found.Level;
 
+        // FindHeading matches ANY heading in the document, including one nested inside a
+        // blockquote or a list item. The boundary walk below indexes the document's own top-level
+        // block list using this heading's IndexInParent — which, for a nested heading, counts
+        // within its QuoteBlock or ListItem instead, so it indexes an unrelated list and the
+        // result is either a duplicated document tail or a silent no-op. Neither raises.
+        //
+        // Measured against OfficeIMO.Markdown 3.2.6 rather than assumed: a top-level heading's
+        // Parent IS this MarkdownDoc by reference, while `> ## Deep` reports a QuoteBlock and
+        // `- # Nested` a ListItem. Reference equality therefore separates the two exactly, and is
+        // preferred over re-deriving the position from IndexInParent/ChildObjects because it asks
+        // the tree the question directly instead of inferring the answer from an index.
+        if (!ReferenceEquals(headingBlock.Parent, doc))
+        {
+            throw new ArgumentException(
+                $"The heading '{headingText}' is nested inside another block (for example a " +
+                "blockquote or list item). ReplaceSection only supports top-level headings, because " +
+                "its section boundaries are computed by walking the document's own top-level block " +
+                "list.", nameof(headingText));
+        }
+
         // The body starts where the very next block starts, which cleanly includes any blank
         // line between the heading and its content. A heading with nothing after it at all (no
         // NextSibling) has an empty body sitting at the end of the document — falling back to
         // the heading's own SourceSpan.EndOffset + 1 here is measured to be off by one and drops
         // the heading line's trailing newline.
-        var bodyStart = headingBlock.NextSibling?.SourceSpan?.StartOffset ?? markdown.Length;
+        var bodyStart = headingBlock.NextSibling?.SourceSpan?.StartOffset ?? normalized.Length;
 
         // The section ends at the next heading of the SAME OR SHALLOWER level, found by walking
         // the document's flat top-level block list from just after this heading. Absent such a
         // heading, the section runs to the end of the document.
-        var sectionEnd = markdown.Length;
+        var sectionEnd = normalized.Length;
         var siblings = doc.ChildObjects;
         var startIndex = (headingBlock.IndexInParent ?? -1) + 1;
         for (var i = startIndex; i < siblings.Count; i++)
@@ -181,12 +230,12 @@ public static class MarkdownEditor
             // wins over one brought in by `using` — silently, with no ambiguity warning.
             if (siblings[i] is OfficeIMO.Markdown.HeadingBlock sibling && sibling.Level <= level)
             {
-                sectionEnd = sibling.SourceSpan?.StartOffset ?? markdown.Length;
+                sectionEnd = sibling.SourceSpan?.StartOffset ?? normalized.Length;
                 break;
             }
         }
 
-        return markdown.Substring(0, bodyStart) + newContent + markdown.Substring(sectionEnd);
+        return normalized.Substring(0, bodyStart) + newContent + normalized.Substring(sectionEnd);
     }
 
     /// <summary>

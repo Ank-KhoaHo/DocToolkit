@@ -77,6 +77,7 @@ EDITOR_FORMAT = {
     "WorkbookEditor": "XLSX",
     "PresentationEditor": "PPTX",
     "PdfEditor": "PDF",
+    "MarkdownEditor": "Markdown",
 }
 
 # Async and file-path forms are the same capability wearing a different signature;

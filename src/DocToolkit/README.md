@@ -97,6 +97,15 @@ byte[] fromMarkdown = MarkdownToDocxConverter.Convert(markdown);
 // offline guarantee above unchanged because it performs no conversion of its own.
 byte[] markdownPdf = MarkdownToPdfConverter.Convert(markdown);
 
+// Read and edit an existing Markdown document directly — front matter, headings and tables,
+// or update one section's content in place — without converting to another format first.
+IReadOnlyDictionary<string, object> meta = MarkdownEditor.ReadFrontMatter(markdown);
+
+MarkdownHeading? changed = MarkdownEditor.FindHeading(markdown, "Changed");
+
+string updatedDoc = MarkdownEditor.ReplaceSection(
+    markdown, "Changed", "\n- fixed a bug\n- fixed another\n\n");
+
 // Legacy Word 97-2003 binary .doc -> DOCX, for the files sitting on an old share drive.
 // Reading is unconditional; converting REFUSES by default when the .doc holds pictures,
 // drawings or form fields, because a .docx cannot carry them and a silently incomplete
