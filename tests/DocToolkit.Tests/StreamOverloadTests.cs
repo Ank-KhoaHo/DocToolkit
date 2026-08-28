@@ -202,6 +202,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
@@ -261,6 +262,7 @@ public class StreamOverloadTests
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
@@ -335,6 +337,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
@@ -1181,6 +1184,9 @@ public class StreamOverloadTests
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>
                 PresentationEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
+            "PresentationEditor.InsertSlidesAsync" =>
+                PresentationEditor.InsertSlidesAsync(
+                    source!, 1, new[] { PptxSlide.Titled("New") }, destination!, ct),
             "PresentationEditor.ReorderSlidesAsync" =>
                 PresentationEditor.ReorderSlidesAsync(source!, new[] { 2, 1 }, destination!, ct),
             "PresentationEditor.RemoveSlidesAsync" =>

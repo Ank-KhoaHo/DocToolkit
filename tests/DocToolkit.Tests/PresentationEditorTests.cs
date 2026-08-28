@@ -759,4 +759,158 @@ public class PresentationEditorTests
         var text = await PresentationEditor.ExtractTextAsync(output.Path);
         Assert.Equal(new[] { "Slide 2", "Slide 1" }, text);
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: InsertSlides — new content via PptxSlide, matching PdfEditor.InsertPages' atIndex
+    // convention (SlideCount + 1 appends).
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InsertSlides_AtOne_PutsTheNewSlidesInFront()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(deck, 1, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(3, PresentationEditor.SlideCount(edited));
+        Assert.Contains("New", PresentationEditor.ReadSlide(edited, 1)[0]);
+    }
+
+    [Fact]
+    public void InsertSlides_AtSlideCountPlusOne_Appends()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(deck, 3, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(3, PresentationEditor.SlideCount(edited));
+        Assert.Contains("New", PresentationEditor.ReadSlide(edited, 3)[0]);
+    }
+
+    [Fact]
+    public void InsertSlides_InTheMiddle_PreservesTheSurroundingOrder()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(deck, 2, new[] { PptxSlide.Titled("New") });
+
+        var titles = new[] { 1, 2, 3, 4 }.Select(i => PresentationEditor.ReadSlide(edited, i)[0]);
+        Assert.Equal(new[] { "Slide 1", "New", "Slide 2", "Slide 3" }, titles);
+    }
+
+    [Fact]
+    public void InsertSlides_AttachesToTheLayoutOfTheSlideBeforeTheInsertionPoint()
+    {
+        var deck = PptxFixtures.MultiLayoutDeck("First", "Second");
+
+        var edited = PresentationEditor.InsertSlides(deck, 2, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "New"));
+
+        Assert.Equal(
+            "Title Slide",
+            insertedSlide.SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+    }
+
+    [Fact]
+    public void InsertSlides_AfterTheSecondSlide_AttachesToTheSecondSlidesLayoutNotTheFirst()
+    {
+        // The discriminating case: insert AFTER "Second" (layout B), so the new slide must
+        // attach to layout B, not the deck's first layout (layout A) - proving the rule is
+        // genuinely "the adjacent slide", not "always slide one".
+        var deck = PptxFixtures.MultiLayoutDeck("First", "Second");
+
+        var edited = PresentationEditor.InsertSlides(deck, 3, new[] { PptxSlide.Titled("New") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "New"));
+
+        Assert.Equal(
+            "Second Layout",
+            insertedSlide.SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
+    }
+
+    [Fact]
+    public void InsertSlides_IntoAnEmptyDeck_UsesTheFirstMastersFirstLayout()
+    {
+        var empty = PresentationEditor.Create(Array.Empty<PptxSlide>());
+
+        var edited = PresentationEditor.InsertSlides(empty, 1, new[] { PptxSlide.Titled("New") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        Assert.Equal(1, PresentationEditor.SlideCount(edited));
+        Assert.Contains("New", PresentationEditor.ReadSlide(edited, 1)[0]);
+    }
+
+    [Fact]
+    public void InsertSlides_ABatch_KeepsThemInTheOrderGiven()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1" }, reverseDeckOrder: false);
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 1, new[] { PptxSlide.Titled("A"), PptxSlide.Titled("B") });
+
+        var titles = new[] { 1, 2, 3 }.Select(i => PresentationEditor.ReadSlide(edited, i)[0]);
+        Assert.Equal(new[] { "A", "B", "Slide 1" }, titles);
+    }
+
+    [Fact]
+    public void InsertSlides_RejectsAnIndexPastTheAppendPosition()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.InsertSlides(deck, 3, new[] { PptxSlide.Titled("New") }));
+    }
+
+    [Fact]
+    public void InsertSlides_RejectsAnIndexBelowOne()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(new[] { "Slide 1" }, reverseDeckOrder: false);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.InsertSlides(deck, 0, new[] { PptxSlide.Titled("New") }));
+    }
+
+    [Fact]
+    public void InsertSlides_SlideIdsStayUniqueEvenWhenExistingIdsAreNotContiguous()
+    {
+        // Simulates a deck that has already had a slide removed and re-added: existing ids are
+        // not a tidy 256, 257, 258, ... run. The new slide's id must still not collide.
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+        deck = PresentationEditor.RemoveSlides(deck, new[] { 2 });
+        deck = PresentationEditor.InsertSlides(deck, 2, new[] { PptxSlide.Titled("Replacement") });
+
+        Assert.Empty(PptxFixtures.Validate(deck));
+        Assert.Equal(3, PresentationEditor.SlideCount(deck));
+    }
+
+    [Fact]
+    public async Task InsertSlidesAsync_FromFileToFile_InsertsAtTheGivenPosition()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        await PresentationEditor.InsertSlidesAsync(
+            input.Path, output.Path, 2, new[] { PptxSlide.Titled("New") });
+
+        var titles = await PresentationEditor.ExtractTextAsync(output.Path);
+        Assert.Equal(new[] { "Slide 1", "New", "Slide 2" }, titles);
+    }
 }

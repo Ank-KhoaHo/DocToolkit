@@ -35,7 +35,10 @@ internal static class PptxDocumentWriter
     // duplicate wp:docPr/@id - PowerPoint declares the file corrupt.
     private const uint FirstMasterId = 2147483648;
     private const uint FirstLayoutId = 2147483649;
-    private const uint FirstSlideId = 256;
+    // internal: PresentationEditor.InsertSlidesCore needs this to compute a fresh slide id for an
+    // EMPTY deck (no existing slide to take max(id)+1 from) — the same schema-range reasoning
+    // documented above still applies, this is not a new constraint.
+    internal const uint FirstSlideId = 256;
 
     // The title and body boxes, shared by the layout's placeholders and every slide's. They must
     // agree: a slide placeholder inherits geometry from the layout placeholder with the same
@@ -323,7 +326,10 @@ internal static class PptxDocumentWriter
     /// Both are placed with explicit EMU boxes because a slide has no flow layout - every shape
     /// carries its own position and size, unlike a paragraph in a document.
     /// </summary>
-    private static P.Slide BuildSlide(PptxSlide slide)
+    // internal: PresentationEditor.InsertSlidesCore reuses this to build content for a slide
+    // inserted into an EXISTING deck, so Create and InsertSlides can never disagree about what a
+    // PptxSlide becomes.
+    internal static P.Slide BuildSlide(PptxSlide slide)
     {
         var tree = new P.ShapeTree(
             new P.NonVisualGroupShapeProperties(
