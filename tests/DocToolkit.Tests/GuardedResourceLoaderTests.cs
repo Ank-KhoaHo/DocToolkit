@@ -189,6 +189,95 @@ public class GuardedResourceLoaderTests
             "still be blocked before a socket opens - this is the DNS-rebinding hole otherwise.");
     }
 
+    /// <summary>
+    /// Found on 2026-08-28, while re-measuring B30's own fix (see CLAUDE.md and B28): the static
+    /// <c>Client</c>'s <c>AllowAutoRedirect = false</c> had no test at all - a false-kill bug had
+    /// been crediting the mutation that flips it to `true` as caught, when nothing was really
+    /// exercising it. Confirmed by hand first: applying that exact mutation and running the whole
+    /// suite normally (not under Stryker) left all 1817+159 tests green on both target frameworks.
+    ///
+    /// The class's own comment on the field names the reason this matters: "each hop would need
+    /// re-validating; an unvalidated hop is the standard way past the address check below". A
+    /// server this loader is permitted to reach (say, an allowlisted host resolving to a public
+    /// address) could redirect to one it is not - a private address, or a host outside the
+    /// allowlist - and if the client followed automatically, the address check above would only
+    /// ever have seen the FIRST hop.
+    /// </summary>
+    [Fact]
+    public async Task FetchAsync_DoesNotFollowARedirect_SoAllowAutoRedirectIsGenuinelyFalse()
+    {
+        using var target = new LoopbackProbe(_output);
+        using var origin = new LoopbackProbe(_output, RedirectResponder($"{target.BaseUrl}/elsewhere.png"));
+
+        var loader = new GuardedResourceLoader(new RemoteImageOptions { AllowPrivateAddresses = true });
+
+        var result = await loader.FetchAsync(new Uri($"{origin.BaseUrl}/x.png"));
+
+        // A 302 is not a success status, and HttpClient only follows one when the handler is
+        // configured to - so an unfollowed redirect surfaces as FetchAsync's own "refused" outcome,
+        // not as a distinct error. If a future change flips AllowAutoRedirect, this becomes a
+        // successful fetch (non-null, and the target sees a connection) instead.
+        Assert.Null(result);
+        await target.AssertSilentAsync(
+            "FetchAsync_DoesNotFollowARedirect_SoAllowAutoRedirectIsGenuinelyFalse (redirect target)");
+    }
+
+    /// <summary>
+    /// Found on 2026-08-28 alongside <c>AllowAutoRedirect</c> (see the test above): the static
+    /// <c>Client</c>'s <c>UseCookies = false</c> had no test either. Confirmed by hand first:
+    /// flipping it to <c>true</c> and running the whole suite normally left every test green on
+    /// both target frameworks.
+    ///
+    /// <c>Client</c> is one instance for the process (see its own comment), so a genuine
+    /// <c>CookieContainer</c> would not merely echo a cookie back to the site that set it - it
+    /// would persist for the life of the process, across every unrelated fetch that happens to
+    /// share a host. Two fetches to the SAME origin are enough to show the difference: the second
+    /// request must not carry whatever the first response tried to set, and <see
+    /// cref="LoopbackProbe.RequestHeaderBlocks"/> is read directly rather than inferred from the
+    /// fetch's own result, so this cannot pass because the loader merely ignored a cookie it was
+    /// handed - it fails only if one was genuinely sent back out.
+    /// </summary>
+    [Fact]
+    public async Task FetchAsync_DoesNotSendBackACookieASiteTriedToSet_SoUseCookiesIsGenuinelyFalse()
+    {
+        using var probe = new LoopbackProbe(_output, SetCookieResponder);
+        var loader = new GuardedResourceLoader(new RemoteImageOptions { AllowPrivateAddresses = true });
+
+        await loader.FetchAsync(new Uri($"{probe.BaseUrl}/first.png"));
+        await loader.FetchAsync(new Uri($"{probe.BaseUrl}/second.png"));
+
+        Assert.Equal(2, probe.Connections);
+        var secondRequestHeaders = probe.RequestHeaderBlocks.Last();
+        Assert.DoesNotContain("Cookie:", secondRequestHeaders, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // =============================================================================================
+    // Client's UseProxy = false is a genuine, real property - NOT equivalent - and is deliberately
+    // untested. Found and left open 2026-08-28, alongside AllowAutoRedirect and UseCookies above.
+    // =============================================================================================
+    //
+    // Unlike AllowAutoRedirect and UseCookies, there is no per-request or per-handler seam to
+    // observe this through: Client's handler never sets .Proxy, so when UseProxy is true the ONLY
+    // thing it consults is the process-wide static HttpClient.DefaultProxy. Testing the mutation
+    // for real means setting that property before a fetch and restoring it after - and Client is
+    // one instance for the whole process (see its own comment), so a stray value left set, or set
+    // while another test runs in parallel, pollutes every other HttpClient in the process for the
+    // window it is set. This suite already has a load-bearing positive control that would be
+    // exactly the kind of test that breaks: MarkdownToDocxConverterTests.
+    // PositiveControl_TheProbeSeesAFetchWhenOneIsGenuinelyMade constructs a plain `new HttpClient()`
+    // (UseProxy true by default, no explicit Proxy) in the SAME assembly and DOES run in parallel
+    // with this class by default under xunit. CLAUDE.md already records ActivityListener biting
+    // this suite twice for the identical reason - a process-wide switch shared across parallel
+    // collections - and it is why TelemetryTests filters by address/port instead of asserting
+    // globally rather than trying to serialise around the sharing.
+    //
+    // A re-implemented handler configured the same way and pointed at a fake proxy would not test
+    // this: it would prove a NEW handler respects UseProxy, not that the shipped static Client does
+    // - the same "passes for the wrong reason" shape CLAUDE.md records for AllowNamespacePrefixes
+    // and the PdfEditor cancellation suite. So this is left as a known, argued gap rather than
+    // forced: real, but not worth destabilising a load-bearing control elsewhere to close by hand.
+    // =============================================================================================
+
     [Fact]
     public async Task FetchAsync_ByteCap_RejectsOneByteOverTheLimit_WithNoContentLengthToConsult()
     {
@@ -409,6 +498,28 @@ public class GuardedResourceLoaderTests
 
         Assert.True(result);
         _output.WriteLine($"Gave up on an unresolvable host in {stopwatch.Elapsed.TotalSeconds:0.00} s.");
+    }
+
+    /// <summary>Writes a <c>302 Found</c> pointing at <paramref name="location"/>, no body.</summary>
+    private static Func<NetworkStream, string, CancellationToken, Task> RedirectResponder(string location) =>
+        async (stream, _, ct) =>
+        {
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(
+                $"HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"),
+                ct);
+            await stream.FlushAsync(ct);
+        };
+
+    /// <summary>Writes a normal image response that also tries to set a cookie.</summary>
+    private static async Task SetCookieResponder(NetworkStream stream, string requestLine, CancellationToken ct)
+    {
+        var body = ImageFixtures.Bmp();
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(
+            "HTTP/1.1 200 OK\r\nContent-Type: image/bmp\r\n" +
+            "Set-Cookie: probe=1; Path=/\r\n" +
+            $"Content-Length: {body.Length}\r\nConnection: close\r\n\r\n"), ct);
+        await stream.WriteAsync(body, ct);
+        await stream.FlushAsync(ct);
     }
 
     /// <summary>

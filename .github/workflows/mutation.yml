@@ -15,14 +15,19 @@ name: Mutation testing
 # static mutant in whichever assembly they happened to be checking. Fixed in
 # tests/DocToolkit.Tests/ApiSurface.cs.
 #
-# THE HONEST FIGURE ON THIS SCOPE, measured 2026-08-28 with the fix in place, is
-# 91.56% (603 killed, 39 survived, 15 timeout, 657 tested) - LOWER than every
-# figure below on the same scope, because the false kills had been hiding real
-# survivors. break: 95 is not expected to clear on account of this alone; that is
-# real, newly-visible work, not a reason to lower the threshold. See CLAUDE.md's
-# *Mutation testing* section and B30's *honest number* section for the full
-# breakdown, including a small pessimistic-direction residual of B30's own fix
-# that should not be mistaken for a code regression on a future red run.
+# WITH B30's FIX ALONE, measured 2026-08-28, this scope scored 91.56% (603
+# killed, 39 survived, 15 timeout, 657 tested) - LOWER than every figure below on
+# the same scope, because the false kills had been hiding real survivors.
+#
+# THAT FIGURE WAS SUPERSEDED THE SAME DAY. B28 closed six of those 39 survivors
+# (real gaps, mutation-verified one at a time) and traced the rest to three
+# already-documented categories plus a handful more instances of this row's own
+# coverage-corruption residual, confirmed by hand rather than assumed. Re-measured
+# full run: 95.85% (634 killed, 27 survived, 13 timeout, 674 tested) - break: 95
+# CLEARS. See CLAUDE.md's *Mutation testing* section and B28/B30's specs for the
+# full breakdown, including why the corruption residual is larger and more
+# variable than an earlier "roughly 18" estimate suggested, and should not be
+# mistaken for a code regression on its own on some future red run.
 #
 # WHY THIS IS NOT A PULL-REQUEST CHECK. Measured 2026-08-08 on the scoped file
 # set: 3m52s locally for 409 mutants, and 11 of them timed out - mutation
@@ -68,7 +73,14 @@ name: Mutation testing
 #
 #   5 equivalent mutants, unkillable by any test. Four in RunTextSplicer and one in
 #     GuardedResourceLoader; the reasoning for each sits beside the code it concerns,
-#     in RunTextSplicerTests and Ipv6TransitionNearMissTests.
+#     in RunTextSplicerTests and Ipv6TransitionNearMissTests. UPDATE 2026-08-28: this count
+#     was already stale by one before this row was written - a fifth RunTextSplicer
+#     equivalent was added 2026-08-12 without this line being updated - and a sixth,
+#     identical in shape, was found and added the same day this note was. The true
+#     count under THIS pre-B30 15-file scope is 7 (6 RunTextSplicer + 1
+#     GuardedResourceLoader), not 5; see CLAUDE.md's *Mutation testing* section and B28
+#     for the full 2026-08-28 pass, which also closed five genuine gaps this scope's
+#     score had been silently missing.
 #   6 exception-message strings - four in ImageInspector, two in XlsxFormat. Killing
 #     them means asserting exact wording, which is brittle for what it buys: the
 #     messages already have their DIAGNOSTIC content asserted where two guards would

@@ -443,11 +443,14 @@ public class RunTextSplicerTests
 
 
     // =============================================================================================
-    // Four survivors in RunTextSplicer are EQUIVALENT MUTANTS. Do not spend another pass on them.
+    // Six survivors in RunTextSplicer are EQUIVALENT MUTANTS. Do not spend another pass on them.
     // =============================================================================================
     //
     // Analysed 2026-08-09 at 95.71% overall. Each was traced by hand rather than assumed, because
-    // "probably equivalent" is how a real gap gets written off:
+    // "probably equivalent" is how a real gap gets written off. (The heading said "Four" until
+    // 2026-08-28, when re-measuring B30's own fix turned up a sixth with the identical shape to the
+    // fifth below - the count had already been five since 2026-08-12 without the heading catching
+    // up, which is the same drift this file elsewhere warns a written-down number always risks.)
     //
     //   L72  `if (match.End <= nodeEnd) matchIndex++` -> `<`
     //        Only DEFERS the increment. On the boundary the node exits immediately (pos has reached
@@ -483,4 +486,10 @@ public class RunTextSplicerTests
     //        production code to raise a mutation score is the wrong direction. But do not try to
     //        kill it again — the attempt fails at compile time with CS8603, which is the type
     //        system correctly refusing to let the test pretend.
+    //
+    //   L132 `replacements[hit] ?? string.Empty` -> a sentinel string
+    //        A SIXTH, found 2026-08-28 while re-measuring B30's own fix. Identical shape to L40:
+    //        `replacements` is `IReadOnlyDictionary<string, string>` - the value type is NOT
+    //        nullable, so the coalesce guards a contract violation the compiler already forbids at
+    //        every real call site. Same conclusion, same reason not to chase it with a test.
 }

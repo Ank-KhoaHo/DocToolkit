@@ -120,6 +120,48 @@ public class XlsxFormatTests
     }
 
     /// <summary>
+    /// Found on 2026-08-28, re-measuring B30's own fix (see CLAUDE.md and B28): a false-kill bug
+    /// had been crediting <c>Report</c>'s <see cref="XlsxFormat.AutoFilter"/> constructor argument
+    /// as covered when nothing exercised it. <see cref="Report_AppliesBoldFrozenAndAutoFit"/>
+    /// deliberately does not check it — that test's own comment says <c>Report</c> is "pinned to
+    /// the three settings it promises", and auto-filter is not one of them. This is the fourth
+    /// setting, pinned the same way as the number-format absence above it: not because it was
+    /// promised, but because a preset accidentally turning a setting ON is exactly the kind of
+    /// regression a mutation gate exists to catch, and nothing else in this file would.
+    /// </summary>
+    [Fact]
+    public void Report_DoesNotEnableAutoFilter()
+    {
+        var formatted = WorkbookEditor.Format(Workbook(), "Data", XlsxFormat.Report);
+
+        Assert.False(Read(formatted, s => s.AutoFilter.IsEnabled));
+    }
+
+    /// <summary>
+    /// The sibling gap to <see cref="Report_DoesNotEnableAutoFilter"/>: <c>None</c>'s own
+    /// <see cref="XlsxFormat.AutoFitColumns"/> constructor argument had the same false kill.
+    /// <see cref="XlsxFormatTests.WithMethodsDoNotMutateTheInstanceTheyAreCalledOn"/> already pins
+    /// <c>None.BoldHeaderRow</c> directly (a defensible exception to this file's own read-the-
+    /// workbook rule, made there to prove immutability rather than behaviour) — this one goes
+    /// through the saved workbook instead, matching <see cref="AutoFitColumns_WidensAColumnToItsContents"/>
+    /// next to it, which starts from <c>None.WithAutoFitColumns()</c> and so cannot see what
+    /// <c>None</c> itself starts at.
+    /// </summary>
+    [Fact]
+    public void None_DoesNotAutoFitColumns()
+    {
+        var wide = WorkbookEditor.Create("Data", new[]
+        {
+            new object?[] { "A rather long header that needs room" },
+        });
+
+        var before = Read(wide, s => s.Column(1).Width);
+        var after = Read(WorkbookEditor.Format(wide, "Data", XlsxFormat.None), s => s.Column(1).Width);
+
+        Assert.Equal(before, after);
+    }
+
+    /// <summary>
     /// The <c>With…</c> methods return new instances. Without this, <see cref="XlsxFormat.None"/>
     /// and <see cref="XlsxFormat.Report"/> — both static, both shared — would accumulate every
     /// caller's settings for the lifetime of the process.
