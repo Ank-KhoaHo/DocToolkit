@@ -2034,7 +2034,6 @@ public static class DocxEditor
                            ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
                            + "example it was renamed from another format) or the upload is corrupt.");
 
-                Paragraph? target = null;
                 var exactMatches = new List<Paragraph>();
                 OpenXmlElement? blocker = null;
                 Paragraph? partialMatch = null;
@@ -2066,7 +2065,7 @@ public static class DocxEditor
                         + "time by renaming the others first.");
                 }
 
-                target = exactMatches.Count == 1 ? exactMatches[0] : null;
+                var target = exactMatches.Count == 1 ? exactMatches[0] : null;
 
                 if (target is null)
                 {

@@ -465,7 +465,7 @@ public class DocxEditorFootnoteEndnoteTocTests
         var ex = Assert.Throws<DocumentConversionException>(
             () => DocxEditor.AddTableOfContents(docx, "{{toc}}"));
 
-        Assert.Contains("2", ex.Message);
+        Assert.Contains("2 paragraphs", ex.Message);
         Assert.Contains("{{toc}}", ex.Message);
     }
 
