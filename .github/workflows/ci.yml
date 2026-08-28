@@ -847,6 +847,26 @@ jobs:
       - name: Assert every shipped await carries ConfigureAwait(false)
         run: python3 scripts/check-configureawait.py
 
+      # B29: the guides pull CODE from compiled samples so a snippet cannot drift from the API -
+      # gen-readme-snippets.py above is the README's version of that - but their hand-copied
+      # OUTPUT blocks had nothing re-running the sample and comparing. It went stale within one
+      # commit: a sample edit changed a printed byte count and the guide kept the old number
+      # until this check was written.
+      #
+      # Runs each referenced sample once (six samples, cached across the guides that share one)
+      # against the PUBLISHED package, same as every other sample in this repo - so this also
+      # only ever proves what a consumer would actually see. Two labels' byte counts are masked
+      # rather than compared: PDF sizes for the reason CLAUDE.md already gives (font-dependent,
+      # not a property of this code), and DOCX sizes because two otherwise-identical outputs
+      # measured a byte apart in the same process - DocumentFormat.OpenXml assigns each document
+      # a fresh random relationship ID, which shifts a compressed ZIP's size independent of
+      # content. The XLSX byte count is NOT masked: five consecutive identical calls produced the
+      # same size five times, and this job runs on one pinned leg (ubuntu-24.04, same as every
+      # other generated-content guard here), so there is no cross-platform question to hedge
+      # against even if ClosedXML behaved the same way OpenXml does.
+      - name: Assert the guides' recorded output matches a live sample run
+        run: python3 scripts/check-guide-output.py --check
+
       - name: Assert the tree matches .editorconfig
         run: |
           if ! dotnet format ${{ env.SOLUTION }} --verify-no-changes; then

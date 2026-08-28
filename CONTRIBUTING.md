@@ -304,7 +304,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | `a clean consumer installs the packed packages` | `ci.yml` | `check-packed-install.py` |
 | `build & test (…)` | `ci.yml` | `check-coverage.py` |
 | `build docs site` | `ci.yml` | `check-doc-snippets.py` |
-| `formatting` | `ci.yml` | `check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-no-private-references.py`<br>`check-package-description.py`<br>`check-readme-conversions.py`<br>`check-readme-coverage.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py` |
+| `formatting` | `ci.yml` | `check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-guide-output.py`<br>`check-no-private-references.py`<br>`check-package-description.py`<br>`check-readme-conversions.py`<br>`check-readme-coverage.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py` |
 | `no native binaries / no banned packages` | `ci.yml` | `gen-third-party-notices.py`<br>`repair-lockfiles.py` |
 | `pack & verify .nupkg (…)` | `ci.yml` | `check-package-contents.py` |
 | `arm auto-merge if eligible` | `dependabot-automerge.yml` | `automerge-eligible.py` |

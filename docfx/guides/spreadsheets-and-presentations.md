@@ -107,7 +107,7 @@ the exporters below still see `1200`, per the note further up.
 [!code-csharp[](../../samples/Spreadsheets/Program.cs#export)]
 
 ```text
-As CSV       : Region,Revenue / EMEA,1200 / APAC,980 / AMER,1450 /
+As CSV       : Region,Revenue / EMEA,1200 / APAC,980 / AMER,1450 / 
 As HTML      : 222 chars, starts "<table>
 ```
 

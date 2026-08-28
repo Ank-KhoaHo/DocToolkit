@@ -87,13 +87,15 @@ part that matters — the timeout and size cap are damage control, not access co
 [!code-csharp[](../../samples/DocxImages/Program.cs#remote-allowlist)]
 
 ```text
-Remote off   : 1,746 bytes (default - image dropped)
-Not on list  : 1,746 bytes (cdn.example.com refused, no request made)
+Remote off   : <varies> bytes (default - image dropped)
+Not on list  : <varies> bytes (cdn.example.com refused, no request made)
 ```
 
-Those two documents are byte-for-byte the same size, which is the guarantee made visible: a host
-that is not on the list is refused **before any connection is attempted**. No DNS lookup, no
-socket. The check happens in the library, not at the network layer.
+Those two documents are within a byte or two of each other — as close as two DOCX files ever get,
+since the writer assigns each a fresh random relationship ID internally, which shifts the
+compressed size by a byte or so independent of content. What the closeness makes visible is the
+real guarantee: a host that is not on the list is refused **before any connection is attempted**.
+No DNS lookup, no socket. The check happens in the library, not at the network layer.
 
 Requests that clear the allow-list are then checked against the address they resolve to.
 Loopback, link-local, and every private range are refused unless `AllowPrivateAddresses` is set —
@@ -116,8 +118,8 @@ extracted.
 
 ```text
 Three documents : 1 + 1 + 1 pages
-Merged          : 3 pages, 387,361 bytes
-Page 2 alone    : 1 page, 131,408 bytes
+Merged          : 3 pages, <varies> bytes
+Page 2 alone    : 1 page, <varies> bytes
 ```
 
 `firstPage` is **1-based**, the way a reader numbers pages rather than the way an array indexes
