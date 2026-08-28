@@ -538,4 +538,56 @@ public class PresentationEditorTests
         Assert.Equal("Second Layout", slideParts[1].SlideLayoutPart!.SlideLayout!.CommonSlideData!.Name!.Value);
         Assert.NotEqual(slideParts[0].SlideLayoutPart, slideParts[1].SlideLayoutPart);
     }
+
+    // -----------------------------------------------------------------------------------------
+    // A70: ReadSlide — per-slide text, same granularity as ExtractText.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReadSlide_ReturnsOnlyThatSlidesText()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        Assert.Equal(new[] { "Slide 2" }, PresentationEditor.ReadSlide(deck, 2));
+    }
+
+    [Fact]
+    public void ReadSlide_MatchesTheCorrespondingSliceOfExtractText()
+    {
+        var deck = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2", "Slide 3" }, reverseDeckOrder: false);
+
+        var all = PresentationEditor.ExtractText(deck);
+        for (var i = 1; i <= 3; i++)
+        {
+            Assert.Equal(new[] { all[i - 1] }, PresentationEditor.ReadSlide(deck, i));
+        }
+    }
+
+    [Fact]
+    public void ReadSlide_RejectsAnIndexBelowOne()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => PresentationEditor.ReadSlide(SampleDeck(), 0));
+    }
+
+    [Fact]
+    public void ReadSlide_RejectsAnIndexPastTheLastSlide()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => PresentationEditor.ReadSlide(SampleDeck(), 2));
+    }
+
+    [Fact]
+    public async Task ReadSlideAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var pptx = PptxFixtures.MultiSlideDeck(
+            new[] { "Slide 1", "Slide 2" }, reverseDeckOrder: false);
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        Assert.Equal(
+            PresentationEditor.ReadSlide(pptx, 2),
+            await PresentationEditor.ReadSlideAsync(input.Path, 2));
+    }
 }

@@ -206,23 +206,108 @@ public static class PresentationEditor
             foreach (var slide in SlidesInDeckOrder(PresentationPartOf(doc))
                          .Select(p => p.Slide).Where(s => s is not null).Select(s => s!))
             {
-
-                // PowerPoint stores shape text as a:t runs under a:p paragraphs - Wordprocessing's
-                // w:t is the DOCX equivalent, not what PPTX uses. Grouping by the paragraph's
-                // parent yields one entry per text body while preserving document order.
-                foreach (var body in slide.Descendants<A.Paragraph>().GroupBy(p => p.Parent))
-                {
-                    var bodyText = string.Join(
-                        "\n",
-                        body.Select(p => string.Concat(p.Descendants<A.Text>().Select(t => t.Text))));
-
-                    if (bodyText.Length > 0) results.Add(bodyText);
-                }
+                results.AddRange(TextBodiesOf(slide));
             }
 
             return results;
         }
         catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// All text-bearing bodies on one slide, in document order — shared by <see cref="ExtractTextCore"/>
+    /// (all slides) and <c>ReadSlideCore</c> (one slide), so the two can never disagree
+    /// about what counts as a text-bearing body.
+    ///
+    /// PowerPoint stores shape text as a:t runs under a:p paragraphs - Wordprocessing's w:t is the
+    /// DOCX equivalent, not what PPTX uses. Grouping by the paragraph's parent yields one entry per
+    /// text body while preserving document order.
+    /// </summary>
+    private static IReadOnlyList<string> TextBodiesOf(P.Slide slide)
+    {
+        var results = new List<string>();
+
+        foreach (var body in slide.Descendants<A.Paragraph>().GroupBy(p => p.Parent))
+        {
+            var bodyText = string.Join(
+                "\n",
+                body.Select(p => string.Concat(p.Descendants<A.Text>().Select(t => t.Text))));
+
+            if (bodyText.Length > 0) results.Add(bodyText);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// All text found on slide <paramref name="index"/> — see <see cref="ExtractText(byte[])"/>
+    /// for exactly what counts as a text-bearing body. Same per-body granularity as that method,
+    /// scoped to one slide.
+    /// </summary>
+    /// <param name="pptx">The presentation to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static IReadOnlyList<string> ReadSlide(byte[] pptx, int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+
+        using var ms = OpenForWrite(pptx);
+        return ReadSlideCore(ms, index);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns all text found on slide
+    /// <paramref name="index"/> — see <see cref="ReadSlide(byte[], int)"/> for exactly what counts
+    /// as a text-bearing body. <paramref name="source"/> is <b>read</b> to its end and is neither
+    /// disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ReadSlideAsync(
+        Stream source, int index, CancellationToken ct = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return ReadSlideCore(ms, index);
+    }
+
+    private static IReadOnlyList<string> ReadSlideCore(MemoryStream ms, int index)
+    {
+        try
+        {
+            using var doc = OpenDocument(ms, false);
+
+            var slideParts = SlidesInDeckOrder(PresentationPartOf(doc)).ToList();
+            if (index > slideParts.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(index), index,
+                    $"Slide {index} was requested from a deck with {slideParts.Count} slide(s).");
+            }
+
+            var slide = slideParts[index - 1].Slide;
+            return slide is null ? Array.Empty<string>() : TextBodiesOf(slide);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
         {
             throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
         }
@@ -639,6 +724,35 @@ public static class PresentationEditor
 
         var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return ExtractText(bytes);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="path"/> and returns all text found on slide
+    /// <paramref name="index"/> — see <see cref="ReadSlide(byte[], int)"/> for exactly what counts
+    /// as a text-bearing body.
+    /// </summary>
+    /// <param name="path">The .pptx to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank, or the file it names is empty.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ReadSlideAsync(
+        string path, int index, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
+        return ReadSlide(bytes, index);
     }
 
     /// <summary>
