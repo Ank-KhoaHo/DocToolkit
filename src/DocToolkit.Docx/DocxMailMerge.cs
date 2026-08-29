@@ -6,6 +6,7 @@ using OfficeIMOFieldStatus = OfficeIMO.Word.WordMailMergeFieldStatus;
 using OfficeIMOIssue = OfficeIMO.Word.WordMailMergeTemplateIssue;
 using OfficeIMOIssueKind = OfficeIMO.Word.WordMailMergeTemplateIssueKind;
 using OfficeIMOWordDocument = OfficeIMO.Word.WordDocument;
+using OfficeIMOTableRowGroup = OfficeIMO.Word.WordMailMergeTableRowGroup;
 
 namespace DocToolkit;
 
@@ -677,6 +678,161 @@ public static class DocxMailMerge
     }
 
     /// <summary>
+    /// A copy of <paramref name="docx"/> with the row at <paramref name="templateRowIndex"/> in the
+    /// table at <paramref name="tableIndex"/> repeated once per entry in <paramref name="rows"/>,
+    /// merge fields inside each generated row filled from that entry.
+    /// </summary>
+    /// <remarks>
+    /// <b>Index-based, not marker-based</b> — unlike
+    /// <see cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})"/>,
+    /// there is no <c>{{...}}</c> convention for a table row; the underlying engine selects a row by
+    /// position, matching <see cref="DocxEditor.ReadTable(byte[], int)"/>'s own table selection.
+    ///
+    /// <b>No strict/lenient split.</b> A caller supplies <paramref name="rows"/> directly rather
+    /// than the template asking for a name that might go unsupplied, so there is nothing to
+    /// preflight — matching
+    /// <see cref="DocxEditor.FillRows(byte[], string, IEnumerable{IReadOnlyDictionary{string, string}})"/>'s
+    /// own single-form shape exactly.
+    ///
+    /// <b>An empty <paramref name="rows"/> removes the template row.</b> A record missing a field
+    /// the row asks for leaves that field's raw placeholder in the generated row, silently — the
+    /// same as <see cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})"/>'s
+    /// per-record behavior, and caught the same way: a follow-up call to
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> or
+    /// <see cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/> finds it.
+    /// </remarks>
+    /// <param name="docx">The template to expand.</param>
+    /// <param name="tableIndex">Zero-based index of the table, in document order.</param>
+    /// <param name="templateRowIndex">Zero-based row index within that table to clone and bind.</param>
+    /// <param name="rows">One value set per generated row.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// <paramref name="tableIndex"/> or <paramref name="templateRowIndex"/> is out of range, or the
+    /// document could not be read or written.
+    /// </exception>
+    public static byte[] MergeTableRows(
+        byte[] docx, int tableIndex, int templateRowIndex,
+        IEnumerable<IReadOnlyDictionary<string, string>> rows)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(rows);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeTableRowsCore(source, tableIndex, templateRowIndex, rows);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with the table row expanded. <paramref name="source"/> is <b>read</b> to its end and
+    /// <paramref name="destination"/> is <b>written</b>; neither is disposed, closed nor sought.
+    /// </summary>
+    /// <inheritdoc cref="MergeTableRows(byte[], int, int, IEnumerable{IReadOnlyDictionary{string, string}})" path="/remarks"/>
+    /// <param name="source">The template to expand.</param>
+    /// <param name="destination">Receives the expanded document.</param>
+    /// <param name="tableIndex">Zero-based index of the table, in document order.</param>
+    /// <param name="templateRowIndex">Zero-based row index within that table to clone and bind.</param>
+    /// <param name="rows">One value set per generated row.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="rows"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// <paramref name="tableIndex"/> or <paramref name="templateRowIndex"/> is out of range, or the
+    /// document could not be read or written.
+    /// </exception>
+    public static async Task MergeTableRowsAsync(
+        Stream source, Stream destination, int tableIndex, int templateRowIndex,
+        IEnumerable<IReadOnlyDictionary<string, string>> rows, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(rows);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), TableRowsFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeTableRowsCore(docx, tableIndex, templateRowIndex, rows);
+        await StreamPipeline.EmitAsync(merged, destination, TableRowsFailure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> with a group/header row and its detail row template,
+    /// both in the table at <paramref name="tableIndex"/>, repeated once per group in
+    /// <paramref name="groups"/>.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeTableRows(byte[], int, int, IEnumerable{IReadOnlyDictionary{string, string}})" path="/remarks"/>
+    /// </remarks>
+    /// <param name="docx">The template to expand.</param>
+    /// <param name="tableIndex">Zero-based index of the table, in document order.</param>
+    /// <param name="groupTemplateRowIndex">Zero-based row index of the group/header row template.</param>
+    /// <param name="detailTemplateRowIndex">Zero-based row index of the detail row template.</param>
+    /// <param name="groups">One group/header value set, with its detail rows, per generated group.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// <paramref name="tableIndex"/>, <paramref name="groupTemplateRowIndex"/> or
+    /// <paramref name="detailTemplateRowIndex"/> is out of range, or the document could not be read
+    /// or written.
+    /// </exception>
+    public static byte[] MergeTableRowGroups(
+        byte[] docx, int tableIndex, int groupTemplateRowIndex, int detailTemplateRowIndex,
+        IEnumerable<DocxMailMergeTableRowGroup> groups)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(groups);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeTableRowGroupsCore(
+            source, tableIndex, groupTemplateRowIndex, detailTemplateRowIndex, groups);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with the group and detail rows expanded. <paramref name="source"/> is <b>read</b> to its end
+    /// and <paramref name="destination"/> is <b>written</b>; neither is disposed, closed nor sought.
+    /// </summary>
+    /// <inheritdoc cref="MergeTableRowGroups(byte[], int, int, int, IEnumerable{DocxMailMergeTableRowGroup})" path="/remarks"/>
+    /// <param name="source">The template to expand.</param>
+    /// <param name="destination">Receives the expanded document.</param>
+    /// <param name="tableIndex">Zero-based index of the table, in document order.</param>
+    /// <param name="groupTemplateRowIndex">Zero-based row index of the group/header row template.</param>
+    /// <param name="detailTemplateRowIndex">Zero-based row index of the detail row template.</param>
+    /// <param name="groups">One group/header value set, with its detail rows, per generated group.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="groups"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// <paramref name="tableIndex"/>, <paramref name="groupTemplateRowIndex"/> or
+    /// <paramref name="detailTemplateRowIndex"/> is out of range, or the document could not be read
+    /// or written.
+    /// </exception>
+    public static async Task MergeTableRowGroupsAsync(
+        Stream source, Stream destination, int tableIndex, int groupTemplateRowIndex,
+        int detailTemplateRowIndex, IEnumerable<DocxMailMergeTableRowGroup> groups,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(groups);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), TableRowGroupsFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeTableRowGroupsCore(
+            docx, tableIndex, groupTemplateRowIndex, detailTemplateRowIndex, groups);
+        await StreamPipeline.EmitAsync(merged, destination, TableRowGroupsFailure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
     /// filled document in order.
     /// </summary>
@@ -1044,6 +1200,8 @@ public static class DocxMailMerge
     private const string ConditionalFailure = "Failed to resolve the document's conditional blocks. See the inner exception for details.";
     private const string RepeatingFailure = "Failed to expand the document's repeating blocks. See the inner exception for details.";
     private const string RepeatingRegionsFailure = "Failed to expand the document's nested repeating regions. See the inner exception for details.";
+    private const string TableRowsFailure = "Failed to expand the table's rows. See the inner exception for details.";
+    private const string TableRowGroupsFailure = "Failed to expand the table's row groups. See the inner exception for details.";
 
     private static void RequireContent(byte[] docx)
     {
@@ -1479,6 +1637,60 @@ public static class DocxMailMerge
         return new OfficeIMOBlockData(
             Copy(data.Values), ToEngineRegions(data.Regions ?? NoNestedRegions, padNames));
     }
+
+    private static MemoryStream MergeTableRowsCore(
+        Stream source, int tableIndex, int templateRowIndex,
+        IEnumerable<IReadOnlyDictionary<string, string>> rows)
+    {
+        var result = new MemoryStream();
+        try
+        {
+            using var document = OfficeIMOWordDocument.Load(source);
+
+            var table = document.Tables[tableIndex];
+            var forEngine = rows.Select(Copy).Cast<IDictionary<string, string>>();
+            OfficeIMOMailMerge.ExecuteTableRows(table, templateRowIndex, forEngine, removeFields: true);
+
+            document.Save(result);
+            result.Position = 0;
+        }
+        catch (Exception ex)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(TableRowsFailure, ex);
+        }
+
+        return result;
+    }
+
+    private static MemoryStream MergeTableRowGroupsCore(
+        Stream source, int tableIndex, int groupTemplateRowIndex, int detailTemplateRowIndex,
+        IEnumerable<DocxMailMergeTableRowGroup> groups)
+    {
+        var result = new MemoryStream();
+        try
+        {
+            using var document = OfficeIMOWordDocument.Load(source);
+
+            var table = document.Tables[tableIndex];
+            var forEngine = groups.Select(ToEngineGroup).ToList();
+            OfficeIMOMailMerge.ExecuteTableRowGroups(
+                table, groupTemplateRowIndex, detailTemplateRowIndex, forEngine, removeFields: true);
+
+            document.Save(result);
+            result.Position = 0;
+        }
+        catch (Exception ex)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(TableRowGroupsFailure, ex);
+        }
+
+        return result;
+    }
+
+    private static OfficeIMOTableRowGroup ToEngineGroup(DocxMailMergeTableRowGroup group)
+        => new(Copy(group.Values), group.Rows.Select(Copy).Cast<IDictionary<string, string>>());
 
     /// <summary>
     /// Stands in for a block row's absent <see cref="DocxMailMergeBlockData.Regions"/> so

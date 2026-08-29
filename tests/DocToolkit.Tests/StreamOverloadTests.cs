@@ -273,6 +273,8 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeRepeatingWithReportAsync",
         "DocxMailMerge.MergeRepeatingRegionsAsync",
         "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
+        "DocxMailMerge.MergeTableRowsAsync",
+        "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.FillAsync",
     };
 
@@ -344,6 +346,8 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeRepeatingWithReportAsync",
         "DocxMailMerge.MergeRepeatingRegionsAsync",
         "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
+        "DocxMailMerge.MergeTableRowsAsync",
+        "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.InspectAsync",
         "DocxForm.ValidateAsync",
         "DocxForm.FillAsync",
@@ -425,6 +429,8 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeRepeatingWithReportAsync",
         "DocxMailMerge.MergeRepeatingRegionsAsync",
         "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
+        "DocxMailMerge.MergeTableRowsAsync",
+        "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.FillAsync",
     };
 
@@ -1138,6 +1144,10 @@ public class StreamOverloadTests
                 DocxMailMerge.MergeRepeatingRegionsAsync(source!, destination!, NoBlockRegions, ct),
             "DocxMailMerge.MergeRepeatingRegionsWithReportAsync" =>
                 DocxMailMerge.MergeRepeatingRegionsWithReportAsync(source!, destination!, NoBlockRegions, ct),
+            "DocxMailMerge.MergeTableRowsAsync" =>
+                DocxMailMerge.MergeTableRowsAsync(source!, destination!, 0, 1, Array.Empty<IReadOnlyDictionary<string, string>>(), ct),
+            "DocxMailMerge.MergeTableRowGroupsAsync" =>
+                DocxMailMerge.MergeTableRowGroupsAsync(source!, destination!, 0, 0, 1, Array.Empty<DocxMailMergeTableRowGroup>(), ct),
             "DocxReview.RemoveCommentsAsync" =>
                 DocxReview.RemoveCommentsAsync(source!, destination!, ct),
             "DocxReview.AcceptRevisionsAsync" =>
@@ -1310,9 +1320,12 @@ public class StreamOverloadTests
     {
         // FillRowsAsync throws unless the document holds a matching template row, and
         // ReadTableAsync throws unless index 0 exists, so neither can share the plain Docx
-        // fixture the other DocxEditor overloads use.
+        // fixture the other DocxEditor overloads use. MergeTableRowsAsync and
+        // MergeTableRowGroupsAsync have the same requirement.
         "DocxEditor.FillRowsAsync" => TableDocx,
         "DocxEditor.ReadTableAsync" => TableDocx,
+        "DocxMailMerge.MergeTableRowsAsync" => TableDocx,
+        "DocxMailMerge.MergeTableRowGroupsAsync" => TableDocx,
         "DocxEditor.ReplaceImageAsync" => ImageDocx,
         "DocxEditor.AddFootnoteAsync" => ImageDocx,
         "DocxEditor.AddEndnoteAsync" => ImageDocx,

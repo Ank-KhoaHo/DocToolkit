@@ -858,6 +858,156 @@ public class DocxMailMergeTests
         body.Append(new Paragraph(new Run(new Text("{{/each Orders}}"))));
     });
 
+    // ---- A75: MergeTableRows / MergeTableRowGroups --------------------------------------------
+
+    [Fact]
+    public void MergeTableRows_ExpandsOnceForEveryRow()
+    {
+        byte[] template = TableRowsTemplate();
+
+        byte[] merged = DocxMailMerge.MergeTableRows(
+            template, tableIndex: 0, templateRowIndex: 1,
+            new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["Name"] = "Alice" },
+                new Dictionary<string, string> { ["Name"] = "Bob" },
+            });
+
+        Assert.Equal("HeaderName: AliceName: Bob", Text(merged));
+    }
+
+    [Fact]
+    public void MergeTableRows_ZeroRows_RemovesTheTemplateRow()
+    {
+        byte[] template = TableRowsTemplate();
+
+        byte[] merged = DocxMailMerge.MergeTableRows(
+            template, tableIndex: 0, templateRowIndex: 1,
+            Array.Empty<IReadOnlyDictionary<string, string>>());
+
+        Assert.Equal("Header", Text(merged));
+    }
+
+    [Fact]
+    public void MergeTableRows_OutOfRangeIndex_ThrowsDocumentConversionException()
+    {
+        byte[] template = TableRowsTemplate();
+
+        Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeTableRows(
+            template, tableIndex: 0, templateRowIndex: 99,
+            new[] { new Dictionary<string, string>() }));
+    }
+
+    [Fact]
+    public void MergeTableRows_ARecordMissingAField_LeavesItsPlaceholder_WithoutThrowing()
+    {
+        byte[] template = TableRowsTemplate();
+
+        byte[] merged = DocxMailMerge.MergeTableRows(
+            template, tableIndex: 0, templateRowIndex: 1,
+            new IReadOnlyDictionary<string, string>[] { new Dictionary<string, string>() });
+
+        Assert.Contains("«Name»", Text(merged));
+    }
+
+    [Fact]
+    public async Task MergeTableRowsAsync_MatchesTheByteArrayForm()
+    {
+        byte[] template = TableRowsTemplate();
+        using var source = new MemoryStream(template);
+        using var destination = new MemoryStream();
+
+        await DocxMailMerge.MergeTableRowsAsync(
+            source, destination, tableIndex: 0, templateRowIndex: 1,
+            new IReadOnlyDictionary<string, string>[] { new Dictionary<string, string> { ["Name"] = "Alice" } });
+
+        Assert.Equal("HeaderName: Alice", Text(destination.ToArray()));
+    }
+
+    [Fact]
+    public void MergeTableRowGroups_ExpandsGroupAndDetailRows()
+    {
+        byte[] template = TableRowGroupsTemplate();
+
+        byte[] merged = DocxMailMerge.MergeTableRowGroups(
+            template, tableIndex: 0, groupTemplateRowIndex: 0, detailTemplateRowIndex: 1,
+            new[]
+            {
+                new DocxMailMergeTableRowGroup(
+                    new Dictionary<string, string> { ["GroupName"] = "Fruits" },
+                    new IReadOnlyDictionary<string, string>[]
+                    {
+                        new Dictionary<string, string> { ["Item"] = "Apple" },
+                        new Dictionary<string, string> { ["Item"] = "Banana" },
+                    }),
+            });
+
+        Assert.Equal("Group: FruitsDetail: AppleDetail: Banana", Text(merged));
+    }
+
+    [Fact]
+    public async Task MergeTableRowGroupsAsync_MatchesTheByteArrayForm()
+    {
+        byte[] template = TableRowGroupsTemplate();
+        using var source = new MemoryStream(template);
+        using var destination = new MemoryStream();
+
+        await DocxMailMerge.MergeTableRowGroupsAsync(
+            source, destination, tableIndex: 0, groupTemplateRowIndex: 0, detailTemplateRowIndex: 1,
+            new[]
+            {
+                new DocxMailMergeTableRowGroup(
+                    new Dictionary<string, string> { ["GroupName"] = "Fruits" },
+                    new IReadOnlyDictionary<string, string>[] { new Dictionary<string, string> { ["Item"] = "Apple" } }),
+            });
+
+        Assert.Equal("Group: FruitsDetail: Apple", Text(destination.ToArray()));
+    }
+
+    [Fact]
+    public void MergeTableRows_ThenMerge_FollowUpPassCatchesAMissingField()
+    {
+        byte[] template = TableRowsTemplate();
+
+        byte[] expanded = DocxMailMerge.MergeTableRows(
+            template, tableIndex: 0, templateRowIndex: 1,
+            new IReadOnlyDictionary<string, string>[] { new Dictionary<string, string>() });
+
+        DocxMailMergeResult result = DocxMailMerge.MergeWithReport(expanded, new Dictionary<string, string>());
+
+        Assert.False(result.Report.IsComplete);
+        Assert.Equal(new[] { "Name" }, result.Report.MissingFieldNames);
+    }
+
+    private static byte[] TableRowsTemplate() => Build(body =>
+    {
+        var tbl = new Table();
+        tbl.Append(new TableProperties());
+        tbl.Append(new TableGrid(new GridColumn()));
+        tbl.Append(new TableRow(new TableCell(new Paragraph(new Run(new Text("Header"))))));
+        var templateRow = new TableRow(new TableCell(new Paragraph(
+            new Run(new Text("Name: ")),
+            Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»"))));
+        tbl.Append(templateRow);
+        body.Append(tbl);
+    });
+
+    private static byte[] TableRowGroupsTemplate() => Build(body =>
+    {
+        var tbl = new Table();
+        tbl.Append(new TableProperties());
+        tbl.Append(new TableGrid(new GridColumn()));
+        var groupRow = new TableRow(new TableCell(new Paragraph(
+            new Run(new Text("Group: ")),
+            Field(" MERGEFIELD GroupName \\* MERGEFORMAT ", "«GroupName»"))));
+        tbl.Append(groupRow);
+        var detailRow = new TableRow(new TableCell(new Paragraph(
+            new Run(new Text("Detail: ")),
+            Field(" MERGEFIELD Item \\* MERGEFORMAT ", "«Item»"))));
+        tbl.Append(detailRow);
+        body.Append(tbl);
+    });
+
     // ---- matching rules ---------------------------------------------------------------------------
 
     [Theory]
