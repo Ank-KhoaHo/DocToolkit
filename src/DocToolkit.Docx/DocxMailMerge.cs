@@ -361,6 +361,105 @@ public static class DocxMailMerge
         }
     }
 
+    /// <summary>
+    /// Reads a template from <paramref name="templatePath"/>, fills it once per entry in
+    /// <paramref name="records"/>, and writes each result to the path
+    /// <paramref name="outputPathFactory"/> returns for it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Strict, the same way <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// is strict</b> — refuses the moment a record is incomplete, and nothing after that record is
+    /// written. See <c>MergeBatchToFilesWithReport</c> for the lenient form (a real
+    /// <c>&lt;see cref&gt;</c> link follows in a later change, once that method exists).
+    ///
+    /// <b>Every output path is checked for a collision against every other, before anything is
+    /// written.</b> Two records producing the same path is refused outright, naming both record
+    /// indices — measured against the underlying engine's own batch writer, a collision silently
+    /// overwrites one record's document with another's, with no exception and no warning. This
+    /// refuses rather than risk it.
+    /// </remarks>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules. An
+    /// empty sequence writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="outputPathFactory"/> produced the same path for two different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
+    public static IReadOnlyList<string> MergeBatchToFiles(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory)
+    {
+        var docx = FilePipeline.Read(templatePath, nameof(templatePath));
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true);
+        return [.. items.Select(item => item.OutputPath)];
+    }
+
+    /// <summary>
+    /// The async form of <see cref="MergeBatchToFiles(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// — see its documentation for exactly what is matched, how strictness works, and how the
+    /// path-collision guard works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatchToFiles(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})" path="/remarks"/>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules. An
+    /// empty sequence writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <param name="ct">Cancels before the template is read.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="outputPathFactory"/> produced the same path for two different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled before the template finished reading.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
+    public static async Task<IReadOnlyList<string>> MergeBatchToFilesAsync(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory,
+        CancellationToken ct = default)
+    {
+        var docx = await FilePipeline.ReadAsync(templatePath, nameof(templatePath), ct)
+            .ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true);
+        return [.. items.Select(item => item.OutputPath)];
+    }
+
     private const string EmptySource = "DOCX content was empty.";
     private const string InspectFailure = "Failed to read the document's mail-merge template. See the inner exception for details.";
     private const string MergeFailure = "Failed to fill the document's merge fields. See the inner exception for details.";
@@ -520,6 +619,84 @@ public static class DocxMailMerge
             yield return new DocxMailMergeBatchItem(index, document, report);
 
             index++;
+        }
+    }
+
+    /// <summary>
+    /// The one loop behind every batch overload that writes to disk — strict and lenient alike —
+    /// so they can never drift apart. Reuses <see cref="MergeCore"/> exactly like
+    /// <see cref="MergeBatchCore"/> does; the only difference is where a result ends up.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="records"/> is an <see cref="IReadOnlyList{T}"/> here, not the
+    /// <see cref="IEnumerable{T}"/> the public methods take — every output path has to be computed
+    /// and checked for collisions before any record is merged, which needs indexed, repeatable
+    /// access. The public callers materialise the caller's sequence once, up front, before calling
+    /// this.
+    /// </remarks>
+    private static List<DocxMailMergeFileBatchItem> MergeBatchToFilesCore(
+        byte[] docx, IReadOnlyList<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory, bool strict)
+    {
+        var paths = new string[records.Count];
+        for (var i = 0; i < records.Count; i++)
+            paths[i] = outputPathFactory(i, records[i]);
+
+        CheckNoPathCollisions(paths);
+
+        var items = new List<DocxMailMergeFileBatchItem>(records.Count);
+        for (var i = 0; i < records.Count; i++)
+        {
+            RequireValues(records[i], nameof(records));
+
+            using var source = new MemoryStream(docx, writable: false);
+            DocxMailMergeReport report;
+            MemoryStream result;
+            try
+            {
+                result = MergeCore(source, records[i], strict, out report);
+            }
+            catch (DocumentConversionException ex) when (strict)
+            {
+                throw new DocumentConversionException($"Record {i}: {ex.Message}", ex);
+            }
+
+            using (result)
+            {
+                File.WriteAllBytes(paths[i], result.ToArray());
+            }
+
+            items.Add(new DocxMailMergeFileBatchItem(i, paths[i], report));
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Refuses if any two entries in <paramref name="paths"/> are identical, naming both positions
+    /// and the path they share.
+    /// </summary>
+    /// <remarks>
+    /// Ordinal comparison, deliberately — no <see cref="Path.GetFullPath(string)"/> normalisation,
+    /// no case-insensitivity. Normalising would mean guessing whether two differently-spelled paths
+    /// the caller's own factory produced were meant to collide; comparing exactly what the factory
+    /// returned is the one behaviour that cannot be wrong about the caller's intent.
+    /// </remarks>
+    private static void CheckNoPathCollisions(IReadOnlyList<string> paths)
+    {
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < paths.Count; i++)
+        {
+            if (seen.TryGetValue(paths[i], out var firstIndex))
+            {
+                throw new ArgumentException(
+                    $"Records {firstIndex} and {i} both produced the output path '{paths[i]}'. "
+                    + "This refuses rather than silently overwriting one record's document with "
+                    + "another's — give outputPathFactory a way to tell every record apart.",
+                    "outputPathFactory");
+            }
+
+            seen[paths[i]] = i;
         }
     }
 

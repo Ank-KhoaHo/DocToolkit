@@ -711,6 +711,183 @@ public class DocxMailMergeTests
         Assert.Equal(1, pulledCount);
     }
 
+    // ---- MergeBatchToFiles: strict, writes to disk, refuses on a path collision -----------------
+
+    [Fact]
+    public void MergeBatchToFiles_WritesOneFilePerRecord_AtTheFactorysPaths()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" },
+            };
+
+            // Captures BOTH arguments outputPathFactory was called with, not just the index --
+            // a factory that ignores its own second parameter would still pass a test that only
+            // checks the index.
+            var seenArgs = new List<(int Index, IReadOnlyDictionary<string, string> Record)>();
+            var paths = DocxMailMerge.MergeBatchToFiles(templatePath, records, (i, r) =>
+            {
+                seenArgs.Add((i, r));
+                return Path.Combine(dir.FullName, $"out-{i}.docx");
+            });
+
+            Assert.Equal(2, paths.Count);
+            Assert.Equal("Alice|", Text(File.ReadAllBytes(paths[0])));
+            Assert.Equal("Bob|", Text(File.ReadAllBytes(paths[1])));
+
+            Assert.Equal(2, seenArgs.Count);
+            Assert.Equal((0, records[0]), seenArgs[0]);
+            Assert.Equal((1, records[1]), seenArgs[1]);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_RefusesOnTheBadRecord_AndWritesNothingAfterIt()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" }, // Balance missing
+                new Dictionary<string, string> { ["FirstName"] = "Carol", ["Balance"] = "300" },
+            };
+
+            var ex = Assert.Throws<DocumentConversionException>(() =>
+                DocxMailMerge.MergeBatchToFiles(templatePath, records,
+                    (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx")));
+
+            Assert.Contains("Balance", ex.Message, StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-1.docx")));
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-2.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_RefusesACollidingOutputPathFactory_AndWritesNothingAtAll()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var collidingPath = Path.Combine(dir.FullName, "collide.docx");
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" },
+                new Dictionary<string, string> { ["FirstName"] = "Carol" },
+            };
+
+            // Records 0 and 2 collide; record 1 does not.
+            var ex = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFiles(templatePath, records,
+                    (i, r) => i == 1 ? Path.Combine(dir.FullName, "unique.docx") : collidingPath));
+
+            Assert.Equal("outputPathFactory", ex.ParamName);
+            // "Records 0 and 2", not bare "0"/"2" -- the temp directory's own generated name can
+            // easily contain those digits as a substring, which would make a bare-digit assertion
+            // pass whether or not the message actually names the right records.
+            Assert.Contains("Records 0 and 2", ex.Message, StringComparison.Ordinal);
+            // Nothing was written at all -- not even the record that never collided, and not even
+            // the "winning" one an unguarded delegation to the engine would silently have produced.
+            Assert.False(File.Exists(collidingPath));
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "unique.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_OnAnEmptyRecordSequence_WritesNothingAndReturnsEmpty()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+
+            var paths = DocxMailMerge.MergeBatchToFiles(templatePath,
+                Array.Empty<IReadOnlyDictionary<string, string>>(), (i, r) => "unused.docx");
+
+            Assert.Empty(paths);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_ThrowsWhenTheTemplatePathDoesNotExist()
+    {
+        Assert.Throws<FileNotFoundException>(() =>
+            DocxMailMerge.MergeBatchToFiles("does-not-exist.docx",
+                Array.Empty<IReadOnlyDictionary<string, string>>(), (i, r) => "unused.docx"));
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_RejectsNullArguments()
+    {
+        Assert.Throws<ArgumentNullException>(() => DocxMailMerge.MergeBatchToFiles(
+            null!, Array.Empty<IReadOnlyDictionary<string, string>>(), (i, r) => "unused.docx"));
+    }
+
+    [Fact]
+    public async Task MergeBatchToFilesAsync_ProducesTheSameTextContent_AsMergeBatchToFiles()
+    {
+        // NOT byte-for-byte: MergeCore's underlying OfficeIMO.Word.WordDocument.Load/Save cycle is
+        // not byte-deterministic across two independent saves of logically identical content --
+        // measured in Task 1 (a diff appears at the first ZIP entry's CRC-32), matching the same
+        // non-determinism already documented elsewhere in this repo for OfficeIMO-authored output
+        // (DocxEditorFillRowsTests.cs, WorkbookEditorServiceTests.cs). Text equality is the right
+        // comparison here, the same fix Task 1 already applied to the byte[] forms' own pin test.
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob", ["Balance"] = "250" },
+            };
+
+            var syncPaths = DocxMailMerge.MergeBatchToFiles(templatePath, records,
+                (i, r) => Path.Combine(dir.FullName, $"sync-{i}.docx"));
+            var asyncPaths = await DocxMailMerge.MergeBatchToFilesAsync(templatePath, records,
+                (i, r) => Path.Combine(dir.FullName, $"async-{i}.docx"));
+
+            Assert.Equal(syncPaths.Count, asyncPaths.Count);
+            for (var i = 0; i < syncPaths.Count; i++)
+                Assert.Equal(Text(File.ReadAllBytes(syncPaths[i])), Text(File.ReadAllBytes(asyncPaths[i])));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
 
     private static string Text(byte[] docx) => DocxEditor.ExtractText(docx).Replace("\n", string.Empty);

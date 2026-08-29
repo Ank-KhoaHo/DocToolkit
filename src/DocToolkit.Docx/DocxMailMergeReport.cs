@@ -142,6 +142,32 @@ public sealed class DocxMailMergeBatchItem
     public DocxMailMergeReport Report { get; }
 }
 
+/// <summary>One record's output file, from a file-path batch call, together with what happened to
+/// every field in it.</summary>
+/// <remarks>
+/// Returned by the lenient file-path batch overload only — the strict one refuses to write a file
+/// for an incomplete record at all, so there is nothing to report for that record.
+/// </remarks>
+public sealed class DocxMailMergeFileBatchItem
+{
+    internal DocxMailMergeFileBatchItem(int recordIndex, string outputPath, DocxMailMergeReport report)
+    {
+        RecordIndex = recordIndex;
+        OutputPath = outputPath;
+        Report = report;
+    }
+
+    /// <summary>The record's position in the sequence passed in, starting at 0.</summary>
+    public int RecordIndex { get; }
+
+    /// <summary>Where this record's document was written — exactly what <c>outputPathFactory</c>
+    /// returned for this record.</summary>
+    public string OutputPath { get; }
+
+    /// <summary>What happened to every field in this record's document.</summary>
+    public DocxMailMergeReport Report { get; }
+}
+
 /// <summary>What happened to every merge field in a document.</summary>
 public sealed class DocxMailMergeReport
 {
