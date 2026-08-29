@@ -898,8 +898,8 @@ public static class DocxMailMerge
     };
 
     /// <summary>
-    /// Twelve kinds to three. See <see cref="DocxMailMergeIssueKind"/> for why the other nine
-    /// arrive as <see cref="DocxMailMergeIssueKind.Other"/> rather than under their own names.
+    /// Eleven of twelve kinds mapped by name; only <c>MissingMergeFieldValue</c> still collapses to
+    /// <see cref="DocxMailMergeIssueKind.Other"/> — see <see cref="DocxMailMergeIssueKind"/> for why.
     /// </summary>
     private static DocxMailMergeIssueKind Kind(OfficeIMOIssueKind kind) => kind switch
     {
