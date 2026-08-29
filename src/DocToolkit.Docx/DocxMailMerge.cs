@@ -249,7 +249,11 @@ public static class DocxMailMerge
         return MergeBatchCore(docx, records, strict: true).Select(item => item.Document);
     }
 
-    /// <inheritdoc cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// <summary>
+    /// The async form of <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// — see its documentation for exactly what is matched and how strictness works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})" path="/remarks"/>
     /// <param name="docx">The template to fill, once per record.</param>
     /// <param name="records">
     /// One dictionary of values per output document, matched case-insensitively — see
@@ -257,6 +261,17 @@ public static class DocxMailMerge
     /// which apply here unchanged. An empty sequence yields no documents.
     /// </param>
     /// <param name="ct">Cancels before the next record's merge runs.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
     public static async IAsyncEnumerable<byte[]> MergeBatchAsync(
         byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records,
         [EnumeratorCancellation] CancellationToken ct = default)
@@ -264,10 +279,12 @@ public static class DocxMailMerge
         RequireContent(docx);
         ArgumentNullException.ThrowIfNull(records);
 
-        foreach (var item in MergeBatchCore(docx, records, strict: true))
+        using var e = MergeBatchCore(docx, records, strict: true).GetEnumerator();
+        while (true)
         {
             ct.ThrowIfCancellationRequested();
-            yield return item.Document;
+            if (!e.MoveNext()) break;
+            yield return e.Current.Document;
         }
     }
 
@@ -287,9 +304,14 @@ public static class DocxMailMerge
     /// and reports the document complete, so it is the one way to ship a half-finished letter that
     /// neither the strict overload nor the report can catch.
     /// </summary>
-    private static void RequireValues(IReadOnlyDictionary<string, string> values)
+    /// <remarks>
+    /// Takes the parameter name explicitly so a caller whose own parameter is not literally called
+    /// <c>values</c> — <see cref="MergeBatchCore"/>'s <c>records</c>, for one — reports against the
+    /// name it actually declared, rather than one it never did.
+    /// </remarks>
+    private static void RequireValues(IReadOnlyDictionary<string, string> values, string paramName)
     {
-        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(values, paramName);
 
         foreach (KeyValuePair<string, string> pair in values)
         {
@@ -299,10 +321,13 @@ public static class DocxMailMerge
                     $"The value for '{pair.Key}' is null. A null merges as an empty string and is "
                     + "reported complete, so it cannot be told apart from a value somebody chose. "
                     + "Pass string.Empty to mean \"leave it blank\".",
-                    nameof(values));
+                    paramName);
             }
         }
     }
+
+    private static void RequireValues(IReadOnlyDictionary<string, string> values)
+        => RequireValues(values, nameof(values));
 
     private static async Task<DocxMailMergeReport> MergeToStreamAsync(
         Stream source, Stream destination, IReadOnlyDictionary<string, string> values, bool strict,
@@ -385,10 +410,14 @@ public static class DocxMailMerge
     /// </summary>
     /// <remarks>
     /// Deliberately a `yield return` iterator, and deliberately PRIVATE: every public caller
-    /// (<see cref="MergeBatch"/> today, and <c>MergeBatchWithReport</c> in a later change) validates
-    /// its own arguments in an ordinary, non-iterator method body before calling this — a
-    /// `yield return` in a PUBLIC method would defer that validation until the caller starts
-    /// enumerating, which is not how every other guard in this class behaves.
+    /// (<see cref="MergeBatch"/> today, and <c>MergeBatchWithReport</c> in a later change) is
+    /// expected to validate its own arguments before any document is produced. <see cref="MergeBatch"/>
+    /// does this eagerly, in an ordinary non-iterator method body, before calling this. <see
+    /// cref="MergeBatchAsync"/> cannot do the same — as an `async IAsyncEnumerable` method itself,
+    /// its whole body (including its own argument validation) is deferred until the caller starts
+    /// enumerating, which is inherent to async iterators in C#, not a gap. A `yield return` in this
+    /// PRIVATE method would defer validation the same way, which is why it stays out of the public
+    /// surface instead.
     /// </remarks>
     private static IEnumerable<DocxMailMergeBatchItem> MergeBatchCore(
         byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records, bool strict)
@@ -396,7 +425,7 @@ public static class DocxMailMerge
         var index = 0;
         foreach (var record in records)
         {
-            RequireValues(record);
+            RequireValues(record, nameof(records));
 
             using var source = new MemoryStream(docx, writable: false);
             DocxMailMergeReport report;
@@ -410,10 +439,9 @@ public static class DocxMailMerge
                 throw new DocumentConversionException($"Record {index}: {ex.Message}", ex);
             }
 
-            using (result)
-            {
-                yield return new DocxMailMergeBatchItem(index, result.ToArray(), report);
-            }
+            var document = result.ToArray();
+            result.Dispose();
+            yield return new DocxMailMergeBatchItem(index, document, report);
 
             index++;
         }
