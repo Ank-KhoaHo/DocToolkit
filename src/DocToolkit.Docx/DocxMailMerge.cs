@@ -465,6 +465,90 @@ public static class DocxMailMerge
         return [.. items.Select(item => item.OutputPath)];
     }
 
+    /// <summary>
+    /// Reads a template from <paramref name="templatePath"/>, fills it once per entry in
+    /// <paramref name="records"/>, and writes each result to the path
+    /// <paramref name="outputPathFactory"/> returns for it — <b>together with what happened to
+    /// every field in it.</b>
+    /// </summary>
+    /// <remarks>
+    /// The lenient half of the pair. This always writes a file for every record, complete or not,
+    /// and never throws for an incomplete one — see
+    /// <see cref="MergeBatchToFiles(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// for the strict form. The path-collision refusal is unconditional and applies here too — see
+    /// that method's remarks.
+    /// </remarks>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="outputPathFactory"/> produced the same path for two different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static IReadOnlyList<DocxMailMergeFileBatchItem> MergeBatchToFilesWithReport(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory)
+    {
+        var docx = FilePipeline.Read(templatePath, nameof(templatePath));
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false);
+    }
+
+    /// <summary>
+    /// The async form of <see cref="MergeBatchToFilesWithReport(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// — see its documentation for exactly what is matched, how strictness works, and how the
+    /// path-collision guard works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatchToFilesWithReport(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})" path="/remarks"/>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <param name="ct">Cancels before the template is read.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or the same path for two
+    /// different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled before the template finished reading.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static async Task<IReadOnlyList<DocxMailMergeFileBatchItem>> MergeBatchToFilesWithReportAsync(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory,
+        CancellationToken ct = default)
+    {
+        var docx = await FilePipeline.ReadAsync(templatePath, nameof(templatePath), ct)
+            .ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false);
+    }
+
     private const string EmptySource = "DOCX content was empty.";
     private const string InspectFailure = "Failed to read the document's mail-merge template. See the inner exception for details.";
     private const string MergeFailure = "Failed to fill the document's merge fields. See the inner exception for details.";

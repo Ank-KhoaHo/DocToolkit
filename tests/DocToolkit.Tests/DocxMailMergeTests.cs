@@ -966,6 +966,127 @@ public class DocxMailMergeTests
         }
     }
 
+    // ---- MergeBatchToFilesWithReport: lenient, never throws for a bad record --------------------
+
+    [Fact]
+    public void MergeBatchToFilesWithReport_NeverThrowsForABadRecord_AndWritesEveryFile()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" }, // Balance missing
+            };
+
+            var items = DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
+                (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx"));
+
+            Assert.Equal(2, items.Count);
+            Assert.True(items[0].Report.IsComplete);
+            Assert.True(File.Exists(items[0].OutputPath));
+
+            Assert.False(items[1].Report.IsComplete);
+            Assert.True(File.Exists(items[1].OutputPath));
+            Assert.Contains("«Balance»", Text(File.ReadAllBytes(items[1].OutputPath)), StringComparison.Ordinal);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFilesWithReport_RefusesACollidingOutputPathFactory_TheSameAsTheStrictForm()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" },
+            };
+
+            var ex = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
+                    (i, r) => Path.Combine(dir.FullName, "collide.docx")));
+
+            Assert.Equal("outputPathFactory", ex.ParamName);
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "collide.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task MergeBatchToFilesWithReportAsync_ProducesTheSameTextContent_AsMergeBatchToFilesWithReport()
+    {
+        // NOT byte-for-byte -- see MergeBatchToFilesAsync_ProducesTheSameTextContent_AsMergeBatchToFiles
+        // above for why: MergeCore's OfficeIMO.Word save cycle is not byte-deterministic across two
+        // independent saves of the same logical content.
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" }, // Balance missing
+            };
+
+            var syncItems = DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
+                (i, r) => Path.Combine(dir.FullName, $"sync-{i}.docx"));
+            var asyncItems = await DocxMailMerge.MergeBatchToFilesWithReportAsync(templatePath, records,
+                (i, r) => Path.Combine(dir.FullName, $"async-{i}.docx"));
+
+            Assert.Equal(syncItems.Count, asyncItems.Count);
+            for (var i = 0; i < syncItems.Count; i++)
+            {
+                Assert.Equal(syncItems[i].Report.IsComplete, asyncItems[i].Report.IsComplete);
+                Assert.Equal(
+                    Text(File.ReadAllBytes(syncItems[i].OutputPath)),
+                    Text(File.ReadAllBytes(asyncItems[i].OutputPath)));
+            }
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task MergeBatchToFilesWithReportAsync_NeverThrowsForABadRecord()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string>(), // FirstName missing
+            };
+
+            var items = await DocxMailMerge.MergeBatchToFilesWithReportAsync(templatePath, records,
+                (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx"));
+
+            Assert.False(Assert.Single(items).Report.IsComplete);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
 
     private static string Text(byte[] docx) => DocxEditor.ExtractText(docx).Replace("\n", string.Empty);
