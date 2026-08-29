@@ -869,15 +869,18 @@ public static class PresentationEditor
     /// deck's own title/body geometry is then honoured rather than overridden.
     ///
     /// Otherwise the shape keeps this library's own fixed coordinates, rescaled to fit the target
-    /// deck's canvas size. That covers three distinct cases, and the first two are common: a layout
+    /// deck's canvas size. That covers four distinct cases, and the first two are common: a layout
     /// with no placeholder of that role at all (an ordinary "Title Slide" layout uses
     /// <c>ctrTitle</c>/<c>subTitle</c>), a layout that names the role but leaves its geometry to
-    /// the slide master (a stock "Title and Content" layout usually does), and a layout that
-    /// positions the role's placeholder only inside a group. All three leave content schema-valid
-    /// but with no box this library's render pipeline (which resolves a slide's inherited geometry
-    /// from the layout's TOP-LEVEL shape tree only — never from inside a group, and never by
-    /// resolving layout → master) can actually draw in — invisible in a render — rather than merely
-    /// positioned by this library's own choice.
+    /// the slide master (a stock "Title and Content" layout usually does), a layout whose
+    /// placeholder carries only part of a box (a position with no size, or a size with no
+    /// position), and a layout that positions the role's placeholder only inside a group.
+    /// Inheriting in any of these would leave content schema-valid but with no box this library's
+    /// render pipeline (which resolves a slide's inherited geometry from the layout's TOP-LEVEL
+    /// shape tree only — never from inside a group, and never by resolving layout → master) could
+    /// actually draw in — invisible in a render. That is why the fallback exists: it keeps content
+    /// visible, positioned by this library's own choice, at the cost of not matching a
+    /// hand-designed layout's own intended position in these cases.
     /// </summary>
     /// <param name="pptx">The presentation to insert into. It is not modified.</param>
     /// <param name="atIndex">
