@@ -1317,9 +1317,10 @@ public static class DocxMailMerge
     ///
     /// <paramref name="position"/> says WHICH value set the bad value was in, for the callers whose
     /// parameter carries many — a template with fifty rows in it names one, not "somewhere in
-    /// <c>rows</c>". It follows the <c>Record {index}:</c> shape <see cref="MergeBatchCore"/>
-    /// already uses when it re-throws a per-record failure, so a caller reads one convention rather
-    /// than two. Null for the single-value callers, whose parameter identifies the set on its own.
+    /// <c>rows</c>". It follows the <c>Record {index}:</c> shape <see cref="MergeCoreForBatch"/>
+    /// already uses when it re-throws a per-record failure on <see cref="MergeBatchCore"/>'s and
+    /// <see cref="MergeBatchToFilesCore"/>'s behalf, so a caller reads one convention rather than
+    /// two. Null for the single-value callers, whose parameter identifies the set on its own.
     /// </remarks>
     private static void RequireValues(
         IReadOnlyDictionary<string, string> values, string paramName, string? position = null)
@@ -1546,6 +1547,26 @@ public static class DocxMailMerge
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// <see cref="MergeCore"/>, with a strict failure re-thrown as <c>Record {index}:</c> rather
+    /// than the single-document message — the one place <see cref="MergeBatchCore"/> and
+    /// <see cref="MergeBatchToFilesCore"/> share this attribution, so their two loops cannot
+    /// disagree about how a bad record in a batch is named.
+    /// </summary>
+    private static MemoryStream MergeCoreForBatch(
+        Stream source, IReadOnlyDictionary<string, string> record, bool strict, int index,
+        out DocxMailMergeReport report)
+    {
+        try
+        {
+            return MergeCore(source, record, strict, out report);
+        }
+        catch (DocumentConversionException ex) when (strict)
+        {
+            throw new DocumentConversionException($"Record {index}: {ex.Message}", ex);
+        }
     }
 
     /// <summary>
@@ -1986,19 +2007,9 @@ public static class DocxMailMerge
             RequireValues(record, nameof(records));
 
             using var source = new MemoryStream(docx, writable: false);
-            DocxMailMergeReport report;
-            MemoryStream result;
-            try
-            {
-                result = MergeCore(source, record, strict, out report);
-            }
-            catch (DocumentConversionException ex) when (strict)
-            {
-                throw new DocumentConversionException($"Record {index}: {ex.Message}", ex);
-            }
+            using var result = MergeCoreForBatch(source, record, strict, index, out var report);
 
             var document = result.ToArray();
-            result.Dispose();
             yield return new DocxMailMergeBatchItem(index, document, report);
 
             index++;
@@ -2007,7 +2018,7 @@ public static class DocxMailMerge
 
     /// <summary>
     /// The one loop behind every batch overload that writes to disk — strict and lenient alike —
-    /// so they can never drift apart. Reuses <see cref="MergeCore"/> exactly like
+    /// so they can never drift apart. Reuses <see cref="MergeCoreForBatch"/> exactly like
     /// <see cref="MergeBatchCore"/> does; the only difference is where a result ends up.
     /// </summary>
     /// <remarks>
@@ -2052,21 +2063,8 @@ public static class DocxMailMerge
             ct.ThrowIfCancellationRequested();
 
             using var source = new MemoryStream(docx, writable: false);
-            DocxMailMergeReport report;
-            MemoryStream result;
-            try
-            {
-                result = MergeCore(source, records[i], strict, out report);
-            }
-            catch (DocumentConversionException ex) when (strict)
-            {
-                throw new DocumentConversionException($"Record {i}: {ex.Message}", ex);
-            }
-
-            using (result)
-            {
-                File.WriteAllBytes(paths[i], result.ToArray());
-            }
+            using var result = MergeCoreForBatch(source, records[i], strict, i, out var report);
+            File.WriteAllBytes(paths[i], result.ToArray());
 
             items.Add(new DocxMailMergeFileBatchItem(i, paths[i], report));
         }
