@@ -74,6 +74,7 @@ DISPLAY = {
 # The editors do not carry their format in the name the way converters do.
 EDITOR_FORMAT = {
     "DocxEditor": "DOCX",
+    "DocxMailMerge": "DOCX",
     "WorkbookEditor": "XLSX",
     "PresentationEditor": "PPTX",
     "PdfEditor": "PDF",

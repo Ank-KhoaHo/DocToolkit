@@ -140,8 +140,24 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<DocToolkit.DocxMailMergeTemplate> InspectTemplateAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static byte[] Merge(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> values) { }
         public static System.Threading.Tasks.Task MergeAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Threading.CancellationToken ct = default) { }
+        public static System.Collections.Generic.IEnumerable<byte[]> MergeBatch(byte[] docx, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records) { }
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(DocToolkit.DocxMailMerge.<MergeBatchAsync>d__7))]
+        public static System.Collections.Generic.IAsyncEnumerable<byte[]> MergeBatchAsync(byte[] docx, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken ct = default) { }
+        public static System.Collections.Generic.IReadOnlyList<string> MergeBatchToFiles(string templatePath, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records, System.Func<int, System.Collections.Generic.IReadOnlyDictionary<string, string>, string> outputPathFactory) { }
+        public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> MergeBatchToFilesAsync(string templatePath, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records, System.Func<int, System.Collections.Generic.IReadOnlyDictionary<string, string>, string> outputPathFactory, System.Threading.CancellationToken ct = default) { }
+        public static System.Collections.Generic.IReadOnlyList<DocToolkit.DocxMailMergeFileBatchItem> MergeBatchToFilesWithReport(string templatePath, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records, System.Func<int, System.Collections.Generic.IReadOnlyDictionary<string, string>, string> outputPathFactory) { }
+        public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<DocToolkit.DocxMailMergeFileBatchItem>> MergeBatchToFilesWithReportAsync(string templatePath, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records, System.Func<int, System.Collections.Generic.IReadOnlyDictionary<string, string>, string> outputPathFactory, System.Threading.CancellationToken ct = default) { }
+        public static System.Collections.Generic.IEnumerable<DocToolkit.DocxMailMergeBatchItem> MergeBatchWithReport(byte[] docx, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records) { }
+        [System.Runtime.CompilerServices.AsyncIteratorStateMachine(typeof(DocToolkit.DocxMailMerge.<MergeBatchWithReportAsync>d__9))]
+        public static System.Collections.Generic.IAsyncEnumerable<DocToolkit.DocxMailMergeBatchItem> MergeBatchWithReportAsync(byte[] docx, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> records, [System.Runtime.CompilerServices.EnumeratorCancellation] System.Threading.CancellationToken ct = default) { }
         public static DocToolkit.DocxMailMergeResult MergeWithReport(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> values) { }
         public static System.Threading.Tasks.Task<DocToolkit.DocxMailMergeReport> MergeWithReportAsync(System.IO.Stream source, System.IO.Stream destination, System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Threading.CancellationToken ct = default) { }
+    }
+    public sealed class DocxMailMergeBatchItem
+    {
+        public byte[] Document { get; }
+        public int RecordIndex { get; }
+        public DocToolkit.DocxMailMergeReport Report { get; }
     }
     public sealed class DocxMailMergeField
     {
@@ -156,6 +172,12 @@ namespace DocToolkit
         MissingValue = 1,
         UnsupportedFormatting = 2,
         Malformed = 3,
+    }
+    public sealed class DocxMailMergeFileBatchItem
+    {
+        public string OutputPath { get; }
+        public int RecordIndex { get; }
+        public DocToolkit.DocxMailMergeReport Report { get; }
     }
     public sealed class DocxMailMergeIssue
     {
