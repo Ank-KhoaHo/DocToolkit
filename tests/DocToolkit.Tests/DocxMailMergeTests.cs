@@ -836,13 +836,17 @@ public class DocxMailMergeTests
             // Reads the record unconditionally -- if this were ever invoked on the null entry it
             // would throw NullReferenceException itself, never reaching RequireValues's
             // ArgumentNullException. Record 0 is valid, so the factory DOES run once before the
-            // null record is reached, which is what proves validation happens per-record rather
-            // than only before the very first call.
+            // null record is reached -- calledIndices pins that directly, proving validation
+            // happens per-record rather than only before the very first call (a
+            // validate-all-then-compute-all-paths implementation would also throw
+            // ArgumentNullException here, but would never call the factory at all).
+            var calledIndices = new List<int>();
             var ex = Assert.Throws<ArgumentNullException>(() =>
                 DocxMailMerge.MergeBatchToFiles(templatePath, records!,
-                    (i, r) => Path.Combine(dir.FullName, r["FirstName"] + ".docx")));
+                    (i, r) => { calledIndices.Add(i); return Path.Combine(dir.FullName, r["FirstName"] + ".docx"); }));
 
             Assert.Equal("records", ex.ParamName);
+            Assert.Equal([0], calledIndices);
             // Nothing was written -- not even record 0, whose path was computed successfully
             // before the null record was ever reached.
             Assert.False(File.Exists(Path.Combine(dir.FullName, "Alice.docx")));
