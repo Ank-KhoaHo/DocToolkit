@@ -45,7 +45,9 @@ namespace DocToolkit;
 /// empty string, writes nothing, and reports the field <i>merged</i> and the document
 /// <i>complete</i> — so a database NULL becomes a letter reading "Your balance is " that nothing
 /// flags. A caller who means "leave it blank" writes <c>string.Empty</c> and says so; the one who
-/// did not decide gets told. An empty string is accepted and merges.
+/// did not decide gets told. An empty string is accepted and merges. <b>This holds for every method
+/// here that takes values</b>, including the per-record and per-row collections the repeating and
+/// table-row methods take, where the refusal names which record carried the null.
 ///
 /// <b>Produced documents are flattened.</b> The merged fields become ordinary text rather than live
 /// fields, so re-opening the result in Word cannot re-merge it and shows no field shading. Measured:
@@ -290,7 +292,8 @@ public static class DocxMailMerge
     /// <summary>
     /// A copy of <paramref name="docx"/> with every conditional block resolved, <b>together with
     /// which condition names the template asked for that <paramref name="conditions"/> did not
-    /// supply</b>. Always produces a document.
+    /// supply</b>. Always produces a document, except when the marker structure is genuinely
+    /// unbalanced.
     /// </summary>
     /// <remarks>
     /// <inheritdoc cref="MergeConditional(byte[], IReadOnlyDictionary{string, bool})" path="/remarks"/>
@@ -394,8 +397,8 @@ public static class DocxMailMerge
     /// </remarks>
     /// <param name="docx">The template to expand.</param>
     /// <param name="regions">One sequence of value sets per named repeating region.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null, or an individual record in it is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
     /// <exception cref="DocumentConversionException">
     /// A region the template asks for was not supplied, the marker structure is unbalanced, or the
     /// document could not be read or written.
@@ -421,8 +424,8 @@ public static class DocxMailMerge
     /// <param name="destination">Receives the expanded document.</param>
     /// <param name="regions">One sequence of value sets per named repeating region.</param>
     /// <param name="ct">Cancels before the document is read, and while it is written.</param>
-    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
-    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null, or an individual record in it is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes, or a record's value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// A region the template asks for was not supplied, the marker structure is unbalanced, or the
@@ -449,7 +452,7 @@ public static class DocxMailMerge
     /// <summary>
     /// A copy of <paramref name="docx"/> with every repeating block expanded, <b>together with
     /// which region names the template asked for that <paramref name="regions"/> did not supply</b>.
-    /// Always produces a document.
+    /// Always produces a document, except when the marker structure is genuinely unbalanced.
     /// </summary>
     /// <remarks>
     /// <inheritdoc cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})" path="/remarks"/>
@@ -461,8 +464,8 @@ public static class DocxMailMerge
     /// </remarks>
     /// <param name="docx">The template to expand.</param>
     /// <param name="regions">One sequence of value sets per named repeating region.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null, or an individual record in it is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
     /// <exception cref="DocumentConversionException">
     /// The marker structure is unbalanced, or the document could not be read or written.
     /// </exception>
@@ -494,8 +497,8 @@ public static class DocxMailMerge
     /// <param name="destination">Receives the expanded document.</param>
     /// <param name="regions">One sequence of value sets per named repeating region.</param>
     /// <param name="ct">Cancels before the document is read, and while it is written.</param>
-    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
-    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null, or an individual record in it is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes, or a record's value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The marker structure is unbalanced, or the document could not be read or written.
@@ -537,11 +540,15 @@ public static class DocxMailMerge
     /// </remarks>
     /// <param name="docx">The template to expand.</param>
     /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null, or an individual block row in it is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a block row's value is null.</exception>
     /// <exception cref="DocumentConversionException">
-    /// A region the template asks for was not supplied at any nesting level, the marker structure
-    /// is unbalanced, or the document could not be read or written.
+    /// A region the template asks for was not supplied at any nesting level, or was supplied by one
+    /// block row and omitted by a sibling — the preflight catches the first, the underlying engine
+    /// throws for the second, which is a NAME-level report's blind spot and is why
+    /// <see cref="MergeRepeatingRegionsWithReport(byte[], IReadOnlyDictionary{string, IEnumerable{DocxMailMergeBlockData}})"/>
+    /// reports nothing missing for it. Also when the marker structure is unbalanced, or the
+    /// document could not be read or written.
     /// </exception>
     public static byte[] MergeRepeatingRegions(
         byte[] docx, IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions)
@@ -565,12 +572,13 @@ public static class DocxMailMerge
     /// <param name="destination">Receives the expanded document.</param>
     /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
     /// <param name="ct">Cancels before the document is read, and while it is written.</param>
-    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
-    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null, or an individual block row in it is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes, or a block row's value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
-    /// A region the template asks for was not supplied at any nesting level, the marker structure
-    /// is unbalanced, or the document could not be read or written.
+    /// A region the template asks for was not supplied at any nesting level, or was supplied by one
+    /// block row and omitted by a sibling, the marker structure is unbalanced, or the document could
+    /// not be read or written.
     /// </exception>
     public static async Task MergeRepeatingRegionsAsync(
         Stream source, Stream destination,
@@ -593,7 +601,8 @@ public static class DocxMailMerge
     /// <summary>
     /// A copy of <paramref name="docx"/> with every nested repeating region expanded, <b>together
     /// with which region names the template asked for — at any nesting level — that
-    /// <paramref name="regions"/> did not supply</b>. Always produces a document.
+    /// <paramref name="regions"/> did not supply</b>. Always produces a document, except when the
+    /// marker structure is genuinely unbalanced.
     /// </summary>
     /// <remarks>
     /// <inheritdoc cref="MergeRepeatingRegions(byte[], IReadOnlyDictionary{string, IEnumerable{DocxMailMergeBlockData}})" path="/remarks"/>
@@ -619,8 +628,8 @@ public static class DocxMailMerge
     /// </remarks>
     /// <param name="docx">The template to expand.</param>
     /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null, or an individual block row in it is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a block row's value is null.</exception>
     /// <exception cref="DocumentConversionException">
     /// The marker structure is unbalanced, or the document could not be read or written.
     /// </exception>
@@ -652,8 +661,8 @@ public static class DocxMailMerge
     /// <param name="destination">Receives the expanded document.</param>
     /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
     /// <param name="ct">Cancels before the document is read, and while it is written.</param>
-    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
-    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null, or an individual block row in it is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes, or a block row's value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The marker structure is unbalanced, or the document could not be read or written.
@@ -685,8 +694,17 @@ public static class DocxMailMerge
     /// <remarks>
     /// <b>Index-based, not marker-based</b> — unlike
     /// <see cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})"/>,
-    /// there is no <c>{{...}}</c> convention for a table row; the underlying engine selects a row by
-    /// position, matching <see cref="DocxEditor.ReadTable(byte[], int)"/>'s own table selection.
+    /// there is no <c>{{...}}</c> convention for a table row; the underlying engine selects both the
+    /// table and the row by position.
+    ///
+    /// <b><paramref name="tableIndex"/> counts the tables the underlying engine sees, which is NOT
+    /// the same set <see cref="DocxEditor.ReadTable(byte[], int)"/> indexes.</b> Both skip a table
+    /// nested inside another table's cell. Only <c>ReadTable</c> descends into a
+    /// content control (<c>w:sdt</c>), so a document holding a control-wrapped table followed by an
+    /// ordinary one gives <c>ReadTable</c> two tables and this method one — index 0 is the wrapped
+    /// table to <c>ReadTable</c> and the ordinary table here, and index 1 is out of range here while
+    /// <c>ReadTable</c> answers it. Measured; do not read one index off the other. Content controls
+    /// are the only known divergence, so a template with none can use either count.
     ///
     /// <b>No strict/lenient split.</b> A caller supplies <paramref name="rows"/> directly rather
     /// than the template asking for a name that might go unsupplied, so there is nothing to
@@ -700,13 +718,19 @@ public static class DocxMailMerge
     /// per-record behavior, and caught the same way: a follow-up call to
     /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> or
     /// <see cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/> finds it.
+    ///
+    /// <b>Run this before <see cref="MergeConditional(byte[], IReadOnlyDictionary{string, bool})"/>
+    /// and before <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/></b>, and here
+    /// the order is sharper than it is for the marker-based methods: a conditional pass removes
+    /// content, so running one first can change which table <paramref name="tableIndex"/> lands on.
+    /// Position is not a name.
     /// </remarks>
     /// <param name="docx">The template to expand.</param>
     /// <param name="tableIndex">Zero-based index of the table, in document order.</param>
     /// <param name="templateRowIndex">Zero-based row index within that table to clone and bind.</param>
     /// <param name="rows">One value set per generated row.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null, or an individual row in it is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a row's value is null.</exception>
     /// <exception cref="DocumentConversionException">
     /// <paramref name="tableIndex"/> or <paramref name="templateRowIndex"/> is out of range, or the
     /// document could not be read or written.
@@ -735,8 +759,8 @@ public static class DocxMailMerge
     /// <param name="templateRowIndex">Zero-based row index within that table to clone and bind.</param>
     /// <param name="rows">One value set per generated row.</param>
     /// <param name="ct">Cancels before the document is read, and while it is written.</param>
-    /// <exception cref="ArgumentNullException">A stream or <paramref name="rows"/> is null.</exception>
-    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="rows"/> is null, or an individual row in it is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes, or a row's value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// <paramref name="tableIndex"/> or <paramref name="templateRowIndex"/> is out of range, or the
@@ -765,15 +789,35 @@ public static class DocxMailMerge
     /// <paramref name="groups"/>.
     /// </summary>
     /// <remarks>
-    /// <inheritdoc cref="MergeTableRows(byte[], int, int, IEnumerable{IReadOnlyDictionary{string, string}})" path="/remarks"/>
+    /// <b>Index-based, not marker-based</b>, exactly as
+    /// <see cref="MergeTableRows(byte[], int, int, IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// is — and <paramref name="tableIndex"/> counts the same set of tables, which is <b>not</b> the
+    /// set <see cref="DocxEditor.ReadTable(byte[], int)"/> indexes. See that method's remarks for
+    /// the measured difference: a table wrapped in a content control is one of <c>ReadTable</c>'s
+    /// and none of this one's.
+    ///
+    /// <b>No strict/lenient split</b>, for the same reason: a caller supplies
+    /// <paramref name="groups"/> directly rather than the template asking for a name that might go
+    /// unsupplied, so there is nothing to preflight.
+    ///
+    /// <b>An empty <paramref name="groups"/> removes both template rows.</b> A group or detail
+    /// record missing a field the corresponding row asks for leaves that field's raw placeholder in
+    /// the generated row, silently, and is caught the same way — a follow-up call to
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> or
+    /// <see cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/> finds it.
+    ///
+    /// <b>Run this before <see cref="MergeConditional(byte[], IReadOnlyDictionary{string, bool})"/>
+    /// and before <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/></b> — a
+    /// conditional pass removes content, so running one first can change which table
+    /// <paramref name="tableIndex"/> lands on. Position is not a name.
     /// </remarks>
     /// <param name="docx">The template to expand.</param>
     /// <param name="tableIndex">Zero-based index of the table, in document order.</param>
     /// <param name="groupTemplateRowIndex">Zero-based row index of the group/header row template.</param>
     /// <param name="detailTemplateRowIndex">Zero-based row index of the detail row template.</param>
     /// <param name="groups">One group/header value set, with its detail rows, per generated group.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">An argument is null, or an individual group or detail row in it is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a group or detail row's value is null.</exception>
     /// <exception cref="DocumentConversionException">
     /// <paramref name="tableIndex"/>, <paramref name="groupTemplateRowIndex"/> or
     /// <paramref name="detailTemplateRowIndex"/> is out of range, or the document could not be read
@@ -805,8 +849,8 @@ public static class DocxMailMerge
     /// <param name="detailTemplateRowIndex">Zero-based row index of the detail row template.</param>
     /// <param name="groups">One group/header value set, with its detail rows, per generated group.</param>
     /// <param name="ct">Cancels before the document is read, and while it is written.</param>
-    /// <exception cref="ArgumentNullException">A stream or <paramref name="groups"/> is null.</exception>
-    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="groups"/> is null, or an individual group or detail row in it is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes, or a group or detail row's value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// <paramref name="tableIndex"/>, <paramref name="groupTemplateRowIndex"/> or
@@ -1203,6 +1247,57 @@ public static class DocxMailMerge
     private const string TableRowsFailure = "Failed to expand the table's rows. See the inner exception for details.";
     private const string TableRowGroupsFailure = "Failed to expand the table's row groups. See the inner exception for details.";
 
+    /// <summary>
+    /// Stands in for a block row's absent <see cref="DocxMailMergeBlockData.Regions"/> so
+    /// <see cref="ToEngineRegions"/> has something to pad into. Never written to.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> NoNestedRegions
+        = new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>();
+
+    /// <summary>
+    /// The issue kinds a strict <c>MergeConditional*</c> call refuses on — the ones belonging to the
+    /// construct it guards, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <b>Deliberately not <c>InspectTemplate</c>'s own <c>IsValid</c>, which is what this used to
+    /// test and was wrong.</b> That flag is false whenever the inspection found <i>anything</i>, and
+    /// measured against OfficeIMO.Word 3.2.6, plenty of what it finds has no bearing on conditional
+    /// blocks at all: one malformed <c>MERGEFIELD</c> anywhere in the body, a <c>\b</c>, <c>\f</c> or
+    /// <c>\v</c> switch on an unrelated field, or a Word-native <c>NEXT</c>/<c>MERGEREC</c> control
+    /// field — the last two being things a real Word mail-merge template carries routinely.
+    /// Refusing on those closed this method to the whole document under a message naming the wrong
+    /// problem, and took the documented composition pipeline down with it: the field-level
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> that runs last refuses only
+    /// for an unfilled field, so it would happily have produced the document these three would not
+    /// let it reach. (Measured: <c>\#</c>, <c>\@</c> and <c>\*</c> switches report nothing, so an
+    /// ordinary currency- or date-formatted field was never part of the blast radius.)
+    ///
+    /// <b>Only the refusal narrows.</b> <see cref="DocxMailMergeBlockReport.Issues"/> still carries
+    /// everything the inspection found, relevant or not — which is what keeps an unrelated problem
+    /// visible to a caller who asked for a report rather than a refusal.
+    /// </remarks>
+    private static readonly DocxMailMergeIssueKind[] ConditionalIssueKinds =
+    [
+        DocxMailMergeIssueKind.MissingConditionalValue,
+        DocxMailMergeIssueKind.UnmatchedConditionalStart,
+        DocxMailMergeIssueKind.UnmatchedConditionalEnd,
+        DocxMailMergeIssueKind.MismatchedConditionalEnd,
+    ];
+
+    /// <summary>
+    /// The repeating-block twin of <see cref="ConditionalIssueKinds"/>, shared by
+    /// <see cref="MergeRepeatingCore"/> and <see cref="MergeRepeatingRegionsCore"/> — see that
+    /// field's remarks for why a strict refusal is decided by issue kind rather than by
+    /// <c>IsValid</c>.
+    /// </summary>
+    private static readonly DocxMailMergeIssueKind[] RepeatingIssueKinds =
+    [
+        DocxMailMergeIssueKind.MissingRepeatingBlockData,
+        DocxMailMergeIssueKind.UnmatchedRepeatingBlockStart,
+        DocxMailMergeIssueKind.UnmatchedRepeatingBlockEnd,
+        DocxMailMergeIssueKind.MismatchedRepeatingBlockEnd,
+    ];
+
     private static void RequireContent(byte[] docx)
     {
         ArgumentNullException.ThrowIfNull(docx);
@@ -1219,8 +1314,15 @@ public static class DocxMailMerge
     /// Takes the parameter name explicitly so a caller whose own parameter is not literally called
     /// <c>values</c> — <see cref="MergeBatchCore"/>'s <c>records</c>, for one — reports against the
     /// name it actually declared, rather than one it never did.
+    ///
+    /// <paramref name="position"/> says WHICH value set the bad value was in, for the callers whose
+    /// parameter carries many — a template with fifty rows in it names one, not "somewhere in
+    /// <c>rows</c>". It follows the <c>Record {index}:</c> shape <see cref="MergeBatchCore"/>
+    /// already uses when it re-throws a per-record failure, so a caller reads one convention rather
+    /// than two. Null for the single-value callers, whose parameter identifies the set on its own.
     /// </remarks>
-    private static void RequireValues(IReadOnlyDictionary<string, string> values, string paramName)
+    private static void RequireValues(
+        IReadOnlyDictionary<string, string> values, string paramName, string? position = null)
     {
         ArgumentNullException.ThrowIfNull(values, paramName);
 
@@ -1229,12 +1331,148 @@ public static class DocxMailMerge
             if (pair.Value is null)
             {
                 throw new ArgumentException(
-                    $"The value for '{pair.Key}' is null. A null merges as an empty string and is "
+                    (position is null ? string.Empty : position + ": ")
+                    + $"The value for '{pair.Key}' is null. A null merges as an empty string and is "
                     + "reported complete, so it cannot be told apart from a value somebody chose. "
                     + "Pass string.Empty to mean \"leave it blank\".",
                     paramName);
             }
         }
+    }
+
+    /// <summary>
+    /// A list-backed copy of <paramref name="regions"/>, with every record checked by
+    /// <see cref="RequireValues"/> on the way through.
+    /// </summary>
+    /// <remarks>
+    /// <b>The copy and the check are one pass on purpose.</b> The class guarantees a null value is
+    /// refused rather than merged, and honouring that here means reading every record — which, over
+    /// a caller's own <see cref="IEnumerable{T}"/>, is a walk. Checking in a pass of its own would
+    /// leave the engine's later walk as a SECOND one, and a genuinely single-pass source (an
+    /// iterator over a <c>DbDataReader</c>, say) comes back empty on that second walk: a document
+    /// that looks complete and has quietly lost every row. Materialising once removes the hazard
+    /// rather than documenting it.
+    ///
+    /// The records themselves are not copied — <see cref="ToEngineRecords"/> already does that
+    /// before the engine sees them, and copying twice would say nothing extra.
+    /// </remarks>
+    private static Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> MaterialiseRecords(
+        IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
+        string paramName)
+    {
+        var copy = new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>(regions.Count);
+        foreach (KeyValuePair<string, IEnumerable<IReadOnlyDictionary<string, string>>> pair in regions)
+        {
+            ArgumentNullException.ThrowIfNull(pair.Value, paramName);
+
+            var records = new List<IReadOnlyDictionary<string, string>>();
+            foreach (IReadOnlyDictionary<string, string> record in pair.Value)
+            {
+                ArgumentNullException.ThrowIfNull(record, paramName);
+                RequireValues(record, paramName, $"Region '{pair.Key}' record {records.Count}");
+                records.Add(record);
+            }
+
+            copy[pair.Key] = records;
+        }
+
+        return copy;
+    }
+
+    /// <summary>
+    /// The nested twin of <see cref="MaterialiseRecords"/> — a list-backed copy of a whole
+    /// <see cref="DocxMailMergeBlockData"/> tree, every level of it, with every row's values
+    /// checked on the way through.
+    /// </summary>
+    /// <remarks>
+    /// <b>This one closes a bug rather than merely preventing one.</b>
+    /// <see cref="MergeRepeatingRegionsCore"/> walks the caller's tree twice —
+    /// <see cref="CollectNamesRecursively"/> to learn which names are supplied, then
+    /// <see cref="ToEngineRegions"/> to build what the engine takes — and the two walked the
+    /// caller's own sequences independently. Measured against a source that yields on its first
+    /// walk and nothing after: <c>MergeRepeatingRegions</c> produced a valid, empty document, no
+    /// exception and no report entry. Taking the copy here, before either walker runs, is what
+    /// makes both of them read the same rows.
+    ///
+    /// <paramref name="path"/> accumulates the enclosing region and record on the way down, so a
+    /// null value three levels in names all three rather than only the innermost.
+    /// </remarks>
+    private static Dictionary<string, IEnumerable<DocxMailMergeBlockData>> MaterialiseBlockData(
+        IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions,
+        string paramName, string? path)
+    {
+        var copy = new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>(regions.Count);
+        foreach (KeyValuePair<string, IEnumerable<DocxMailMergeBlockData>> pair in regions)
+        {
+            ArgumentNullException.ThrowIfNull(pair.Value, paramName);
+
+            var rows = new List<DocxMailMergeBlockData>();
+            foreach (DocxMailMergeBlockData row in pair.Value)
+            {
+                ArgumentNullException.ThrowIfNull(row, paramName);
+
+                string here = path is null
+                    ? $"Region '{pair.Key}' record {rows.Count}"
+                    : $"{path} -> region '{pair.Key}' record {rows.Count}";
+                RequireValues(row.Values, paramName, here);
+
+                rows.Add(row.Regions is null
+                    ? row
+                    : new DocxMailMergeBlockData(
+                        row.Values, MaterialiseBlockData(row.Regions, paramName, here)));
+            }
+
+            copy[pair.Key] = rows;
+        }
+
+        return copy;
+    }
+
+    /// <summary>
+    /// The rows for <see cref="OfficeIMOMailMerge.ExecuteTableRows"/>, checked and materialised in
+    /// one pass — see <see cref="MaterialiseRecords"/> for why those are the same pass.
+    /// </summary>
+    private static List<IDictionary<string, string>> ToEngineRows(
+        IEnumerable<IReadOnlyDictionary<string, string>> rows, string paramName)
+    {
+        var result = new List<IDictionary<string, string>>();
+        foreach (IReadOnlyDictionary<string, string> row in rows)
+        {
+            ArgumentNullException.ThrowIfNull(row, paramName);
+            RequireValues(row, paramName, $"Row {result.Count}");
+            result.Add(Copy(row));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The groups for <see cref="OfficeIMOMailMerge.ExecuteTableRowGroups"/>, checked and
+    /// materialised in one pass — the grouped twin of <see cref="ToEngineRows"/>. A group's own
+    /// values and each of its detail rows are checked separately, and named separately, because a
+    /// null in a header cell and a null in a detail cell are different mistakes.
+    /// </summary>
+    private static List<OfficeIMOTableRowGroup> ToEngineGroups(
+        IEnumerable<DocxMailMergeTableRowGroup> groups, string paramName)
+    {
+        var result = new List<OfficeIMOTableRowGroup>();
+        foreach (DocxMailMergeTableRowGroup group in groups)
+        {
+            ArgumentNullException.ThrowIfNull(group, paramName);
+            RequireValues(group.Values, paramName, $"Group {result.Count}");
+
+            var rows = new List<IDictionary<string, string>>();
+            foreach (IReadOnlyDictionary<string, string> row in group.Rows)
+            {
+                ArgumentNullException.ThrowIfNull(row, paramName);
+                RequireValues(row, paramName, $"Group {result.Count} row {rows.Count}");
+                rows.Add(Copy(row));
+            }
+
+            result.Add(new OfficeIMOTableRowGroup(Copy(group.Values), rows));
+        }
+
+        return result;
     }
 
     private static async Task<DocxMailMergeReport> MergeToStreamAsync(
@@ -1318,11 +1556,13 @@ public static class DocxMailMerge
     /// <see cref="OfficeIMOMailMerge.ExecuteConditionalBlocks"/></b> — measured, the engine throws
     /// immediately if its dictionary is missing an entry for a marker name the document contains,
     /// with no partial-tolerance mode. The strict path refuses here, before <c>Execute</c> is
-    /// reached, whenever anything is missing or the marker structure is unsound — which is also
-    /// what keeps a genuinely unbalanced marker's raw <see cref="InvalidOperationException"/> from
-    /// ever escaping the strict overloads. The lenient path instead pads a COPY of
-    /// <paramref name="conditions"/> with <see langword="false"/> for every missing name before
-    /// calling <c>Execute</c>, so <c>Execute</c> never sees an unsupplied key either way.
+    /// reached, whenever a CONDITIONAL-BLOCK issue is reported — see
+    /// <see cref="ConditionalIssueKinds"/> for why the refusal is decided by issue kind rather than
+    /// by the inspection's own <c>IsValid</c> — which is also what keeps a genuinely unbalanced
+    /// marker's raw <see cref="InvalidOperationException"/> from ever escaping the strict overloads.
+    /// The lenient path instead pads a COPY of <paramref name="conditions"/> with
+    /// <see langword="false"/> for every missing name before calling <c>Execute</c>, so
+    /// <c>Execute</c> never sees an unsupplied key either way.
     ///
     /// <b>The strict refusal happens INSIDE the try, using a captured flag rather than an early
     /// throw</b> — matching <see cref="MergeCore"/>'s own reasoning: throwing the specific
@@ -1349,11 +1589,14 @@ public static class DocxMailMerge
                 .Where(i => i.Kind == DocxMailMergeIssueKind.MissingConditionalValue)
                 .Select(i => i.Name)];
 
-            refuse = strict && !inspection.IsValid;
+            List<DocxMailMergeIssue> blocking =
+                [.. allIssues.Where(i => ConditionalIssueKinds.Contains(i.Kind))];
+
+            refuse = strict && blocking.Count > 0;
             if (refuse)
             {
-                refusalMessage = $"{allIssues.Count} conditional block issue(s), refusing before "
-                    + $"merging any: {string.Join("; ", allIssues.Select(i => i.Message))}. Call "
+                refusalMessage = $"{blocking.Count} conditional block issue(s), refusing before "
+                    + $"merging any: {string.Join("; ", blocking.Select(i => i.Message))}. Call "
                     + "MergeConditionalWithReport to execute anyway.";
             }
             else
@@ -1405,6 +1648,11 @@ public static class DocxMailMerge
         Stream source, IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
         bool strict, out DocxMailMergeBlockReport report)
     {
+        // Outside the try, so a null value reaches the caller as the ArgumentException the class
+        // guarantees rather than being re-wrapped as a read-or-write failure.
+        Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> records =
+            MaterialiseRecords(regions, nameof(regions));
+
         var result = new MemoryStream();
         List<string> missing;
         List<DocxMailMergeIssue> allIssues;
@@ -1415,22 +1663,25 @@ public static class DocxMailMerge
         {
             using var document = OfficeIMOWordDocument.Load(source);
 
-            var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, null!, regions.Keys);
+            var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, null!, records.Keys);
             allIssues = [.. inspection.Issues.Select(Issue)];
             missing = [.. allIssues
                 .Where(i => i.Kind == DocxMailMergeIssueKind.MissingRepeatingBlockData)
                 .Select(i => i.Name)];
 
-            refuse = strict && !inspection.IsValid;
+            List<DocxMailMergeIssue> blocking =
+                [.. allIssues.Where(i => RepeatingIssueKinds.Contains(i.Kind))];
+
+            refuse = strict && blocking.Count > 0;
             if (refuse)
             {
-                refusalMessage = $"{allIssues.Count} repeating block issue(s), refusing before "
-                    + $"merging any: {string.Join("; ", allIssues.Select(i => i.Message))}. Call "
+                refusalMessage = $"{blocking.Count} repeating block issue(s), refusing before "
+                    + $"merging any: {string.Join("; ", blocking.Select(i => i.Message))}. Call "
                     + "MergeRepeatingWithReport to execute anyway.";
             }
             else
             {
-                var padded = CopyRegionsWithDefault(regions, missing);
+                var padded = CopyRegionsWithDefault(records, missing);
                 var forEngine = ToEngineRecords(padded);
                 OfficeIMOMailMerge.ExecuteRepeatingBlocks(document, forEngine, removeFields: true);
                 document.Save(result);
@@ -1525,6 +1776,12 @@ public static class DocxMailMerge
         Stream source, IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions,
         bool strict, out DocxMailMergeBlockReport report)
     {
+        // Outside the try, and BEFORE either walker below runs — see MaterialiseBlockData for the
+        // double-enumeration bug that placement closes, and for why the null-value check shares
+        // this pass.
+        Dictionary<string, IEnumerable<DocxMailMergeBlockData>> rows =
+            MaterialiseBlockData(regions, nameof(regions), path: null);
+
         var result = new MemoryStream();
         List<string> missing;
         List<DocxMailMergeIssue> allIssues;
@@ -1536,7 +1793,7 @@ public static class DocxMailMerge
             using var document = OfficeIMOWordDocument.Load(source);
 
             var suppliedNames = new HashSet<string>();
-            CollectNamesRecursively(regions, suppliedNames);
+            CollectNamesRecursively(rows, suppliedNames);
 
             var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, null!, suppliedNames);
             allIssues = [.. inspection.Issues.Select(Issue)];
@@ -1544,17 +1801,20 @@ public static class DocxMailMerge
                 .Where(i => i.Kind == DocxMailMergeIssueKind.MissingRepeatingBlockData)
                 .Select(i => i.Name)];
 
-            refuse = strict && !inspection.IsValid;
+            List<DocxMailMergeIssue> blocking =
+                [.. allIssues.Where(i => RepeatingIssueKinds.Contains(i.Kind))];
+
+            refuse = strict && blocking.Count > 0;
             if (refuse)
             {
-                refusalMessage = $"{allIssues.Count} repeating region issue(s), refusing before "
-                    + $"merging any: {string.Join("; ", allIssues.Select(i => i.Message))}. Call "
+                refusalMessage = $"{blocking.Count} repeating region issue(s), refusing before "
+                    + $"merging any: {string.Join("; ", blocking.Select(i => i.Message))}. Call "
                     + "MergeRepeatingRegionsWithReport to execute anyway.";
             }
             else
             {
                 List<string> pad = strict ? [] : [.. inspection.RepeatingBlockNames];
-                var forEngine = ToEngineRegions(regions, pad);
+                var forEngine = ToEngineRegions(rows, pad);
                 OfficeIMOMailMerge.ExecuteRepeatingBlockRegions(document, forEngine, removeFields: true);
                 document.Save(result);
                 result.Position = 0;
@@ -1642,13 +1902,16 @@ public static class DocxMailMerge
         Stream source, int tableIndex, int templateRowIndex,
         IEnumerable<IReadOnlyDictionary<string, string>> rows)
     {
+        // Outside the try, so a null value reaches the caller as the ArgumentException the class
+        // guarantees rather than being re-wrapped as a read-or-write failure.
+        List<IDictionary<string, string>> forEngine = ToEngineRows(rows, nameof(rows));
+
         var result = new MemoryStream();
         try
         {
             using var document = OfficeIMOWordDocument.Load(source);
 
             var table = document.Tables[tableIndex];
-            var forEngine = rows.Select(Copy).Cast<IDictionary<string, string>>();
             OfficeIMOMailMerge.ExecuteTableRows(table, templateRowIndex, forEngine, removeFields: true);
 
             document.Save(result);
@@ -1667,13 +1930,16 @@ public static class DocxMailMerge
         Stream source, int tableIndex, int groupTemplateRowIndex, int detailTemplateRowIndex,
         IEnumerable<DocxMailMergeTableRowGroup> groups)
     {
+        // Outside the try, so a null value reaches the caller as the ArgumentException the class
+        // guarantees rather than being re-wrapped as a read-or-write failure.
+        List<OfficeIMOTableRowGroup> forEngine = ToEngineGroups(groups, nameof(groups));
+
         var result = new MemoryStream();
         try
         {
             using var document = OfficeIMOWordDocument.Load(source);
 
             var table = document.Tables[tableIndex];
-            var forEngine = groups.Select(ToEngineGroup).ToList();
             OfficeIMOMailMerge.ExecuteTableRowGroups(
                 table, groupTemplateRowIndex, detailTemplateRowIndex, forEngine, removeFields: true);
 
@@ -1688,16 +1954,6 @@ public static class DocxMailMerge
 
         return result;
     }
-
-    private static OfficeIMOTableRowGroup ToEngineGroup(DocxMailMergeTableRowGroup group)
-        => new(Copy(group.Values), group.Rows.Select(Copy).Cast<IDictionary<string, string>>());
-
-    /// <summary>
-    /// Stands in for a block row's absent <see cref="DocxMailMergeBlockData.Regions"/> so
-    /// <see cref="ToEngineRegions"/> has something to pad into. Never written to.
-    /// </summary>
-    private static readonly IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> NoNestedRegions
-        = new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>();
 
     /// <summary>
     /// The one loop behind every batch overload that produces documents in memory — strict and

@@ -672,7 +672,8 @@ A region nested inside another region is `MergeRepeatingRegions`, which takes a
 `DocxMailMergeBlockData` per record so a record can carry its own inner regions. Each of the three
 marker-based methods also has a `*WithReport` form, which always produces a document — a
 `DocxMailMergeBlockResult` carrying the bytes and a `DocxMailMergeBlockReport` naming what went
-unsupplied — instead of refusing:
+unsupplied — instead of refusing. The one exception is a genuinely unbalanced marker structure,
+which no supplied value can work around, so a `*WithReport` form throws for that too:
 
 ```csharp
 var regions = new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>

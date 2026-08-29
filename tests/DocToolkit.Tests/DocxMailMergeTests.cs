@@ -16,6 +16,28 @@ namespace DocToolkit.Tests;
 /// </summary>
 public class DocxMailMergeTests
 {
+    /// <summary>
+    /// Asserts the produced package is schema-valid, not merely readable — through the shared
+    /// <see cref="DocxFixtures.Validate"/> helper, whose <c>Office2013</c> version is the one this
+    /// repository settled on after <c>Office2007</c> was found blind to a real ordering violation.
+    /// </summary>
+    /// <remarks>
+    /// <b>This matters most where a document is CLONED or CUT rather than typed into.</b> Expanding
+    /// a repeating region duplicates a run of block-level elements; expanding a table row clones a
+    /// <c>w:tr</c>; resolving a conditional block to false deletes a range. Every one of those can
+    /// produce a package whose text reads perfectly and whose XML Word refuses to open, and no
+    /// assertion on extracted text in this file can see the difference. Matches
+    /// <see cref="DocxEditorFootnoteEndnoteTocTests"/>'s helper of the same name rather than
+    /// hand-rolling a third <c>OpenXmlValidator</c> convention.
+    /// </remarks>
+    private static void AssertValid(byte[] docx)
+    {
+        var errors = DocxFixtures.Validate(docx);
+        Assert.True(errors.Count == 0,
+            "expected a schema-valid package, got:\n" +
+            string.Join("\n", errors.Take(3).Select(e => "  " + e.Description)));
+    }
+
     // ---- both on-disk encodings ---------------------------------------------------------------
 
     [Fact]
@@ -287,6 +309,7 @@ public class DocxMailMergeTests
             new Dictionary<string, bool> { ["ShowDiscount"] = true });
 
         Assert.Equal("BeforeDiscount appliesAfter", Text(merged));
+        AssertValid(merged);
     }
 
     [Fact]
@@ -297,6 +320,7 @@ public class DocxMailMergeTests
             new Dictionary<string, bool> { ["ShowDiscount"] = false });
 
         Assert.Equal("BeforeAfter", Text(merged));
+        AssertValid(merged);
     }
 
     [Fact]
@@ -451,6 +475,7 @@ public class DocxMailMergeTests
             });
 
         Assert.Equal("BeforeName: AliceName: BobAfter", Text(merged));
+        AssertValid(merged);
     }
 
     [Fact]
@@ -598,6 +623,7 @@ public class DocxMailMergeTests
             });
 
         Assert.Equal("Order: 1001Line: A1Line: A2", Text(merged));
+        AssertValid(merged);
     }
 
     [Fact]
@@ -745,7 +771,7 @@ public class DocxMailMergeTests
         // unlike the lenient WithReport form, which defaults the row to zero rows and reports nothing missing.
         byte[] template = NestedRepeatingTemplate();
 
-        Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeatingRegions(
+        var ex = Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeatingRegions(
             template,
             new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
             {
@@ -760,6 +786,13 @@ public class DocxMailMergeTests
                     new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1002" }),
                 }
             }));
+
+        // WHICH layer refused is the whole point, and the exception type alone cannot say: the
+        // preflight and the engine both surface as DocumentConversionException. The preflight
+        // throws with no inner exception, so an InvalidOperationException inside pins that the
+        // ENGINE threw -- which is what makes this a per-row omission the name-level preflight
+        // cannot see, rather than a preflight refusal wearing the same clothes.
+        Assert.IsType<InvalidOperationException>(ex.InnerException);
     }
 
     [Fact]
@@ -874,6 +907,7 @@ public class DocxMailMergeTests
             });
 
         Assert.Equal("HeaderName: AliceName: Bob", Text(merged));
+        AssertValid(merged);
     }
 
     [Fact]
@@ -886,6 +920,7 @@ public class DocxMailMergeTests
             Array.Empty<IReadOnlyDictionary<string, string>>());
 
         Assert.Equal("Header", Text(merged));
+        AssertValid(merged);
     }
 
     [Fact]
@@ -943,6 +978,7 @@ public class DocxMailMergeTests
             });
 
         Assert.Equal("Group: FruitsDetail: AppleDetail: Banana", Text(merged));
+        AssertValid(merged);
     }
 
     [Fact]
@@ -1007,6 +1043,453 @@ public class DocxMailMergeTests
         tbl.Append(detailRow);
         body.Append(tbl);
     });
+
+    // ---- A75 fix: a strict refusal is scoped to the construct that call guards -----------------
+
+    /// <summary>
+    /// The strict forms used to refuse on <c>InspectTemplate</c>'s own <c>IsValid</c>, which is
+    /// false whenever the inspection found <b>anything</b> — so one malformed <c>MERGEFIELD</c>, or
+    /// a Word-native <c>NEXT</c> control field, closed <see cref="DocxMailMerge.MergeConditional"/>
+    /// to a document whose conditional blocks were sound and fully supplied, under a message
+    /// announcing a "conditional block issue" and then quoting a merge-field problem.
+    /// </summary>
+    /// <remarks>
+    /// <b>Both fixtures carry a positive control</b>, because the whole test is an assertion that
+    /// something does NOT happen: it first confirms <c>InspectTemplate</c> really does mark this
+    /// document unsound, and that every issue it names belongs to the OTHER construct. A fixture
+    /// that quietly stopped carrying a problem at all would otherwise pass while proving nothing —
+    /// which is exactly how the currency-switch guess in this fix's own measurement round turned
+    /// out to be a non-issue (<c>\#</c>, <c>\@</c> and <c>\*</c> report nothing; <c>\b</c>,
+    /// <c>\f</c> and <c>\v</c> do).
+    /// </remarks>
+    [Theory]
+    [InlineData("malformed", DocxMailMergeIssueKind.MalformedField)]
+    [InlineData("control", DocxMailMergeIssueKind.UnsupportedMailMergeControlField)]
+    [InlineData("switch", DocxMailMergeIssueKind.UnsupportedFormatting)]
+    public void MergeConditional_DoesNotRefuseForAMergeFieldProblemElsewhere(
+        string kind, DocxMailMergeIssueKind expectedKind)
+    {
+        byte[] template = ConditionalTemplateWithAnUnrelatedFieldProblem(kind);
+
+        DocxMailMergeTemplate inspection = DocxMailMerge.InspectTemplate(template);
+        Assert.False(inspection.IsValid);
+        Assert.NotEmpty(inspection.Issues);
+        Assert.All(inspection.Issues, i => Assert.Equal(expectedKind, i.Kind));
+
+        byte[] merged = DocxMailMerge.MergeConditional(
+            template, new Dictionary<string, bool> { ["ShowDiscount"] = true });
+
+        Assert.Contains("Discount applies", Text(merged), StringComparison.Ordinal);
+        AssertValid(merged);
+    }
+
+    [Fact]
+    public void MergeRepeating_DoesNotRefuseForAMalformedMergeFieldElsewhere()
+    {
+        byte[] template = RepeatingTemplateWithAMalformedFieldElsewhere();
+
+        Assert.False(DocxMailMerge.InspectTemplate(template).IsValid);
+
+        byte[] merged = DocxMailMerge.MergeRepeating(
+            template,
+            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = new[] { new Dictionary<string, string> { ["Name"] = "Alice" } }
+            });
+
+        Assert.Contains("Name: Alice", Text(merged), StringComparison.Ordinal);
+        AssertValid(merged);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_DoesNotRefuseForAMalformedMergeFieldElsewhere()
+    {
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#each Orders}}"))));
+            var p = new Paragraph();
+            p.Append(new Run(new Text("Order: ")));
+            p.Append(Field(" MERGEFIELD OrderId \\* MERGEFORMAT ", "«OrderId»"));
+            body.Append(p);
+            body.Append(new Paragraph(new Run(new Text("{{/each Orders}}"))));
+            body.Append(new Paragraph(Field(" MERGEFIELD ", "«»")));
+        });
+
+        Assert.False(DocxMailMerge.InspectTemplate(template).IsValid);
+
+        byte[] merged = DocxMailMerge.MergeRepeatingRegions(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1001" }),
+                }
+            });
+
+        Assert.Contains("Order: 1001", Text(merged), StringComparison.Ordinal);
+        AssertValid(merged);
+    }
+
+    [Fact]
+    public void MergeConditionalWithReport_StillReportsAnUnrelatedFieldProblem()
+    {
+        // The other half of the narrowed refusal, and the reason Issues is documented as
+        // "everything the inspection found" rather than "structural problems": the strict form
+        // stopped refusing for this, so the report must not stop mentioning it.
+        byte[] template = ConditionalTemplateWithAnUnrelatedFieldProblem("malformed");
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeConditionalWithReport(
+            template, new Dictionary<string, bool> { ["ShowDiscount"] = true });
+
+        Assert.Equal(
+            DocxMailMergeIssueKind.MalformedField, Assert.Single(result.Report.Issues).Kind);
+        Assert.Empty(result.Report.MissingNames);
+        Assert.True(result.Report.IsComplete);
+    }
+
+    private static byte[] ConditionalTemplateWithAnUnrelatedFieldProblem(string kind) => Build(body =>
+    {
+        body.Append(new Paragraph(new Run(new Text("Before"))));
+        body.Append(new Paragraph(new Run(new Text("{{#ShowDiscount}}"))));
+        body.Append(new Paragraph(new Run(new Text("Discount applies"))));
+        body.Append(new Paragraph(new Run(new Text("{{/ShowDiscount}}"))));
+        body.Append(new Paragraph(UnrelatedFieldProblem(kind)));
+        body.Append(new Paragraph(new Run(new Text("After"))));
+    });
+
+    /// <summary>
+    /// A merge-field problem with nothing to do with conditional blocks or repeating regions —
+    /// measured to set <c>InspectTemplate</c>'s <c>IsValid</c> false while reporting no issue of
+    /// either construct's kind.
+    /// </summary>
+    private static SimpleField UnrelatedFieldProblem(string kind) => kind switch
+    {
+        // No field name at all.
+        "malformed" => Field(" MERGEFIELD ", "«»"),
+        // Word's own record-control field, which this engine reports and does not execute -- and
+        // which a real Word mail-merge template carries routinely.
+        "control" => Field(" NEXT ", string.Empty),
+        // \b is one of the three switches (\b, \f, \v) measured outside the engine's deterministic
+        // formatting profile. \#, \@ and \* are all fine and report nothing.
+        _ => Field(" MERGEFIELD Balance \\b \"pre\" ", "«Balance»"),
+    };
+
+    private static byte[] RepeatingTemplateWithAMalformedFieldElsewhere() => Build(body =>
+    {
+        body.Append(new Paragraph(new Run(new Text("Before"))));
+        body.Append(new Paragraph(new Run(new Text("{{#each Items}}"))));
+        var p = new Paragraph();
+        p.Append(new Run(new Text("Name: ")));
+        p.Append(Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»"));
+        body.Append(p);
+        body.Append(new Paragraph(new Run(new Text("{{/each Items}}"))));
+        body.Append(new Paragraph(Field(" MERGEFIELD ", "«»")));
+        body.Append(new Paragraph(new Run(new Text("After"))));
+    });
+
+    // ---- A75 fix: the null-value guarantee reaches the per-record collections too --------------
+
+    /// <summary>
+    /// The class states as a guarantee that a null VALUE is refused rather than merged, because the
+    /// engine writes it as an empty string and reports the document complete. Four of the five new
+    /// methods never checked, so a database NULL merged into a generated row and — with
+    /// <c>removeFields: true</c> — left nothing for a follow-up pass to find. Measured before the
+    /// fix: <c>MergeRepeating</c> with a null <c>Name</c> produced "Before / Name: / After".
+    /// </summary>
+    [Fact]
+    public void MergeRepeating_RefusesANullValueInARecord_NamingWhichRecord()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => DocxMailMerge.MergeRepeating(
+            RepeatingTemplate("Items", "Name"),
+            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = new[]
+                {
+                    new Dictionary<string, string> { ["Name"] = "Alice" },
+                    new Dictionary<string, string> { ["Name"] = null! },
+                }
+            }));
+
+        Assert.Equal("regions", ex.ParamName);
+        Assert.Contains("Region 'Items' record 1", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("'Name' is null", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_RefusesANullValueInANESTEDRow_NamingThePathToIt()
+    {
+        // Nesting is the case a top-level-only check would miss, so the null goes in the inner row
+        // and the message has to name both levels to be worth anything.
+        var ex = Assert.Throws<ArgumentException>(() => DocxMailMerge.MergeRepeatingRegions(
+            NestedRepeatingTemplate(),
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+                        {
+                            ["Lines"] = new[]
+                            {
+                                new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }),
+                                new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = null! }),
+                            }
+                        }),
+                }
+            }));
+
+        Assert.Equal("regions", ex.ParamName);
+        Assert.Contains(
+            "Region 'Orders' record 0 -> region 'Lines' record 1", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("'Sku' is null", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MergeTableRows_RefusesANullValueInARow_NamingWhichRow()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => DocxMailMerge.MergeTableRows(
+            TableRowsTemplate(), tableIndex: 0, templateRowIndex: 1,
+            new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["Name"] = "Alice" },
+                new Dictionary<string, string> { ["Name"] = null! },
+            }));
+
+        Assert.Equal("rows", ex.ParamName);
+        Assert.Contains("Row 1", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("'Name' is null", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void MergeTableRowGroups_RefusesANullValue_InEitherTheGroupOrADetailRow(bool inTheGroup)
+    {
+        var group = inTheGroup
+            ? new DocxMailMergeTableRowGroup(
+                new Dictionary<string, string> { ["GroupName"] = null! },
+                new IReadOnlyDictionary<string, string>[]
+                {
+                    new Dictionary<string, string> { ["Item"] = "Apple" },
+                })
+            : new DocxMailMergeTableRowGroup(
+                new Dictionary<string, string> { ["GroupName"] = "Fruits" },
+                new IReadOnlyDictionary<string, string>[]
+                {
+                    new Dictionary<string, string> { ["Item"] = "Apple" },
+                    new Dictionary<string, string> { ["Item"] = null! },
+                });
+
+        var ex = Assert.Throws<ArgumentException>(() => DocxMailMerge.MergeTableRowGroups(
+            TableRowGroupsTemplate(), tableIndex: 0, groupTemplateRowIndex: 0,
+            detailTemplateRowIndex: 1, new[] { group }));
+
+        Assert.Equal("groups", ex.ParamName);
+        Assert.Contains(inTheGroup ? "Group 0:" : "Group 0 row 1", ex.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            inTheGroup ? "'GroupName' is null" : "'Item' is null", ex.Message, StringComparison.Ordinal);
+    }
+
+    // ---- A75 fix: the caller's region tree is read once ----------------------------------------
+
+    /// <summary>
+    /// <c>MergeRepeatingRegionsCore</c> walked the caller's sequences twice — once to collect the
+    /// supplied names, once to build what the engine takes. A genuinely single-pass source is empty
+    /// on the second walk, so the document came out valid, complete-looking and missing every row,
+    /// with no exception and nothing in the report.
+    /// </summary>
+    /// <remarks>
+    /// <b>Measured both ways.</b> With the materialisation removed, this fixture produced an empty
+    /// document ("" extracted text) after two walks; with it, one walk and both orders present.
+    /// <see cref="SinglePass{T}"/> yields nothing rather than throwing on its later walks, on
+    /// purpose — a source that threw would have made the bug loud, and the bug was silent.
+    /// </remarks>
+    [Fact]
+    public void MergeRepeatingRegions_ReadsTheCallersSequenceOnce_NotOncePerInternalWalk()
+    {
+        var orders = new SinglePass<DocxMailMergeBlockData>(
+        [
+            new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1001" }),
+            new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1002" }),
+        ]);
+
+        byte[] merged = DocxMailMerge.MergeRepeatingRegions(
+            FlatOrdersTemplate(),
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>> { ["Orders"] = orders });
+
+        // The content assertion is what the caller cares about; the walk count is what says WHY it
+        // holds, so a future change that reintroduces a second walk over a materialised copy does
+        // not silently re-open the door for the caller's own sequence.
+        Assert.Equal("Order: 1001Order: 1002", Text(merged));
+        Assert.Equal(1, orders.Walks);
+        AssertValid(merged);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_ReadsANestedSequenceOnceToo()
+    {
+        var lines = new SinglePass<DocxMailMergeBlockData>(
+        [
+            new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }),
+            new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A2" }),
+        ]);
+
+        byte[] merged = DocxMailMerge.MergeRepeatingRegions(
+            NestedRepeatingTemplate(),
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>> { ["Lines"] = lines }),
+                }
+            });
+
+        Assert.Equal("Order: 1001Line: A1Line: A2", Text(merged));
+        Assert.Equal(1, lines.Walks);
+    }
+
+    private static byte[] FlatOrdersTemplate() => Build(body =>
+    {
+        body.Append(new Paragraph(new Run(new Text("{{#each Orders}}"))));
+        var p = new Paragraph();
+        p.Append(new Run(new Text("Order: ")));
+        p.Append(Field(" MERGEFIELD OrderId \\* MERGEFORMAT ", "«OrderId»"));
+        body.Append(p);
+        body.Append(new Paragraph(new Run(new Text("{{/each Orders}}"))));
+    });
+
+    // ---- A75 fix: MergeTableRows' table index is NOT DocxEditor.ReadTable's -------------------
+
+    /// <summary>
+    /// The doc comment used to say <c>tableIndex</c> selected the same table
+    /// <see cref="DocxEditor.ReadTable(byte[], int)"/> would. Measured, it does not: <c>ReadTable</c>
+    /// descends into a block-level content control (<c>w:sdt</c>) and the underlying mail-merge
+    /// engine's own <c>Tables</c> collection does not, so a control-wrapped table is one of
+    /// <c>ReadTable</c>'s and none of this method's.
+    /// </summary>
+    /// <remarks>
+    /// The doc comment was corrected rather than the selection reimplemented — matching
+    /// <c>ReadTable</c>'s content-control-aware walk would mean replacing the engine's own table
+    /// lookup, which is a far larger change than the claim was worth. Both indexes are asserted
+    /// here so the corrected claim is the one that is pinned.
+    /// </remarks>
+    [Fact]
+    public void MergeTableRows_TableIndexDisagreesWithReadTable_ForAContentControlWrappedTable()
+    {
+        byte[] docx = WrappedAndOrdinaryTables();
+
+        // The fixture is what it claims to be -- this repository has had a family of measurements
+        // invalidated by a hand-built w:sdt that was not a content control at all.
+        AssertValid(docx);
+
+        // ReadTable sees two tables, the wrapped one first.
+        Assert.Equal(2, DocxEditor.TableCount(docx));
+        Assert.Equal("WRAPPED", DocxEditor.ReadTable(docx, 0)[0][0]);
+        Assert.Equal("Header", DocxEditor.ReadTable(docx, 1)[0][0]);
+
+        var rows = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["Name"] = "Alice" },
+            new Dictionary<string, string> { ["Name"] = "Bob" },
+        };
+
+        // MergeTableRows' index 0 is the ORDINARY table -- ReadTable's index 1.
+        byte[] merged = DocxMailMerge.MergeTableRows(docx, tableIndex: 0, templateRowIndex: 1, rows);
+        Assert.Equal("WRAPPEDHeaderName: AliceName: Bobafter", Text(merged));
+        AssertValid(merged);
+
+        // ...and index 1, which ReadTable answers, is out of range here. Without this leg the
+        // assertion above would also pass against an implementation that happened to agree.
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeTableRows(docx, tableIndex: 1, templateRowIndex: 1, rows));
+        Assert.IsType<ArgumentOutOfRangeException>(ex.InnerException);
+    }
+
+    private static byte[] WrappedAndOrdinaryTables() => Build(body =>
+    {
+        var wrapped = new Table();
+        wrapped.Append(new TableProperties());
+        wrapped.Append(new TableGrid(new GridColumn()));
+        wrapped.Append(new TableRow(new TableCell(new Paragraph(new Run(new Text("WRAPPED"))))));
+        body.Append(new SdtBlock(
+            new SdtProperties(new SdtAlias { Val = "c" }, new Tag { Val = "c" }),
+            new SdtContentBlock(wrapped)));
+
+        var ordinary = new Table();
+        ordinary.Append(new TableProperties());
+        ordinary.Append(new TableGrid(new GridColumn()));
+        ordinary.Append(new TableRow(new TableCell(new Paragraph(new Run(new Text("Header"))))));
+        ordinary.Append(new TableRow(new TableCell(new Paragraph(
+            new Run(new Text("Name: ")),
+            Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»")))));
+        body.Append(ordinary);
+
+        // A sibling paragraph, so "the table is gone" and "the read came back empty" cannot be the
+        // same observation.
+        body.Append(new Paragraph(new Run(new Text("after"))));
+    });
+
+    // ---- A75 fix: MergeTableRowGroups' missing test legs ---------------------------------------
+
+    [Fact]
+    public void MergeTableRowGroups_ZeroGroups_RemovesBothTemplateRows()
+    {
+        byte[] merged = DocxMailMerge.MergeTableRowGroups(
+            TableRowGroupsTemplate(), tableIndex: 0, groupTemplateRowIndex: 0,
+            detailTemplateRowIndex: 1, Array.Empty<DocxMailMergeTableRowGroup>());
+
+        Assert.Equal(string.Empty, Text(merged));
+        AssertValid(merged);
+    }
+
+    [Theory]
+    [InlineData(99, 1)]
+    [InlineData(0, 99)]
+    public void MergeTableRowGroups_OutOfRangeRowIndex_ThrowsDocumentConversionException(
+        int groupTemplateRowIndex, int detailTemplateRowIndex)
+    {
+        // Both row axes, because this method has two and MergeTableRows' own out-of-range test
+        // cannot say anything about the second one.
+        var ex = Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeTableRowGroups(
+            TableRowGroupsTemplate(), tableIndex: 0, groupTemplateRowIndex, detailTemplateRowIndex,
+            new[]
+            {
+                new DocxMailMergeTableRowGroup(
+                    new Dictionary<string, string> { ["GroupName"] = "Fruits" },
+                    new IReadOnlyDictionary<string, string>[]
+                    {
+                        new Dictionary<string, string> { ["Item"] = "Apple" },
+                    }),
+            }));
+
+        Assert.IsType<ArgumentOutOfRangeException>(ex.InnerException);
+    }
+
+    [Fact]
+    public void MergeTableRowGroups_ARecordMissingAField_LeavesItsPlaceholder_WithoutThrowing()
+    {
+        byte[] merged = DocxMailMerge.MergeTableRowGroups(
+            TableRowGroupsTemplate(), tableIndex: 0, groupTemplateRowIndex: 0,
+            detailTemplateRowIndex: 1,
+            new[]
+            {
+                new DocxMailMergeTableRowGroup(
+                    new Dictionary<string, string> { ["GroupName"] = "Fruits" },
+                    new IReadOnlyDictionary<string, string>[] { new Dictionary<string, string>() }),
+            });
+
+        // Same silent behaviour as MergeTableRows, and caught the same way -- by a follow-up
+        // field-level pass, which is what the doc comment tells a caller to do.
+        Assert.Equal("Group: FruitsDetail: «Item»", Text(merged));
+
+        DocxMailMergeResult followUp =
+            DocxMailMerge.MergeWithReport(merged, new Dictionary<string, string>());
+        Assert.Equal(new[] { "Item" }, followUp.Report.MissingFieldNames);
+    }
 
     // ---- matching rules ---------------------------------------------------------------------------
 
@@ -2176,12 +2659,18 @@ public class DocxMailMergeTests
 
         Assert.Equal("CatalogueAliceBobEnd", Text(required));
 
-        // The same three arguments, the other way round.
+        // The same three arguments, the other way round -- and the INNER call is the one that
+        // refuses, so the repeating pass that would have come after it never runs at all.
+        //
+        // Nesting the two calls inside one Assert.Throws could not say that: it passes whichever
+        // of them throws, so it would hold just as well against a conditional pass that succeeded
+        // and a repeating pass that failed for some unrelated reason. Measured, the conditional
+        // pass refuses with "Conditional block 'Urgent' was not supplied."
         var ex = Assert.Throws<DocumentConversionException>(
-            () => DocxMailMerge.MergeRepeating(
-                DocxMailMerge.MergeConditional(template, noConditions), regions));
+            () => DocxMailMerge.MergeConditional(template, noConditions));
 
         Assert.Contains("Urgent", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("conditional block issue", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2346,6 +2835,41 @@ public class DocxMailMergeTests
         public bool ContainsKey(string key) => _inner.ContainsKey(key);
         public bool TryGetValue(string key, out string value) => _inner.TryGetValue(key, out value!);
         public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => _inner.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    /// <summary>
+    /// Yields its items on the FIRST walk and nothing on any later one, counting walks — what an
+    /// iterator over a forward-only source such as a <c>DbDataReader</c> does, and deliberately
+    /// <b>without throwing to say so</b>.
+    /// </summary>
+    /// <remarks>
+    /// A double-enumeration guard that threw would be a strictly weaker fixture: the bug this
+    /// stands in for produced a valid, complete-looking, empty document, and a throwing source
+    /// would have turned it into an exception nobody could miss. Yielding nothing reproduces the
+    /// silence, and <see cref="Walks"/> is what turns "the content is right" into "the content is
+    /// right for the right reason".
+    /// </remarks>
+    private sealed class SinglePass<T> : IEnumerable<T>
+    {
+        private readonly IReadOnlyList<T> _items;
+        private bool _walked;
+
+        public SinglePass(IReadOnlyList<T> items) => _items = items;
+
+        /// <summary>How many times something asked this sequence for an enumerator.</summary>
+        public int Walks { get; private set; }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            Walks++;
+            if (_walked)
+                return Enumerable.Empty<T>().GetEnumerator();
+
+            _walked = true;
+            return _items.GetEnumerator();
+        }
+
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
