@@ -536,6 +536,33 @@ public class DocxMailMergeTests
         Assert.Equal(1, pulledCount);
     }
 
+    [Fact]
+    public async Task MergeBatchAsync_ThrowsForAnAlreadyCancelledToken_BeforePullingAnyRecord()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
+        };
+        var pulledCount = 0;
+        IEnumerable<IReadOnlyDictionary<string, string>> countingRecords =
+            records.Select(r => { pulledCount++; return r; });
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var document in DocxMailMerge.MergeBatchAsync(
+                Simple("FirstName"), countingRecords, cts.Token))
+            {
+            }
+        });
+
+        // The check in MergeBatchAsync's loop runs before the first MoveNext() too -- an
+        // already-cancelled token must refuse before record 0's merge ever starts, not merely
+        // before its output is yielded.
+        Assert.Equal(0, pulledCount);
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
 
     private static string Text(byte[] docx) => DocxEditor.ExtractText(docx).Replace("\n", string.Empty);

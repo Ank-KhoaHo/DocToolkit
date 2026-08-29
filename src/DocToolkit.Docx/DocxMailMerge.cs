@@ -263,7 +263,11 @@ public static class DocxMailMerge
     /// <param name="ct">Cancels before the next record's merge runs.</param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
-    /// <paramref name="records"/> is null.
+    /// <paramref name="records"/> is null. Unlike the synchronous
+    /// <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>, this is
+    /// not thrown until the caller starts enumerating the result — inherent to how an
+    /// <see cref="IAsyncEnumerable{T}"/> iterator method defers its whole body, argument validation
+    /// included, not a gap specific to this method.
     /// </exception>
     /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
