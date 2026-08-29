@@ -1155,4 +1155,77 @@ public class PresentationEditorTests
         Assert.Contains("Inserted Title", text);
         Assert.Contains("Bullet A", text);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // Re-review fix round 2, Finding 1: a present Transform2D is not necessarily a USABLE box.
+    // CT_Transform2D declares both a:off and a:ext as optional, so a layout placeholder can carry
+    // an a:xfrm with only a:off. Measured against the pre-fix guard (Transform2D-presence only):
+    // stripping just <a:ext> from "Section Header"'s title placeholder -- the SAME real,
+    // PowerPoint-authored layout used as the positive control above -- still passed it, still
+    // stripped the inserted title's own a:xfrm, and "Inserted Title" vanished from the render
+    // entirely. That is the identical failure class the whole geometry guard exists to prevent.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InsertSlides_WhenTheLayoutTitleXfrmHasNoExtents_StillRendersTheTitle()
+    {
+        var deck = PptxFixtures.SampleAttachedToLayoutWithAnIncompleteTitleBox("Section Header");
+        Assert.Empty(PptxFixtures.Validate(deck)); // the mutated fixture is itself schema-valid
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var text = PdfProbe.ExtractText(PptxToPdfConverter.Convert(edited));
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    [Fact]
+    public void InsertSlides_WhenTheLayoutTitleXfrmHasNoExtents_TitleFallsBackButBodyStillInherits()
+    {
+        // The structural twin of the render test above, and it discriminates PER PLACEHOLDER: only
+        // the title's a:ext was stripped, so only the title keeps its own fixed geometry -- the
+        // body placeholder's box is still complete and is still inherited, exactly like the
+        // positive control. That split is what proves the guard checks completeness placeholder by
+        // placeholder rather than merely refusing the whole layout the moment one box is bad.
+        var deck = PptxFixtures.SampleAttachedToLayoutWithAnIncompleteTitleBox("Section Header");
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Single(xfrms); // title keeps its own box (incomplete layout box); body still inherits
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Re-review fix round 2, Finding 2: the null-SlideLayout guard in
+    // LayoutHasMatchingPositionedPlaceholder had no test proving it fires. Before this branch,
+    // InsertSlides never read a layout's XML content at all, so a SlideLayoutPart with no root
+    // element -- a genuinely reachable OOXML state -- was not a failure mode InsertSlides could
+    // reach. Reading a layout's placeholders to decide on geometry inheritance made it reachable,
+    // and without a test nothing fails if the guard is deleted.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasNoRootElement_DegradesToTheFixedGeometryRatherThanThrowing()
+    {
+        var deck = PptxFixtures.SampleAttachedToAnUnassignedLayout();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Equal(2, xfrms.Count); // title AND body degrade to the fixed-geometry fallback
+    }
 }

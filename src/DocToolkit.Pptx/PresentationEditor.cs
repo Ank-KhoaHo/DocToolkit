@@ -1059,8 +1059,10 @@ public static class PresentationEditor
     /// <summary>
     /// Whether <paramref name="layoutPart"/>'s own shape tree has a placeholder with the same role
     /// as <paramref name="shapePlaceholder"/> — same <c>Type</c>, and for <see cref="P.PlaceholderValues.Body"/>,
-    /// the same <c>Index</c> too — <b>which also carries its own position and size</b>. A role match
-    /// alone is not enough: only a positioned placeholder gives the inserted shape a box to inherit.
+    /// the same <c>Index</c> too — <b>which also carries a complete, usable box of its own: both an
+    /// offset and an extent</b>. A role match alone is not enough, and neither is a bare
+    /// <see cref="A.Transform2D"/> — only a placeholder with both halves of its box gives the
+    /// inserted shape something to inherit.
     /// </summary>
     /// <remarks>
     /// <b>The geometry half is not a refinement, it is the load-bearing half.</b> Many real
@@ -1084,6 +1086,17 @@ public static class PresentationEditor
     /// EXPLICIT <c>Type=Body</c> — so an untyped one never matches and always falls back. That is
     /// the safe direction (fixed geometry that renders, rather than inherited geometry that might
     /// not), and it is conservative rather than wrong.
+    ///
+    /// <b>A present <see cref="A.Transform2D"/> is not enough — it has to be complete.</b>
+    /// <c>CT_Transform2D</c> declares both <c>a:off</c> and <c>a:ext</c> as optional, so a layout
+    /// placeholder can carry <c>&lt;a:xfrm&gt;&lt;a:off .../&gt;&lt;/a:xfrm&gt;</c> with no
+    /// <c>a:ext</c> — a non-null <c>Transform2D</c> that is still not a usable box. Measured
+    /// directly: stripping <c>&lt;a:ext&gt;</c> from the "Section Header" layout's title
+    /// placeholder — the positive control this method's own test suite uses — still passed a
+    /// presence-only check, still stripped the inserted shape's own <c>a:xfrm</c>, and the title
+    /// text still vanished from the render: the identical failure class this whole check exists to
+    /// prevent. So both <c>.Offset</c> and <c>.Extents</c> must be non-null, not merely
+    /// <c>Transform2D</c> itself.
     /// </remarks>
     private static bool LayoutHasMatchingPositionedPlaceholder(
         SlideLayoutPart layoutPart, P.PlaceholderShape shapePlaceholder)
@@ -1108,8 +1121,11 @@ public static class PresentationEditor
                 continue;
             }
 
-            // The role matches, but the layout supplies no box of its own — nothing to inherit.
-            if (layoutShape.ShapeProperties?.Transform2D is null) continue;
+            // The role matches, but the layout's box is missing or incomplete -- an a:xfrm with
+            // only a:off or only a:ext is not enough to draw in, so treat it the same as no
+            // Transform2D at all rather than inheriting half a box.
+            var layoutXfrm = layoutShape.ShapeProperties?.Transform2D;
+            if (layoutXfrm?.Offset is null || layoutXfrm.Extents is null) continue;
 
             return true;
         }

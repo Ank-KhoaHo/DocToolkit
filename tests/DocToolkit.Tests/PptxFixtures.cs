@@ -221,6 +221,80 @@ internal static class PptxFixtures
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// <see cref="SampleAttachedToLayout"/> for <paramref name="layoutName"/>, with that layout's
+    /// title placeholder's own <c>a:xfrm</c> then stripped down to JUST an <c>a:off</c> — no
+    /// <c>a:ext</c> — reproducing an <see cref="A.Transform2D"/> that is present but not a usable
+    /// box. <c>CT_Transform2D</c> declares both <c>a:off</c> and <c>a:ext</c> as optional, so this
+    /// is schema-valid on a real PowerPoint-authored layout, not a fixture-only shape: a layout
+    /// author can genuinely produce it.
+    /// </summary>
+    public static byte[] SampleAttachedToLayoutWithAnIncompleteTitleBox(string layoutName)
+    {
+        using var ms = Load(SampleAttachedToLayout(layoutName));
+
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var slidePart = doc.PresentationPart!.SlideParts.Single();
+            var layoutPart = slidePart.SlideLayoutPart!;
+
+            var titleShape = layoutPart.SlideLayout!.Descendants<P.Shape>().First(shape =>
+                shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties
+                    ?.GetFirstChild<P.PlaceholderShape>()?.Type?.Value == P.PlaceholderValues.Title);
+
+            titleShape.ShapeProperties!.Transform2D!.Extents!.Remove();
+            layoutPart.SlideLayout.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// <c>sample.pptx</c>'s slide re-pointed at a newly created <see cref="SlideLayoutPart"/> whose
+    /// root <see cref="P.SlideLayout"/> element is deliberately never assigned — the case
+    /// <c>LayoutHasMatchingPositionedPlaceholder</c>'s null-<c>SlideLayout</c> guard exists to
+    /// survive. Before this branch, <c>InsertSlides</c> never read a layout's XML content at all,
+    /// so a <see cref="SlideLayoutPart"/> with no root element was not a failure mode it could
+    /// reach; reading the layout's placeholders to decide on geometry inheritance made it reachable.
+    ///
+    /// Registered in the master's <c>SlideLayoutIdList</c> the same way <see cref="MultiLayoutDeck"/>
+    /// registers its second layout, so the deck stays shaped like one a real package would produce
+    /// rather than merely one <c>ResolveLayoutForInsertion</c> happens to tolerate.
+    /// </summary>
+    public static byte[] SampleAttachedToAnUnassignedLayout()
+    {
+        using var ms = Load(Sample());
+
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var presentationPart = doc.PresentationPart!;
+            var slidePart = presentationPart.SlideParts.Single();
+            var masterPart = slidePart.SlideLayoutPart!.SlideMasterPart!;
+
+            var emptyLayoutPart = masterPart.AddNewPart<SlideLayoutPart>();
+            emptyLayoutPart.AddPart(masterPart);
+            // SlideLayout is deliberately never assigned: the part exists with no root element,
+            // so its SlideLayout getter returns null rather than throwing.
+
+            var layoutIdList = masterPart.SlideMaster!.SlideLayoutIdList!;
+            var nextLayoutId = layoutIdList.Elements<P.SlideLayoutId>().Max(l => l.Id!.Value) + 1;
+            layoutIdList.Append(new P.SlideLayoutId
+            {
+                Id = nextLayoutId,
+                RelationshipId = masterPart.GetIdOfPart(emptyLayoutPart),
+            });
+            masterPart.SlideMaster.Save();
+
+            slidePart.DeletePart(slidePart.SlideLayoutPart!);
+            slidePart.AddPart(emptyLayoutPart);
+
+            slidePart.Slide!.Save();
+            presentationPart.Presentation!.Save();
+        }
+
+        return ms.ToArray();
+    }
+
     /// <summary>Rewrites the sample deck's single text-box paragraph as the given runs.</summary>
     public static byte[] SampleWithRuns(params (string Text, bool Bold)[] runs) => Mutate(slide =>
     {
