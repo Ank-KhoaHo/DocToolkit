@@ -599,8 +599,45 @@ Worth knowing before you rely on it, all measured rather than assumed:
 returns a `DocxMailMergeReport` rather than a `DocxMailMergeResult`, because the document went to
 your `destination`.
 
-**Batch — one document per record — is not here yet.** A loop over `Merge` produces exactly the same
-documents; what is missing is the ergonomics, not the capability.
+### Batch: one document per record
+
+`MergeBatch` fills the same template once per record, yielding one document per entry:
+
+```csharp
+var records = new[]
+{
+    new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+    new Dictionary<string, string> { ["FirstName"] = "Bob",   ["Balance"] = "250" },
+};
+
+foreach (byte[] letter in DocxMailMerge.MergeBatch(template, records))
+{
+    // write each one out as it's produced -- memory stays proportional to one document
+    // in flight, not the whole batch
+}
+```
+
+It is lazy and strict, matching `Merge`'s own "refuse rather than produce an unfinished document"
+rule: a record missing a required value throws, naming which record and which field, and nothing
+after that record runs. `MergeBatchWithReport` is the lenient counterpart — it never throws, and
+yields every record's document together with a `DocxMailMergeBatchItem` for each record, which holds
+its `Document`, `RecordIndex` and `Report` (the same shape `MergeWithReport` returns for one document).
+
+`MergeBatchToFiles`/`MergeBatchToFilesWithReport` write straight to disk instead of yielding bytes,
+given a path for each record:
+
+```csharp
+IReadOnlyList<DocxMailMergeFileBatchItem> items = DocxMailMerge.MergeBatchToFilesWithReport(
+    "template.docx", records, (index, record) => $"letter-{index}.docx");
+
+foreach (var item in items)
+    Console.WriteLine($"Record {item.RecordIndex} → {item.OutputPath}");
+```
+
+A `DocxMailMergeFileBatchItem` holds the `OutputPath`, `RecordIndex` and `Report` for each merge. Two
+records producing the same output path are refused before anything is written — a caller's
+`outputPathFactory` returning a duplicate is not silently allowed to overwrite one record's document
+with another's.
 
 ## Fill-in forms: Word content controls
 

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using OfficeIMOMailMerge = OfficeIMO.Word.WordMailMerge;
 using OfficeIMOFieldResult = OfficeIMO.Word.WordMailMergeFieldResult;
 using OfficeIMOFieldStatus = OfficeIMO.Word.WordMailMergeFieldStatus;
@@ -122,7 +123,7 @@ public static class DocxMailMerge
     public static byte[] Merge(byte[] docx, IReadOnlyDictionary<string, string> values)
     {
         RequireContent(docx);
-        RequireValues(values);
+        RequireValues(values, nameof(values));
 
         using var source = new MemoryStream(docx, writable: false);
         using var result = MergeCore(source, values, strict: true, out _);
@@ -172,7 +173,7 @@ public static class DocxMailMerge
         byte[] docx, IReadOnlyDictionary<string, string> values)
     {
         RequireContent(docx);
-        RequireValues(values);
+        RequireValues(values, nameof(values));
 
         using var source = new MemoryStream(docx, writable: false);
         using var result = MergeCore(source, values, strict: false, out DocxMailMergeReport report);
@@ -209,6 +210,368 @@ public static class DocxMailMerge
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
+    /// filled document in order.
+    /// </summary>
+    /// <remarks>
+    /// <b>Strict, the same way <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> is
+    /// strict — this refuses the moment a record is incomplete, mid-sequence.</b> Everything already
+    /// yielded before that point is unaffected; nothing after it runs. See
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// for the lenient form, which never throws for an incomplete record.
+    ///
+    /// <b>This is lazy.</b> Memory stays proportional to one document in flight, not the whole
+    /// batch — <paramref name="records"/> is walked one entry at a time as the caller enumerates the
+    /// result, and each document's bytes are only held until the caller moves on to the next one.
+    /// </remarks>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules,
+    /// which apply here unchanged. An empty sequence yields no documents.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
+    public static IEnumerable<byte[]> MergeBatch(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        return MergeBatchCore(docx, records, strict: true).Select(item => item.Document);
+    }
+
+    /// <summary>
+    /// The async form of <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// — see its documentation for exactly what is matched and how strictness works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})" path="/remarks"/>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules,
+    /// which apply here unchanged. An empty sequence yields no documents.
+    /// </param>
+    /// <param name="ct">Cancels before the next record's merge runs.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null. Unlike the synchronous
+    /// <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>, this is
+    /// not thrown until the caller starts enumerating the result — inherent to how an
+    /// <see cref="IAsyncEnumerable{T}"/> iterator method defers its whole body, argument validation
+    /// included, not a gap specific to this method.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or a record's value is null. Unlike the synchronous
+    /// <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>, this is
+    /// not thrown until the caller starts enumerating the result — the same
+    /// <see cref="IAsyncEnumerable{T}"/> deferral as the <see cref="ArgumentNullException"/> case
+    /// above, not a gap specific to this method.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
+    public static async IAsyncEnumerable<byte[]> MergeBatchAsync(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        using var e = MergeBatchCore(docx, records, strict: true).GetEnumerator();
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!e.MoveNext()) break;
+            yield return e.Current.Document;
+        }
+    }
+
+    /// <summary>
+    /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
+    /// record's document <b>together with what happened to every field in it</b>.
+    /// </summary>
+    /// <remarks>
+    /// The lenient half of the pair. This always produces a document for every record, complete or
+    /// not, and never throws for an incomplete one — see
+    /// <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/> for the
+    /// strict form.
+    ///
+    /// <b>This is lazy.</b> Memory stays proportional to one item in flight, not the whole batch —
+    /// <paramref name="records"/> is walked one entry at a time as the caller enumerates the
+    /// result, and each item is only held until the caller moves on to the next one.
+    /// </remarks>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// yields no items.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static IEnumerable<DocxMailMergeBatchItem> MergeBatchWithReport(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        return MergeBatchCore(docx, records, strict: false);
+    }
+
+    /// <summary>
+    /// The async form of <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// — see its documentation for exactly what is matched and how lenience works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})" path="/remarks"/>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// yields no items.
+    /// </param>
+    /// <param name="ct">Cancels before the next record's merge runs.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null. Unlike the synchronous
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>, this is
+    /// not thrown until the caller starts enumerating the result — inherent to how an
+    /// <see cref="IAsyncEnumerable{T}"/> iterator method defers its whole body, argument validation
+    /// included, not a gap specific to this method.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or a record's value is null. Unlike the synchronous
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>,
+    /// this is not thrown until the caller starts enumerating the result — the same
+    /// <see cref="IAsyncEnumerable{T}"/> deferral as the <see cref="ArgumentNullException"/> case
+    /// above, not a gap specific to this method.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static async IAsyncEnumerable<DocxMailMergeBatchItem> MergeBatchWithReportAsync(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        using var e = MergeBatchCore(docx, records, strict: false).GetEnumerator();
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!e.MoveNext()) break;
+            yield return e.Current;
+        }
+    }
+
+    /// <summary>
+    /// Reads a template from <paramref name="templatePath"/>, fills it once per entry in
+    /// <paramref name="records"/>, and writes each result to the path
+    /// <paramref name="outputPathFactory"/> returns for it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Strict, the same way <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// is strict</b> — refuses the moment a record is incomplete, and nothing after that record is
+    /// written. See <see cref="MergeBatchToFilesWithReport(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// for the lenient form.
+    ///
+    /// <b>Every output path is checked for a collision against every other, before anything is
+    /// written.</b> Two records producing the same path is refused outright, naming both record
+    /// indices — measured against the underlying engine's own batch writer, a collision silently
+    /// overwrites one record's document with another's, with no exception and no warning. This
+    /// refuses rather than risk it. Paths are compared as exact strings, not resolved or
+    /// normalized — two different spellings of the same file (a relative path and its absolute
+    /// equivalent, or two different cases on a case-insensitive filesystem) are not detected as a
+    /// collision.
+    ///
+    /// <b><paramref name="templatePath"/> itself is not one of the paths this check compares
+    /// against.</b> <paramref name="outputPathFactory"/> returning the template's own path is not
+    /// treated as a collision — the template is already fully read into memory before any record is
+    /// merged, so nothing about the write itself fails, but the result is that the template file on
+    /// disk is silently overwritten with a merged record's output, with no exception and no warning.
+    /// </remarks>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules. An
+    /// empty sequence writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or the same path for two
+    /// different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
+    public static IReadOnlyList<string> MergeBatchToFiles(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory)
+    {
+        var docx = FilePipeline.Read(templatePath, nameof(templatePath));
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true, CancellationToken.None);
+        return [.. items.Select(item => item.OutputPath)];
+    }
+
+    /// <summary>
+    /// The async form of <see cref="MergeBatchToFiles(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// — see its documentation for exactly what is matched, how strictness works, and how the
+    /// path-collision guard works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatchToFiles(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})" path="/remarks"/>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules. An
+    /// empty sequence writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <param name="ct">Cancels before the template is read, and again before each record's merge.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or the same path for two
+    /// different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled before the template finished reading.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
+    public static async Task<IReadOnlyList<string>> MergeBatchToFilesAsync(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory,
+        CancellationToken ct = default)
+    {
+        var docx = await FilePipeline.ReadAsync(templatePath, nameof(templatePath), ct)
+            .ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true, ct);
+        return [.. items.Select(item => item.OutputPath)];
+    }
+
+    /// <summary>
+    /// Reads a template from <paramref name="templatePath"/>, fills it once per entry in
+    /// <paramref name="records"/>, and writes each result to the path
+    /// <paramref name="outputPathFactory"/> returns for it — <b>together with what happened to
+    /// every field in it.</b>
+    /// </summary>
+    /// <remarks>
+    /// The lenient half of the pair. This always writes a file for every record, complete or not,
+    /// and never throws for an incomplete one — see
+    /// <see cref="MergeBatchToFiles(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// for the strict form. The path-collision refusal is unconditional and applies here too — see
+    /// that method's remarks.
+    /// </remarks>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null,
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or
+    /// <paramref name="outputPathFactory"/> produced the same path for two different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static IReadOnlyList<DocxMailMergeFileBatchItem> MergeBatchToFilesWithReport(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory)
+    {
+        var docx = FilePipeline.Read(templatePath, nameof(templatePath));
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// The async form of <see cref="MergeBatchToFilesWithReport(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// — see its documentation for exactly what is matched, how strictness works, and how the
+    /// path-collision guard works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatchToFilesWithReport(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})" path="/remarks"/>
+    /// <param name="templatePath">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// writes nothing.
+    /// </param>
+    /// <param name="outputPathFactory">
+    /// Given a record's 0-based index and its own values, returns the path its document is written
+    /// to. Called once per record before any document is merged.
+    /// </param>
+    /// <param name="ct">Cancels before the template is read, and again before each record's merge.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="templatePath"/>, <paramref name="records"/> or
+    /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or the same path for two
+    /// different records.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled before the template finished reading.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static async Task<IReadOnlyList<DocxMailMergeFileBatchItem>> MergeBatchToFilesWithReportAsync(
+        string templatePath, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory,
+        CancellationToken ct = default)
+    {
+        var docx = await FilePipeline.ReadAsync(templatePath, nameof(templatePath), ct)
+            .ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(records);
+        ArgumentNullException.ThrowIfNull(outputPathFactory);
+
+        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false, ct);
+    }
+
     private const string EmptySource = "DOCX content was empty.";
     private const string InspectFailure = "Failed to read the document's mail-merge template. See the inner exception for details.";
     private const string MergeFailure = "Failed to fill the document's merge fields. See the inner exception for details.";
@@ -225,9 +588,14 @@ public static class DocxMailMerge
     /// and reports the document complete, so it is the one way to ship a half-finished letter that
     /// neither the strict overload nor the report can catch.
     /// </summary>
-    private static void RequireValues(IReadOnlyDictionary<string, string> values)
+    /// <remarks>
+    /// Takes the parameter name explicitly so a caller whose own parameter is not literally called
+    /// <c>values</c> — <see cref="MergeBatchCore"/>'s <c>records</c>, for one — reports against the
+    /// name it actually declared, rather than one it never did.
+    /// </remarks>
+    private static void RequireValues(IReadOnlyDictionary<string, string> values, string paramName)
     {
-        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(values, paramName);
 
         foreach (KeyValuePair<string, string> pair in values)
         {
@@ -237,7 +605,7 @@ public static class DocxMailMerge
                     $"The value for '{pair.Key}' is null. A null merges as an empty string and is "
                     + "reported complete, so it cannot be told apart from a value somebody chose. "
                     + "Pass string.Empty to mean \"leave it blank\".",
-                    nameof(values));
+                    paramName);
             }
         }
     }
@@ -248,7 +616,7 @@ public static class DocxMailMerge
     {
         StreamPipeline.RequireReadable(source, nameof(source));
         StreamPipeline.RequireWritable(destination, nameof(destination));
-        RequireValues(values);
+        RequireValues(values, nameof(values));
         ct.ThrowIfCancellationRequested();
 
         using var docx = await StreamPipeline
@@ -313,6 +681,155 @@ public static class DocxMailMerge
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The one loop behind every batch overload that produces documents in memory — strict and
+    /// lenient alike — so they can never drift apart the same way <see cref="MergeCore"/> already
+    /// keeps <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> and
+    /// <see cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/> from drifting.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a `yield return` iterator, and deliberately PRIVATE: every public caller —
+    /// <see cref="MergeBatch"/>, <see cref="MergeBatchAsync"/>,
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// and <see cref="MergeBatchWithReportAsync"/> — is expected to validate its own arguments
+    /// before any document is produced. <see cref="MergeBatch"/> and
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// do this eagerly, each in an ordinary non-iterator method body, before calling this.
+    /// <see cref="MergeBatchAsync"/> and <see cref="MergeBatchWithReportAsync"/> cannot do the
+    /// same — both are `async IAsyncEnumerable` methods themselves, so their whole body (including
+    /// their own argument validation) is deferred until the caller starts enumerating, which is
+    /// inherent to async iterators in C#, not a gap. A `yield return` in this PRIVATE method would
+    /// defer validation the same way, which is why it stays out of the public surface instead.
+    /// </remarks>
+    private static IEnumerable<DocxMailMergeBatchItem> MergeBatchCore(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records, bool strict)
+    {
+        var index = 0;
+        foreach (var record in records)
+        {
+            RequireValues(record, nameof(records));
+
+            using var source = new MemoryStream(docx, writable: false);
+            DocxMailMergeReport report;
+            MemoryStream result;
+            try
+            {
+                result = MergeCore(source, record, strict, out report);
+            }
+            catch (DocumentConversionException ex) when (strict)
+            {
+                throw new DocumentConversionException($"Record {index}: {ex.Message}", ex);
+            }
+
+            var document = result.ToArray();
+            result.Dispose();
+            yield return new DocxMailMergeBatchItem(index, document, report);
+
+            index++;
+        }
+    }
+
+    /// <summary>
+    /// The one loop behind every batch overload that writes to disk — strict and lenient alike —
+    /// so they can never drift apart. Reuses <see cref="MergeCore"/> exactly like
+    /// <see cref="MergeBatchCore"/> does; the only difference is where a result ends up.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="records"/> is an <see cref="IReadOnlyList{T}"/> here, not the
+    /// <see cref="IEnumerable{T}"/> the public methods take — every output path has to be computed
+    /// and checked for collisions before any record is merged, which needs indexed, repeatable
+    /// access. The public callers materialise the caller's sequence once, up front, before calling
+    /// this.
+    ///
+    /// <b>Writes are deliberately synchronous</b> — <c>File.WriteAllBytes</c>, not
+    /// <c>File.WriteAllBytesAsync</c> — because the per-record merge this loop performs is the
+    /// dominant cost and is itself synchronous; making only the write awaitable would move a
+    /// negligible fraction of the work off the calling thread. Cancellation is still observed
+    /// before each record's merge, independent of the write's synchrony.
+    /// </remarks>
+    private static List<DocxMailMergeFileBatchItem> MergeBatchToFilesCore(
+        byte[] docx, IReadOnlyList<IReadOnlyDictionary<string, string>> records,
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory, bool strict,
+        CancellationToken ct)
+    {
+        var paths = new string[records.Count];
+        for (var i = 0; i < records.Count; i++)
+        {
+            RequireValues(records[i], nameof(records));
+
+            var path = outputPathFactory(i, records[i]);
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException(
+                    $"Record {i}: outputPathFactory returned a null or blank path.",
+                    nameof(outputPathFactory));
+            }
+
+            paths[i] = path;
+        }
+
+        CheckNoPathCollisions(paths);
+
+        var items = new List<DocxMailMergeFileBatchItem>(records.Count);
+        for (var i = 0; i < records.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            using var source = new MemoryStream(docx, writable: false);
+            DocxMailMergeReport report;
+            MemoryStream result;
+            try
+            {
+                result = MergeCore(source, records[i], strict, out report);
+            }
+            catch (DocumentConversionException ex) when (strict)
+            {
+                throw new DocumentConversionException($"Record {i}: {ex.Message}", ex);
+            }
+
+            using (result)
+            {
+                File.WriteAllBytes(paths[i], result.ToArray());
+            }
+
+            items.Add(new DocxMailMergeFileBatchItem(i, paths[i], report));
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Refuses if any two entries in <paramref name="paths"/> are identical, naming both positions
+    /// and the path they share.
+    /// </summary>
+    /// <remarks>
+    /// Ordinal comparison, deliberately — no <see cref="Path.GetFullPath(string)"/> normalisation,
+    /// no case-insensitivity. Normalising would mean guessing whether two differently-spelled paths
+    /// the caller's own factory produced were meant to collide; comparing exactly what the factory
+    /// returned is the one behaviour that cannot be wrong about the caller's intent.
+    ///
+    /// <b>A path matching <c>templatePath</c> itself is not treated as a collision</b> —
+    /// <c>outputPathFactory</c> returning the template's own path will overwrite it with a merged
+    /// record's output, with no warning. This only compares output paths against each other.
+    /// </remarks>
+    private static void CheckNoPathCollisions(IReadOnlyList<string> paths)
+    {
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < paths.Count; i++)
+        {
+            if (seen.TryGetValue(paths[i], out var firstIndex))
+            {
+                throw new ArgumentException(
+                    $"Records {firstIndex} and {i} both produced the output path '{paths[i]}'. "
+                    + "This refuses rather than silently overwriting one record's document with "
+                    + "another's — give outputPathFactory a way to tell every record apart.",
+                    "outputPathFactory");
+            }
+
+            seen[paths[i]] = i;
+        }
     }
 
     private static DocxMailMergeTemplate InspectCore(Stream source)
