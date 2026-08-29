@@ -23,10 +23,14 @@ converter is `<From>To<To>Converter`. That is a fact about the name, not a guess
 about behaviour, so the conversion grid is read straight off the class names.
 All eleven converters follow it today.
 
-The editing table is the same idea one level down: the four `*Editor` classes'
-public method NAMES. It reports what exists, not what it does - `ReadTable` is
-listed, its 0-based index is not. Prose belongs in the guides; this table's job
-is to be complete and current, which prose has repeatedly failed to be.
+The editing table is the same idea one level down: EDITOR_FORMAT names the
+classes it covers explicitly - unlike the conversion grid, there is no naming
+pattern to derive membership from (DocxMailMerge proved that: it doesn't end
+in "Editor" and was missing from this dict for weeks after it shipped, found
+only when A74 needed to add DocxMailMerge's own new methods to this table).
+It reports what exists, not what it does - `ReadTable` is listed, its 0-based
+index is not. Prose belongs in the guides; this table's job is to be complete
+and current, which prose has repeatedly failed to be.
 
 It does NOT try to describe fidelity, options, or caveats. A generated table
 that editorialised would be a worse version of the guides rather than an index
