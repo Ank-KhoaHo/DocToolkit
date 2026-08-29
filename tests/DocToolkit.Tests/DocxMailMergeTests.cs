@@ -2124,6 +2124,76 @@ public class DocxMailMergeTests
         }
     }
 
+    // ---- A75: composition across constructs, in the required order ---------------------------
+
+    [Fact]
+    public void MergeRepeating_ThenMergeConditional_ComposesInTheRequiredOrder()
+    {
+        // The design's measured composition ordering: a conditional block nested inside a
+        // repeating region resolves correctly only when the repeating pass runs FIRST, producing N
+        // independent copies of the conditional marker pair, each then resolved on its own.
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#each Items}}"))));
+            var p = new Paragraph();
+            p.Append(Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»"));
+            body.Append(p);
+            body.Append(new Paragraph(new Run(new Text("{{#OnSale}}"))));
+            body.Append(new Paragraph(new Run(new Text("ON SALE"))));
+            body.Append(new Paragraph(new Run(new Text("{{/OnSale}}"))));
+            body.Append(new Paragraph(new Run(new Text("{{/each Items}}"))));
+        });
+
+        byte[] expanded = DocxMailMerge.MergeRepeating(
+            template,
+            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = new IReadOnlyDictionary<string, string>[]
+                {
+                    new Dictionary<string, string> { ["Name"] = "Alice" },
+                    new Dictionary<string, string> { ["Name"] = "Bob" },
+                }
+            });
+
+        byte[] resolved = DocxMailMerge.MergeConditional(
+            expanded, new Dictionary<string, bool> { ["OnSale"] = true });
+
+        Assert.Equal("AliceON SALEBobON SALE", Text(resolved));
+    }
+
+    [Fact]
+    public void MergeTableRows_ThenMergeConditional_ThenMerge_ComposesAcrossAllThreeLayers()
+    {
+        byte[] template = Build(body =>
+        {
+            var tbl = new Table();
+            tbl.Append(new TableProperties());
+            tbl.Append(new TableGrid(new GridColumn()));
+            var templateRow = new TableRow(new TableCell(new Paragraph(
+                Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»"))));
+            tbl.Append(templateRow);
+            body.Append(tbl);
+            body.Append(new Paragraph(new Run(new Text("{{#ShowFooter}}"))));
+            var p = new Paragraph();
+            p.Append(new Run(new Text("Footer: ")));
+            p.Append(Field(" MERGEFIELD FooterText \\* MERGEFORMAT ", "«FooterText»"));
+            body.Append(p);
+            body.Append(new Paragraph(new Run(new Text("{{/ShowFooter}}"))));
+        });
+
+        byte[] rowsExpanded = DocxMailMerge.MergeTableRows(
+            template, tableIndex: 0, templateRowIndex: 0,
+            new IReadOnlyDictionary<string, string>[] { new Dictionary<string, string> { ["Name"] = "Alice" } });
+
+        byte[] conditionalResolved = DocxMailMerge.MergeConditional(
+            rowsExpanded, new Dictionary<string, bool> { ["ShowFooter"] = true });
+
+        byte[] final = DocxMailMerge.Merge(
+            conditionalResolved, new Dictionary<string, string> { ["FooterText"] = "Thanks" });
+
+        Assert.Equal("AliceFooter: Thanks", Text(final));
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
 
     /// <summary>

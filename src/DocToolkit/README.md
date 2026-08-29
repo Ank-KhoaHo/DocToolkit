@@ -639,6 +639,41 @@ records producing the same output path are refused before anything is written �
 `outputPathFactory` returning a duplicate is not silently allowed to overwrite one record's document
 with another's.
 
+### Conditional blocks, repeating blocks, and table rows
+
+Beyond filling `MERGEFIELD`s, a Word mail-merge template can carry a conditional block
+(`{{#Name}}` … `{{/Name}}`), a repeating block (`{{#each Name}}` … `{{/each Name}}`, flat or
+nested), or a table row repeated by index, using `DocxMailMergeBlockData` to pass values and
+`DocxMailMergeBlockResult` / `DocxMailMergeBlockReport` to receive results:
+
+```csharp
+byte[] resolved = DocxMailMerge.MergeConditional(template, new Dictionary<string, bool>
+{
+    ["ShowDiscount"] = customer.HasDiscount,
+});
+
+byte[] expanded = DocxMailMerge.MergeRepeating(template, new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+{
+    ["Items"] = order.Lines.Select(line => (IReadOnlyDictionary<string, string>)new Dictionary<string, string>
+    {
+        ["Sku"] = line.Sku,
+        ["Qty"] = line.Quantity.ToString(),
+    }),
+});
+
+byte[] rows = DocxMailMerge.MergeTableRows(template, tableIndex: 0, templateRowIndex: 1, records);
+
+// For table row grouping, pass a DocxMailMergeTableRowGroup to group related rows together
+byte[] grouped = DocxMailMerge.MergeTableRowGroups(template, tableIndex: 0, groups);
+```
+
+Run structural expansion (`MergeRepeating`/`MergeRepeatingRegions`/`MergeTableRows`/
+`MergeTableRowGroups`) before `MergeConditional`, and both before `Merge`/`MergeWithReport` — a
+merge field or conditional block nested inside a repeating region only exists once the repeating
+pass has expanded it. `MergeConditionalWithReport`/`MergeRepeatingWithReport`/
+`MergeRepeatingRegionsWithReport` always produce a document, reporting which condition or region
+names went unsupplied rather than refusing.
+
 ## Fill-in forms: Word content controls
 
 A content control is a named region Word itself protects - the format's own answer to a fill-in
