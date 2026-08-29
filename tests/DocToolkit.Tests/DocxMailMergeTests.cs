@@ -630,6 +630,87 @@ public class DocxMailMergeTests
         Assert.False(items[1].Report.IsComplete);
     }
 
+    [Fact]
+    public async Task MergeBatchWithReportAsync_OnAnEmptyRecordSequence_ProducesNoItems()
+    {
+        var items = new List<DocxMailMergeBatchItem>();
+        await foreach (var item in DocxMailMerge.MergeBatchWithReportAsync(
+            Simple("FirstName"), Array.Empty<IReadOnlyDictionary<string, string>>()))
+            items.Add(item);
+
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public async Task MergeBatchWithReportAsync_ProducesTheSameItems_AsMergeBatchWithReport()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" }, // Balance missing on purpose
+        };
+        var template = Simple("FirstName", "Balance");
+
+        var sync = DocxMailMerge.MergeBatchWithReport(template, records).ToList();
+        var asyncItems = new List<DocxMailMergeBatchItem>();
+        await foreach (var item in DocxMailMerge.MergeBatchWithReportAsync(template, records))
+            asyncItems.Add(item);
+
+        Assert.Equal(sync.Count, asyncItems.Count);
+        // The literal, so this test does not lean on
+        // MergeBatchWithReport_NeverThrowsForABadRecord_AndProcessesEveryRecordRegardless to prove
+        // the sync side itself is right -- it is self-contained.
+        Assert.Equal("Alice|100|", Text(asyncItems[0].Document));
+        // Parity on readable content, not bytes -- see MergeBatchAsync_ProducesTheSameDocuments_AsMergeBatch
+        // for why: MergeCore's underlying OfficeIMO.Word.WordDocument.Save() assigns a random
+        // w:rsidR value and a random relationship Id on every save, even for logically identical
+        // content, so two independent saves of the same input are never byte-identical. Content is
+        // what MergeBatchWithReport/MergeBatchWithReportAsync promise to agree on, not bytes.
+        for (var i = 0; i < sync.Count; i++)
+        {
+            Assert.Equal(Text(sync[i].Document), Text(asyncItems[i].Document));
+            // DocxMailMergeBatchItem also carries a Report, unlike MergeBatch's plain byte[] --
+            // parity has to cover that too, not only the document text.
+            Assert.Equal(sync[i].Report.IsComplete, asyncItems[i].Report.IsComplete);
+        }
+    }
+
+    [Fact]
+    public async Task MergeBatchWithReportAsync_HonoursCancellationBetweenRecords()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" },
+            new Dictionary<string, string> { ["FirstName"] = "Carol" },
+        };
+        // Counts how many records were actually pulled from the sequence. Assert.Single(seen)
+        // below is consistent with cancellation being checked either BEFORE or AFTER the next
+        // record's merge runs -- either way only one item reaches the consumer. Only pulledCount
+        // discriminates: if the check ran after MoveNext() (the plan document's original buggy
+        // `foreach` shape), record 1's merge would already have completed -- wastefully, and in
+        // spite of the cancellation -- before the exception is thrown.
+        var pulledCount = 0;
+        IEnumerable<IReadOnlyDictionary<string, string>> countingRecords =
+            records.Select(r => { pulledCount++; return r; });
+        using var cts = new CancellationTokenSource();
+
+        var seen = new List<DocxMailMergeBatchItem>();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var item in DocxMailMerge.MergeBatchWithReportAsync(
+                Simple("FirstName"), countingRecords, cts.Token))
+            {
+                seen.Add(item);
+                if (seen.Count == 1) cts.Cancel();
+            }
+        });
+
+        Assert.Single(seen);
+        // Proves record 1's merge never STARTED, not merely that its output never arrived.
+        Assert.Equal(1, pulledCount);
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
 
     private static string Text(byte[] docx) => DocxEditor.ExtractText(docx).Replace("\n", string.Empty);

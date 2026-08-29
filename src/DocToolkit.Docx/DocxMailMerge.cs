@@ -482,15 +482,18 @@ public static class DocxMailMerge
     /// <see cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/> from drifting.
     /// </summary>
     /// <remarks>
-    /// Deliberately a `yield return` iterator, and deliberately PRIVATE: every public caller
-    /// (<see cref="MergeBatch"/> and <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>)
-    /// is expected to validate its own arguments before any document is produced. <see cref="MergeBatch"/>
-    /// does this eagerly, in an ordinary non-iterator method body, before calling this. <see
-    /// cref="MergeBatchAsync"/> cannot do the same — as an `async IAsyncEnumerable` method itself,
-    /// its whole body (including its own argument validation) is deferred until the caller starts
-    /// enumerating, which is inherent to async iterators in C#, not a gap. A `yield return` in this
-    /// PRIVATE method would defer validation the same way, which is why it stays out of the public
-    /// surface instead.
+    /// Deliberately a `yield return` iterator, and deliberately PRIVATE: every public caller —
+    /// <see cref="MergeBatch"/>, <see cref="MergeBatchAsync"/>,
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// and <see cref="MergeBatchWithReportAsync"/> — is expected to validate its own arguments
+    /// before any document is produced. <see cref="MergeBatch"/> and
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// do this eagerly, each in an ordinary non-iterator method body, before calling this.
+    /// <see cref="MergeBatchAsync"/> and <see cref="MergeBatchWithReportAsync"/> cannot do the
+    /// same — both are `async IAsyncEnumerable` methods themselves, so their whole body (including
+    /// their own argument validation) is deferred until the caller starts enumerating, which is
+    /// inherent to async iterators in C#, not a gap. A `yield return` in this PRIVATE method would
+    /// defer validation the same way, which is why it stays out of the public surface instead.
     /// </remarks>
     private static IEnumerable<DocxMailMergeBatchItem> MergeBatchCore(
         byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records, bool strict)
