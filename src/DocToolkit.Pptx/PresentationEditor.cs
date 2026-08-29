@@ -860,12 +860,14 @@ public static class PresentationEditor
     /// requiring a caller to name one. A deck with no slides at all falls back to its first slide
     /// master's first layout.
     ///
-    /// The inserted slide's title and body boxes are positioned at this library's own fixed
-    /// coordinates, rescaled to fit the target deck's canvas size — not at the positions the target
-    /// layout's own placeholders use. An inserted slide therefore inherits the target deck's theme
-    /// (through the layout relationship) but not necessarily its placeholder geometry: a
-    /// hand-designed deck whose layouts position title/body boxes differently from this library's
-    /// defaults will get a slide positioned by this library's choice, not the deck's own.
+    /// The inserted slide's title and body boxes inherit the target layout's own placeholder
+    /// position when that layout has a placeholder of the matching role (same type, and for the
+    /// body, the same index) — so a hand-designed deck's own title/body geometry is honoured rather
+    /// than overridden. When the layout has no matching placeholder (an ordinary "Title Slide"
+    /// layout using <c>ctrTitle</c>/<c>subTitle</c>, for instance), the shape falls back to this
+    /// library's own fixed coordinates, rescaled to fit the target deck's canvas size — an
+    /// unconditional inheritance would leave that content schema-valid but invisible in a render,
+    /// rather than positioned by this library's own choice.
     /// </summary>
     /// <param name="pptx">The presentation to insert into. It is not modified.</param>
     /// <param name="atIndex">
@@ -976,6 +978,18 @@ public static class PresentationEditor
                 {
                     var slidePart = presentationPart.AddNewPart<SlidePart>();
                     slidePart.Slide = PptxDocumentWriter.BuildSlide(slide);
+
+                    foreach (var shape in slidePart.Slide.Descendants<P.Shape>())
+                    {
+                        var shapePlaceholder = shape.NonVisualShapeProperties
+                            ?.ApplicationNonVisualDrawingProperties?.GetFirstChild<P.PlaceholderShape>();
+                        if (shapePlaceholder is not null
+                            && LayoutHasMatchingPlaceholder(layoutPart, shapePlaceholder))
+                        {
+                            shape.ShapeProperties?.Transform2D?.Remove();
+                        }
+                    }
+
                     ScaleToFitDeck(slidePart.Slide, presentation.SlideSize);
                     slidePart.AddPart(layoutPart);
                     slidePart.Slide.Save();
@@ -1035,6 +1049,41 @@ public static class PresentationEditor
                 if (extents.Cy is not null) extents.Cy = (int)(extents.Cy.Value * scaleY);
             }
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="layoutPart"/>'s own shape tree has a placeholder with the same role
+    /// as <paramref name="shapePlaceholder"/> — same <c>Type</c>, and for <see cref="P.PlaceholderValues.Body"/>,
+    /// the same <c>Index</c> too.
+    /// </summary>
+    /// <remarks>
+    /// <b>Deliberately exact, not cross-type.</b> A layout whose title placeholder is
+    /// <c>ctrTitle</c> rather than plain <c>title</c> — an ordinary "Title Slide" layout — does NOT
+    /// match a <see cref="PptxDocumentWriter.BuildSlide"/>-built <c>title</c> shape. Measured: this
+    /// repo's own render pipeline does not resolve that either, so treating them as compatible here
+    /// would assert a guarantee nothing can verify.
+    /// </remarks>
+    private static bool LayoutHasMatchingPlaceholder(
+        SlideLayoutPart layoutPart, P.PlaceholderShape shapePlaceholder)
+    {
+        foreach (var layoutShape in layoutPart.SlideLayout!.Descendants<P.Shape>())
+        {
+            var layoutPh = layoutShape.NonVisualShapeProperties
+                ?.ApplicationNonVisualDrawingProperties?.GetFirstChild<P.PlaceholderShape>();
+            if (layoutPh is null) continue;
+
+            if (layoutPh.Type?.Value != shapePlaceholder.Type?.Value) continue;
+
+            if (shapePlaceholder.Type?.Value == P.PlaceholderValues.Body
+                && (layoutPh.Index?.Value ?? 0) != (shapePlaceholder.Index?.Value ?? 0))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

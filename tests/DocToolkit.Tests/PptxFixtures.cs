@@ -129,6 +129,46 @@ internal static class PptxFixtures
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// A single-slide deck built via <see cref="PresentationEditor.Create"/> — so its layout's
+    /// placeholders start out with EXACTLY the types <c>PptxDocumentWriter.BuildSlide</c> writes
+    /// (<c>title</c>, <c>body</c> idx <c>1</c>) — with those SAME placeholders' geometry then
+    /// relocated far from <c>PptxDocumentWriter</c>'s own constants, types left untouched. This is
+    /// the one fixture that can prove geometry inheritance actually tracks the layout: a fixture
+    /// whose layout geometry happens to already match <c>PptxDocumentWriter</c>'s constants could
+    /// never tell "inherited" apart from "coincidentally identical explicit box".
+    /// </summary>
+    public static byte[] DeckWithRelocatedLayoutPlaceholders()
+    {
+        var deck = DocToolkit.PresentationEditor.Create(new[] { DocToolkit.PptxSlide.Titled("First", "One") });
+
+        using var ms = Load(deck);
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var layoutPart = doc.PresentationPart!.SlideParts.Single().SlideLayoutPart!;
+            foreach (var shape in layoutPart.SlideLayout!.Descendants<P.Shape>())
+            {
+                var ph = shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties
+                    ?.GetFirstChild<P.PlaceholderShape>();
+                var xfrm = shape.ShapeProperties?.Transform2D;
+                if (xfrm?.Offset is null || xfrm.Extents is null) continue;
+
+                if (ph?.Type?.Value == P.PlaceholderValues.Title)
+                {
+                    xfrm.Offset.X = 500000; xfrm.Offset.Y = 5000000; // near the bottom
+                    xfrm.Extents.Cx = 8000000; xfrm.Extents.Cy = 1000000;
+                }
+                else if (ph?.Type?.Value == P.PlaceholderValues.Body && (ph?.Index?.Value ?? 0) == 1)
+                {
+                    xfrm.Offset.X = 500000; xfrm.Offset.Y = 500000; // near the top
+                    xfrm.Extents.Cx = 8000000; xfrm.Extents.Cy = 2000000;
+                }
+            }
+            layoutPart.SlideLayout.Save();
+        }
+        return ms.ToArray();
+    }
+
     /// <summary>Rewrites the sample deck's single text-box paragraph as the given runs.</summary>
     public static byte[] SampleWithRuns(params (string Text, bool Bold)[] runs) => Mutate(slide =>
     {

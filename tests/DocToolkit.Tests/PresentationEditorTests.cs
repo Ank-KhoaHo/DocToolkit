@@ -966,4 +966,106 @@ public class PresentationEditorTests
         Assert.True(bottomEdge <= 5143500,
             $"Inserted title shape's bottom edge ({bottomEdge}) overhangs the deck's height (5143500).");
     }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasAMatchingPlaceholder_InheritsItsPosition()
+    {
+        // The layout's title/body placeholders are relocated FAR from PptxDocumentWriter's own
+        // constants (TitleXEmu=838200/TitleYEmu=365125, BodyXEmu=838200/BodyYEmu=1825625) while
+        // keeping their TYPES identical (title, body idx=1) -- the one case the fix is meant to
+        // improve. Measured via PdfProbe against the real render pipeline, not merely reading the
+        // OOXML back: text presence and position, not just structure.
+        var deck = PptxFixtures.DeckWithRelocatedLayoutPlaceholders();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var pdf = PptxToPdfConverter.Convert(edited);
+        var text = PdfProbe.ExtractText(pdf);
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+
+        var yPositions = PdfProbe.TextYPositions(pdf);
+
+        // TextYPositions returns values in DOCUMENT order, not grouped or filterable by slide -- a
+        // value-range heuristic (e.g. "near the top"/"near the bottom") would risk matching the
+        // WRONG slide's text, since slide 1 ("First"/"One", built by Create with its OWN unrelated
+        // explicit geometry, unaffected by relocating the shared layout) also contributes two
+        // entries to the same pooled list. Index into it instead: slide 1 contributes exactly 2
+        // entries (title, one bullet), so the inserted slide's title is index 2 and its bullet is
+        // index 3 -- deterministic from the fixture's own known shape counts, not a guess about
+        // absolute position.
+        Assert.Equal(4, yPositions.Count);
+        var insertedTitleY = yPositions[2];
+        var insertedBulletY = yPositions[3];
+
+        // The relocated layout puts the title near the BOTTOM of the slide (off.Y=5000000 of
+        // 6858000 EMU tall) and the body near the TOP (off.Y=500000) -- inverted from
+        // PptxDocumentWriter's own near-top-title/mid-page-body constants. In PDF points (bottom-up
+        // origin), a title inheriting the relocated position lands LOW; a body inheriting it lands
+        // HIGH. If the fix instead kept the fixed geometry, both would land at their usual
+        // (opposite) relative order instead.
+        Assert.True(insertedTitleY < insertedBulletY,
+            $"Expected the inherited title (relocated near the bottom, low Y) to sit below the " +
+            $"inherited bullet (relocated near the top, high Y) in PDF coordinates. " +
+            $"Title Y={insertedTitleY}, Bullet Y={insertedBulletY}.");
+    }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasNoMatchingPlaceholder_StillRendersTheContent()
+    {
+        // The measured failure mode this test pins: sample.pptx's real "Title Slide" layout uses
+        // ctrTitle/subTitle types, which do not match what BuildSlide writes (title/body). Omitting
+        // a:xfrm unconditionally would make this content vanish from the render entirely -- schema-
+        // valid, but invisible. This proves the fallback keeps it visible, exactly like today.
+        var deck = PptxFixtures.Sample();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var pdf = PptxToPdfConverter.Convert(edited);
+        var text = PdfProbe.ExtractText(pdf);
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasNoMatchingPlaceholder_KeepsTheFixedGeometry()
+    {
+        // The structural twin of the render-based test above: confirms the SHAPE still carries its
+        // own explicit a:xfrm (today's behavior, unchanged) rather than inheriting nothing.
+        var deck = PptxFixtures.Sample();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Equal(2, xfrms.Count); // title AND body, both unmatched, both keep explicit geometry
+    }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasAMatchingPlaceholder_RemovesTheExplicitGeometry()
+    {
+        // The structural twin of the render-based match test: confirms the shape's a:xfrm is
+        // genuinely GONE, not merely coincidentally equal to the layout's position.
+        var deck = PptxFixtures.DeckWithRelocatedLayoutPlaceholders();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Empty(xfrms); // both shapes matched, both inherit -- no explicit geometry left
+    }
 }
