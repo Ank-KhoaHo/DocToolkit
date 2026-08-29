@@ -6,6 +6,17 @@ using P = DocumentFormat.OpenXml.Presentation;
 namespace DocToolkit.Tests;
 
 /// <summary>
+/// Which half of an <c>a:xfrm</c> a fixture should omit — see
+/// <see cref="PptxFixtures.SampleAttachedToLayoutWithAnIncompleteTitleBox"/>. Top-level rather
+/// than nested in <see cref="PptxFixtures"/>: that class is <c>internal</c>, and a public
+/// <c>[Theory]</c> method's parameter type must be at least as accessible as the method itself,
+/// which a type nested in an internal class cannot be however it is itself modified.
+/// <c>CT_Transform2D</c> declares both halves optional, so a real layout can be missing either
+/// one independently.
+/// </summary>
+public enum XfrmPart { Offset, Extents }
+
+/// <summary>
 /// Fixtures derived from the committed one-slide sample deck.
 ///
 /// Building a valid .pptx from nothing needs presentation, master, layout and theme parts, so
@@ -223,13 +234,20 @@ internal static class PptxFixtures
 
     /// <summary>
     /// <see cref="SampleAttachedToLayout"/> for <paramref name="layoutName"/>, with that layout's
-    /// title placeholder's own <c>a:xfrm</c> then stripped down to JUST an <c>a:off</c> — no
-    /// <c>a:ext</c> — reproducing an <see cref="A.Transform2D"/> that is present but not a usable
-    /// box. <c>CT_Transform2D</c> declares both <c>a:off</c> and <c>a:ext</c> as optional, so this
-    /// is schema-valid on a real PowerPoint-authored layout, not a fixture-only shape: a layout
-    /// author can genuinely produce it.
+    /// title placeholder's own <c>a:xfrm</c> then stripped down to JUST one half —
+    /// <paramref name="missingPart"/> selects which — reproducing an <see cref="A.Transform2D"/>
+    /// that is present but not a usable box. <c>CT_Transform2D</c> declares both <c>a:off</c> and
+    /// <c>a:ext</c> as optional, so either shape is schema-valid on a real PowerPoint-authored
+    /// layout, not a fixture-only shape: a layout author can genuinely produce either one.
+    ///
+    /// <paramref name="missingPart"/> exists so both halves of
+    /// <c>LayoutHasMatchingPositionedPlaceholder</c>'s completeness check
+    /// (<c>layoutXfrm?.Offset is null || layoutXfrm.Extents is null</c>) are exercised by a real
+    /// test. Before this parameter, only the <c>Extents</c>-missing case had one — nothing in the
+    /// suite would have failed if the <c>Offset is null</c> half of that condition were deleted.
     /// </summary>
-    public static byte[] SampleAttachedToLayoutWithAnIncompleteTitleBox(string layoutName)
+    public static byte[] SampleAttachedToLayoutWithAnIncompleteTitleBox(
+        string layoutName, XfrmPart missingPart = XfrmPart.Extents)
     {
         using var ms = Load(SampleAttachedToLayout(layoutName));
 
@@ -242,7 +260,71 @@ internal static class PptxFixtures
                 shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties
                     ?.GetFirstChild<P.PlaceholderShape>()?.Type?.Value == P.PlaceholderValues.Title);
 
-            titleShape.ShapeProperties!.Transform2D!.Extents!.Remove();
+            var xfrm = titleShape.ShapeProperties!.Transform2D!;
+            if (missingPart == XfrmPart.Extents) xfrm.Extents!.Remove();
+            else xfrm.Offset!.Remove();
+
+            layoutPart.SlideLayout.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// <see cref="SampleAttachedToLayout"/> for <paramref name="layoutName"/>, with that layout's
+    /// title placeholder moved INSIDE a newly appended <c>p:grpSp</c> — matching role (type
+    /// <c>title</c>) and still carrying its own complete <c>a:xfrm</c> (both <c>a:off</c> and
+    /// <c>a:ext</c>, unchanged), but no longer one of the layout's TOP-LEVEL shapes.
+    ///
+    /// Reproduces the case <c>LayoutHasMatchingPositionedPlaceholder</c>'s top-level-only walk
+    /// exists to refuse: <c>Descendants&lt;P.Shape&gt;()</c> also matches a shape nested inside a
+    /// group, but this repo's render pipeline (<c>PptxToPdfConverter</c>/OfficeIMO) resolves a
+    /// slide's inherited geometry from a layout's TOP-LEVEL shape tree only. A grouped placeholder
+    /// is therefore a role-and-geometry match this library must NOT inherit from — schema-valid
+    /// both before and after the move (verified via <c>OpenXmlValidator</c>), the same way
+    /// <see cref="SampleWithPlaceholderInGroup"/> reproduces the analogous case for
+    /// <c>ReplaceImage</c>. The body placeholder is left untouched (still top-level, still a
+    /// complete box), so a test using this fixture can tell "this placeholder correctly does not
+    /// match" apart from "nothing on this layout matches anything".
+    /// </summary>
+    public static byte[] SampleAttachedToLayoutWithTitleInGroup(string layoutName)
+    {
+        using var ms = Load(SampleAttachedToLayout(layoutName));
+
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var slidePart = doc.PresentationPart!.SlideParts.Single();
+            var layoutPart = slidePart.SlideLayoutPart!;
+            var shapeTree = layoutPart.SlideLayout!.CommonSlideData!.ShapeTree!;
+
+            var titleShape = shapeTree.Elements<P.Shape>().First(shape =>
+                shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties
+                    ?.GetFirstChild<P.PlaceholderShape>()?.Type?.Value == P.PlaceholderValues.Title);
+
+            var titleXfrm = titleShape.ShapeProperties!.Transform2D!;
+            var x = titleXfrm.Offset!.X!.Value;
+            var y = titleXfrm.Offset.Y!.Value;
+            var cx = titleXfrm.Extents!.Cx!.Value;
+            var cy = titleXfrm.Extents.Cy!.Value;
+
+            var nextId = shapeTree.Descendants<P.NonVisualDrawingProperties>()
+                .Select(p => p.Id?.Value ?? 0U).DefaultIfEmpty(0U).Max() + 1;
+
+            titleShape.Remove(); // detach -- still carries its own complete a:xfrm, type and index
+
+            shapeTree.AppendChild(new P.GroupShape(
+                new P.NonVisualGroupShapeProperties(
+                    new P.NonVisualDrawingProperties { Id = nextId, Name = "Grouped Title" },
+                    new P.NonVisualGroupShapeDrawingProperties(),
+                    new P.ApplicationNonVisualDrawingProperties()),
+                new P.GroupShapeProperties(
+                    new A.TransformGroup(
+                        new A.Offset { X = x, Y = y },
+                        new A.Extents { Cx = cx, Cy = cy },
+                        new A.ChildOffset { X = x, Y = y },
+                        new A.ChildExtents { Cx = cx, Cy = cy })),
+                titleShape));
+
             layoutPart.SlideLayout.Save();
         }
 

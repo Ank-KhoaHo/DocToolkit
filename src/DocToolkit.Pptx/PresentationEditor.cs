@@ -862,17 +862,22 @@ public static class PresentationEditor
     ///
     /// The inserted slide's title and body boxes inherit the target layout's own placeholder
     /// position only when that layout <b>positions that placeholder itself</b> — it has a
-    /// placeholder of the matching role (same type, and for the body, the same index) <i>and</i>
-    /// that placeholder carries its own position and size. A hand-designed deck's own title/body
-    /// geometry is then honoured rather than overridden.
+    /// placeholder of the matching role (same type, and for the body, the same index),
+    /// <i>and</i> that placeholder carries its own position and size, <i>and</i> it is one of the
+    /// layout's own TOP-LEVEL shapes: a placeholder nested inside a group (<c>p:grpSp</c>) on the
+    /// layout does not count, matching role and complete geometry notwithstanding. A hand-designed
+    /// deck's own title/body geometry is then honoured rather than overridden.
     ///
     /// Otherwise the shape keeps this library's own fixed coordinates, rescaled to fit the target
-    /// deck's canvas size. That covers two distinct cases, and both are common: a layout with no
-    /// placeholder of that role at all (an ordinary "Title Slide" layout uses
-    /// <c>ctrTitle</c>/<c>subTitle</c>), and a layout that names the role but leaves its geometry to
-    /// the slide master (a stock "Title and Content" layout usually does). Inheriting in either case
-    /// would leave the content schema-valid but with no box to draw in — invisible in a render —
-    /// rather than merely positioned by this library's own choice.
+    /// deck's canvas size. That covers three distinct cases, and the first two are common: a layout
+    /// with no placeholder of that role at all (an ordinary "Title Slide" layout uses
+    /// <c>ctrTitle</c>/<c>subTitle</c>), a layout that names the role but leaves its geometry to
+    /// the slide master (a stock "Title and Content" layout usually does), and a layout that
+    /// positions the role's placeholder only inside a group. All three leave content schema-valid
+    /// but with no box this library's render pipeline (which resolves a slide's inherited geometry
+    /// from the layout's TOP-LEVEL shape tree only — never from inside a group, and never by
+    /// resolving layout → master) can actually draw in — invisible in a render — rather than merely
+    /// positioned by this library's own choice.
     /// </summary>
     /// <param name="pptx">The presentation to insert into. It is not modified.</param>
     /// <param name="atIndex">
@@ -1057,12 +1062,12 @@ public static class PresentationEditor
     }
 
     /// <summary>
-    /// Whether <paramref name="layoutPart"/>'s own shape tree has a placeholder with the same role
-    /// as <paramref name="shapePlaceholder"/> — same <c>Type</c>, and for <see cref="P.PlaceholderValues.Body"/>,
-    /// the same <c>Index</c> too — <b>which also carries a complete, usable box of its own: both an
-    /// offset and an extent</b>. A role match alone is not enough, and neither is a bare
-    /// <see cref="A.Transform2D"/> — only a placeholder with both halves of its box gives the
-    /// inserted shape something to inherit.
+    /// Whether <paramref name="layoutPart"/>'s own TOP-LEVEL shape tree has a placeholder with the
+    /// same role as <paramref name="shapePlaceholder"/> — same <c>Type</c>, and for
+    /// <see cref="P.PlaceholderValues.Body"/>, the same <c>Index</c> too — <b>which also carries a
+    /// complete, usable box of its own: both an offset and an extent</b>. A role match alone is not
+    /// enough, and neither is a bare <see cref="A.Transform2D"/> — only a top-level placeholder with
+    /// both halves of its box gives the inserted shape something to inherit.
     /// </summary>
     /// <remarks>
     /// <b>The geometry half is not a refinement, it is the load-bearing half.</b> Many real
@@ -1097,6 +1102,19 @@ public static class PresentationEditor
     /// text still vanished from the render: the identical failure class this whole check exists to
     /// prevent. So both <c>.Offset</c> and <c>.Extents</c> must be non-null, not merely
     /// <c>Transform2D</c> itself.
+    ///
+    /// <b>Only the layout's TOP-LEVEL shapes are considered — a placeholder nested inside a group
+    /// does not count, even with a matching role and a complete box.</b>
+    /// <c>Descendants&lt;P.Shape&gt;()</c> also matches a shape nested inside a <c>p:grpSp</c>, but
+    /// this repo's render pipeline (<c>PptxToPdfConverter</c>/OfficeIMO) resolves a slide's
+    /// inherited geometry from the layout's TOP-LEVEL shape tree only, never from inside a group.
+    /// Measured directly: wrapping "Section Header"'s title placeholder in a group — matching type,
+    /// complete <c>a:off</c>/<c>a:ext</c>, schema-valid both before and after (0
+    /// <c>OpenXmlValidator</c> errors) — still matched under a <c>Descendants</c>-based walk, still
+    /// stripped the inserted slide's own <c>a:xfrm</c>, and the title text vanished from the render:
+    /// the identical failure class every check above already guards against, one level further in.
+    /// Same class of mistake as <c>DocxEditor</c> reaching into <c>w:txbxContent</c> and
+    /// <c>TableRowFinder</c> reaching into nested tables — see <c>CLAUDE.md</c>.
     /// </remarks>
     private static bool LayoutHasMatchingPositionedPlaceholder(
         SlideLayoutPart layoutPart, P.PlaceholderShape shapePlaceholder)
@@ -1107,7 +1125,14 @@ public static class PresentationEditor
         // fixed-geometry fallback instead — which is exactly what this method returning false means.
         if (layoutPart.SlideLayout is null) return false;
 
-        foreach (var layoutShape in layoutPart.SlideLayout.Descendants<P.Shape>())
+        // Direct children only, matching ReplaceImageCore's own walk of a SLIDE's shape tree. A
+        // shape nested inside a p:grpSp is invisible to the render pipeline's layout-inheritance
+        // resolution, so Descendants<P.Shape>() would report a match this library cannot actually
+        // honour -- see the remarks above for the measured failure this replaced.
+        var layoutShapes = layoutPart.SlideLayout.CommonSlideData?.ShapeTree?.Elements<P.Shape>()
+            ?? Enumerable.Empty<P.Shape>();
+
+        foreach (var layoutShape in layoutShapes)
         {
             var layoutPh = layoutShape.NonVisualShapeProperties
                 ?.ApplicationNonVisualDrawingProperties?.GetFirstChild<P.PlaceholderShape>();
