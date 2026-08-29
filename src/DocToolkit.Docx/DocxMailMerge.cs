@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using OfficeIMOMailMerge = OfficeIMO.Word.WordMailMerge;
 using OfficeIMOFieldResult = OfficeIMO.Word.WordMailMergeFieldResult;
 using OfficeIMOFieldStatus = OfficeIMO.Word.WordMailMergeFieldStatus;
@@ -209,6 +210,67 @@ public static class DocxMailMerge
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
+    /// filled document in order.
+    /// </summary>
+    /// <remarks>
+    /// <b>Strict, the same way <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> is
+    /// strict — this refuses the moment a record is incomplete, mid-sequence.</b> Everything already
+    /// yielded before that point is unaffected; nothing after it runs. A lenient form that never
+    /// throws for an incomplete record — <c>MergeBatchWithReport</c> — follows in a later change.
+    ///
+    /// <b>This is lazy.</b> Memory stays proportional to one document in flight, not the whole
+    /// batch — <paramref name="records"/> is walked one entry at a time as the caller enumerates the
+    /// result, and each document's bytes are only held until the caller moves on to the next one.
+    /// </remarks>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules,
+    /// which apply here unchanged. An empty sequence yields no documents.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The package could not be read or written, or a record is missing a value for a field the
+    /// template requires — the message names the record's position (0-based) and the missing
+    /// field(s).
+    /// </exception>
+    public static IEnumerable<byte[]> MergeBatch(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        return MergeBatchCore(docx, records, strict: true).Select(item => item.Document);
+    }
+
+    /// <inheritdoc cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively — see
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> for the matching rules,
+    /// which apply here unchanged. An empty sequence yields no documents.
+    /// </param>
+    /// <param name="ct">Cancels before the next record's merge runs.</param>
+    public static async IAsyncEnumerable<byte[]> MergeBatchAsync(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        foreach (var item in MergeBatchCore(docx, records, strict: true))
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return item.Document;
+        }
+    }
+
     private const string EmptySource = "DOCX content was empty.";
     private const string InspectFailure = "Failed to read the document's mail-merge template. See the inner exception for details.";
     private const string MergeFailure = "Failed to fill the document's merge fields. See the inner exception for details.";
@@ -313,6 +375,48 @@ public static class DocxMailMerge
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The one loop behind every batch overload that produces documents in memory — strict and
+    /// lenient alike — so they can never drift apart the same way <see cref="MergeCore"/> already
+    /// keeps <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> and
+    /// <see cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/> from drifting.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a `yield return` iterator, and deliberately PRIVATE: every public caller
+    /// (<see cref="MergeBatch"/> today, and <c>MergeBatchWithReport</c> in a later change) validates
+    /// its own arguments in an ordinary, non-iterator method body before calling this — a
+    /// `yield return` in a PUBLIC method would defer that validation until the caller starts
+    /// enumerating, which is not how every other guard in this class behaves.
+    /// </remarks>
+    private static IEnumerable<DocxMailMergeBatchItem> MergeBatchCore(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records, bool strict)
+    {
+        var index = 0;
+        foreach (var record in records)
+        {
+            RequireValues(record);
+
+            using var source = new MemoryStream(docx, writable: false);
+            DocxMailMergeReport report;
+            MemoryStream result;
+            try
+            {
+                result = MergeCore(source, record, strict, out report);
+            }
+            catch (DocumentConversionException ex) when (strict)
+            {
+                throw new DocumentConversionException($"Record {index}: {ex.Message}", ex);
+            }
+
+            using (result)
+            {
+                yield return new DocxMailMergeBatchItem(index, result.ToArray(), report);
+            }
+
+            index++;
+        }
     }
 
     private static DocxMailMergeTemplate InspectCore(Stream source)

@@ -112,6 +112,36 @@ public sealed class DocxMailMergeResult
     public DocxMailMergeReport Report { get; }
 }
 
+/// <summary>One record's document, from a batch call, together with what happened to every field
+/// in it.</summary>
+/// <remarks>
+/// Returned by the lenient batch overloads only — <see cref="DocxMailMerge.MergeBatch(byte[], System.Collections.Generic.IEnumerable{System.Collections.Generic.IReadOnlyDictionary{string, string}})"/>
+/// refuses to produce a document for an incomplete record at all, so there is nothing to report for
+/// that record.
+/// </remarks>
+public sealed class DocxMailMergeBatchItem
+{
+    internal DocxMailMergeBatchItem(int recordIndex, byte[] document, DocxMailMergeReport report)
+    {
+        RecordIndex = recordIndex;
+        Document = document;
+        Report = report;
+    }
+
+    /// <summary>The record's position in the sequence passed in, starting at 0.</summary>
+    public int RecordIndex { get; }
+
+    /// <summary>
+    /// The merged document — <b>complete or not</b>. When <see cref="Report"/>'s
+    /// <see cref="DocxMailMergeReport.IsComplete"/> is false this still opens cleanly and looks
+    /// finished; the unfilled fields show their placeholder text.
+    /// </summary>
+    public byte[] Document { get; }
+
+    /// <summary>What happened to every field in this record's document.</summary>
+    public DocxMailMergeReport Report { get; }
+}
+
 /// <summary>What happened to every merge field in a document.</summary>
 public sealed class DocxMailMergeReport
 {

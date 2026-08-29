@@ -313,6 +313,169 @@ public class DocxMailMergeTests
         Assert.Contains("«Balance»", Text(destination.ToArray()), StringComparison.Ordinal);
     }
 
+    // ---- MergeBatch: strict, one document per record --------------------------------------------
+
+    [Fact]
+    public void MergeBatch_YieldsOneDocumentPerRecord_InOrder()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" },
+            new Dictionary<string, string> { ["FirstName"] = "Carol" },
+        };
+
+        var documents = DocxMailMerge.MergeBatch(Simple("FirstName"), records).ToList();
+
+        Assert.Equal(3, documents.Count);
+        Assert.Equal("Alice|", Text(documents[0]));
+        Assert.Equal("Bob|", Text(documents[1]));
+        Assert.Equal("Carol|", Text(documents[2]));
+    }
+
+    [Fact]
+    public void MergeBatch_RefusesOnTheBadRecord_MidEnumeration_NamingItsIndex()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" }, // Balance missing on purpose
+            new Dictionary<string, string> { ["FirstName"] = "Carol", ["Balance"] = "300" },
+        };
+
+        var seen = new List<byte[]>();
+        var ex = Assert.Throws<DocumentConversionException>(() =>
+        {
+            foreach (var document in DocxMailMerge.MergeBatch(Simple("FirstName", "Balance"), records))
+                seen.Add(document);
+        });
+
+        // Record 0 was already produced and handed to the caller before the throw -- a strict
+        // batch fails ON the bad record, not before it. Record 2's merge never ran at all.
+        Assert.Single(seen);
+        // "1" alone would also match the unrelated "1 merge field(s)" substring MergeCore's own
+        // message already contains -- "Record 1:" is what actually pins the index.
+        Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("Balance", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MergeBatch_MatchesFieldNamesCaseInsensitively()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["firstname"] = "Alice" },
+        };
+
+        var documents = DocxMailMerge.MergeBatch(Simple("FirstName"), records).ToList();
+
+        Assert.Equal("Alice|", Text(Assert.Single(documents)));
+    }
+
+    [Fact]
+    public void MergeBatch_IgnoresValuesForFieldsTheTemplateDoesNotHave()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice", ["Nonexistent"] = "ignored" },
+        };
+
+        var documents = DocxMailMerge.MergeBatch(Simple("FirstName"), records).ToList();
+
+        Assert.Equal("Alice|", Text(Assert.Single(documents)));
+    }
+
+    [Fact]
+    public void MergeBatch_OnAnEmptyRecordSequence_ProducesNoDocuments()
+    {
+        var documents = DocxMailMerge.MergeBatch(
+            Simple("FirstName"), Array.Empty<IReadOnlyDictionary<string, string>>());
+
+        Assert.Empty(documents);
+    }
+
+    [Fact]
+    public void MergeBatch_ValidatesArgumentsImmediately_NotOnlyWhenEnumerated()
+    {
+        // MergeBatch must NOT be an iterator method itself (no `yield return` in its own body) --
+        // if it were, C# would defer the whole body, including this check, until the caller starts
+        // enumerating. Calling it and never touching the result must still throw.
+        Assert.Throws<ArgumentNullException>(() => DocxMailMerge.MergeBatch(null!,
+            Array.Empty<IReadOnlyDictionary<string, string>>()));
+        Assert.Throws<ArgumentNullException>(() => DocxMailMerge.MergeBatch(Simple("FirstName"), null!));
+    }
+
+    [Fact]
+    public async Task MergeBatchAsync_ProducesTheSameDocuments_AsMergeBatch()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" },
+        };
+        var template = Simple("FirstName");
+
+        var sync = DocxMailMerge.MergeBatch(template, records).ToList();
+        var asyncDocs = new List<byte[]>();
+        await foreach (var document in DocxMailMerge.MergeBatchAsync(template, records))
+            asyncDocs.Add(document);
+
+        Assert.Equal(sync.Count, asyncDocs.Count);
+        // Parity on readable content, not bytes -- same reasoning as
+        // DocxEditorFillRowsTests.FillRowsAsync_MatchesTheByteArrayOverload: two independent
+        // OfficeIMO Save() calls over otherwise-identical content are not guaranteed byte-identical
+        // (measured here too -- the two runs differ from byte 14, the first ZIP entry's CRC-32),
+        // and content is what MergeBatch/MergeBatchAsync promise to agree on, not bytes.
+        for (var i = 0; i < sync.Count; i++)
+            Assert.Equal(Text(sync[i]), Text(asyncDocs[i]));
+    }
+
+    [Fact]
+    public async Task MergeBatchAsync_RefusesOnTheBadRecord_MidEnumeration()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" },
+        };
+
+        var seen = new List<byte[]>();
+        var ex = await Assert.ThrowsAsync<DocumentConversionException>(async () =>
+        {
+            await foreach (var document in DocxMailMerge.MergeBatchAsync(
+                Simple("FirstName", "Balance"), records))
+                seen.Add(document);
+        });
+
+        Assert.Single(seen);
+        Assert.Contains("Balance", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MergeBatchAsync_HonoursCancellationBetweenRecords()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" },
+            new Dictionary<string, string> { ["FirstName"] = "Carol" },
+        };
+        using var cts = new CancellationTokenSource();
+
+        var seen = new List<byte[]>();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await foreach (var document in DocxMailMerge.MergeBatchAsync(
+                Simple("FirstName"), records, cts.Token))
+            {
+                seen.Add(document);
+                if (seen.Count == 1) cts.Cancel();
+            }
+        });
+
+        Assert.Single(seen);
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
 
     private static string Text(byte[] docx) => DocxEditor.ExtractText(docx).Replace("\n", string.Empty);
