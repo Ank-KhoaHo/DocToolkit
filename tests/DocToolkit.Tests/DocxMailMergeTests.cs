@@ -966,6 +966,61 @@ public class DocxMailMergeTests
         }
     }
 
+    [Fact]
+    public async Task MergeBatchToFilesAsync_HonoursCancellationBetweenRecords()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var paths = new[]
+            {
+                Path.Combine(dir.FullName, "out-0.docx"),
+                Path.Combine(dir.FullName, "out-1.docx"),
+                Path.Combine(dir.FullName, "out-2.docx"),
+            };
+
+            using var started = new ManualResetEventSlim(false);
+            using var release = new ManualResetEventSlim(false);
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new BlockingValues(new Dictionary<string, string> { ["FirstName"] = "Bob" }, started, release),
+                new Dictionary<string, string> { ["FirstName"] = "Carol" },
+            };
+            using var cts = new CancellationTokenSource();
+
+            // Task.Run, not a direct call -- if FilePipeline.ReadAsync's await happens to complete
+            // synchronously (plausible for a small, already-cached template file), the WHOLE call
+            // -- BlockingValues's block included -- would otherwise run inline on this thread,
+            // deadlocking before it ever reaches started.Wait() below.
+            var task = Task.Run(() => DocxMailMerge.MergeBatchToFilesAsync(templatePath, records, (i, r) => paths[i], cts.Token));
+
+            // Deterministic, not a timing race -- see BlockingValues's doc comment. Record 1's
+            // merge only reaches this signal once its OWN cancellation check has already passed,
+            // which can only happen once record 0's merge AND write have both fully completed
+            // (the loop is strictly sequential), so waiting on it proves record 0 is done rather
+            // than guessing from a poll. Bounded rather than unconditional so a future regression
+            // fails this test instead of hanging the run.
+            Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "record 1's merge never started.");
+            cts.Cancel();
+            release.Set();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+
+            // Record 1's own check had already passed before it was ever blocked, so it always
+            // finishes once released -- record 2 is the one this proves cancellation stops.
+            Assert.True(File.Exists(paths[0]));
+            Assert.True(File.Exists(paths[1]));
+            Assert.False(File.Exists(paths[2]));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
     // ---- MergeBatchToFilesWithReport: lenient, never throws for a bad record --------------------
 
     [Fact]
@@ -1026,6 +1081,74 @@ public class DocxMailMergeTests
 
             Assert.Equal("outputPathFactory", ex.ParamName);
             Assert.False(File.Exists(Path.Combine(dir.FullName, "collide.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFilesWithReport_RefusesANullRecord_BeforeCallingOutputPathFactory()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>?[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                null,
+                new Dictionary<string, string> { ["FirstName"] = "Carol" },
+            };
+
+            // Mirrors MergeBatchToFiles_RefusesANullRecord_BeforeCallingOutputPathFactory -- the
+            // null-record refusal lives in the shared MergeBatchToFilesCore and runs regardless of
+            // strict/lenient, so it must hold here too.
+            var calledIndices = new List<int>();
+            var ex = Assert.Throws<ArgumentNullException>(() =>
+                DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records!,
+                    (i, r) => { calledIndices.Add(i); return Path.Combine(dir.FullName, r["FirstName"] + ".docx"); }));
+
+            Assert.Equal("records", ex.ParamName);
+            Assert.Equal([0], calledIndices);
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "Alice.docx")));
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "Carol.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFilesWithReport_RefusesANullOrBlankOutputPath()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" },
+            };
+
+            // Mirrors MergeBatchToFiles_RefusesANullOrBlankOutputPath -- the null/blank-path
+            // refusal is equally unconditional, run from the shared MergeBatchToFilesCore.
+            var nullEx = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
+                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : null!));
+            Assert.Equal("outputPathFactory", nullEx.ParamName);
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+
+            var blankEx = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
+                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : "   "));
+            Assert.Equal("outputPathFactory", blankEx.ParamName);
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
         }
         finally
         {
@@ -1101,7 +1224,125 @@ public class DocxMailMergeTests
         }
     }
 
+    [Fact]
+    public async Task MergeBatchToFilesWithReportAsync_HonoursCancellationBetweenRecords()
+    {
+        // Same shape as MergeBatchToFilesAsync_HonoursCancellationBetweenRecords -- see
+        // BlockingValues's doc comment for why this is a deterministic interleave rather than a
+        // timing race.
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var paths = new[]
+            {
+                Path.Combine(dir.FullName, "out-0.docx"),
+                Path.Combine(dir.FullName, "out-1.docx"),
+                Path.Combine(dir.FullName, "out-2.docx"),
+            };
+
+            using var started = new ManualResetEventSlim(false);
+            using var release = new ManualResetEventSlim(false);
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new BlockingValues(new Dictionary<string, string> { ["FirstName"] = "Bob" }, started, release),
+                new Dictionary<string, string> { ["FirstName"] = "Carol" },
+            };
+            using var cts = new CancellationTokenSource();
+
+            // Task.Run, not a direct call -- see MergeBatchToFilesAsync_HonoursCancellationBetweenRecords's
+            // comment for why: a synchronously-completing first await would otherwise run the whole
+            // call, BlockingValues's block included, inline on this thread and deadlock.
+            var task = Task.Run(() => DocxMailMerge.MergeBatchToFilesWithReportAsync(templatePath, records, (i, r) => paths[i], cts.Token));
+
+            Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "record 1's merge never started.");
+            cts.Cancel();
+            release.Set();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+
+            Assert.True(File.Exists(paths[0]));
+            Assert.True(File.Exists(paths[1]));
+            Assert.False(File.Exists(paths[2]));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// An <see cref="IReadOnlyDictionary{TKey, TValue}"/> that blocks the first time its
+    /// <see cref="Count"/> is read, until released -- used by the file-path
+    /// *_HonoursCancellationBetweenRecords tests to get a deterministic synchronization point
+    /// inside <c>MergeBatchToFilesCore</c>'s per-record loop, rather than racing against wall-clock
+    /// timing.
+    /// </summary>
+    /// <remarks>
+    /// Neither <c>MergeBatchToFilesAsync</c> nor <c>MergeBatchToFilesWithReportAsync</c> is an
+    /// async iterator -- each runs its whole write loop synchronously behind one <see
+    /// cref="Task"/>, so there is no yield point between records for a consumer to interject a
+    /// cancellation. The gap between one record's <c>File.WriteAllBytes</c> call RETURNING and the
+    /// next record's cancellation check is a handful of CPU instructions -- measured directly
+    /// while implementing this fix: an external thread polling for the file to appear on disk and
+    /// racing to cancel before that check runs wins only occasionally, even with a multi-megabyte
+    /// payload deliberately keeping the write in flight, because OS thread scheduling can delay a
+    /// polling thread by more than that gap. That is not a fixable flakiness; it means the
+    /// boundary this class exists to observe cannot be caught from outside by timing at all.
+    ///
+    /// <b>This class turns the one point <c>DocxMailMerge</c> genuinely reads a record's values
+    /// into a synchronization point instead.</b> <c>DocxMailMerge.Copy</c> -- the only place a
+    /// record's values are consumed to build the actual merge -- reads <see cref="Count"/> before
+    /// enumerating. The earlier validation every record passes through first, before any record is
+    /// merged (<c>DocxMailMerge.RequireValues</c>, called once per record while every output path
+    /// is computed and collision-checked), only enumerates and never reads <see cref="Count"/>. So
+    /// blocking specifically on <see cref="Count"/> is reached exactly once per record, and exactly
+    /// when that record's real merge begins -- which can only happen once every record before it
+    /// has been fully merged AND written, since the loop is strictly sequential.
+    ///
+    /// Wrapping record 1's values and waiting for that block to be reached therefore proves record
+    /// 0 is completely done, with no polling and no race. It does not prove record 1 was stopped --
+    /// its own cancellation check has, by construction, already passed by the time this block is
+    /// reached, so record 1 always finishes once released. What it proves is one loop iteration
+    /// later than the ideal case: cancelling at that point stops record 2, which exercises the
+    /// identical check on the identical code path one record later.
+    /// </remarks>
+    private sealed class BlockingValues : IReadOnlyDictionary<string, string>
+    {
+        private readonly IReadOnlyDictionary<string, string> _inner;
+        private readonly ManualResetEventSlim _started;
+        private readonly ManualResetEventSlim _release;
+
+        public BlockingValues(
+            IReadOnlyDictionary<string, string> inner, ManualResetEventSlim started, ManualResetEventSlim release)
+        {
+            _inner = inner;
+            _started = started;
+            _release = release;
+        }
+
+        public int Count
+        {
+            get
+            {
+                _started.Set();
+                _release.Wait();
+                return _inner.Count;
+            }
+        }
+
+        public string this[string key] => _inner[key];
+        public IEnumerable<string> Keys => _inner.Keys;
+        public IEnumerable<string> Values => _inner.Values;
+        public bool ContainsKey(string key) => _inner.ContainsKey(key);
+        public bool TryGetValue(string key, out string value) => _inner.TryGetValue(key, out value!);
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => _inner.GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 
     private static string Text(byte[] docx) => DocxEditor.ExtractText(docx).Replace("\n", string.Empty);
 

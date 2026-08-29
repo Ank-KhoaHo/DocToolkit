@@ -145,8 +145,10 @@ public sealed class DocxMailMergeBatchItem
 /// <summary>One record's output file, from a file-path batch call, together with what happened to
 /// every field in it.</summary>
 /// <remarks>
-/// Returned by the lenient file-path batch overload only — the strict one refuses to write a file
-/// for an incomplete record at all, so there is nothing to report for that record.
+/// Returned by the lenient file-path batch forms only —
+/// <see cref="DocxMailMerge.MergeBatchToFilesWithReport(string, System.Collections.Generic.IEnumerable{System.Collections.Generic.IReadOnlyDictionary{string, string}}, System.Func{int, System.Collections.Generic.IReadOnlyDictionary{string, string}, string})"/>
+/// and its async twin — the strict forms refuse to write a file for an incomplete record at all,
+/// so there is nothing to report for that record.
 /// </remarks>
 public sealed class DocxMailMergeFileBatchItem
 {

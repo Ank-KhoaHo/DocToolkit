@@ -123,7 +123,7 @@ public static class DocxMailMerge
     public static byte[] Merge(byte[] docx, IReadOnlyDictionary<string, string> values)
     {
         RequireContent(docx);
-        RequireValues(values);
+        RequireValues(values, nameof(values));
 
         using var source = new MemoryStream(docx, writable: false);
         using var result = MergeCore(source, values, strict: true, out _);
@@ -173,7 +173,7 @@ public static class DocxMailMerge
         byte[] docx, IReadOnlyDictionary<string, string> values)
     {
         RequireContent(docx);
-        RequireValues(values);
+        RequireValues(values, nameof(values));
 
         using var source = new MemoryStream(docx, writable: false);
         using var result = MergeCore(source, values, strict: false, out DocxMailMergeReport report);
@@ -270,7 +270,13 @@ public static class DocxMailMerge
     /// <see cref="IAsyncEnumerable{T}"/> iterator method defers its whole body, argument validation
     /// included, not a gap specific to this method.
     /// </exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or a record's value is null. Unlike the synchronous
+    /// <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>, this is
+    /// not thrown until the caller starts enumerating the result — the same
+    /// <see cref="IAsyncEnumerable{T}"/> deferral as the <see cref="ArgumentNullException"/> case
+    /// above, not a gap specific to this method.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">
     /// The package could not be read or written, or a record is missing a value for a field the
@@ -302,6 +308,10 @@ public static class DocxMailMerge
     /// not, and never throws for an incomplete one — see
     /// <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/> for the
     /// strict form.
+    ///
+    /// <b>This is lazy.</b> Memory stays proportional to one item in flight, not the whole batch —
+    /// <paramref name="records"/> is walked one entry at a time as the caller enumerates the
+    /// result, and each item is only held until the caller moves on to the next one.
     /// </remarks>
     /// <param name="docx">The template to fill, once per record.</param>
     /// <param name="records">
@@ -342,7 +352,13 @@ public static class DocxMailMerge
     /// <see cref="IAsyncEnumerable{T}"/> iterator method defers its whole body, argument validation
     /// included, not a gap specific to this method.
     /// </exception>
-    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or a record's value is null. Unlike the synchronous
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>,
+    /// this is not thrown until the caller starts enumerating the result — the same
+    /// <see cref="IAsyncEnumerable{T}"/> deferral as the <see cref="ArgumentNullException"/> case
+    /// above, not a gap specific to this method.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
     public static async IAsyncEnumerable<DocxMailMergeBatchItem> MergeBatchWithReportAsync(
@@ -369,8 +385,8 @@ public static class DocxMailMerge
     /// <remarks>
     /// <b>Strict, the same way <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
     /// is strict</b> — refuses the moment a record is incomplete, and nothing after that record is
-    /// written. See <c>MergeBatchToFilesWithReport</c> for the lenient form (a real
-    /// <c>&lt;see cref&gt;</c> link follows in a later change, once that method exists).
+    /// written. See <see cref="MergeBatchToFilesWithReport(string, IEnumerable{IReadOnlyDictionary{string, string}}, Func{int, IReadOnlyDictionary{string, string}, string})"/>
+    /// for the lenient form.
     ///
     /// <b>Every output path is checked for a collision against every other, before anything is
     /// written.</b> Two records producing the same path is refused outright, naming both record
@@ -414,7 +430,7 @@ public static class DocxMailMerge
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(outputPathFactory);
 
-        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true);
+        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true, CancellationToken.None);
         return [.. items.Select(item => item.OutputPath)];
     }
 
@@ -434,7 +450,7 @@ public static class DocxMailMerge
     /// Given a record's 0-based index and its own values, returns the path its document is written
     /// to. Called once per record before any document is merged.
     /// </param>
-    /// <param name="ct">Cancels before the template is read.</param>
+    /// <param name="ct">Cancels before the template is read, and again before each record's merge.</param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="templatePath"/>, <paramref name="records"/> or
     /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
@@ -461,7 +477,7 @@ public static class DocxMailMerge
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(outputPathFactory);
 
-        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true);
+        var items = MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: true, ct);
         return [.. items.Select(item => item.OutputPath)];
     }
 
@@ -506,7 +522,7 @@ public static class DocxMailMerge
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(outputPathFactory);
 
-        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false);
+        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false, CancellationToken.None);
     }
 
     /// <summary>
@@ -524,7 +540,7 @@ public static class DocxMailMerge
     /// Given a record's 0-based index and its own values, returns the path its document is written
     /// to. Called once per record before any document is merged.
     /// </param>
-    /// <param name="ct">Cancels before the template is read.</param>
+    /// <param name="ct">Cancels before the template is read, and again before each record's merge.</param>
     /// <exception cref="ArgumentNullException">
     /// <paramref name="templatePath"/>, <paramref name="records"/> or
     /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
@@ -547,7 +563,7 @@ public static class DocxMailMerge
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(outputPathFactory);
 
-        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false);
+        return MergeBatchToFilesCore(docx, [.. records], outputPathFactory, strict: false, ct);
     }
 
     private const string EmptySource = "DOCX content was empty.";
@@ -588,16 +604,13 @@ public static class DocxMailMerge
         }
     }
 
-    private static void RequireValues(IReadOnlyDictionary<string, string> values)
-        => RequireValues(values, nameof(values));
-
     private static async Task<DocxMailMergeReport> MergeToStreamAsync(
         Stream source, Stream destination, IReadOnlyDictionary<string, string> values, bool strict,
         CancellationToken ct)
     {
         StreamPipeline.RequireReadable(source, nameof(source));
         StreamPipeline.RequireWritable(destination, nameof(destination));
-        RequireValues(values);
+        RequireValues(values, nameof(values));
         ct.ThrowIfCancellationRequested();
 
         using var docx = await StreamPipeline
@@ -723,10 +736,17 @@ public static class DocxMailMerge
     /// and checked for collisions before any record is merged, which needs indexed, repeatable
     /// access. The public callers materialise the caller's sequence once, up front, before calling
     /// this.
+    ///
+    /// <b>Writes are deliberately synchronous</b> — <c>File.WriteAllBytes</c>, not
+    /// <c>File.WriteAllBytesAsync</c> — because the per-record merge this loop performs is the
+    /// dominant cost and is itself synchronous; making only the write awaitable would move a
+    /// negligible fraction of the work off the calling thread. Cancellation is still observed
+    /// before each record's merge, independent of the write's synchrony.
     /// </remarks>
     private static List<DocxMailMergeFileBatchItem> MergeBatchToFilesCore(
         byte[] docx, IReadOnlyList<IReadOnlyDictionary<string, string>> records,
-        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory, bool strict)
+        Func<int, IReadOnlyDictionary<string, string>, string> outputPathFactory, bool strict,
+        CancellationToken ct)
     {
         var paths = new string[records.Count];
         for (var i = 0; i < records.Count; i++)
@@ -749,6 +769,8 @@ public static class DocxMailMerge
         var items = new List<DocxMailMergeFileBatchItem>(records.Count);
         for (var i = 0; i < records.Count; i++)
         {
+            ct.ThrowIfCancellationRequested();
+
             using var source = new MemoryStream(docx, writable: false);
             DocxMailMergeReport report;
             MemoryStream result;
@@ -781,6 +803,10 @@ public static class DocxMailMerge
     /// no case-insensitivity. Normalising would mean guessing whether two differently-spelled paths
     /// the caller's own factory produced were meant to collide; comparing exactly what the factory
     /// returned is the one behaviour that cannot be wrong about the caller's intent.
+    ///
+    /// <b>A path matching <c>templatePath</c> itself is not treated as a collision</b> —
+    /// <c>outputPathFactory</c> returning the template's own path will overwrite it with a merged
+    /// record's output, with no warning. This only compares output paths against each other.
     /// </remarks>
     private static void CheckNoPathCollisions(IReadOnlyList<string> paths)
     {
