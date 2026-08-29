@@ -211,6 +211,156 @@ public static class DocxMailMerge
     }
 
     /// <summary>
+    /// A copy of <paramref name="docx"/> with every conditional block (<c>{{#Name}}</c> …
+    /// <c>{{/Name}}</c>) resolved — included and its markers removed when its condition is
+    /// <see langword="true"/>, removed entirely (markers and content) when
+    /// <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Refuses to produce a document with a condition the template asks for but
+    /// <paramref name="conditions"/> did not supply</b> — measured: the underlying engine throws
+    /// immediately for an unsupplied name, so this preflights via <see cref="InspectTemplate(byte[])"/>
+    /// and refuses before the document is ever touched, naming every missing condition at once. Use
+    /// <see cref="MergeConditionalWithReport(byte[], IReadOnlyDictionary{string, bool})"/> when you
+    /// want the document anyway.
+    ///
+    /// <b>Run this before <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/></b> when
+    /// a template mixes conditional blocks with ordinary merge fields — a field inside a block that
+    /// ends up excluded is removed along with the block, so running the field-level merge first
+    /// would fill a field that this call is about to delete.
+    ///
+    /// A marker paragraph must contain <b>only</b> the marker — trailing text on the same paragraph
+    /// is not recognised as a marker at all, which is left as literal text in the output. This is
+    /// inherent to the marker convention and cannot be detected here.
+    /// </remarks>
+    /// <param name="docx">The template to resolve.</param>
+    /// <param name="conditions">Whether to include each named block.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// A condition the template asks for was not supplied, the marker structure is unbalanced, or
+    /// the document could not be read or written.
+    /// </exception>
+    public static byte[] MergeConditional(byte[] docx, IReadOnlyDictionary<string, bool> conditions)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(conditions);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeConditionalCore(source, conditions, strict: true, out _);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with every conditional block resolved. <paramref name="source"/> is <b>read</b> to its end
+    /// and <paramref name="destination"/> is <b>written</b>; neither is disposed, closed nor sought.
+    /// </summary>
+    /// <inheritdoc cref="MergeConditional(byte[], IReadOnlyDictionary{string, bool})" path="/remarks"/>
+    /// <param name="source">The template to resolve.</param>
+    /// <param name="destination">Receives the resolved document.</param>
+    /// <param name="conditions">Whether to include each named block.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="conditions"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// A condition the template asks for was not supplied, the marker structure is unbalanced, or
+    /// the document could not be read or written.
+    /// </exception>
+    public static async Task MergeConditionalAsync(
+        Stream source, Stream destination, IReadOnlyDictionary<string, bool> conditions,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(conditions);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), ConditionalFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeConditionalCore(docx, conditions, strict: true, out _);
+        await StreamPipeline.EmitAsync(merged, destination, ConditionalFailure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> with every conditional block resolved, <b>together with
+    /// which condition names the template asked for that <paramref name="conditions"/> did not
+    /// supply</b>. Always produces a document.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeConditional(byte[], IReadOnlyDictionary{string, bool})" path="/remarks"/>
+    ///
+    /// <b>An unsupplied condition is defaulted to <see langword="false"/></b> — the block is
+    /// removed, exactly as if the caller had explicitly said not to show it — and named in
+    /// <see cref="DocxMailMergeBlockReport.MissingNames"/>. That is the one difference from the
+    /// strict overload: this never refuses for a missing name. <b>It still refuses for a genuinely
+    /// unbalanced marker structure</b> — an unmatched or mismatched start/end pair makes the
+    /// underlying engine throw regardless of what <paramref name="conditions"/> contains, which is
+    /// not something any dictionary content can work around.
+    /// </remarks>
+    /// <param name="docx">The template to resolve.</param>
+    /// <param name="conditions">Whether to include each named block.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The marker structure is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static DocxMailMergeBlockResult MergeConditionalWithReport(
+        byte[] docx, IReadOnlyDictionary<string, bool> conditions)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(conditions);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeConditionalCore(source, conditions, strict: false, out var report);
+        return new DocxMailMergeBlockResult(result.ToArray(), report);
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with every conditional block resolved, and returns which condition names were not supplied.
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed nor sought.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeConditionalWithReport(byte[], IReadOnlyDictionary{string, bool})" path="/remarks"/>
+    ///
+    /// This returns a <see cref="DocxMailMergeBlockReport"/> rather than a
+    /// <see cref="DocxMailMergeBlockResult"/> because the document went to
+    /// <paramref name="destination"/>.
+    /// </remarks>
+    /// <param name="source">The template to resolve.</param>
+    /// <param name="destination">Receives the resolved document.</param>
+    /// <param name="conditions">Whether to include each named block.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="conditions"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The marker structure is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static async Task<DocxMailMergeBlockReport> MergeConditionalWithReportAsync(
+        Stream source, Stream destination, IReadOnlyDictionary<string, bool> conditions,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(conditions);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), ConditionalFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeConditionalCore(docx, conditions, strict: false, out var report);
+        await StreamPipeline.EmitAsync(merged, destination, ConditionalFailure, ct).ConfigureAwait(false);
+        return report;
+    }
+
+    /// <summary>
     /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
     /// filled document in order.
     /// </summary>
@@ -575,6 +725,7 @@ public static class DocxMailMerge
     private const string EmptySource = "DOCX content was empty.";
     private const string InspectFailure = "Failed to read the document's mail-merge template. See the inner exception for details.";
     private const string MergeFailure = "Failed to fill the document's merge fields. See the inner exception for details.";
+    private const string ConditionalFailure = "Failed to resolve the document's conditional blocks. See the inner exception for details.";
 
     private static void RequireContent(byte[] docx)
     {
@@ -681,6 +832,92 @@ public static class DocxMailMerge
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The one implementation behind all four <c>MergeConditional*</c> overloads.
+    /// </summary>
+    /// <remarks>
+    /// <b>Preflights via <see cref="OfficeIMOMailMerge.InspectTemplate"/> before ever calling
+    /// <see cref="OfficeIMOMailMerge.ExecuteConditionalBlocks"/></b> — measured, the engine throws
+    /// immediately if its dictionary is missing an entry for a marker name the document contains,
+    /// with no partial-tolerance mode. The strict path refuses here, before <c>Execute</c> is
+    /// reached, whenever anything is missing or the marker structure is unsound — which is also
+    /// what keeps a genuinely unbalanced marker's raw <see cref="InvalidOperationException"/> from
+    /// ever escaping the strict overloads. The lenient path instead pads a COPY of
+    /// <paramref name="conditions"/> with <see langword="false"/> for every missing name before
+    /// calling <c>Execute</c>, so <c>Execute</c> never sees an unsupplied key either way.
+    ///
+    /// <b>The strict refusal happens INSIDE the try, using a captured flag rather than an early
+    /// throw</b> — matching <see cref="MergeCore"/>'s own reasoning: throwing the specific
+    /// <see cref="DocumentConversionException"/> from inside an unfiltered
+    /// <c>catch (Exception ex)</c> below it would re-wrap it in the generic failure message.
+    /// </remarks>
+    private static MemoryStream MergeConditionalCore(
+        Stream source, IReadOnlyDictionary<string, bool> conditions, bool strict,
+        out DocxMailMergeBlockReport report)
+    {
+        var result = new MemoryStream();
+        List<string> missing;
+        List<DocxMailMergeIssue> allIssues;
+        bool refuse;
+        string? refusalMessage = null;
+
+        try
+        {
+            using var document = OfficeIMOWordDocument.Load(source);
+
+            var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, conditions.Keys, null!);
+            allIssues = [.. inspection.Issues.Select(Issue)];
+            missing = [.. allIssues
+                .Where(i => i.Kind == DocxMailMergeIssueKind.MissingConditionalValue)
+                .Select(i => i.Name)];
+
+            refuse = strict && !inspection.IsValid;
+            if (refuse)
+            {
+                refusalMessage = $"{allIssues.Count} conditional block issue(s), refusing before "
+                    + $"merging any: {string.Join("; ", allIssues.Select(i => i.Message))}. Call "
+                    + "MergeConditionalWithReport to execute anyway.";
+            }
+            else
+            {
+                var execute = CopyWithDefault(conditions, missing, defaultValue: false);
+                OfficeIMOMailMerge.ExecuteConditionalBlocks(document, execute, removeMarkers: true);
+                document.Save(result);
+                result.Position = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(ConditionalFailure, ex);
+        }
+
+        if (refuse)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(refusalMessage!);
+        }
+
+        report = new DocxMailMergeBlockReport(missing, allIssues);
+        return result;
+    }
+
+    /// <summary>
+    /// A mutable copy of <paramref name="values"/> with <paramref name="defaultValue"/> filled in
+    /// for every name in <paramref name="missingNames"/> — what lets the lenient overloads call the
+    /// underlying engine, which has no tolerance of its own for a dictionary missing an entry.
+    /// </summary>
+    private static Dictionary<string, bool> CopyWithDefault(
+        IReadOnlyDictionary<string, bool> values, IReadOnlyList<string> missingNames, bool defaultValue)
+    {
+        var copy = new Dictionary<string, bool>(values.Count + missingNames.Count);
+        foreach (KeyValuePair<string, bool> pair in values)
+            copy[pair.Key] = pair.Value;
+        foreach (string name in missingNames)
+            copy[name] = defaultValue;
+        return copy;
     }
 
     /// <summary>

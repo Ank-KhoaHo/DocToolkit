@@ -277,6 +277,163 @@ public class DocxMailMergeTests
         Assert.Equal("an ordinary document", Text(result.Document));
     }
 
+    // ---- A75: MergeConditional -----------------------------------------------------------------
+
+    [Fact]
+    public void MergeConditional_IncludesTheBlockWhenTrue_AndRemovesMarkers()
+    {
+        byte[] merged = DocxMailMerge.MergeConditional(
+            ConditionalTemplate("ShowDiscount", "Discount applies"),
+            new Dictionary<string, bool> { ["ShowDiscount"] = true });
+
+        Assert.Equal("BeforeDiscount appliesAfter", Text(merged));
+    }
+
+    [Fact]
+    public void MergeConditional_RemovesTheWholeBlockWhenFalse()
+    {
+        byte[] merged = DocxMailMerge.MergeConditional(
+            ConditionalTemplate("ShowDiscount", "Discount applies"),
+            new Dictionary<string, bool> { ["ShowDiscount"] = false });
+
+        Assert.Equal("BeforeAfter", Text(merged));
+    }
+
+    [Fact]
+    public void MergeConditional_RefusesWhenAConditionIsMissing()
+    {
+        byte[] template = ConditionalTemplate("ShowDiscount", "Discount applies");
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeConditional(template, new Dictionary<string, bool>()));
+
+        Assert.Contains("ShowDiscount", ex.Message);
+    }
+
+    [Fact]
+    public void MergeConditional_RefusesBeforeTouchingTheDocument_OnAnUnbalancedMarker()
+    {
+        // Unmatched start -- InspectTemplate catches this gracefully, so the strict form should
+        // refuse via DocumentConversionException, never let OfficeIMO's raw InvalidOperationException
+        // escape.
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#ShowA}}"))));
+            body.Append(new Paragraph(new Run(new Text("content"))));
+        });
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeConditional(template, new Dictionary<string, bool> { ["ShowA"] = true }));
+
+        Assert.Contains("ShowA", ex.Message);
+    }
+
+    [Fact]
+    public async Task MergeConditionalAsync_MatchesTheByteArrayForm()
+    {
+        byte[] template = ConditionalTemplate("ShowDiscount", "Discount applies");
+        using var source = new MemoryStream(template);
+        using var destination = new MemoryStream();
+
+        await DocxMailMerge.MergeConditionalAsync(
+            source, destination, new Dictionary<string, bool> { ["ShowDiscount"] = true });
+
+        Assert.Equal("BeforeDiscount appliesAfter", Text(destination.ToArray()));
+    }
+
+    [Fact]
+    public void MergeConditionalWithReport_PadsAMissingConditionWithFalse_AndReportsIt()
+    {
+        byte[] template = ConditionalTemplate("ShowDiscount", "Discount applies");
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeConditionalWithReport(
+            template, new Dictionary<string, bool>());
+
+        Assert.Equal("BeforeAfter", Text(result.Document));
+        Assert.Equal(new[] { "ShowDiscount" }, result.Report.MissingNames);
+        Assert.False(result.Report.IsComplete);
+    }
+
+    [Fact]
+    public void MergeConditionalWithReport_SuppliedConditionIsNotReportedMissing()
+    {
+        byte[] template = ConditionalTemplate("ShowDiscount", "Discount applies");
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeConditionalWithReport(
+            template, new Dictionary<string, bool> { ["ShowDiscount"] = true });
+
+        Assert.Equal("BeforeDiscount appliesAfter", Text(result.Document));
+        Assert.Empty(result.Report.MissingNames);
+        Assert.True(result.Report.IsComplete);
+    }
+
+    [Fact]
+    public void MergeConditionalWithReport_StillThrowsOnAnUnbalancedMarker()
+    {
+        // The one case WithReport cannot "always produce a document" for -- a genuinely unbalanced
+        // marker structure makes OfficeIMO's Execute throw regardless of dictionary content.
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#ShowA}}"))));
+            body.Append(new Paragraph(new Run(new Text("content"))));
+        });
+
+        Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeConditionalWithReport(template, new Dictionary<string, bool> { ["ShowA"] = true }));
+    }
+
+    [Theory]
+    [InlineData(DocxMailMergeIssueKind.UnmatchedConditionalStart)]
+    [InlineData(DocxMailMergeIssueKind.UnmatchedConditionalEnd)]
+    [InlineData(DocxMailMergeIssueKind.MismatchedConditionalEnd)]
+    public void MergeConditionalWithReport_StillThrows_ForEveryStructuralIssueKind(
+        DocxMailMergeIssueKind expectedKind)
+    {
+        byte[] template = expectedKind switch
+        {
+            DocxMailMergeIssueKind.UnmatchedConditionalStart => Build(body =>
+            {
+                body.Append(new Paragraph(new Run(new Text("{{#ShowA}}"))));
+                body.Append(new Paragraph(new Run(new Text("content"))));
+            }),
+            DocxMailMergeIssueKind.UnmatchedConditionalEnd => Build(body =>
+            {
+                body.Append(new Paragraph(new Run(new Text("content"))));
+                body.Append(new Paragraph(new Run(new Text("{{/ShowA}}"))));
+            }),
+            _ => Build(body =>
+            {
+                body.Append(new Paragraph(new Run(new Text("{{#ShowA}}"))));
+                body.Append(new Paragraph(new Run(new Text("content"))));
+                body.Append(new Paragraph(new Run(new Text("{{/ShowB}}"))));
+            }),
+        };
+
+        // Confirm InspectTemplate would have named this exact kind, then confirm WithReport still
+        // throws for it (it cannot pad its way past a structural defect).
+        DocxMailMergeTemplate inspection = DocxMailMerge.InspectTemplate(template);
+        Assert.Equal(expectedKind, Assert.Single(inspection.Issues).Kind);
+
+        Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeConditionalWithReport(template, new Dictionary<string, bool> { ["ShowA"] = true, ["ShowB"] = true }));
+    }
+
+    [Fact]
+    public void MergeConditional_NullConditions_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => DocxMailMerge.MergeConditional(ConditionalTemplate("ShowA", "x"), null!));
+    }
+
+    private static byte[] ConditionalTemplate(string name, string content) => Build(body =>
+    {
+        body.Append(new Paragraph(new Run(new Text("Before"))));
+        body.Append(new Paragraph(new Run(new Text($"{{{{#{name}}}}}"))));
+        body.Append(new Paragraph(new Run(new Text(content))));
+        body.Append(new Paragraph(new Run(new Text($"{{{{/{name}}}}}"))));
+        body.Append(new Paragraph(new Run(new Text("After"))));
+    });
+
     // ---- matching rules ---------------------------------------------------------------------------
 
     [Theory]

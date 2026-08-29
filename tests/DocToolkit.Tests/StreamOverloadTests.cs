@@ -51,6 +51,14 @@ public class StreamOverloadTests
     private static readonly IReadOnlyDictionary<string, string> NoMergeValues =
         new Dictionary<string, string>();
 
+    /// <summary>
+    /// No conditions, deliberately — the shared <c>Docx</c> fixture carries no <c>{{#Name}}</c>
+    /// conditional marker at all, so resolving it against an empty dictionary changes nothing and
+    /// succeeds, for the same plumbing-not-semantics reason <see cref="NoMergeValues"/> exists.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, bool> NoConditions =
+        new Dictionary<string, bool>();
+
     /// <summary>A .docx whose table holds a repeating-row template, for FillRowsAsync.</summary>
     private static readonly byte[] TableDocx = DocxFixtures.Build(DocxFixtures.Tbl(
         DocxFixtures.Row(DocxFixtures.R("Description")),
@@ -244,6 +252,8 @@ public class StreamOverloadTests
         "DocxReview.RejectRevisionsAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxMailMerge.MergeConditionalAsync",
+        "DocxMailMerge.MergeConditionalWithReportAsync",
         "DocxForm.FillAsync",
     };
 
@@ -309,6 +319,8 @@ public class StreamOverloadTests
         "DocxMailMerge.InspectTemplateAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxMailMerge.MergeConditionalAsync",
+        "DocxMailMerge.MergeConditionalWithReportAsync",
         "DocxForm.InspectAsync",
         "DocxForm.ValidateAsync",
         "DocxForm.FillAsync",
@@ -384,6 +396,8 @@ public class StreamOverloadTests
         "DocxReview.RejectRevisionsAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxMailMerge.MergeConditionalAsync",
+        "DocxMailMerge.MergeConditionalWithReportAsync",
         "DocxForm.FillAsync",
     };
 
@@ -1085,6 +1099,10 @@ public class StreamOverloadTests
                 DocxMailMerge.MergeAsync(source!, destination!, NoMergeValues, ct),
             "DocxMailMerge.MergeWithReportAsync" =>
                 DocxMailMerge.MergeWithReportAsync(source!, destination!, NoMergeValues, ct),
+            "DocxMailMerge.MergeConditionalAsync" =>
+                DocxMailMerge.MergeConditionalAsync(source!, destination!, NoConditions, ct),
+            "DocxMailMerge.MergeConditionalWithReportAsync" =>
+                DocxMailMerge.MergeConditionalWithReportAsync(source!, destination!, NoConditions, ct),
             "DocxReview.RemoveCommentsAsync" =>
                 DocxReview.RemoveCommentsAsync(source!, destination!, ct),
             "DocxReview.AcceptRevisionsAsync" =>
