@@ -737,6 +737,32 @@ public class DocxMailMergeTests
     }
 
     [Fact]
+    public void MergeRepeatingRegions_StrictForm_ThrowsOnAPerRowOmission_UnlikeTheLenientForm()
+    {
+        // Same template and data shape as MergeRepeatingRegionsWithReport_PadsANestedRegionMissingForOneRecordOnly
+        // above -- only the second Orders row omits "Lines". The strict form pads nothing before
+        // calling the underlying engine, so this per-row omission reaches it unpadded and it throws,
+        // unlike the lenient WithReport form, which defaults the row to zero rows and reports nothing missing.
+        byte[] template = NestedRepeatingTemplate();
+
+        Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeatingRegions(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+                        {
+                            ["Lines"] = new[] { new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }) }
+                        }),
+                    new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1002" }),
+                }
+            }));
+    }
+
+    [Fact]
     public void MergeRepeatingRegionsWithReport_StillThrowsOnAnUnbalancedMarker()
     {
         byte[] template = Build(body =>

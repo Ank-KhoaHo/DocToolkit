@@ -609,6 +609,12 @@ public static class DocxMailMerge
     /// reports nothing missing — the second order's <c>Lines</c> region is still defaulted to zero
     /// rows and removed, silently. Measured: without that default the underlying engine throws for
     /// that second row, exactly as it does for a name missing everywhere.
+    ///
+    /// <b>Unlike a missing individual MERGEFIELD, which a follow-up <see cref="Merge(byte[],
+    /// IReadOnlyDictionary{string, string})"/> or <c>MergeWithReport</c> pass can still detect as a
+    /// raw leftover placeholder, a per-row missing nested region leaves no detectable artifact in
+    /// the output</b> — the result is byte-indistinguishable from a row that genuinely had no nested
+    /// rows, so nothing downstream can recover this information.
     /// </remarks>
     /// <param name="docx">The template to expand.</param>
     /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
