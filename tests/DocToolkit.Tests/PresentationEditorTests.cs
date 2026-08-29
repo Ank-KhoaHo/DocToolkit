@@ -966,4 +966,320 @@ public class PresentationEditorTests
         Assert.True(bottomEdge <= 5143500,
             $"Inserted title shape's bottom edge ({bottomEdge}) overhangs the deck's height (5143500).");
     }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasAMatchingPlaceholder_InheritsItsPosition()
+    {
+        // The layout's title/body placeholders are relocated FAR from PptxDocumentWriter's own
+        // constants (TitleXEmu=838200/TitleYEmu=365125, BodyXEmu=838200/BodyYEmu=1825625) while
+        // keeping their TYPES identical (title, body idx=1) -- the one case the fix is meant to
+        // improve. Measured via PdfProbe against the real render pipeline, not merely reading the
+        // OOXML back: text presence and position, not just structure.
+        var deck = PptxFixtures.DeckWithRelocatedLayoutPlaceholders();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var pdf = PptxToPdfConverter.Convert(edited);
+        var text = PdfProbe.ExtractText(pdf);
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+
+        var yPositions = PdfProbe.TextYPositions(pdf);
+
+        // TextYPositions returns values in DOCUMENT order, not grouped or filterable by slide -- a
+        // value-range heuristic (e.g. "near the top"/"near the bottom") would risk matching the
+        // WRONG slide's text, since slide 1 ("First"/"One", built by Create with its OWN unrelated
+        // explicit geometry, unaffected by relocating the shared layout) also contributes two
+        // entries to the same pooled list. Index into it instead: slide 1 contributes exactly 2
+        // entries (title, one bullet), so the inserted slide's title is index 2 and its bullet is
+        // index 3 -- deterministic from the fixture's own known shape counts, not a guess about
+        // absolute position.
+        Assert.Equal(4, yPositions.Count);
+        var insertedTitleY = yPositions[2];
+        var insertedBulletY = yPositions[3];
+
+        // The relocated layout puts the title near the BOTTOM of the slide (off.Y=5000000 of
+        // 6858000 EMU tall) and the body near the TOP (off.Y=500000) -- inverted from
+        // PptxDocumentWriter's own near-top-title/mid-page-body constants. In PDF points (bottom-up
+        // origin), a title inheriting the relocated position lands LOW; a body inheriting it lands
+        // HIGH. If the fix instead kept the fixed geometry, both would land at their usual
+        // (opposite) relative order instead.
+        Assert.True(insertedTitleY < insertedBulletY,
+            $"Expected the inherited title (relocated near the bottom, low Y) to sit below the " +
+            $"inherited bullet (relocated near the top, high Y) in PDF coordinates. " +
+            $"Title Y={insertedTitleY}, Bullet Y={insertedBulletY}.");
+    }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasNoMatchingPlaceholder_StillRendersTheContent()
+    {
+        // The measured failure mode this test pins: sample.pptx's real "Title Slide" layout uses
+        // ctrTitle/subTitle types, which do not match what BuildSlide writes (title/body). Omitting
+        // a:xfrm unconditionally would make this content vanish from the render entirely -- schema-
+        // valid, but invisible. This proves the fallback keeps it visible, exactly like today.
+        var deck = PptxFixtures.Sample();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var pdf = PptxToPdfConverter.Convert(edited);
+        var text = PdfProbe.ExtractText(pdf);
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasNoMatchingPlaceholder_KeepsTheFixedGeometry()
+    {
+        // The structural twin of the render-based test above: confirms the SHAPE still carries its
+        // own explicit a:xfrm (today's behavior, unchanged) rather than inheriting nothing.
+        var deck = PptxFixtures.Sample();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Equal(2, xfrms.Count); // title AND body, both unmatched, both keep explicit geometry
+    }
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasAMatchingPlaceholder_RemovesTheExplicitGeometry()
+    {
+        // The structural twin of the render-based match test: confirms the shape's a:xfrm is
+        // genuinely GONE, not merely coincidentally equal to the layout's position.
+        var deck = PptxFixtures.DeckWithRelocatedLayoutPlaceholders();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Empty(xfrms); // both shapes matched, both inherit -- no explicit geometry left
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The THIRD case: the layout names the role but positions nothing. A role match alone used
+    // to be enough to strip the inserted shape's own a:xfrm, and these two real stock layouts
+    // are the ones that then had nowhere to draw -- this render pipeline resolves slide ->
+    // layout, never layout -> master, so nothing downstream supplies the missing box.
+    //
+    // Measured through PptxToPdfConverter + PdfProbe against the pre-fix code, per layout:
+    //
+    //   "Title and Content"        1 a:xfrm kept, page 2 rendered "* Bullet A"  -- title GONE
+    //   "Title and Vertical Text"  0 a:xfrm kept, page 2 rendered EMPTY         -- both GONE
+    //
+    // and after the fix, 2 kept and "Inserted Title" + "Bullet A" on page 2 for both. The two
+    // cases differ and both are worth pinning: "Title and Content" (what PowerPoint gives a new
+    // body slide by default) has an UNTYPED idx=1 body placeholder, so its body already fell
+    // back on the type check and only the title exercises the geometry guard; "Title and
+    // Vertical Text" types both, so both do.
+    // ---------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Title and Content")]
+    [InlineData("Title and Vertical Text")]
+    public void InsertSlides_WhenTheTargetLayoutNamesTheRoleButPositionsNothing_StillRendersTheContent(
+        string layoutName)
+    {
+        var deck = PptxFixtures.SampleAttachedToLayout(layoutName);
+        Assert.Empty(PptxFixtures.Validate(deck)); // the re-pointed fixture is itself schema-valid
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var pdf = PptxToPdfConverter.Convert(edited);
+        var text = PdfProbe.ExtractText(pdf);
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    [Theory]
+    [InlineData("Title and Content")]
+    [InlineData("Title and Vertical Text")]
+    public void InsertSlides_WhenTheTargetLayoutNamesTheRoleButPositionsNothing_KeepsTheFixedGeometry(
+        string layoutName)
+    {
+        // The structural twin of the render test above. It discriminates where the render test
+        // cannot: a render only says the text appeared, while this says WHICH box put it there.
+        var deck = PptxFixtures.SampleAttachedToLayout(layoutName);
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Equal(2, xfrms.Count); // title AND body keep their own box -- nothing to inherit
+    }
+
+    [Fact]
+    public void InsertSlides_WhenARealStockLayoutPositionsItsPlaceholders_StillInheritsFromIt()
+    {
+        // The positive control for the geometry guard, and the reason it is not simply a way of
+        // switching the feature off: "Section Header" is a real PowerPoint-authored layout in the
+        // SAME package as the two above, with title/body idx=1 placeholders that DO carry their own
+        // a:xfrm. Inheritance still happens here -- 0 a:xfrm on the inserted slide -- and the
+        // content still renders. Without this, the two tests above would pass just as happily
+        // against a guard that never inherited from anything.
+        var deck = PptxFixtures.SampleAttachedToLayout("Section Header");
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using (var ms = new MemoryStream(edited))
+        using (var doc = PresentationDocument.Open(ms, false))
+        {
+            var insertedSlide = doc.PresentationPart!.SlideParts
+                .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+            Assert.Empty(insertedSlide.Slide!.Descendants<A.Transform2D>());
+        }
+
+        var text = PdfProbe.ExtractText(PptxToPdfConverter.Convert(edited));
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Re-review fix round 2, Finding 1: a present Transform2D is not necessarily a USABLE box.
+    // CT_Transform2D declares both a:off and a:ext as optional, so a layout placeholder can carry
+    // an a:xfrm with only a:off, or only a:ext. Measured against the pre-fix guard
+    // (Transform2D-presence only): stripping just <a:ext> from "Section Header"'s title
+    // placeholder -- the SAME real, PowerPoint-authored layout used as the positive control above
+    // -- still passed it, still stripped the inserted title's own a:xfrm, and "Inserted Title"
+    // vanished from the render entirely. That is the identical failure class the whole geometry
+    // guard exists to prevent.
+    //
+    // Re-review fix round 3, Finding 2: only the a:ext-missing half of that was ever exercised --
+    // nothing failed if the "layoutXfrm?.Offset is null" half of the guard's condition were
+    // deleted. Both cases below are now [Theory] cases over XfrmPart, so both halves
+    // of the completeness check are pinned.
+    // ---------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(XfrmPart.Extents)]
+    [InlineData(XfrmPart.Offset)]
+    public void InsertSlides_WhenTheLayoutTitleXfrmIsIncomplete_StillRendersTheTitle(
+        XfrmPart missingPart)
+    {
+        var deck = PptxFixtures.SampleAttachedToLayoutWithAnIncompleteTitleBox("Section Header", missingPart);
+        Assert.Empty(PptxFixtures.Validate(deck)); // the mutated fixture is itself schema-valid
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var text = PdfProbe.ExtractText(PptxToPdfConverter.Convert(edited));
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    [Theory]
+    [InlineData(XfrmPart.Extents)]
+    [InlineData(XfrmPart.Offset)]
+    public void InsertSlides_WhenTheLayoutTitleXfrmIsIncomplete_TitleFallsBackButBodyStillInherits(
+        XfrmPart missingPart)
+    {
+        // The structural twin of the render test above, and it discriminates PER PLACEHOLDER: only
+        // the title's box was made incomplete, so only the title keeps its own fixed geometry -- the
+        // body placeholder's box is still complete and is still inherited, exactly like the
+        // positive control. That split is what proves the guard checks completeness placeholder by
+        // placeholder rather than merely refusing the whole layout the moment one box is bad.
+        var deck = PptxFixtures.SampleAttachedToLayoutWithAnIncompleteTitleBox("Section Header", missingPart);
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Single(xfrms); // title keeps its own box (incomplete layout box); body still inherits
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Re-review fix round 3, Finding 1: the match walked into GROUPED shapes on the layout via
+    // Descendants<P.Shape>(), but this repo's render pipeline (PptxToPdfConverter/OfficeIMO) only
+    // resolves a layout's TOP-LEVEL shape tree. Measured against the pre-fix guard: wrapping
+    // "Section Header"'s title placeholder in a p:grpSp -- matching type, complete a:xfrm,
+    // schema-valid before and after -- still matched, still stripped the inserted title's own
+    // a:xfrm, and the title vanished from the render. Same failure class as the two findings
+    // above, one level further in -- and the same class of mistake CLAUDE.md already records for
+    // DocxEditor (w:txbxContent) and TableRowFinder (nested tables).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InsertSlides_WhenTheMatchingLayoutPlaceholderIsInsideAGroup_DoesNotInheritFromIt()
+    {
+        var deck = PptxFixtures.SampleAttachedToLayoutWithTitleInGroup("Section Header");
+        Assert.Empty(PptxFixtures.Validate(deck)); // the mutated fixture is itself schema-valid
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using (var ms = new MemoryStream(edited))
+        using (var doc = PresentationDocument.Open(ms, false))
+        {
+            var insertedSlide = doc.PresentationPart!.SlideParts
+                .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+            // The title's layout match is inside a group and must not count -- it keeps its own
+            // explicit geometry (ScaleToFitDeck fallback). The body has no such wrinkle and still
+            // inherits, exactly like the positive control -- proving this is per-placeholder, not
+            // a refusal of the whole layout.
+            var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+            Assert.Single(xfrms);
+        }
+
+        // And it renders correctly via the fallback -- proving the fallback works, not merely that
+        // the structural (non-)match is correct.
+        var text = PdfProbe.ExtractText(PptxToPdfConverter.Convert(edited));
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Re-review fix round 2, Finding 2: the null-SlideLayout guard in
+    // LayoutHasMatchingPositionedPlaceholder had no test proving it fires. Before this branch,
+    // InsertSlides never read a layout's XML content at all, so a SlideLayoutPart with no root
+    // element -- a genuinely reachable OOXML state -- was not a failure mode InsertSlides could
+    // reach. Reading a layout's placeholders to decide on geometry inheritance made it reachable,
+    // and without a test nothing fails if the guard is deleted.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InsertSlides_WhenTheTargetLayoutHasNoRootElement_DegradesToTheFixedGeometryRatherThanThrowing()
+    {
+        var deck = PptxFixtures.SampleAttachedToAnUnassignedLayout();
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Equal(2, xfrms.Count); // title AND body degrade to the fixed-geometry fallback
+    }
 }
