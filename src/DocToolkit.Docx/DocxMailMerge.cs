@@ -1318,9 +1318,9 @@ public static class DocxMailMerge
     /// <paramref name="position"/> says WHICH value set the bad value was in, for the callers whose
     /// parameter carries many — a template with fifty rows in it names one, not "somewhere in
     /// <c>rows</c>". It follows the <c>Record {index}:</c> shape <see cref="MergeCoreForBatch"/>
-    /// already uses when it re-throws a per-record failure on <see cref="MergeBatchCore"/>'s behalf,
-    /// so a caller reads one convention rather than two. Null for the single-value callers, whose
-    /// parameter identifies the set on its own.
+    /// already uses when it re-throws a per-record failure on <see cref="MergeBatchCore"/>'s and
+    /// <see cref="MergeBatchToFilesCore"/>'s behalf, so a caller reads one convention rather than
+    /// two. Null for the single-value callers, whose parameter identifies the set on its own.
     /// </remarks>
     private static void RequireValues(
         IReadOnlyDictionary<string, string> values, string paramName, string? position = null)
@@ -1549,6 +1549,12 @@ public static class DocxMailMerge
         return result;
     }
 
+    /// <summary>
+    /// <see cref="MergeCore"/>, with a strict failure re-thrown as <c>Record {index}:</c> rather
+    /// than the single-document message — the one place <see cref="MergeBatchCore"/> and
+    /// <see cref="MergeBatchToFilesCore"/> share this attribution, so their two loops cannot
+    /// disagree about how a bad record in a batch is named.
+    /// </summary>
     private static MemoryStream MergeCoreForBatch(
         Stream source, IReadOnlyDictionary<string, string> record, bool strict, int index,
         out DocxMailMergeReport report)
