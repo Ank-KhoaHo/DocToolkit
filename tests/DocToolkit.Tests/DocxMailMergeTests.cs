@@ -980,18 +980,25 @@ public class DocxMailMergeTests
             {
                 new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
                 new Dictionary<string, string> { ["FirstName"] = "Bob" }, // Balance missing
+                new Dictionary<string, string> { ["FirstName"] = "Carol", ["Balance"] = "300" },
             };
 
             var items = DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
                 (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx"));
 
-            Assert.Equal(2, items.Count);
+            Assert.Equal(3, items.Count);
             Assert.True(items[0].Report.IsComplete);
             Assert.True(File.Exists(items[0].OutputPath));
 
             Assert.False(items[1].Report.IsComplete);
             Assert.True(File.Exists(items[1].OutputPath));
             Assert.Contains("«Balance»", Text(File.ReadAllBytes(items[1].OutputPath)), StringComparison.Ordinal);
+
+            // Record 2 still merged successfully -- the record AFTER a bad one is not skipped,
+            // matching MergeBatchWithReport's own established convention for the in-memory form.
+            Assert.True(items[2].Report.IsComplete);
+            Assert.True(File.Exists(items[2].OutputPath));
+            Assert.Equal("Carol|300|", Text(File.ReadAllBytes(items[2].OutputPath)));
         }
         finally
         {
@@ -1073,13 +1080,20 @@ public class DocxMailMergeTests
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
                 new Dictionary<string, string>(), // FirstName missing
+                new Dictionary<string, string> { ["FirstName"] = "Carol" },
             };
 
             var items = await DocxMailMerge.MergeBatchToFilesWithReportAsync(templatePath, records,
                 (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx"));
 
-            Assert.False(Assert.Single(items).Report.IsComplete);
+            Assert.Equal(3, items.Count);
+            Assert.True(items[0].Report.IsComplete);
+            Assert.False(items[1].Report.IsComplete);
+            // Record 2 still merged successfully -- the record AFTER a bad one is not skipped.
+            Assert.True(items[2].Report.IsComplete);
+            Assert.Equal("Carol|", Text(File.ReadAllBytes(items[2].OutputPath)));
         }
         finally
         {

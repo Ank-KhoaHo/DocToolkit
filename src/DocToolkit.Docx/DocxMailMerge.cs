@@ -492,7 +492,8 @@ public static class DocxMailMerge
     /// <paramref name="outputPathFactory"/> is null, or an individual record is null.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="templatePath"/> is blank, a record's value is null, or
+    /// <paramref name="templatePath"/> is blank, a record's value is null,
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or
     /// <paramref name="outputPathFactory"/> produced the same path for two different records.
     /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
