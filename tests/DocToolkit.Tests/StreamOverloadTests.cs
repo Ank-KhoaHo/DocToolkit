@@ -51,6 +51,29 @@ public class StreamOverloadTests
     private static readonly IReadOnlyDictionary<string, string> NoMergeValues =
         new Dictionary<string, string>();
 
+    /// <summary>
+    /// No conditions, deliberately — the shared <c>Docx</c> fixture carries no <c>{{#Name}}</c>
+    /// conditional marker at all, so resolving it against an empty dictionary changes nothing and
+    /// succeeds, for the same plumbing-not-semantics reason <see cref="NoMergeValues"/> exists.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, bool> NoConditions =
+        new Dictionary<string, bool>();
+
+    /// <summary>
+    /// No regions, deliberately — the shared <c>Docx</c> fixture carries no <c>{{#each Name}}</c>
+    /// repeating marker at all, so expanding it against an empty dictionary changes nothing and
+    /// succeeds, for the same plumbing-not-semantics reason <see cref="NoConditions"/> exists.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> NoRegions =
+        new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>();
+
+    /// <summary>
+    /// The nested twin of <see cref="NoRegions"/>, for the <c>MergeRepeatingRegions*</c> overloads,
+    /// and empty for the same reason.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> NoBlockRegions =
+        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>();
+
     /// <summary>A .docx whose table holds a repeating-row template, for FillRowsAsync.</summary>
     private static readonly byte[] TableDocx = DocxFixtures.Build(DocxFixtures.Tbl(
         DocxFixtures.Row(DocxFixtures.R("Description")),
@@ -244,6 +267,14 @@ public class StreamOverloadTests
         "DocxReview.RejectRevisionsAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxMailMerge.MergeConditionalAsync",
+        "DocxMailMerge.MergeConditionalWithReportAsync",
+        "DocxMailMerge.MergeRepeatingAsync",
+        "DocxMailMerge.MergeRepeatingWithReportAsync",
+        "DocxMailMerge.MergeRepeatingRegionsAsync",
+        "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
+        "DocxMailMerge.MergeTableRowsAsync",
+        "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.FillAsync",
     };
 
@@ -309,6 +340,14 @@ public class StreamOverloadTests
         "DocxMailMerge.InspectTemplateAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxMailMerge.MergeConditionalAsync",
+        "DocxMailMerge.MergeConditionalWithReportAsync",
+        "DocxMailMerge.MergeRepeatingAsync",
+        "DocxMailMerge.MergeRepeatingWithReportAsync",
+        "DocxMailMerge.MergeRepeatingRegionsAsync",
+        "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
+        "DocxMailMerge.MergeTableRowsAsync",
+        "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.InspectAsync",
         "DocxForm.ValidateAsync",
         "DocxForm.FillAsync",
@@ -384,6 +423,14 @@ public class StreamOverloadTests
         "DocxReview.RejectRevisionsAsync",
         "DocxMailMerge.MergeAsync",
         "DocxMailMerge.MergeWithReportAsync",
+        "DocxMailMerge.MergeConditionalAsync",
+        "DocxMailMerge.MergeConditionalWithReportAsync",
+        "DocxMailMerge.MergeRepeatingAsync",
+        "DocxMailMerge.MergeRepeatingWithReportAsync",
+        "DocxMailMerge.MergeRepeatingRegionsAsync",
+        "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
+        "DocxMailMerge.MergeTableRowsAsync",
+        "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.FillAsync",
     };
 
@@ -1085,6 +1132,22 @@ public class StreamOverloadTests
                 DocxMailMerge.MergeAsync(source!, destination!, NoMergeValues, ct),
             "DocxMailMerge.MergeWithReportAsync" =>
                 DocxMailMerge.MergeWithReportAsync(source!, destination!, NoMergeValues, ct),
+            "DocxMailMerge.MergeConditionalAsync" =>
+                DocxMailMerge.MergeConditionalAsync(source!, destination!, NoConditions, ct),
+            "DocxMailMerge.MergeConditionalWithReportAsync" =>
+                DocxMailMerge.MergeConditionalWithReportAsync(source!, destination!, NoConditions, ct),
+            "DocxMailMerge.MergeRepeatingAsync" =>
+                DocxMailMerge.MergeRepeatingAsync(source!, destination!, NoRegions, ct),
+            "DocxMailMerge.MergeRepeatingWithReportAsync" =>
+                DocxMailMerge.MergeRepeatingWithReportAsync(source!, destination!, NoRegions, ct),
+            "DocxMailMerge.MergeRepeatingRegionsAsync" =>
+                DocxMailMerge.MergeRepeatingRegionsAsync(source!, destination!, NoBlockRegions, ct),
+            "DocxMailMerge.MergeRepeatingRegionsWithReportAsync" =>
+                DocxMailMerge.MergeRepeatingRegionsWithReportAsync(source!, destination!, NoBlockRegions, ct),
+            "DocxMailMerge.MergeTableRowsAsync" =>
+                DocxMailMerge.MergeTableRowsAsync(source!, destination!, 0, 1, Array.Empty<IReadOnlyDictionary<string, string>>(), ct),
+            "DocxMailMerge.MergeTableRowGroupsAsync" =>
+                DocxMailMerge.MergeTableRowGroupsAsync(source!, destination!, 0, 0, 1, Array.Empty<DocxMailMergeTableRowGroup>(), ct),
             "DocxReview.RemoveCommentsAsync" =>
                 DocxReview.RemoveCommentsAsync(source!, destination!, ct),
             "DocxReview.AcceptRevisionsAsync" =>
@@ -1257,9 +1320,12 @@ public class StreamOverloadTests
     {
         // FillRowsAsync throws unless the document holds a matching template row, and
         // ReadTableAsync throws unless index 0 exists, so neither can share the plain Docx
-        // fixture the other DocxEditor overloads use.
+        // fixture the other DocxEditor overloads use. MergeTableRowsAsync and
+        // MergeTableRowGroupsAsync have the same requirement.
         "DocxEditor.FillRowsAsync" => TableDocx,
         "DocxEditor.ReadTableAsync" => TableDocx,
+        "DocxMailMerge.MergeTableRowsAsync" => TableDocx,
+        "DocxMailMerge.MergeTableRowGroupsAsync" => TableDocx,
         "DocxEditor.ReplaceImageAsync" => ImageDocx,
         "DocxEditor.AddFootnoteAsync" => ImageDocx,
         "DocxEditor.AddEndnoteAsync" => ImageDocx,

@@ -11,9 +11,13 @@ namespace DocToolkit;
 public sealed class DocxMailMergeTemplate
 {
     internal DocxMailMergeTemplate(
-        IReadOnlyList<string> fieldNames, IReadOnlyList<DocxMailMergeIssue> issues, bool isValid)
+        IReadOnlyList<string> fieldNames, IReadOnlyList<string> conditionalBlockNames,
+        IReadOnlyList<string> repeatingBlockNames, IReadOnlyList<DocxMailMergeIssue> issues,
+        bool isValid)
     {
         FieldNames = fieldNames;
+        ConditionalBlockNames = conditionalBlockNames;
+        RepeatingBlockNames = repeatingBlockNames;
         Issues = issues;
         IsValid = isValid;
     }
@@ -27,6 +31,24 @@ public sealed class DocxMailMergeTemplate
     /// <c>\# "#,##0.00"</c>, <b>is</b> listed under its own name.
     /// </remarks>
     public IReadOnlyList<string> FieldNames { get; }
+
+    /// <summary>
+    /// The distinct conditional-block names this template asks for — the <c>Name</c> in every
+    /// <c>{{#Name}}</c> marker pair. See <see cref="DocxMailMerge.MergeConditional(byte[], IReadOnlyDictionary{string, bool})"/>.
+    /// </summary>
+    public IReadOnlyList<string> ConditionalBlockNames { get; }
+
+    /// <summary>
+    /// The distinct repeating-block names this template asks for — the <c>Name</c> in every
+    /// <c>{{#each Name}}</c> marker pair. See <see cref="DocxMailMerge.MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Flat across nesting depth.</b> A marker nested inside another appears in this list
+    /// exactly like a top-level one, with nothing indicating which marker it is nested inside —
+    /// measured. A caller reasoning about <see cref="DocxMailMerge.MergeRepeatingRegions(byte[], IReadOnlyDictionary{string, IEnumerable{DocxMailMergeBlockData}})"/>'s nested shape from this list
+    /// alone cannot tell nesting apart from two independent regions.
+    /// </remarks>
+    public IReadOnlyList<string> RepeatingBlockNames { get; }
 
     /// <summary>Everything wrong with the template, in document order. Empty when there is nothing.</summary>
     public IReadOnlyList<DocxMailMergeIssue> Issues { get; }
@@ -63,17 +85,19 @@ public sealed class DocxMailMergeIssue
 
 /// <summary>The kinds of template problem this API distinguishes.</summary>
 /// <remarks>
-/// <b>The underlying library reports twelve kinds and this collapses them to three</b>, the same
-/// way <see cref="DocxRevisionKind"/> collapses eleven revision types to three. Nine of the twelve
-/// describe conditional blocks and repeating-block regions — template features this API does not
-/// execute — so surfacing them by name would advertise capabilities a caller cannot reach. They
-/// arrive as <see cref="Other"/>, message intact.
+/// <b>The underlying library reports twelve kinds; this names eleven of them and collapses one.</b>
+/// <see cref="Other"/> now covers only <c>MissingMergeFieldValue</c> — a field-level gap unrelated
+/// to conditional blocks or repeating regions, and out of scope for the ticket that named the other
+/// nine. Before conditional-block and repeating-block execution shipped, all nine of those arrived
+/// as <see cref="Other"/> too, because surfacing them by name would have advertised capabilities a
+/// caller could not reach — see <see cref="DocxMailMerge.MergeConditional(byte[], IReadOnlyDictionary{string, bool})"/> and
+/// <see cref="DocxMailMerge.MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})"/>, which is why that is no longer true.
 /// </remarks>
 public enum DocxMailMergeIssueKind
 {
     /// <summary>
-    /// A problem this API does not distinguish, including every conditional-block and
-    /// repeating-block problem. Read <see cref="DocxMailMergeIssue.Message"/>.
+    /// A problem this API does not distinguish by its own kind — currently only a MERGEFIELD
+    /// missing its value in a supplied-names inspection. Read <see cref="DocxMailMergeIssue.Message"/>.
     /// </summary>
     Other = 0,
 
@@ -85,6 +109,33 @@ public enum DocxMailMergeIssueKind
 
     /// <summary>The field asks for formatting this engine does not apply.</summary>
     UnsupportedFormatting = 2,
+
+    /// <summary>A conditional block (<c>{{#Name}}</c>) was found without a supplied condition.</summary>
+    MissingConditionalValue = 3,
+
+    /// <summary>A conditional block's start marker (<c>{{#Name}}</c>) has no matching end marker.</summary>
+    UnmatchedConditionalStart = 4,
+
+    /// <summary>A conditional block's end marker (<c>{{/Name}}</c>) has no matching start marker.</summary>
+    UnmatchedConditionalEnd = 5,
+
+    /// <summary>A conditional block's end marker closed a different block name than the current start marker.</summary>
+    MismatchedConditionalEnd = 6,
+
+    /// <summary>A repeating block (<c>{{#each Name}}</c>) was found without supplied rows.</summary>
+    MissingRepeatingBlockData = 7,
+
+    /// <summary>A repeating block's start marker (<c>{{#each Name}}</c>) has no matching end marker.</summary>
+    UnmatchedRepeatingBlockStart = 8,
+
+    /// <summary>A repeating block's end marker (<c>{{/each Name}}</c>) has no matching start marker.</summary>
+    UnmatchedRepeatingBlockEnd = 9,
+
+    /// <summary>A repeating block's end marker closed a different block name than the current start marker.</summary>
+    MismatchedRepeatingBlockEnd = 10,
+
+    /// <summary>A Word-native mail-merge control field was found that this engine does not execute.</summary>
+    UnsupportedMailMergeControlField = 11,
 }
 
 /// <summary>A merged document, together with what happened to every field in it.</summary>
@@ -254,4 +305,150 @@ public enum DocxMailMergeFieldStatus
 
     /// <summary>The field's instruction could not be read as a <c>MERGEFIELD</c>.</summary>
     Malformed = 3,
+}
+
+/// <summary>One repeated block row, for the nested form of repeating-region merging.</summary>
+/// <remarks>
+/// Mirrors <c>OfficeIMO.Word.WordMailMergeBlockData</c> without exposing it — no
+/// <c>OfficeIMO.*</c> type is ever public in this library. See <see cref="DocxMailMerge.MergeRepeatingRegions(byte[], IReadOnlyDictionary{string, IEnumerable{DocxMailMergeBlockData}})"/>.
+/// </remarks>
+public sealed class DocxMailMergeBlockData
+{
+    /// <summary>Creates a repeated block row with no nested regions.</summary>
+    /// <param name="values">Values applied to merge fields inside this block row.</param>
+    public DocxMailMergeBlockData(IReadOnlyDictionary<string, string> values)
+        : this(values, regions: null)
+    {
+    }
+
+    /// <summary>Creates a repeated block row with nested repeated regions.</summary>
+    /// <param name="values">Values applied to merge fields inside this block row.</param>
+    /// <param name="regions">
+    /// Nested repeated regions available inside this block row, keyed by marker name. Null when
+    /// this row has none.
+    /// </param>
+    public DocxMailMergeBlockData(
+        IReadOnlyDictionary<string, string> values,
+        IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>>? regions)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        Values = values;
+        Regions = regions;
+    }
+
+    /// <summary>Values applied to merge fields inside this block row.</summary>
+    public IReadOnlyDictionary<string, string> Values { get; }
+
+    /// <summary>Nested repeated regions available inside this block row, keyed by marker name.</summary>
+    public IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>>? Regions { get; }
+}
+
+/// <summary>One grouped table-row mail-merge data set — a group/header row plus its detail rows.</summary>
+/// <remarks>
+/// Mirrors <c>OfficeIMO.Word.WordMailMergeTableRowGroup</c> without exposing it. See
+/// <see cref="DocxMailMerge.MergeTableRowGroups(byte[], int, int, int, IEnumerable{DocxMailMergeTableRowGroup})"/>.
+/// </remarks>
+public sealed class DocxMailMergeTableRowGroup
+{
+    /// <summary>Creates a grouped table-row data set.</summary>
+    /// <param name="values">Values applied to the group template row.</param>
+    /// <param name="rows">Values applied to repeated detail rows inside the group.</param>
+    public DocxMailMergeTableRowGroup(
+        IReadOnlyDictionary<string, string> values,
+        IEnumerable<IReadOnlyDictionary<string, string>> rows)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(rows);
+        Values = values;
+        Rows = rows;
+    }
+
+    /// <summary>Values applied to the group template row.</summary>
+    public IReadOnlyDictionary<string, string> Values { get; }
+
+    /// <summary>Values applied to repeated detail rows inside the group.</summary>
+    public IEnumerable<IReadOnlyDictionary<string, string>> Rows { get; }
+}
+
+/// <summary>
+/// What happened when a template's conditional blocks or repeating regions were resolved —
+/// which names the template asked for that the caller did not supply, and any structural problem.
+/// </summary>
+/// <remarks>
+/// Not <see cref="DocxMailMergeReport"/> reused: that type's <see cref="DocxMailMergeReport.Fields"/>
+/// and <see cref="DocxMailMergeReport.MissingFieldNames"/> describe individual
+/// <c>MERGEFIELD</c>s, the wrong shape for "which condition or region names were missing."
+/// </remarks>
+public sealed class DocxMailMergeBlockReport
+{
+    internal DocxMailMergeBlockReport(
+        IReadOnlyList<string> missingNames, IReadOnlyList<DocxMailMergeIssue> issues)
+    {
+        MissingNames = missingNames;
+        Issues = issues;
+    }
+
+    /// <summary>
+    /// The distinct condition or region names the template asked for that the caller did not
+    /// supply. Each one received a neutral default before merging — see
+    /// <see cref="DocxMailMerge.MergeConditionalWithReport(byte[], IReadOnlyDictionary{string, bool})"/>
+    /// for what "neutral" means for a condition versus a region.
+    /// </summary>
+    public IReadOnlyList<string> MissingNames { get; }
+
+    /// <summary>
+    /// Everything the template inspection found, in document order — <b>not filtered to what the
+    /// call was about</b>.
+    /// </summary>
+    /// <remarks>
+    /// Three things are in here that "structural problems" would not lead you to expect, and all
+    /// three are deliberate.
+    ///
+    /// <list type="bullet">
+    /// <item><description>Every name in <see cref="MissingNames"/> appears here too, as its own
+    /// missing-value entry. <see cref="MissingNames"/> is the same information in the shape a caller
+    /// usually wants it.</description></item>
+    /// <item><description>Problems belonging to the OTHER construct are here as well: a
+    /// <c>MergeConditional</c> call reports a repeating block's unmatched marker, and the other way
+    /// round.</description></item>
+    /// <item><description>So are problems with ordinary <c>MERGEFIELD</c>s that have nothing to do
+    /// with either construct — a malformed instruction, a <c>\b</c>/<c>\f</c>/<c>\v</c> switch, a
+    /// Word-native <c>NEXT</c> or <c>MERGEREC</c> control field.</description></item>
+    /// </list>
+    ///
+    /// <b>The strict overloads refuse on a narrower set than this</b> — only issues belonging to the
+    /// construct being merged. They once refused on the whole of this list, which closed them to any
+    /// template carrying an unrelated field problem under a message naming the wrong cause. Reporting
+    /// everything while refusing on what is relevant is the split that fixed it, so do not narrow
+    /// this list to match the refusal.
+    /// </remarks>
+    public IReadOnlyList<DocxMailMergeIssue> Issues { get; }
+
+    /// <summary>Whether every name the template asked for was supplied. <c>MissingNames.Count == 0</c>.</summary>
+    public bool IsComplete => MissingNames.Count == 0;
+}
+
+/// <summary>A merged document, together with what happened to its conditional blocks or repeating regions.</summary>
+/// <remarks>
+/// Returned by the lenient overloads only — <see cref="DocxMailMerge.MergeConditional(byte[], IReadOnlyDictionary{string, bool})"/>
+/// and its repeating-block siblings refuse to produce a document when a name goes unsupplied, so
+/// they have nothing to report.
+/// </remarks>
+public sealed class DocxMailMergeBlockResult
+{
+    internal DocxMailMergeBlockResult(byte[] document, DocxMailMergeBlockReport report)
+    {
+        Document = document;
+        Report = report;
+    }
+
+    /// <summary>
+    /// The merged document — <b>complete or not</b>. When <see cref="DocxMailMergeBlockReport.IsComplete"/>
+    /// is false, every name the template asked for and the caller did not supply received a
+    /// neutral default rather than being left unresolved.
+    /// </summary>
+    public byte[] Document { get; }
+
+    /// <summary>What happened to every condition or region name.</summary>
+    public DocxMailMergeBlockReport Report { get; }
 }

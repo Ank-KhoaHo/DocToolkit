@@ -639,6 +639,64 @@ records producing the same output path are refused before anything is written �
 `outputPathFactory` returning a duplicate is not silently allowed to overwrite one record's document
 with another's.
 
+### Conditional blocks, repeating blocks, and table rows
+
+Beyond filling `MERGEFIELD`s, a Word mail-merge template can carry a conditional block
+(`{{#Name}}` … `{{/Name}}`), a repeating block (`{{#each Name}}` … `{{/each Name}}`, flat or
+nested), or a table row repeated by index:
+
+```csharp
+byte[] resolved = DocxMailMerge.MergeConditional(template, new Dictionary<string, bool>
+{
+    ["ShowDiscount"] = customer.HasDiscount,
+});
+
+byte[] expanded = DocxMailMerge.MergeRepeating(template, new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+{
+    ["Items"] = order.Lines.Select(line => (IReadOnlyDictionary<string, string>)new Dictionary<string, string>
+    {
+        ["Sku"] = line.Sku,
+        ["Qty"] = line.Quantity.ToString(),
+    }),
+});
+
+byte[] rows = DocxMailMerge.MergeTableRows(template, tableIndex: 0, templateRowIndex: 1, records);
+
+// A group header row and its detail rows are two row indexes on the same table, and each
+// DocxMailMergeTableRowGroup carries one header's values plus the rows beneath it.
+byte[] grouped = DocxMailMerge.MergeTableRowGroups(
+    template, tableIndex: 0, groupTemplateRowIndex: 0, detailTemplateRowIndex: 1, groups);
+```
+
+A region nested inside another region is `MergeRepeatingRegions`, which takes a
+`DocxMailMergeBlockData` per record so a record can carry its own inner regions. Each of the three
+marker-based methods also has a `*WithReport` form, which always produces a document — a
+`DocxMailMergeBlockResult` carrying the bytes and a `DocxMailMergeBlockReport` naming what went
+unsupplied — instead of refusing. The one exception is a genuinely unbalanced marker structure,
+which no supplied value can work around, so a `*WithReport` form throws for that too:
+
+```csharp
+var regions = new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+{
+    ["Orders"] = customer.Orders.Select(o => new DocxMailMergeBlockData(
+        new Dictionary<string, string> { ["Ref"] = o.Reference },
+        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+        {
+            ["Lines"] = o.Lines.Select(line => new DocxMailMergeBlockData(
+                new Dictionary<string, string> { ["Sku"] = line.Sku })),
+        })),
+};
+
+DocxMailMergeBlockResult result = DocxMailMerge.MergeRepeatingRegionsWithReport(template, regions);
+DocxMailMergeBlockReport report = result.Report;   // IsComplete, MissingNames, Issues
+```
+
+Run structural expansion (`MergeRepeating`/`MergeRepeatingRegions`/`MergeTableRows`/
+`MergeTableRowGroups`) before `MergeConditional`, and both before `Merge`/`MergeWithReport`. The
+order is a requirement, not a preference: a table index is positional, so resolving a conditional
+block first can delete the table the index counted on, and a conditional block or merge field
+inside a repeating region only exists once the repeating pass has expanded it.
+
 ## Fill-in forms: Word content controls
 
 A content control is a named region Word itself protects - the format's own answer to a fill-in
