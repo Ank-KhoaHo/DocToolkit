@@ -396,6 +396,12 @@ public static class DocxMailMerge
     /// normalized — two different spellings of the same file (a relative path and its absolute
     /// equivalent, or two different cases on a case-insensitive filesystem) are not detected as a
     /// collision.
+    ///
+    /// <b><paramref name="templatePath"/> itself is not one of the paths this check compares
+    /// against.</b> <paramref name="outputPathFactory"/> returning the template's own path is not
+    /// treated as a collision — the template is already fully read into memory before any record is
+    /// merged, so nothing about the write itself fails, but the result is that the template file on
+    /// disk is silently overwritten with a merged record's output, with no exception and no warning.
     /// </remarks>
     /// <param name="templatePath">The template to fill, once per record.</param>
     /// <param name="records">

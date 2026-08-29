@@ -1003,9 +1003,18 @@ public class DocxMailMergeTests
             // (the loop is strictly sequential), so waiting on it proves record 0 is done rather
             // than guessing from a poll. Bounded rather than unconditional so a future regression
             // fails this test instead of hanging the run.
-            Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "record 1's merge never started.");
-            cts.Cancel();
-            release.Set();
+            try
+            {
+                Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "record 1's merge never started.");
+                cts.Cancel();
+            }
+            finally
+            {
+                // Unconditionally, even if the wait above timed out and the assertion already
+                // threw -- otherwise a regression that hangs record 1 leaves it blocked forever on
+                // an event the `using` declarations are about to dispose out from under it.
+                release.Set();
+            }
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
 
@@ -1257,9 +1266,18 @@ public class DocxMailMergeTests
             // call, BlockingValues's block included, inline on this thread and deadlock.
             var task = Task.Run(() => DocxMailMerge.MergeBatchToFilesWithReportAsync(templatePath, records, (i, r) => paths[i], cts.Token));
 
-            Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "record 1's merge never started.");
-            cts.Cancel();
-            release.Set();
+            try
+            {
+                Assert.True(started.Wait(TimeSpan.FromSeconds(30)), "record 1's merge never started.");
+                cts.Cancel();
+            }
+            finally
+            {
+                // Unconditionally, even if the wait above timed out and the assertion already
+                // threw -- otherwise a regression that hangs record 1 leaves it blocked forever on
+                // an event the `using` declarations are about to dispose out from under it.
+                release.Set();
+            }
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
 
