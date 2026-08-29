@@ -217,8 +217,9 @@ public static class DocxMailMerge
     /// <remarks>
     /// <b>Strict, the same way <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> is
     /// strict — this refuses the moment a record is incomplete, mid-sequence.</b> Everything already
-    /// yielded before that point is unaffected; nothing after it runs. A lenient form that never
-    /// throws for an incomplete record — <c>MergeBatchWithReport</c> — follows in a later change.
+    /// yielded before that point is unaffected; nothing after it runs. See
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// for the lenient form, which never throws for an incomplete record.
     ///
     /// <b>This is lazy.</b> Memory stays proportional to one document in flight, not the whole
     /// batch — <paramref name="records"/> is walked one entry at a time as the caller enumerates the
@@ -289,6 +290,74 @@ public static class DocxMailMerge
             ct.ThrowIfCancellationRequested();
             if (!e.MoveNext()) break;
             yield return e.Current.Document;
+        }
+    }
+
+    /// <summary>
+    /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
+    /// record's document <b>together with what happened to every field in it</b>.
+    /// </summary>
+    /// <remarks>
+    /// The lenient half of the pair. This always produces a document for every record, complete or
+    /// not, and never throws for an incomplete one — see
+    /// <see cref="MergeBatch(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/> for the
+    /// strict form.
+    /// </remarks>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// yields no items.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static IEnumerable<DocxMailMergeBatchItem> MergeBatchWithReport(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        return MergeBatchCore(docx, records, strict: false);
+    }
+
+    /// <summary>
+    /// The async form of <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>
+    /// — see its documentation for exactly what is matched and how lenience works.
+    /// </summary>
+    /// <inheritdoc cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})" path="/remarks"/>
+    /// <param name="docx">The template to fill, once per record.</param>
+    /// <param name="records">
+    /// One dictionary of values per output document, matched case-insensitively. An empty sequence
+    /// yields no items.
+    /// </param>
+    /// <param name="ct">Cancels before the next record's merge runs.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="docx"/> or <paramref name="records"/> is null, or an individual record in
+    /// <paramref name="records"/> is null. Unlike the synchronous
+    /// <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>, this is
+    /// not thrown until the caller starts enumerating the result — inherent to how an
+    /// <see cref="IAsyncEnumerable{T}"/> iterator method defers its whole body, argument validation
+    /// included, not a gap specific to this method.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or a record's value is null.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be read or written.</exception>
+    public static async IAsyncEnumerable<DocxMailMergeBatchItem> MergeBatchWithReportAsync(
+        byte[] docx, IEnumerable<IReadOnlyDictionary<string, string>> records,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(records);
+
+        using var e = MergeBatchCore(docx, records, strict: false).GetEnumerator();
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!e.MoveNext()) break;
+            yield return e.Current;
         }
     }
 
@@ -414,8 +483,8 @@ public static class DocxMailMerge
     /// </summary>
     /// <remarks>
     /// Deliberately a `yield return` iterator, and deliberately PRIVATE: every public caller
-    /// (<see cref="MergeBatch"/> today, and <c>MergeBatchWithReport</c> in a later change) is
-    /// expected to validate its own arguments before any document is produced. <see cref="MergeBatch"/>
+    /// (<see cref="MergeBatch"/> and <see cref="MergeBatchWithReport(byte[], IEnumerable{IReadOnlyDictionary{string, string}})"/>)
+    /// is expected to validate its own arguments before any document is produced. <see cref="MergeBatch"/>
     /// does this eagerly, in an ordinary non-iterator method body, before calling this. <see
     /// cref="MergeBatchAsync"/> cannot do the same — as an `async IAsyncEnumerable` method itself,
     /// its whole body (including its own argument validation) is deferred until the caller starts

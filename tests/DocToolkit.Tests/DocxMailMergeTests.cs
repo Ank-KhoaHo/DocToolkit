@@ -563,6 +563,73 @@ public class DocxMailMergeTests
         Assert.Equal(0, pulledCount);
     }
 
+    // ---- MergeBatchWithReport: lenient, never throws for a bad record ---------------------------
+
+    [Fact]
+    public void MergeBatchWithReport_NeverThrowsForABadRecord_AndProcessesEveryRecordRegardless()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice", ["Balance"] = "100" },
+            new Dictionary<string, string> { ["FirstName"] = "Bob" }, // Balance missing on purpose
+            new Dictionary<string, string> { ["FirstName"] = "Carol", ["Balance"] = "300" },
+        };
+
+        var items = DocxMailMerge.MergeBatchWithReport(Simple("FirstName", "Balance"), records).ToList();
+
+        Assert.Equal(3, items.Count);
+
+        Assert.Equal(0, items[0].RecordIndex);
+        Assert.True(items[0].Report.IsComplete);
+        Assert.Equal("Alice|100|", Text(items[0].Document));
+
+        Assert.Equal(1, items[1].RecordIndex);
+        Assert.False(items[1].Report.IsComplete);
+        Assert.Equal("Balance", Assert.Single(items[1].Report.MissingFieldNames));
+        Assert.Contains("«Balance»", Text(items[1].Document), StringComparison.Ordinal);
+
+        // Record 2 still merged successfully -- the record AFTER a bad one is not skipped.
+        Assert.Equal(2, items[2].RecordIndex);
+        Assert.True(items[2].Report.IsComplete);
+        Assert.Equal("Carol|300|", Text(items[2].Document));
+    }
+
+    [Fact]
+    public void MergeBatchWithReport_OnAnEmptyRecordSequence_ProducesNoItems()
+    {
+        var items = DocxMailMerge.MergeBatchWithReport(
+            Simple("FirstName"), Array.Empty<IReadOnlyDictionary<string, string>>());
+
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public void MergeBatchWithReport_ValidatesArgumentsImmediately_NotOnlyWhenEnumerated()
+    {
+        Assert.Throws<ArgumentNullException>(() => DocxMailMerge.MergeBatchWithReport(null!,
+            Array.Empty<IReadOnlyDictionary<string, string>>()));
+        Assert.Throws<ArgumentNullException>(() =>
+            DocxMailMerge.MergeBatchWithReport(Simple("FirstName"), null!));
+    }
+
+    [Fact]
+    public async Task MergeBatchWithReportAsync_NeverThrowsForABadRecord()
+    {
+        var records = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
+            new Dictionary<string, string>(), // FirstName missing
+        };
+
+        var items = new List<DocxMailMergeBatchItem>();
+        await foreach (var item in DocxMailMerge.MergeBatchWithReportAsync(Simple("FirstName"), records))
+            items.Add(item);
+
+        Assert.Equal(2, items.Count);
+        Assert.True(items[0].Report.IsComplete);
+        Assert.False(items[1].Report.IsComplete);
+    }
+
     // ---- fixtures ------------------------------------------------------------------------------------
 
     private static string Text(byte[] docx) => DocxEditor.ExtractText(docx).Replace("\n", string.Empty);
