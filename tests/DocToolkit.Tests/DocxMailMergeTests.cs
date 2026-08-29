@@ -2086,6 +2086,9 @@ public class DocxMailMergeTests
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
                     (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx")));
 
+            // "1" alone would also match the unrelated "1 merge field(s)" substring MergeCore's own
+            // message already contains -- "Record 1:" is what actually pins the index.
+            Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
             Assert.Contains("Balance", ex.Message, StringComparison.Ordinal);
             Assert.True(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
             Assert.False(File.Exists(Path.Combine(dir.FullName, "out-1.docx")));
