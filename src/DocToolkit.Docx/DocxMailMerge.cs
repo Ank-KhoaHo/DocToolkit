@@ -1317,9 +1317,10 @@ public static class DocxMailMerge
     ///
     /// <paramref name="position"/> says WHICH value set the bad value was in, for the callers whose
     /// parameter carries many — a template with fifty rows in it names one, not "somewhere in
-    /// <c>rows</c>". It follows the <c>Record {index}:</c> shape <see cref="MergeBatchCore"/>
-    /// already uses when it re-throws a per-record failure, so a caller reads one convention rather
-    /// than two. Null for the single-value callers, whose parameter identifies the set on its own.
+    /// <c>rows</c>". It follows the <c>Record {index}:</c> shape <see cref="MergeCoreForBatch"/>
+    /// already uses when it re-throws a per-record failure on <see cref="MergeBatchCore"/>'s behalf,
+    /// so a caller reads one convention rather than two. Null for the single-value callers, whose
+    /// parameter identifies the set on its own.
     /// </remarks>
     private static void RequireValues(
         IReadOnlyDictionary<string, string> values, string paramName, string? position = null)
@@ -2011,7 +2012,7 @@ public static class DocxMailMerge
 
     /// <summary>
     /// The one loop behind every batch overload that writes to disk — strict and lenient alike —
-    /// so they can never drift apart. Reuses <see cref="MergeCore"/> exactly like
+    /// so they can never drift apart. Reuses <see cref="MergeCoreForBatch"/> exactly like
     /// <see cref="MergeBatchCore"/> does; the only difference is where a result ends up.
     /// </summary>
     /// <remarks>
