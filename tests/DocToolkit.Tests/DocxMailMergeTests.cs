@@ -819,6 +819,80 @@ public class DocxMailMergeTests
     }
 
     [Fact]
+    public void MergeBatchToFiles_RefusesANullRecord_BeforeCallingOutputPathFactory()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>?[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                null,
+                new Dictionary<string, string> { ["FirstName"] = "Carol" },
+            };
+
+            // Reads the record unconditionally -- if this were ever invoked on the null entry it
+            // would throw NullReferenceException itself, never reaching RequireValues's
+            // ArgumentNullException. Record 0 is valid, so the factory DOES run once before the
+            // null record is reached, which is what proves validation happens per-record rather
+            // than only before the very first call.
+            var ex = Assert.Throws<ArgumentNullException>(() =>
+                DocxMailMerge.MergeBatchToFiles(templatePath, records!,
+                    (i, r) => Path.Combine(dir.FullName, r["FirstName"] + ".docx")));
+
+            Assert.Equal("records", ex.ParamName);
+            // Nothing was written -- not even record 0, whose path was computed successfully
+            // before the null record was ever reached.
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "Alice.docx")));
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "Carol.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_RefusesANullOrBlankOutputPath()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new Dictionary<string, string> { ["FirstName"] = "Bob" },
+            };
+
+            // A null path used to leak out of CheckNoPathCollisions's internal Dictionary as
+            // ParamName "key"; a blank one used to leak out of File.WriteAllBytes as ParamName
+            // "path". Neither names the actual culprit, outputPathFactory -- covering both here
+            // means neither leak can come back unnoticed.
+            var nullEx = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFiles(templatePath, records,
+                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : null!));
+            Assert.Equal("outputPathFactory", nullEx.ParamName);
+            // Proves the batch is refused before any write, not mid-batch -- record 0's path was
+            // already computed (and would have been valid) by the time record 1's bad path is found.
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+
+            var blankEx = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFiles(templatePath, records,
+                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : "   "));
+            Assert.Equal("outputPathFactory", blankEx.ParamName);
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void MergeBatchToFiles_OnAnEmptyRecordSequence_WritesNothingAndReturnsEmpty()
     {
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");

@@ -42,7 +42,7 @@ public class ArgumentExceptionNamesADeclaredParameterTests
             return p.Name switch
             {
                 "outputPath" => outFile,
-                "inputPath" or "path" => emptyFile,
+                "inputPath" or "path" or "templatePath" => emptyFile,
                 "sheetName" => "Sheet1",
                 "cellRef" => "A1",
                 "collection" => "items",
@@ -103,7 +103,7 @@ public class ArgumentExceptionNamesADeclaredParameterTests
                 {
                     var parameters = method.GetParameters();
                     var victim = parameters.FirstOrDefault(
-                        p => p.ParameterType == typeof(string) && p.Name is "path" or "inputPath");
+                        p => p.ParameterType == typeof(string) && p.Name is "path" or "inputPath" or "templatePath");
                     if (victim is null) continue;
 
                     // NOT wrapped in a try that skips on failure. A shape this cannot build must

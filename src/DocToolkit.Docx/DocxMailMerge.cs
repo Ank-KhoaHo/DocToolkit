@@ -376,7 +376,10 @@ public static class DocxMailMerge
     /// written.</b> Two records producing the same path is refused outright, naming both record
     /// indices — measured against the underlying engine's own batch writer, a collision silently
     /// overwrites one record's document with another's, with no exception and no warning. This
-    /// refuses rather than risk it.
+    /// refuses rather than risk it. Paths are compared as exact strings, not resolved or
+    /// normalized — two different spellings of the same file (a relative path and its absolute
+    /// equivalent, or two different cases on a case-insensitive filesystem) are not detected as a
+    /// collision.
     /// </remarks>
     /// <param name="templatePath">The template to fill, once per record.</param>
     /// <param name="records">
@@ -394,7 +397,8 @@ public static class DocxMailMerge
     /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="templatePath"/> is blank, a record's value is null, or
-    /// <paramref name="outputPathFactory"/> produced the same path for two different records.
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or the same path for two
+    /// different records.
     /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
     /// <exception cref="DocumentConversionException">
@@ -437,7 +441,8 @@ public static class DocxMailMerge
     /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="templatePath"/> is blank, a record's value is null, or
-    /// <paramref name="outputPathFactory"/> produced the same path for two different records.
+    /// <paramref name="outputPathFactory"/> produced a null/blank path, or the same path for two
+    /// different records.
     /// </exception>
     /// <exception cref="FileNotFoundException"><paramref name="templatePath"/> does not exist.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled before the template finished reading.</exception>
@@ -640,15 +645,25 @@ public static class DocxMailMerge
     {
         var paths = new string[records.Count];
         for (var i = 0; i < records.Count; i++)
-            paths[i] = outputPathFactory(i, records[i]);
+        {
+            RequireValues(records[i], nameof(records));
+
+            var path = outputPathFactory(i, records[i]);
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException(
+                    $"Record {i}: outputPathFactory returned a null or blank path.",
+                    nameof(outputPathFactory));
+            }
+
+            paths[i] = path;
+        }
 
         CheckNoPathCollisions(paths);
 
         var items = new List<DocxMailMergeFileBatchItem>(records.Count);
         for (var i = 0; i < records.Count; i++)
         {
-            RequireValues(records[i], nameof(records));
-
             using var source = new MemoryStream(docx, writable: false);
             DocxMailMergeReport report;
             MemoryStream result;
