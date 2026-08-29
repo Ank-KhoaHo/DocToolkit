@@ -1769,8 +1769,10 @@ public static class DocxMailMerge
     /// makes the broader pad safe.
     ///
     /// <b>The strict path pads nothing</b>, which needs no special case: it only reaches
-    /// <c>Execute</c> when the inspection came back valid, and it hands the caller's own tree
-    /// straight through so a per-row omission surfaces rather than being silently defaulted.
+    /// <c>Execute</c> when no REPEATING-BLOCK issue is reported — see
+    /// <see cref="RepeatingIssueKinds"/> for why the refusal is decided by issue kind rather than
+    /// by the inspection's own <c>IsValid</c> — and it hands the caller's own tree straight through
+    /// so a per-row omission surfaces rather than being silently defaulted.
     /// </remarks>
     private static MemoryStream MergeRepeatingRegionsCore(
         Stream source, IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions,
