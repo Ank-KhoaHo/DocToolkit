@@ -1548,6 +1548,20 @@ public static class DocxMailMerge
         return result;
     }
 
+    private static MemoryStream MergeCoreForBatch(
+        Stream source, IReadOnlyDictionary<string, string> record, bool strict, int index,
+        out DocxMailMergeReport report)
+    {
+        try
+        {
+            return MergeCore(source, record, strict, out report);
+        }
+        catch (DocumentConversionException ex) when (strict)
+        {
+            throw new DocumentConversionException($"Record {index}: {ex.Message}", ex);
+        }
+    }
+
     /// <summary>
     /// The one implementation behind all four <c>MergeConditional*</c> overloads.
     /// </summary>
@@ -1986,19 +2000,9 @@ public static class DocxMailMerge
             RequireValues(record, nameof(records));
 
             using var source = new MemoryStream(docx, writable: false);
-            DocxMailMergeReport report;
-            MemoryStream result;
-            try
-            {
-                result = MergeCore(source, record, strict, out report);
-            }
-            catch (DocumentConversionException ex) when (strict)
-            {
-                throw new DocumentConversionException($"Record {index}: {ex.Message}", ex);
-            }
+            using var result = MergeCoreForBatch(source, record, strict, index, out var report);
 
             var document = result.ToArray();
-            result.Dispose();
             yield return new DocxMailMergeBatchItem(index, document, report);
 
             index++;
@@ -2052,21 +2056,8 @@ public static class DocxMailMerge
             ct.ThrowIfCancellationRequested();
 
             using var source = new MemoryStream(docx, writable: false);
-            DocxMailMergeReport report;
-            MemoryStream result;
-            try
-            {
-                result = MergeCore(source, records[i], strict, out report);
-            }
-            catch (DocumentConversionException ex) when (strict)
-            {
-                throw new DocumentConversionException($"Record {i}: {ex.Message}", ex);
-            }
-
-            using (result)
-            {
-                File.WriteAllBytes(paths[i], result.ToArray());
-            }
+            using var result = MergeCoreForBatch(source, records[i], strict, i, out var report);
+            File.WriteAllBytes(paths[i], result.ToArray());
 
             items.Add(new DocxMailMergeFileBatchItem(i, paths[i], report));
         }
