@@ -1,6 +1,7 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using System.Linq;
 using Xunit;
 
 namespace DocToolkit.Tests;
@@ -157,6 +158,107 @@ public class DocxMailMergeTests
 
         Assert.True(template.IsValid);
         Assert.Empty(template.FieldNames);
+    }
+
+    // ---- A75: ConditionalBlockNames / RepeatingBlockNames / expanded issue kinds --------------
+
+    [Fact]
+    public void InspectTemplate_DiscoversConditionalAndRepeatingBlockNames()
+    {
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#ShowDiscount}}"))));
+            body.Append(new Paragraph(new Run(new Text("discount"))));
+            body.Append(new Paragraph(new Run(new Text("{{/ShowDiscount}}"))));
+            body.Append(new Paragraph(new Run(new Text("{{#each Items}}"))));
+            body.Append(new Paragraph(new Run(new Text("item"))));
+            body.Append(new Paragraph(new Run(new Text("{{/each Items}}"))));
+        });
+
+        DocxMailMergeTemplate inspection = DocxMailMerge.InspectTemplate(template);
+
+        Assert.Equal(new[] { "ShowDiscount" }, inspection.ConditionalBlockNames);
+        Assert.Equal(new[] { "Items" }, inspection.RepeatingBlockNames);
+        Assert.True(inspection.IsValid);
+    }
+
+    [Fact]
+    public void InspectTemplate_MalformedConditionalMarker_ReportsTheSpecificKind()
+    {
+        // Unmatched start -- no matching {{/ShowA}} anywhere in the document.
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#ShowA}}"))));
+            body.Append(new Paragraph(new Run(new Text("content"))));
+        });
+
+        DocxMailMergeTemplate inspection = DocxMailMerge.InspectTemplate(template);
+
+        Assert.False(inspection.IsValid);
+        DocxMailMergeIssue issue = Assert.Single(inspection.Issues);
+        Assert.Equal(DocxMailMergeIssueKind.UnmatchedConditionalStart, issue.Kind);
+        Assert.Equal("ShowA", issue.Name);
+    }
+
+    [Fact]
+    public void InspectTemplate_MismatchedRepeatingEnd_ReportsTheSpecificKind()
+    {
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#each Items}}"))));
+            body.Append(new Paragraph(new Run(new Text("content"))));
+            body.Append(new Paragraph(new Run(new Text("{{/each Other}}"))));
+        });
+
+        DocxMailMergeTemplate inspection = DocxMailMerge.InspectTemplate(template);
+
+        Assert.False(inspection.IsValid);
+        DocxMailMergeIssue issue = Assert.Single(inspection.Issues);
+        Assert.Equal(DocxMailMergeIssueKind.MismatchedRepeatingBlockEnd, issue.Kind);
+        Assert.Equal("Other", issue.Name);
+    }
+
+    [Fact]
+    public void InspectTemplate_WithNoConditionalOrRepeatingMarkers_ReportsEmptyLists()
+    {
+        DocxMailMergeTemplate inspection = DocxMailMerge.InspectTemplate(Simple("FirstName"));
+
+        Assert.Empty(inspection.ConditionalBlockNames);
+        Assert.Empty(inspection.RepeatingBlockNames);
+    }
+
+    [Fact]
+    public void DocxMailMergeIssueKind_HasTwelveValues()
+    {
+        // Pins the total so a future OfficeIMO release adding a 13th kind is visible here rather
+        // than silently collapsing into Other with nobody noticing.
+        Assert.Equal(12, Enum.GetValues<DocxMailMergeIssueKind>().Length);
+    }
+
+    [Fact]
+    public void DocxMailMergeBlockData_ExposesValuesAndRegions()
+    {
+        var nested = new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" });
+        var data = new DocxMailMergeBlockData(
+            new Dictionary<string, string> { ["OrderId"] = "1001" },
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Lines"] = new[] { nested }
+            });
+
+        Assert.Equal("1001", data.Values["OrderId"]);
+        Assert.Equal("A1", data.Regions!["Lines"].Single().Values["Sku"]);
+    }
+
+    [Fact]
+    public void DocxMailMergeTableRowGroup_ExposesValuesAndRows()
+    {
+        var group = new DocxMailMergeTableRowGroup(
+            new Dictionary<string, string> { ["GroupName"] = "Fruits" },
+            new[] { new Dictionary<string, string> { ["Item"] = "Apple" } });
+
+        Assert.Equal("Fruits", group.Values["GroupName"]);
+        Assert.Equal("Apple", group.Rows.Single()["Item"]);
     }
 
     [Fact]

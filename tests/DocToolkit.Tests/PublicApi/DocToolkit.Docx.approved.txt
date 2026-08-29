@@ -159,6 +159,24 @@ namespace DocToolkit
         public int RecordIndex { get; }
         public DocToolkit.DocxMailMergeReport Report { get; }
     }
+    public sealed class DocxMailMergeBlockData
+    {
+        public DocxMailMergeBlockData(System.Collections.Generic.IReadOnlyDictionary<string, string> values) { }
+        public DocxMailMergeBlockData(System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IEnumerable<DocToolkit.DocxMailMergeBlockData>>? regions) { }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IEnumerable<DocToolkit.DocxMailMergeBlockData>>? Regions { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Values { get; }
+    }
+    public sealed class DocxMailMergeBlockReport
+    {
+        public bool IsComplete { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxMailMergeIssue> Issues { get; }
+        public System.Collections.Generic.IReadOnlyList<string> MissingNames { get; }
+    }
+    public sealed class DocxMailMergeBlockResult
+    {
+        public byte[] Document { get; }
+        public DocToolkit.DocxMailMergeBlockReport Report { get; }
+    }
     public sealed class DocxMailMergeField
     {
         public string Message { get; }
@@ -190,6 +208,15 @@ namespace DocToolkit
         Other = 0,
         MalformedField = 1,
         UnsupportedFormatting = 2,
+        MissingConditionalValue = 3,
+        UnmatchedConditionalStart = 4,
+        UnmatchedConditionalEnd = 5,
+        MismatchedConditionalEnd = 6,
+        MissingRepeatingBlockData = 7,
+        UnmatchedRepeatingBlockStart = 8,
+        UnmatchedRepeatingBlockEnd = 9,
+        MismatchedRepeatingBlockEnd = 10,
+        UnsupportedMailMergeControlField = 11,
     }
     public sealed class DocxMailMergeReport
     {
@@ -203,11 +230,19 @@ namespace DocToolkit
         public byte[] Document { get; }
         public DocToolkit.DocxMailMergeReport Report { get; }
     }
+    public sealed class DocxMailMergeTableRowGroup
+    {
+        public DocxMailMergeTableRowGroup(System.Collections.Generic.IReadOnlyDictionary<string, string> values, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> rows) { }
+        public System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> Rows { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Values { get; }
+    }
     public sealed class DocxMailMergeTemplate
     {
+        public System.Collections.Generic.IReadOnlyList<string> ConditionalBlockNames { get; }
         public System.Collections.Generic.IReadOnlyList<string> FieldNames { get; }
         public bool IsValid { get; }
         public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxMailMergeIssue> Issues { get; }
+        public System.Collections.Generic.IReadOnlyList<string> RepeatingBlockNames { get; }
     }
     public static class DocxReview
     {

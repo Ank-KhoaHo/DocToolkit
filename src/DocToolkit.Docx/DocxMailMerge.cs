@@ -847,6 +847,8 @@ public static class DocxMailMerge
 
             return new DocxMailMergeTemplate(
                 [.. inspection.MergeFieldNames],
+                [.. inspection.ConditionalBlockNames],
+                [.. inspection.RepeatingBlockNames],
                 [.. inspection.Issues.Select(Issue)],
                 inspection.IsValid);
         }
@@ -903,6 +905,16 @@ public static class DocxMailMerge
     {
         OfficeIMOIssueKind.MalformedMergeField => DocxMailMergeIssueKind.MalformedField,
         OfficeIMOIssueKind.UnsupportedMergeFieldFormatting => DocxMailMergeIssueKind.UnsupportedFormatting,
+        OfficeIMOIssueKind.MissingConditionalValue => DocxMailMergeIssueKind.MissingConditionalValue,
+        OfficeIMOIssueKind.UnmatchedConditionalStart => DocxMailMergeIssueKind.UnmatchedConditionalStart,
+        OfficeIMOIssueKind.UnmatchedConditionalEnd => DocxMailMergeIssueKind.UnmatchedConditionalEnd,
+        OfficeIMOIssueKind.MismatchedConditionalEnd => DocxMailMergeIssueKind.MismatchedConditionalEnd,
+        OfficeIMOIssueKind.MissingRepeatingBlockData => DocxMailMergeIssueKind.MissingRepeatingBlockData,
+        OfficeIMOIssueKind.UnmatchedRepeatingBlockStart => DocxMailMergeIssueKind.UnmatchedRepeatingBlockStart,
+        OfficeIMOIssueKind.UnmatchedRepeatingBlockEnd => DocxMailMergeIssueKind.UnmatchedRepeatingBlockEnd,
+        OfficeIMOIssueKind.MismatchedRepeatingBlockEnd => DocxMailMergeIssueKind.MismatchedRepeatingBlockEnd,
+        OfficeIMOIssueKind.UnsupportedMailMergeControlField => DocxMailMergeIssueKind.UnsupportedMailMergeControlField,
+        // MissingMergeFieldValue, and any future OfficeIMO addition, stays Other.
         _ => DocxMailMergeIssueKind.Other,
     };
 
