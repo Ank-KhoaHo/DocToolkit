@@ -434,6 +434,143 @@ public class DocxMailMergeTests
         body.Append(new Paragraph(new Run(new Text("After"))));
     });
 
+    // ---- A75: MergeRepeating ---------------------------------------------------------------------
+
+    [Fact]
+    public void MergeRepeating_ExpandsOnceForEveryRecord()
+    {
+        byte[] merged = DocxMailMerge.MergeRepeating(
+            RepeatingTemplate("Items", "Name"),
+            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = new[]
+                {
+                    new Dictionary<string, string> { ["Name"] = "Alice" },
+                    new Dictionary<string, string> { ["Name"] = "Bob" },
+                }
+            });
+
+        Assert.Equal("BeforeName: AliceName: BobAfter", Text(merged));
+    }
+
+    [Fact]
+    public void MergeRepeating_EmptySequenceRemovesTheWholeMarkedRegion()
+    {
+        byte[] merged = DocxMailMerge.MergeRepeating(
+            RepeatingTemplate("Items", "Name"),
+            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = Array.Empty<IReadOnlyDictionary<string, string>>()
+            });
+
+        Assert.Equal("BeforeAfter", Text(merged));
+    }
+
+    [Fact]
+    public void MergeRepeating_RefusesWhenARegionIsMissing()
+    {
+        byte[] template = RepeatingTemplate("Items", "Name");
+
+        var ex = Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeating(
+            template, new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>()));
+
+        Assert.Contains("Items", ex.Message);
+    }
+
+    [Fact]
+    public async Task MergeRepeatingAsync_MatchesTheByteArrayForm()
+    {
+        byte[] template = RepeatingTemplate("Items", "Name");
+        using var source = new MemoryStream(template);
+        using var destination = new MemoryStream();
+
+        await DocxMailMerge.MergeRepeatingAsync(
+            source, destination,
+            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = new[] { new Dictionary<string, string> { ["Name"] = "Alice" } }
+            });
+
+        Assert.Equal("BeforeName: AliceAfter", Text(destination.ToArray()));
+    }
+
+    [Fact]
+    public void MergeRepeatingWithReport_PadsAMissingRegionWithZeroRows_AndReportsIt()
+    {
+        byte[] template = RepeatingTemplate("Items", "Name");
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeRepeatingWithReport(
+            template, new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>());
+
+        Assert.Equal("BeforeAfter", Text(result.Document));
+        Assert.Equal(new[] { "Items" }, result.Report.MissingNames);
+        Assert.False(result.Report.IsComplete);
+    }
+
+    [Fact]
+    public void MergeRepeatingWithReport_StillThrowsOnAnUnbalancedMarker()
+    {
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#each Items}}"))));
+            body.Append(new Paragraph(new Run(new Text("content"))));
+        });
+
+        Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeatingWithReport(
+            template, new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = Array.Empty<IReadOnlyDictionary<string, string>>()
+            }));
+    }
+
+    [Fact]
+    public void MergeRepeating_ThenMerge_ComposesInTheRequiredOrder()
+    {
+        // The composition ordering the design measured: structural expansion first, then the
+        // existing field-level merge -- including catching a field left unfilled inside an
+        // already-expanded row, which ExecuteRepeatingBlocks itself never reports.
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#each Items}}"))));
+            var p = new Paragraph();
+            p.Append(new Run(new Text("Name: ")));
+            p.Append(Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»"));
+            p.Append(new Run(new Text(" Qty: ")));
+            p.Append(Field(" MERGEFIELD Qty \\* MERGEFORMAT ", "«Qty»"));
+            body.Append(p);
+            body.Append(new Paragraph(new Run(new Text("{{/each Items}}"))));
+        });
+
+        byte[] expanded = DocxMailMerge.MergeRepeating(
+            template,
+            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+            {
+                ["Items"] = new IReadOnlyDictionary<string, string>[]
+                {
+                    new Dictionary<string, string> { ["Name"] = "Alice", ["Qty"] = "5" },
+                    new Dictionary<string, string> { ["Name"] = "Bob" }, // Qty deliberately missing
+                }
+            });
+
+        DocxMailMergeResult result = DocxMailMerge.MergeWithReport(expanded, new Dictionary<string, string>());
+
+        Assert.False(result.Report.IsComplete);
+        Assert.Equal(new[] { "Qty" }, result.Report.MissingFieldNames);
+        Assert.Contains("Name: Alice Qty: 5", Text(result.Document));
+    }
+
+    private static byte[] RepeatingTemplate(string regionName, string fieldName) => Build(body =>
+    {
+        body.Append(new Paragraph(new Run(new Text("Before"))));
+        body.Append(new Paragraph(new Run(new Text($"{{{{#each {regionName}}}}}"))));
+        var p = new Paragraph();
+        p.Append(new Run(new Text($"{fieldName}: ")));
+        p.Append(Field($" MERGEFIELD {fieldName} \\* MERGEFORMAT ", $"«{fieldName}»"));
+        body.Append(p);
+        body.Append(new Paragraph(new Run(new Text($"{{{{/each {regionName}}}}}"))));
+        body.Append(new Paragraph(new Run(new Text("After"))));
+    });
+
     // ---- matching rules ---------------------------------------------------------------------------
 
     [Theory]

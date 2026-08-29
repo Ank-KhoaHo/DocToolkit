@@ -361,6 +361,163 @@ public static class DocxMailMerge
     }
 
     /// <summary>
+    /// A copy of <paramref name="docx"/> with every repeating block (<c>{{#each Name}}</c> …
+    /// <c>{{/each Name}}</c>) expanded once per entry in its region, merge fields inside each
+    /// expansion filled from that entry.
+    /// </summary>
+    /// <remarks>
+    /// <b>Refuses to produce a document with a region the template asks for but
+    /// <paramref name="regions"/> did not supply</b> — the same reasoning as
+    /// <see cref="MergeConditional(byte[], IReadOnlyDictionary{string, bool})"/>: the underlying
+    /// engine throws immediately for an unsupplied name, so this preflights and refuses before the
+    /// document is touched. Use
+    /// <see cref="MergeRepeatingWithReport(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})"/>
+    /// when you want the document anyway.
+    ///
+    /// <b>An empty sequence for a region removes the whole marked region</b> — markers and content
+    /// both — measured.
+    ///
+    /// <b>Run this before <see cref="MergeConditional(byte[], IReadOnlyDictionary{string, bool})"/>
+    /// and before <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/></b>, for the
+    /// same reason: a conditional block or a merge field nested inside a repeating region only
+    /// exists once this call has expanded it.
+    ///
+    /// <b>A missing field inside one record's expansion is not caught here</b> — it leaves that
+    /// field's raw placeholder in the generated row, silently, because
+    /// <c>ExecuteRepeatingBlocks</c> has no report of its own. A follow-up call to
+    /// <see cref="Merge(byte[], IReadOnlyDictionary{string, string})"/> or
+    /// <see cref="MergeWithReport(byte[], IReadOnlyDictionary{string, string})"/> against the
+    /// result — even with an empty values dictionary — finds and reports it, because it scans the
+    /// whole document for remaining <c>MERGEFIELD</c>s. Measured.
+    /// </remarks>
+    /// <param name="docx">The template to expand.</param>
+    /// <param name="regions">One sequence of value sets per named repeating region.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// A region the template asks for was not supplied, the marker structure is unbalanced, or the
+    /// document could not be read or written.
+    /// </exception>
+    public static byte[] MergeRepeating(
+        byte[] docx, IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(regions);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeRepeatingCore(source, regions, strict: true, out _);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with every repeating block expanded. <paramref name="source"/> is <b>read</b> to its end and
+    /// <paramref name="destination"/> is <b>written</b>; neither is disposed, closed nor sought.
+    /// </summary>
+    /// <inheritdoc cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})" path="/remarks"/>
+    /// <param name="source">The template to expand.</param>
+    /// <param name="destination">Receives the expanded document.</param>
+    /// <param name="regions">One sequence of value sets per named repeating region.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// A region the template asks for was not supplied, the marker structure is unbalanced, or the
+    /// document could not be read or written.
+    /// </exception>
+    public static async Task MergeRepeatingAsync(
+        Stream source, Stream destination,
+        IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(regions);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), RepeatingFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeRepeatingCore(docx, regions, strict: true, out _);
+        await StreamPipeline.EmitAsync(merged, destination, RepeatingFailure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> with every repeating block expanded, <b>together with
+    /// which region names the template asked for that <paramref name="regions"/> did not supply</b>.
+    /// Always produces a document.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})" path="/remarks"/>
+    ///
+    /// <b>An unsupplied region is defaulted to zero rows</b> — the whole marked region is removed,
+    /// exactly as an explicitly empty sequence would be — and named in
+    /// <see cref="DocxMailMergeBlockReport.MissingNames"/>. It still refuses for a genuinely
+    /// unbalanced marker structure, which no dictionary content can work around.
+    /// </remarks>
+    /// <param name="docx">The template to expand.</param>
+    /// <param name="regions">One sequence of value sets per named repeating region.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The marker structure is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static DocxMailMergeBlockResult MergeRepeatingWithReport(
+        byte[] docx, IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(regions);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeRepeatingCore(source, regions, strict: false, out var report);
+        return new DocxMailMergeBlockResult(result.ToArray(), report);
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with every repeating block expanded, and returns which region names were not supplied.
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed nor sought.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeRepeatingWithReport(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})" path="/remarks"/>
+    ///
+    /// This returns a <see cref="DocxMailMergeBlockReport"/> rather than a
+    /// <see cref="DocxMailMergeBlockResult"/> because the document went to
+    /// <paramref name="destination"/>.
+    /// </remarks>
+    /// <param name="source">The template to expand.</param>
+    /// <param name="destination">Receives the expanded document.</param>
+    /// <param name="regions">One sequence of value sets per named repeating region.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The marker structure is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static async Task<DocxMailMergeBlockReport> MergeRepeatingWithReportAsync(
+        Stream source, Stream destination,
+        IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(regions);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), RepeatingFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeRepeatingCore(docx, regions, strict: false, out var report);
+        await StreamPipeline.EmitAsync(merged, destination, RepeatingFailure, ct).ConfigureAwait(false);
+        return report;
+    }
+
+    /// <summary>
     /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
     /// filled document in order.
     /// </summary>
@@ -726,6 +883,7 @@ public static class DocxMailMerge
     private const string InspectFailure = "Failed to read the document's mail-merge template. See the inner exception for details.";
     private const string MergeFailure = "Failed to fill the document's merge fields. See the inner exception for details.";
     private const string ConditionalFailure = "Failed to resolve the document's conditional blocks. See the inner exception for details.";
+    private const string RepeatingFailure = "Failed to expand the document's repeating blocks. See the inner exception for details.";
 
     private static void RequireContent(byte[] docx)
     {
@@ -918,6 +1076,98 @@ public static class DocxMailMerge
         foreach (string name in missingNames)
             copy[name] = defaultValue;
         return copy;
+    }
+
+    /// <summary>
+    /// The one implementation behind all four <c>MergeRepeating*</c> overloads. Same shape as
+    /// <see cref="MergeConditionalCore"/> — see its remarks for why the preflight and the
+    /// try/catch are structured the way they are.
+    /// </summary>
+    private static MemoryStream MergeRepeatingCore(
+        Stream source, IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
+        bool strict, out DocxMailMergeBlockReport report)
+    {
+        var result = new MemoryStream();
+        List<string> missing;
+        List<DocxMailMergeIssue> allIssues;
+        bool refuse;
+        string? refusalMessage = null;
+
+        try
+        {
+            using var document = OfficeIMOWordDocument.Load(source);
+
+            var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, null!, regions.Keys);
+            allIssues = [.. inspection.Issues.Select(Issue)];
+            missing = [.. allIssues
+                .Where(i => i.Kind == DocxMailMergeIssueKind.MissingRepeatingBlockData)
+                .Select(i => i.Name)];
+
+            refuse = strict && !inspection.IsValid;
+            if (refuse)
+            {
+                refusalMessage = $"{allIssues.Count} repeating block issue(s), refusing before "
+                    + $"merging any: {string.Join("; ", allIssues.Select(i => i.Message))}. Call "
+                    + "MergeRepeatingWithReport to execute anyway.";
+            }
+            else
+            {
+                var padded = CopyRegionsWithDefault(regions, missing);
+                var forEngine = ToEngineRecords(padded);
+                OfficeIMOMailMerge.ExecuteRepeatingBlocks(document, forEngine, removeFields: true);
+                document.Save(result);
+                result.Position = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(RepeatingFailure, ex);
+        }
+
+        if (refuse)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(refusalMessage!);
+        }
+
+        report = new DocxMailMergeBlockReport(missing, allIssues);
+        return result;
+    }
+
+    /// <summary>
+    /// A mutable copy of <paramref name="regions"/> with an empty sequence filled in for every name
+    /// in <paramref name="missingNames"/> — the repeating-region twin of <see cref="CopyWithDefault"/>.
+    /// </summary>
+    private static Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> CopyRegionsWithDefault(
+        IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
+        IReadOnlyList<string> missingNames)
+    {
+        var copy = new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>(
+            regions.Count + missingNames.Count);
+        foreach (KeyValuePair<string, IEnumerable<IReadOnlyDictionary<string, string>>> pair in regions)
+            copy[pair.Key] = pair.Value;
+        foreach (string name in missingNames)
+            copy[name] = Array.Empty<IReadOnlyDictionary<string, string>>();
+        return copy;
+    }
+
+    /// <summary>
+    /// Converts the padded, read-only regions dictionary to the mutable shape
+    /// <see cref="OfficeIMOMailMerge.ExecuteRepeatingBlocks"/> actually takes —
+    /// <c>IDictionary&lt;string, IEnumerable&lt;IDictionary&lt;string, string&gt;&gt;&gt;</c>, one
+    /// level less read-only than this method's own public parameter. Reuses the existing
+    /// <see cref="Copy(IReadOnlyDictionary{string, string})"/> helper per record, matching how the
+    /// field-level <see cref="MergeCore"/> already converts a read-only dictionary to what the
+    /// engine wants.
+    /// </summary>
+    private static Dictionary<string, IEnumerable<IDictionary<string, string>>> ToEngineRecords(
+        IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions)
+    {
+        var result = new Dictionary<string, IEnumerable<IDictionary<string, string>>>(regions.Count);
+        foreach (KeyValuePair<string, IEnumerable<IReadOnlyDictionary<string, string>>> pair in regions)
+            result[pair.Key] = pair.Value.Select(Copy).Cast<IDictionary<string, string>>().ToList();
+        return result;
     }
 
     /// <summary>
