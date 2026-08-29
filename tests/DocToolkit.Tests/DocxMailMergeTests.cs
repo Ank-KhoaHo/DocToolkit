@@ -2129,69 +2129,153 @@ public class DocxMailMergeTests
     [Fact]
     public void MergeRepeating_ThenMergeConditional_ComposesInTheRequiredOrder()
     {
-        // The design's measured composition ordering: a conditional block nested inside a
-        // repeating region resolves correctly only when the repeating pass runs FIRST, producing N
-        // independent copies of the conditional marker pair, each then resolved on its own.
+        // WHICH CONDITIONAL MARKERS A DOCUMENT CONTAINS IS DECIDED BY THE REPEATING PASS, which is
+        // what makes the order a requirement rather than a preference. `Notices` receives no
+        // records, so expanding it removes the {{#Urgent}} pair that only ever existed inside its
+        // region template -- and a caller with no notices has no urgency to declare, so the
+        // conditions dictionary is legitimately empty. Run the conditional pass on the UNEXPANDED
+        // template and it sees a marker the caller never supplied, and refuses.
+        //
+        // The measurement that produced this fixture is worth stating, because the obvious fixture
+        // does NOT discriminate: with the condition SUPPLIED, a conditional block nested inside a
+        // region -- or one wrapping a region -- resolves to byte-identical output in either order,
+        // measured both ways at true and at false. A global boolean applied uniformly commutes with
+        // duplication. Only a fixture where one pass changes what the OTHER pass can see can tell
+        // the two orders apart, and this is the smallest one that does.
         byte[] template = Build(body =>
         {
+            body.Append(new Paragraph(new Run(new Text("Catalogue"))));
             body.Append(new Paragraph(new Run(new Text("{{#each Items}}"))));
             var p = new Paragraph();
             p.Append(Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»"));
             body.Append(p);
-            body.Append(new Paragraph(new Run(new Text("{{#OnSale}}"))));
-            body.Append(new Paragraph(new Run(new Text("ON SALE"))));
-            body.Append(new Paragraph(new Run(new Text("{{/OnSale}}"))));
             body.Append(new Paragraph(new Run(new Text("{{/each Items}}"))));
+            body.Append(new Paragraph(new Run(new Text("{{#each Notices}}"))));
+            body.Append(new Paragraph(new Run(new Text("{{#Urgent}}"))));
+            body.Append(new Paragraph(new Run(new Text("URGENT"))));
+            body.Append(new Paragraph(new Run(new Text("{{/Urgent}}"))));
+            body.Append(new Paragraph(new Run(new Text("{{/each Notices}}"))));
+            body.Append(new Paragraph(new Run(new Text("End"))));
         });
 
-        byte[] expanded = DocxMailMerge.MergeRepeating(
-            template,
-            new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+        var regions = new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>
+        {
+            ["Items"] = new IReadOnlyDictionary<string, string>[]
             {
-                ["Items"] = new IReadOnlyDictionary<string, string>[]
-                {
-                    new Dictionary<string, string> { ["Name"] = "Alice" },
-                    new Dictionary<string, string> { ["Name"] = "Bob" },
-                }
-            });
+                new Dictionary<string, string> { ["Name"] = "Alice" },
+                new Dictionary<string, string> { ["Name"] = "Bob" },
+            },
+            ["Notices"] = Array.Empty<IReadOnlyDictionary<string, string>>(),
+        };
+        var noConditions = new Dictionary<string, bool>();
 
-        byte[] resolved = DocxMailMerge.MergeConditional(
-            expanded, new Dictionary<string, bool> { ["OnSale"] = true });
+        // The required order: two records genuinely multiply, and the empty region takes its
+        // conditional markers with it.
+        byte[] required = DocxMailMerge.MergeConditional(
+            DocxMailMerge.MergeRepeating(template, regions), noConditions);
 
-        Assert.Equal("AliceON SALEBobON SALE", Text(resolved));
+        Assert.Equal("CatalogueAliceBobEnd", Text(required));
+
+        // The same three arguments, the other way round.
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeRepeating(
+                DocxMailMerge.MergeConditional(template, noConditions), regions));
+
+        Assert.Contains("Urgent", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
     public void MergeTableRows_ThenMergeConditional_ThenMerge_ComposesAcrossAllThreeLayers()
     {
+        // Both boundaries of the three-layer order are load-bearing here, and each fails a
+        // different way when crossed:
+        //
+        //   rows BEFORE conditional -- MergeTableRows selects a table by INDEX, and the hidden
+        //   block owns table 0. Resolving the conditional first deletes it, so the template table
+        //   stops being table 1. Position is not a name; a structural pass cannot run after
+        //   something that removes structure.
+        //
+        //   conditional BEFORE merge -- «LegacyText» lives inside the hidden block and is
+        //   deliberately never supplied, because a caller hiding a section has no values for it.
+        //   The field-level Merge is strict, so reaching that field before the conditional pass
+        //   deletes it refuses the whole document.
         byte[] template = Build(body =>
         {
-            var tbl = new Table();
-            tbl.Append(new TableProperties());
-            tbl.Append(new TableGrid(new GridColumn()));
-            var templateRow = new TableRow(new TableCell(new Paragraph(
-                Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»"))));
-            tbl.Append(templateRow);
-            body.Append(tbl);
-            body.Append(new Paragraph(new Run(new Text("{{#ShowFooter}}"))));
-            var p = new Paragraph();
-            p.Append(new Run(new Text("Footer: ")));
-            p.Append(Field(" MERGEFIELD FooterText \\* MERGEFORMAT ", "«FooterText»"));
-            body.Append(p);
-            body.Append(new Paragraph(new Run(new Text("{{/ShowFooter}}"))));
+            body.Append(new Paragraph(new Run(new Text("Report"))));
+            body.Append(new Paragraph(new Run(new Text("{{#ShowLegacy}}"))));
+
+            var legacy = new Table();
+            legacy.Append(new TableProperties());
+            legacy.Append(new TableGrid(new GridColumn()));
+            legacy.Append(new TableRow(new TableCell(new Paragraph(new Run(new Text("LEGACY"))))));
+            body.Append(legacy);
+
+            var note = new Paragraph();
+            note.Append(new Run(new Text("Legacy note: ")));
+            note.Append(Field(" MERGEFIELD LegacyText \\* MERGEFORMAT ", "«LegacyText»"));
+            body.Append(note);
+            body.Append(new Paragraph(new Run(new Text("{{/ShowLegacy}}"))));
+
+            var current = new Table();
+            current.Append(new TableProperties());
+            current.Append(new TableGrid(new GridColumn()));
+            current.Append(new TableRow(new TableCell(new Paragraph(
+                Field(" MERGEFIELD Name \\* MERGEFORMAT ", "«Name»")))));
+            body.Append(current);
+
+            var sign = new Paragraph();
+            sign.Append(new Run(new Text("Sincerely, ")));
+            sign.Append(Field(" MERGEFIELD Sender \\* MERGEFORMAT ", "«Sender»"));
+            body.Append(sign);
         });
 
-        byte[] rowsExpanded = DocxMailMerge.MergeTableRows(
-            template, tableIndex: 0, templateRowIndex: 0,
-            new IReadOnlyDictionary<string, string>[] { new Dictionary<string, string> { ["Name"] = "Alice" } });
+        var rows = new IReadOnlyDictionary<string, string>[]
+        {
+            new Dictionary<string, string> { ["Name"] = "Alice" },
+            new Dictionary<string, string> { ["Name"] = "Bob" },
+        };
+        var conditions = new Dictionary<string, bool> { ["ShowLegacy"] = false };
+        var values = new Dictionary<string, string> { ["Sender"] = "Khoa" };
 
-        byte[] conditionalResolved = DocxMailMerge.MergeConditional(
-            rowsExpanded, new Dictionary<string, bool> { ["ShowFooter"] = true });
+        // The required order. Two records, so the single template row genuinely multiplies.
+        byte[] required = DocxMailMerge.Merge(
+            DocxMailMerge.MergeConditional(
+                DocxMailMerge.MergeTableRows(template, tableIndex: 1, templateRowIndex: 0, rows),
+                conditions),
+            values);
 
-        byte[] final = DocxMailMerge.Merge(
-            conditionalResolved, new Dictionary<string, string> { ["FooterText"] = "Thanks" });
+        Assert.Equal("ReportAliceBobSincerely, Khoa", Text(required));
 
-        Assert.Equal("AliceFooter: Thanks", Text(final));
+        // Conditional first: table 1 no longer exists.
+        var shifted = Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeTableRows(
+                DocxMailMerge.MergeConditional(template, conditions),
+                tableIndex: 1, templateRowIndex: 0, rows));
+
+        Assert.IsType<ArgumentOutOfRangeException>(shifted.InnerException);
+
+        // ...and the template table is still there, one index lower -- so what the wrong order
+        // destroyed is the meaning of the index, not the table. Without this control the
+        // assertion above would pass just as happily against a conditional pass that deleted
+        // everything, which would say nothing about ordering.
+        Assert.Equal(
+            "ReportAliceBobSincerely, Khoa",
+            Text(DocxMailMerge.Merge(
+                DocxMailMerge.MergeTableRows(
+                    DocxMailMerge.MergeConditional(template, conditions),
+                    tableIndex: 0, templateRowIndex: 0, rows),
+                values)));
+
+        // Merge before the conditional pass, with the rows already expanded so only the third
+        // layer is out of place.
+        var early = Assert.Throws<DocumentConversionException>(
+            () => DocxMailMerge.MergeConditional(
+                DocxMailMerge.Merge(
+                    DocxMailMerge.MergeTableRows(template, tableIndex: 1, templateRowIndex: 0, rows),
+                    values),
+                conditions));
+
+        Assert.Contains("LegacyText", early.Message, StringComparison.Ordinal);
     }
 
     // ---- fixtures ------------------------------------------------------------------------------------
