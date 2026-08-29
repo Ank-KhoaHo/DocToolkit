@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using OfficeIMOMailMerge = OfficeIMO.Word.WordMailMerge;
+using OfficeIMOBlockData = OfficeIMO.Word.WordMailMergeBlockData;
 using OfficeIMOFieldResult = OfficeIMO.Word.WordMailMergeFieldResult;
 using OfficeIMOFieldStatus = OfficeIMO.Word.WordMailMergeFieldStatus;
 using OfficeIMOIssue = OfficeIMO.Word.WordMailMergeTemplateIssue;
@@ -518,6 +519,158 @@ public static class DocxMailMerge
     }
 
     /// <summary>
+    /// A copy of <paramref name="docx"/> with every repeating block expanded once per entry in its
+    /// region, the same as
+    /// <see cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})"/>
+    /// — except each entry may itself carry further nested regions, for a template whose repeating
+    /// blocks are nested inside one another.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeRepeating(byte[], IReadOnlyDictionary{string, IEnumerable{IReadOnlyDictionary{string, string}}})" path="/remarks"/>
+    ///
+    /// <b>"Missing" is checked at every nesting level, not just the top one.</b>
+    /// <see cref="DocxMailMergeTemplate.RepeatingBlockNames"/> is flat regardless of nesting depth
+    /// — a nested marker's name appears in that list exactly like a top-level one, measured — so
+    /// this walks <paramref name="regions"/> and every <see cref="DocxMailMergeBlockData.Regions"/>
+    /// inside it recursively before comparing against what the template asks for.
+    /// </remarks>
+    /// <param name="docx">The template to expand.</param>
+    /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// A region the template asks for was not supplied at any nesting level, the marker structure
+    /// is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static byte[] MergeRepeatingRegions(
+        byte[] docx, IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(regions);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeRepeatingRegionsCore(source, regions, strict: true, out _);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with every nested repeating region expanded. <paramref name="source"/> is <b>read</b> to its
+    /// end and <paramref name="destination"/> is <b>written</b>; neither is disposed, closed nor
+    /// sought.
+    /// </summary>
+    /// <inheritdoc cref="MergeRepeatingRegions(byte[], IReadOnlyDictionary{string, IEnumerable{DocxMailMergeBlockData}})" path="/remarks"/>
+    /// <param name="source">The template to expand.</param>
+    /// <param name="destination">Receives the expanded document.</param>
+    /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// A region the template asks for was not supplied at any nesting level, the marker structure
+    /// is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static async Task MergeRepeatingRegionsAsync(
+        Stream source, Stream destination,
+        IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(regions);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), RepeatingRegionsFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeRepeatingRegionsCore(docx, regions, strict: true, out _);
+        await StreamPipeline.EmitAsync(merged, destination, RepeatingRegionsFailure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> with every nested repeating region expanded, <b>together
+    /// with which region names the template asked for — at any nesting level — that
+    /// <paramref name="regions"/> did not supply</b>. Always produces a document.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeRepeatingRegions(byte[], IReadOnlyDictionary{string, IEnumerable{DocxMailMergeBlockData}})" path="/remarks"/>
+    ///
+    /// <b>An unsupplied region, at any nesting level, is defaulted to zero rows</b> — the whole
+    /// marked region is removed — and, when the name is unsupplied <i>everywhere</i>, it is also
+    /// named in <see cref="DocxMailMergeBlockReport.MissingNames"/>. It still refuses for a
+    /// genuinely unbalanced marker structure.
+    ///
+    /// <b><see cref="DocxMailMergeBlockReport.MissingNames"/> answers about NAMES, not about
+    /// individual block rows</b>, and the difference shows up only under nesting. A name supplied
+    /// by <i>any</i> row reads as supplied overall, so a template with <c>Orders</c> containing
+    /// <c>Lines</c>, called with one order that carries <c>Lines</c> and a second that does not,
+    /// reports nothing missing — the second order's <c>Lines</c> region is still defaulted to zero
+    /// rows and removed, silently. Measured: without that default the underlying engine throws for
+    /// that second row, exactly as it does for a name missing everywhere.
+    /// </remarks>
+    /// <param name="docx">The template to expand.</param>
+    /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The marker structure is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static DocxMailMergeBlockResult MergeRepeatingRegionsWithReport(
+        byte[] docx, IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions)
+    {
+        RequireContent(docx);
+        ArgumentNullException.ThrowIfNull(regions);
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var result = MergeRepeatingRegionsCore(source, regions, strict: false, out var report);
+        return new DocxMailMergeBlockResult(result.ToArray(), report);
+    }
+
+    /// <summary>
+    /// Writes a copy of the template in <paramref name="source"/> to <paramref name="destination"/>
+    /// with every nested repeating region expanded, and returns which region names were not
+    /// supplied at any nesting level. <paramref name="source"/> is <b>read</b> to its end and
+    /// <paramref name="destination"/> is <b>written</b>; neither is disposed, closed nor sought.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="MergeRepeatingRegionsWithReport(byte[], IReadOnlyDictionary{string, IEnumerable{DocxMailMergeBlockData}})" path="/remarks"/>
+    ///
+    /// This returns a <see cref="DocxMailMergeBlockReport"/> rather than a
+    /// <see cref="DocxMailMergeBlockResult"/> because the document went to
+    /// <paramref name="destination"/>.
+    /// </remarks>
+    /// <param name="source">The template to expand.</param>
+    /// <param name="destination">Receives the expanded document.</param>
+    /// <param name="regions">One sequence of block rows per named top-level repeating region.</param>
+    /// <param name="ct">Cancels before the document is read, and while it is written.</param>
+    /// <exception cref="ArgumentNullException">A stream or <paramref name="regions"/> is null.</exception>
+    /// <exception cref="ArgumentException">A stream is unusable, or <paramref name="source"/> held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The marker structure is unbalanced, or the document could not be read or written.
+    /// </exception>
+    public static async Task<DocxMailMergeBlockReport> MergeRepeatingRegionsWithReportAsync(
+        Stream source, Stream destination,
+        IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ArgumentNullException.ThrowIfNull(regions);
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, EmptySource, nameof(source), RepeatingRegionsFailure, ct)
+            .ConfigureAwait(false);
+
+        using MemoryStream merged = MergeRepeatingRegionsCore(docx, regions, strict: false, out var report);
+        await StreamPipeline.EmitAsync(merged, destination, RepeatingRegionsFailure, ct).ConfigureAwait(false);
+        return report;
+    }
+
+    /// <summary>
     /// Fills <paramref name="docx"/> once per entry in <paramref name="records"/>, yielding each
     /// filled document in order.
     /// </summary>
@@ -884,6 +1037,7 @@ public static class DocxMailMerge
     private const string MergeFailure = "Failed to fill the document's merge fields. See the inner exception for details.";
     private const string ConditionalFailure = "Failed to resolve the document's conditional blocks. See the inner exception for details.";
     private const string RepeatingFailure = "Failed to expand the document's repeating blocks. See the inner exception for details.";
+    private const string RepeatingRegionsFailure = "Failed to expand the document's nested repeating regions. See the inner exception for details.";
 
     private static void RequireContent(byte[] docx)
     {
@@ -1169,6 +1323,163 @@ public static class DocxMailMerge
             result[pair.Key] = pair.Value.Select(Copy).Cast<IDictionary<string, string>>().ToList();
         return result;
     }
+
+    /// <summary>
+    /// The one implementation behind all four <c>MergeRepeatingRegions*</c> overloads. Same shape
+    /// as <see cref="MergeRepeatingCore"/> — see <see cref="MergeConditionalCore"/>'s remarks for
+    /// why the preflight and the try/catch are structured the way they are — except for the two
+    /// things nesting genuinely changes, both measured against OfficeIMO.Word 3.2.6 before this
+    /// method was written.
+    /// </summary>
+    /// <remarks>
+    /// <b>The supplied-name comparison walks every nesting level</b>, via
+    /// <see cref="CollectNamesRecursively"/>, rather than reading only the top-level keys.
+    /// <c>InspectTemplate</c>'s <c>RepeatingBlockNames</c> is flat regardless of depth — a template
+    /// with <c>{{#each Orders}}</c> around <c>{{#each Lines}}</c> reports <c>[Lines, Orders]</c>
+    /// with no indication either is inside the other — so comparing it against top-level keys alone
+    /// would report <c>Lines</c> missing on a perfectly correct nested call.
+    ///
+    /// <b>The lenient path's padding is RECURSIVE, and this is where this method deliberately
+    /// diverges from <see cref="MergeRepeatingCore"/>.</b> The flat case pads a missing name into
+    /// the one top-level dictionary and that is enough. Here it is not: measured, the engine
+    /// resolves a nested marker from its ENCLOSING block row's own regions, so a top-level pad
+    /// leaves <c>InvalidOperationException: Repeating block 'Lines' was not supplied.</c> thrown
+    /// exactly as if nothing had been padded at all. <see cref="ToEngineRegions"/> therefore fills
+    /// every name the template asks for into every level of the tree it builds, and it pads with
+    /// <c>RepeatingBlockNames</c> rather than with <c>missing</c> for the second measured reason:
+    /// a name supplied by one block row and not another does not appear in <c>missing</c> at all
+    /// (the recursive collection above flattens per-row supply into one set) yet throws that same
+    /// exception for the row that omitted it. Padding by name-the-template-asks-for covers both.
+    /// An extra region key the markers in scope do not use is measured to be inert, which is what
+    /// makes the broader pad safe.
+    ///
+    /// <b>The strict path pads nothing</b>, which needs no special case: it only reaches
+    /// <c>Execute</c> when the inspection came back valid, and it hands the caller's own tree
+    /// straight through so a per-row omission surfaces rather than being silently defaulted.
+    /// </remarks>
+    private static MemoryStream MergeRepeatingRegionsCore(
+        Stream source, IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions,
+        bool strict, out DocxMailMergeBlockReport report)
+    {
+        var result = new MemoryStream();
+        List<string> missing;
+        List<DocxMailMergeIssue> allIssues;
+        bool refuse;
+        string? refusalMessage = null;
+
+        try
+        {
+            using var document = OfficeIMOWordDocument.Load(source);
+
+            var suppliedNames = new HashSet<string>();
+            CollectNamesRecursively(regions, suppliedNames);
+
+            var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, null!, suppliedNames);
+            allIssues = [.. inspection.Issues.Select(Issue)];
+            missing = [.. allIssues
+                .Where(i => i.Kind == DocxMailMergeIssueKind.MissingRepeatingBlockData)
+                .Select(i => i.Name)];
+
+            refuse = strict && !inspection.IsValid;
+            if (refuse)
+            {
+                refusalMessage = $"{allIssues.Count} repeating region issue(s), refusing before "
+                    + $"merging any: {string.Join("; ", allIssues.Select(i => i.Message))}. Call "
+                    + "MergeRepeatingRegionsWithReport to execute anyway.";
+            }
+            else
+            {
+                List<string> pad = strict ? [] : [.. inspection.RepeatingBlockNames];
+                var forEngine = ToEngineRegions(regions, pad);
+                OfficeIMOMailMerge.ExecuteRepeatingBlockRegions(document, forEngine, removeFields: true);
+                document.Save(result);
+                result.Position = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(RepeatingRegionsFailure, ex);
+        }
+
+        if (refuse)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(refusalMessage!);
+        }
+
+        report = new DocxMailMergeBlockReport(missing, allIssues);
+        return result;
+    }
+
+    /// <summary>
+    /// Walks <paramref name="regions"/> and every nested <see cref="DocxMailMergeBlockData.Regions"/>
+    /// inside it, adding every region name found at any depth to <paramref name="names"/>.
+    /// </summary>
+    private static void CollectNamesRecursively(
+        IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions, HashSet<string> names)
+    {
+        foreach (KeyValuePair<string, IEnumerable<DocxMailMergeBlockData>> pair in regions)
+        {
+            names.Add(pair.Key);
+            foreach (DocxMailMergeBlockData row in pair.Value)
+            {
+                if (row.Regions is not null)
+                    CollectNamesRecursively(row.Regions, names);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Converts DocToolkit's own <see cref="DocxMailMergeBlockData"/> tree to OfficeIMO's
+    /// <c>WordMailMergeBlockData</c> tree the engine actually takes — recursively, since a block
+    /// row can carry further nested regions — filling in an empty sequence for every name in
+    /// <paramref name="padNames"/> that a level does not already supply.
+    /// </summary>
+    /// <remarks>
+    /// Padding happens HERE rather than in a <see cref="CopyRegionsWithDefault"/>-style pass over
+    /// the caller's own dictionary, for two reasons. It has to reach every nesting level — see
+    /// <see cref="MergeRepeatingRegionsCore"/> for the measurement that forced that — and this is
+    /// already the pass that rebuilds the whole tree, so padding on the way through cannot mutate
+    /// what the caller handed over. <see cref="DocxMailMergeBlockData"/> is immutable anyway; a
+    /// separate padding pass would have had to clone every row to say the same thing.
+    /// </remarks>
+    private static Dictionary<string, IEnumerable<OfficeIMOBlockData>> ToEngineRegions(
+        IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> regions,
+        IReadOnlyList<string> padNames)
+    {
+        var result = new Dictionary<string, IEnumerable<OfficeIMOBlockData>>(
+            regions.Count + padNames.Count);
+        foreach (KeyValuePair<string, IEnumerable<DocxMailMergeBlockData>> pair in regions)
+            result[pair.Key] = pair.Value.Select(row => ToEngineBlockData(row, padNames)).ToList();
+
+        foreach (string name in padNames)
+        {
+            if (!result.ContainsKey(name))
+                result[name] = Array.Empty<OfficeIMOBlockData>();
+        }
+
+        return result;
+    }
+
+    private static OfficeIMOBlockData ToEngineBlockData(
+        DocxMailMergeBlockData data, IReadOnlyList<string> padNames)
+    {
+        // Nothing to nest and nothing to pad: use the values-only form, so a row the caller built
+        // without regions reaches the engine as one.
+        if (data.Regions is null && padNames.Count == 0)
+            return new OfficeIMOBlockData(Copy(data.Values));
+
+        return new OfficeIMOBlockData(
+            Copy(data.Values), ToEngineRegions(data.Regions ?? NoNestedRegions, padNames));
+    }
+
+    /// <summary>
+    /// Stands in for a block row's absent <see cref="DocxMailMergeBlockData.Regions"/> so
+    /// <see cref="ToEngineRegions"/> has something to pad into. Never written to.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> NoNestedRegions
+        = new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>();
 
     /// <summary>
     /// The one loop behind every batch overload that produces documents in memory — strict and

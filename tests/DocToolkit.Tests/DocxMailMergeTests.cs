@@ -571,6 +571,267 @@ public class DocxMailMergeTests
         body.Append(new Paragraph(new Run(new Text("After"))));
     });
 
+    // ---- A75: MergeRepeatingRegions (nested) --------------------------------------------------
+
+    [Fact]
+    public void MergeRepeatingRegions_ExpandsNestedRegionsForEveryRecord()
+    {
+        byte[] template = NestedRepeatingTemplate();
+
+        byte[] merged = DocxMailMerge.MergeRepeatingRegions(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+                        {
+                            ["Lines"] = new[]
+                            {
+                                new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }),
+                                new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A2" }),
+                            }
+                        }),
+                }
+            });
+
+        Assert.Equal("Order: 1001Line: A1Line: A2", Text(merged));
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_CorrectlyNestedCall_DoesNotFalsePositiveAsMissing()
+    {
+        // The nesting trap the design measured: RepeatingBlockNames is flat, so a preflight that
+        // only reads top-level dictionary keys would wrongly report "Lines" missing even when it
+        // is correctly nested inside "Orders". This must NOT throw.
+        byte[] template = NestedRepeatingTemplate();
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeRepeatingRegionsWithReport(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+                        {
+                            ["Lines"] = new[] { new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }) }
+                        }),
+                }
+            });
+
+        Assert.Empty(result.Report.MissingNames);
+        Assert.True(result.Report.IsComplete);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_CorrectlyNestedCall_StillProducesTheExpandedDocument()
+    {
+        // The discriminating half of the trap test above: padding every discovered region name
+        // into every nesting level (see MergeRepeatingRegionsCore) must not disturb a call that
+        // supplied everything. An assertion on MissingNames alone would pass against an
+        // implementation that padded a spurious region over the caller's own rows.
+        byte[] template = NestedRepeatingTemplate();
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeRepeatingRegionsWithReport(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+                        {
+                            ["Lines"] = new[] { new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }) }
+                        }),
+                }
+            });
+
+        Assert.Equal("Order: 1001Line: A1", Text(result.Document));
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_RefusesWhenTheTopLevelRegionIsMissing()
+    {
+        byte[] template = NestedRepeatingTemplate();
+
+        var ex = Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeatingRegions(
+            template, new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>()));
+
+        Assert.Contains("Orders", ex.Message);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_RefusesWhenANestedRegionIsMissingEverywhere()
+    {
+        // The other half of the flat-names trap: "Lines" is nested, so a preflight that only
+        // compared top-level keys could not tell this apart from the correctly-nested call above.
+        byte[] template = NestedRepeatingTemplate();
+
+        var ex = Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeatingRegions(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1001" }),
+                }
+            }));
+
+        Assert.Contains("Lines", ex.Message);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegionsWithReport_PadsANestedRegionMissingEverywhere_AndReportsIt()
+    {
+        // Measured: padding this name at the TOP level does not satisfy the engine -- it resolves a
+        // nested marker from its ENCLOSING block's own regions, so the pad has to reach in there.
+        byte[] template = NestedRepeatingTemplate();
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeRepeatingRegionsWithReport(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1001" }),
+                }
+            });
+
+        Assert.Equal("Order: 1001", Text(result.Document));
+        Assert.Equal(new[] { "Lines" }, result.Report.MissingNames);
+        Assert.False(result.Report.IsComplete);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegionsWithReport_PadsANestedRegionMissingForOneRecordOnly()
+    {
+        // Measured: the engine throws for this too, identically -- and it is invisible to the
+        // report, because MissingNames is a NAME-level answer and "Lines" is supplied by the first
+        // order. The second order's region is defaulted to zero rows and the report stays complete.
+        byte[] template = NestedRepeatingTemplate();
+
+        DocxMailMergeBlockResult result = DocxMailMerge.MergeRepeatingRegionsWithReport(
+            template,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+                        {
+                            ["Lines"] = new[] { new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }) }
+                        }),
+                    new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1002" }),
+                }
+            });
+
+        Assert.Equal("Order: 1001Line: A1Order: 1002", Text(result.Document));
+        Assert.Empty(result.Report.MissingNames);
+        Assert.True(result.Report.IsComplete);
+    }
+
+    [Fact]
+    public void MergeRepeatingRegionsWithReport_StillThrowsOnAnUnbalancedMarker()
+    {
+        byte[] template = Build(body =>
+        {
+            body.Append(new Paragraph(new Run(new Text("{{#each Orders}}"))));
+            body.Append(new Paragraph(new Run(new Text("content"))));
+        });
+
+        Assert.Throws<DocumentConversionException>(() => DocxMailMerge.MergeRepeatingRegionsWithReport(
+            template, new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = Array.Empty<DocxMailMergeBlockData>()
+            }));
+    }
+
+    [Fact]
+    public async Task MergeRepeatingRegionsAsync_MatchesTheByteArrayForm()
+    {
+        byte[] template = NestedRepeatingTemplate();
+        using var source = new MemoryStream(template);
+        using var destination = new MemoryStream();
+
+        await DocxMailMerge.MergeRepeatingRegionsAsync(
+            source, destination,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(
+                        new Dictionary<string, string> { ["OrderId"] = "1001" },
+                        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+                        {
+                            ["Lines"] = new[] { new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }) }
+                        }),
+                }
+            });
+
+        Assert.Equal("Order: 1001Line: A1", Text(destination.ToArray()));
+    }
+
+    [Fact]
+    public async Task MergeRepeatingRegionsWithReportAsync_ReportsTheMissingNestedRegion()
+    {
+        byte[] template = NestedRepeatingTemplate();
+        using var source = new MemoryStream(template);
+        using var destination = new MemoryStream();
+
+        DocxMailMergeBlockReport report = await DocxMailMerge.MergeRepeatingRegionsWithReportAsync(
+            source, destination,
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+            {
+                ["Orders"] = new[]
+                {
+                    new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1001" }),
+                }
+            });
+
+        Assert.Equal(new[] { "Lines" }, report.MissingNames);
+        Assert.Equal("Order: 1001", Text(destination.ToArray()));
+    }
+
+    [Fact]
+    public void MergeRepeatingRegions_DoesNotMutateTheCallersBlockData()
+    {
+        // The padding builds a fresh engine-side tree rather than rewriting the caller's rows.
+        var lines = new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>
+        {
+            ["Lines"] = new[] { new DocxMailMergeBlockData(new Dictionary<string, string> { ["Sku"] = "A1" }) }
+        };
+        var order = new DocxMailMergeBlockData(new Dictionary<string, string> { ["OrderId"] = "1001" }, lines);
+
+        DocxMailMerge.MergeRepeatingRegionsWithReport(
+            NestedRepeatingTemplate(),
+            new Dictionary<string, IEnumerable<DocxMailMergeBlockData>> { ["Orders"] = new[] { order } });
+
+        Assert.Equal(new[] { "Lines" }, order.Regions!.Keys);
+        Assert.Single(lines);
+    }
+
+    private static byte[] NestedRepeatingTemplate() => Build(body =>
+    {
+        body.Append(new Paragraph(new Run(new Text("{{#each Orders}}"))));
+        var p = new Paragraph();
+        p.Append(new Run(new Text("Order: ")));
+        p.Append(Field(" MERGEFIELD OrderId \\* MERGEFORMAT ", "«OrderId»"));
+        body.Append(p);
+        body.Append(new Paragraph(new Run(new Text("{{#each Lines}}"))));
+        var p2 = new Paragraph();
+        p2.Append(new Run(new Text("Line: ")));
+        p2.Append(Field(" MERGEFIELD Sku \\* MERGEFORMAT ", "«Sku»"));
+        body.Append(p2);
+        body.Append(new Paragraph(new Run(new Text("{{/each Lines}}"))));
+        body.Append(new Paragraph(new Run(new Text("{{/each Orders}}"))));
+    });
+
     // ---- matching rules ---------------------------------------------------------------------------
 
     [Theory]

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 using Xunit;
 
@@ -66,6 +66,13 @@ public class StreamOverloadTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> NoRegions =
         new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>();
+
+    /// <summary>
+    /// The nested twin of <see cref="NoRegions"/>, for the <c>MergeRepeatingRegions*</c> overloads,
+    /// and empty for the same reason.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, IEnumerable<DocxMailMergeBlockData>> NoBlockRegions =
+        new Dictionary<string, IEnumerable<DocxMailMergeBlockData>>();
 
     /// <summary>A .docx whose table holds a repeating-row template, for FillRowsAsync.</summary>
     private static readonly byte[] TableDocx = DocxFixtures.Build(DocxFixtures.Tbl(
@@ -264,6 +271,8 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeConditionalWithReportAsync",
         "DocxMailMerge.MergeRepeatingAsync",
         "DocxMailMerge.MergeRepeatingWithReportAsync",
+        "DocxMailMerge.MergeRepeatingRegionsAsync",
+        "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
         "DocxForm.FillAsync",
     };
 
@@ -333,6 +342,8 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeConditionalWithReportAsync",
         "DocxMailMerge.MergeRepeatingAsync",
         "DocxMailMerge.MergeRepeatingWithReportAsync",
+        "DocxMailMerge.MergeRepeatingRegionsAsync",
+        "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
         "DocxForm.InspectAsync",
         "DocxForm.ValidateAsync",
         "DocxForm.FillAsync",
@@ -412,6 +423,8 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeConditionalWithReportAsync",
         "DocxMailMerge.MergeRepeatingAsync",
         "DocxMailMerge.MergeRepeatingWithReportAsync",
+        "DocxMailMerge.MergeRepeatingRegionsAsync",
+        "DocxMailMerge.MergeRepeatingRegionsWithReportAsync",
         "DocxForm.FillAsync",
     };
 
@@ -1121,6 +1134,10 @@ public class StreamOverloadTests
                 DocxMailMerge.MergeRepeatingAsync(source!, destination!, NoRegions, ct),
             "DocxMailMerge.MergeRepeatingWithReportAsync" =>
                 DocxMailMerge.MergeRepeatingWithReportAsync(source!, destination!, NoRegions, ct),
+            "DocxMailMerge.MergeRepeatingRegionsAsync" =>
+                DocxMailMerge.MergeRepeatingRegionsAsync(source!, destination!, NoBlockRegions, ct),
+            "DocxMailMerge.MergeRepeatingRegionsWithReportAsync" =>
+                DocxMailMerge.MergeRepeatingRegionsWithReportAsync(source!, destination!, NoBlockRegions, ct),
             "DocxReview.RemoveCommentsAsync" =>
                 DocxReview.RemoveCommentsAsync(source!, destination!, ct),
             "DocxReview.AcceptRevisionsAsync" =>
