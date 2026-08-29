@@ -169,6 +169,58 @@ internal static class PptxFixtures
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// <c>sample.pptx</c> with its one slide re-pointed at another of the ELEVEN real,
+    /// PowerPoint-authored layouts its package already ships — <c>slideLayout1.xml</c> ("Title
+    /// Slide") is the only one wired to a slide as committed, so the other ten are unreachable
+    /// without this.
+    ///
+    /// <b>Why this fixture has to exist at all.</b> Every other layout fixture here is built by
+    /// <see cref="DocToolkit.PresentationEditor.Create"/>, whose layout always carries explicit
+    /// placeholder geometry because the writer puts it there. Real PowerPoint layouts routinely do
+    /// not: they declare a placeholder's ROLE and inherit its position from the slide master.
+    /// Measured across all eleven here, four do exactly that — "Title and Content" (the default for
+    /// a new body slide), "Two Content", "Title Only" and "Title and Vertical Text". A fixture that
+    /// can only produce positioned layouts cannot see the case those four represent, which is the
+    /// "what you measure is the fixture" trap <c>CLAUDE.md</c> records for <c>DocxForm</c>.
+    ///
+    /// <b>The mechanism, measured rather than assumed.</b> A <see cref="SlidePart"/> allows only one
+    /// <see cref="SlideLayoutPart"/> relationship, so the old one is deleted before the new one is
+    /// added. <c>DeletePart</c> drops the RELATIONSHIP, not the part: the slide master still
+    /// references every layout, so the package still holds all eleven afterwards (verified — and the
+    /// result validates clean under <c>OpenXmlValidator</c>, both before and after an insertion).
+    ///
+    /// Layouts are found by their <c>p:cSld/@name</c> rather than by part URI, because the name is
+    /// what makes a test read as the case it is testing. An unknown name throws rather than
+    /// silently selecting a different layout.
+    /// </summary>
+    public static byte[] SampleAttachedToLayout(string layoutName)
+    {
+        using var ms = Load(Sample());
+
+        using (var doc = PresentationDocument.Open(ms, true))
+        {
+            var presentationPart = doc.PresentationPart!;
+            var slidePart = presentationPart.SlideParts.Single();
+
+            var layouts = presentationPart.SlideMasterParts.SelectMany(m => m.SlideLayoutParts).ToList();
+            var target = layouts.FirstOrDefault(
+                l => l.SlideLayout?.CommonSlideData?.Name?.Value == layoutName)
+                ?? throw new InvalidOperationException(
+                    $"sample.pptx ships no layout named '{layoutName}'. Available: " +
+                    string.Join(", ", layouts.Select(
+                        l => l.SlideLayout?.CommonSlideData?.Name?.Value ?? "<unnamed>")));
+
+            slidePart.DeletePart(slidePart.SlideLayoutPart!);
+            slidePart.AddPart(target);
+
+            slidePart.Slide!.Save();
+            presentationPart.Presentation!.Save();
+        }
+
+        return ms.ToArray();
+    }
+
     /// <summary>Rewrites the sample deck's single text-box paragraph as the given runs.</summary>
     public static byte[] SampleWithRuns(params (string Text, bool Bold)[] runs) => Mutate(slide =>
     {

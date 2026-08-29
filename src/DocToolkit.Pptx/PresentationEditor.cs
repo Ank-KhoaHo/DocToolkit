@@ -861,13 +861,18 @@ public static class PresentationEditor
     /// master's first layout.
     ///
     /// The inserted slide's title and body boxes inherit the target layout's own placeholder
-    /// position when that layout has a placeholder of the matching role (same type, and for the
-    /// body, the same index) — so a hand-designed deck's own title/body geometry is honoured rather
-    /// than overridden. When the layout has no matching placeholder (an ordinary "Title Slide"
-    /// layout using <c>ctrTitle</c>/<c>subTitle</c>, for instance), the shape falls back to this
-    /// library's own fixed coordinates, rescaled to fit the target deck's canvas size — an
-    /// unconditional inheritance would leave that content schema-valid but invisible in a render,
-    /// rather than positioned by this library's own choice.
+    /// position only when that layout <b>positions that placeholder itself</b> — it has a
+    /// placeholder of the matching role (same type, and for the body, the same index) <i>and</i>
+    /// that placeholder carries its own position and size. A hand-designed deck's own title/body
+    /// geometry is then honoured rather than overridden.
+    ///
+    /// Otherwise the shape keeps this library's own fixed coordinates, rescaled to fit the target
+    /// deck's canvas size. That covers two distinct cases, and both are common: a layout with no
+    /// placeholder of that role at all (an ordinary "Title Slide" layout uses
+    /// <c>ctrTitle</c>/<c>subTitle</c>), and a layout that names the role but leaves its geometry to
+    /// the slide master (a stock "Title and Content" layout usually does). Inheriting in either case
+    /// would leave the content schema-valid but with no box to draw in — invisible in a render —
+    /// rather than merely positioned by this library's own choice.
     /// </summary>
     /// <param name="pptx">The presentation to insert into. It is not modified.</param>
     /// <param name="atIndex">
@@ -984,7 +989,7 @@ public static class PresentationEditor
                         var shapePlaceholder = shape.NonVisualShapeProperties
                             ?.ApplicationNonVisualDrawingProperties?.GetFirstChild<P.PlaceholderShape>();
                         if (shapePlaceholder is not null
-                            && LayoutHasMatchingPlaceholder(layoutPart, shapePlaceholder))
+                            && LayoutHasMatchingPositionedPlaceholder(layoutPart, shapePlaceholder))
                         {
                             shape.ShapeProperties?.Transform2D?.Remove();
                         }
@@ -1054,19 +1059,42 @@ public static class PresentationEditor
     /// <summary>
     /// Whether <paramref name="layoutPart"/>'s own shape tree has a placeholder with the same role
     /// as <paramref name="shapePlaceholder"/> — same <c>Type</c>, and for <see cref="P.PlaceholderValues.Body"/>,
-    /// the same <c>Index</c> too.
+    /// the same <c>Index</c> too — <b>which also carries its own position and size</b>. A role match
+    /// alone is not enough: only a positioned placeholder gives the inserted shape a box to inherit.
     /// </summary>
     /// <remarks>
+    /// <b>The geometry half is not a refinement, it is the load-bearing half.</b> Many real
+    /// PowerPoint layouts declare a placeholder's ROLE and leave its geometry to the slide master —
+    /// measured on the eleven stock layouts in this repo's own sample deck, "Title and Content",
+    /// "Two Content", "Title Only" and "Title and Vertical Text" all do, and "Title and Content" is
+    /// what PowerPoint gives a new body slide by default. Dropping the inserted shape's own
+    /// <c>a:xfrm</c> for one of those leaves it with no box from anywhere, because this repo's
+    /// render pipeline resolves slide → layout and not layout → master: measured, the text
+    /// disappeared from the render entirely. So an unpositioned match falls back to the shape's own
+    /// fixed geometry, which <c>ScaleToFitDeck</c> then rescales like any other unmatched case.
+    ///
     /// <b>Deliberately exact, not cross-type.</b> A layout whose title placeholder is
     /// <c>ctrTitle</c> rather than plain <c>title</c> — an ordinary "Title Slide" layout — does NOT
     /// match a <see cref="PptxDocumentWriter.BuildSlide"/>-built <c>title</c> shape. Measured: this
     /// repo's own render pipeline does not resolve that either, so treating them as compatible here
     /// would assert a guarantee nothing can verify.
+    ///
+    /// <b>Deliberately literal about the body's type, too.</b> ECMA-376 treats an untyped
+    /// <c>&lt;p:ph idx="1"/&gt;</c> as a body placeholder by default, and this only matches an
+    /// EXPLICIT <c>Type=Body</c> — so an untyped one never matches and always falls back. That is
+    /// the safe direction (fixed geometry that renders, rather than inherited geometry that might
+    /// not), and it is conservative rather than wrong.
     /// </remarks>
-    private static bool LayoutHasMatchingPlaceholder(
+    private static bool LayoutHasMatchingPositionedPlaceholder(
         SlideLayoutPart layoutPart, P.PlaceholderShape shapePlaceholder)
     {
-        foreach (var layoutShape in layoutPart.SlideLayout!.Descendants<P.Shape>())
+        // InsertSlides never read the layout's XML before this check existed. A null SlideLayout
+        // would therefore be a NEW way for it to fail, and the outer catch would turn the resulting
+        // NullReferenceException into an opaque DocumentConversionException. Degrade to the
+        // fixed-geometry fallback instead — which is exactly what this method returning false means.
+        if (layoutPart.SlideLayout is null) return false;
+
+        foreach (var layoutShape in layoutPart.SlideLayout.Descendants<P.Shape>())
         {
             var layoutPh = layoutShape.NonVisualShapeProperties
                 ?.ApplicationNonVisualDrawingProperties?.GetFirstChild<P.PlaceholderShape>();
@@ -1079,6 +1107,9 @@ public static class PresentationEditor
             {
                 continue;
             }
+
+            // The role matches, but the layout supplies no box of its own — nothing to inherit.
+            if (layoutShape.ShapeProperties?.Transform2D is null) continue;
 
             return true;
         }

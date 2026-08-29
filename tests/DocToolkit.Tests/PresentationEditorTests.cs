@@ -1068,4 +1068,91 @@ public class PresentationEditorTests
         var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
         Assert.Empty(xfrms); // both shapes matched, both inherit -- no explicit geometry left
     }
+
+    // ---------------------------------------------------------------------------------------
+    // The THIRD case: the layout names the role but positions nothing. A role match alone used
+    // to be enough to strip the inserted shape's own a:xfrm, and these two real stock layouts
+    // are the ones that then had nowhere to draw -- this render pipeline resolves slide ->
+    // layout, never layout -> master, so nothing downstream supplies the missing box.
+    //
+    // Measured through PptxToPdfConverter + PdfProbe against the pre-fix code, per layout:
+    //
+    //   "Title and Content"        1 a:xfrm kept, page 2 rendered "* Bullet A"  -- title GONE
+    //   "Title and Vertical Text"  0 a:xfrm kept, page 2 rendered EMPTY         -- both GONE
+    //
+    // and after the fix, 2 kept and "Inserted Title" + "Bullet A" on page 2 for both. The two
+    // cases differ and both are worth pinning: "Title and Content" (what PowerPoint gives a new
+    // body slide by default) has an UNTYPED idx=1 body placeholder, so its body already fell
+    // back on the type check and only the title exercises the geometry guard; "Title and
+    // Vertical Text" types both, so both do.
+    // ---------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Title and Content")]
+    [InlineData("Title and Vertical Text")]
+    public void InsertSlides_WhenTheTargetLayoutNamesTheRoleButPositionsNothing_StillRendersTheContent(
+        string layoutName)
+    {
+        var deck = PptxFixtures.SampleAttachedToLayout(layoutName);
+        Assert.Empty(PptxFixtures.Validate(deck)); // the re-pointed fixture is itself schema-valid
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        var pdf = PptxToPdfConverter.Convert(edited);
+        var text = PdfProbe.ExtractText(pdf);
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
+
+    [Theory]
+    [InlineData("Title and Content")]
+    [InlineData("Title and Vertical Text")]
+    public void InsertSlides_WhenTheTargetLayoutNamesTheRoleButPositionsNothing_KeepsTheFixedGeometry(
+        string layoutName)
+    {
+        // The structural twin of the render test above. It discriminates where the render test
+        // cannot: a render only says the text appeared, while this says WHICH box put it there.
+        var deck = PptxFixtures.SampleAttachedToLayout(layoutName);
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+
+        using var ms = new MemoryStream(edited);
+        using var doc = PresentationDocument.Open(ms, false);
+        var insertedSlide = doc.PresentationPart!.SlideParts
+            .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+
+        var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
+        Assert.Equal(2, xfrms.Count); // title AND body keep their own box -- nothing to inherit
+    }
+
+    [Fact]
+    public void InsertSlides_WhenARealStockLayoutPositionsItsPlaceholders_StillInheritsFromIt()
+    {
+        // The positive control for the geometry guard, and the reason it is not simply a way of
+        // switching the feature off: "Section Header" is a real PowerPoint-authored layout in the
+        // SAME package as the two above, with title/body idx=1 placeholders that DO carry their own
+        // a:xfrm. Inheritance still happens here -- 0 a:xfrm on the inserted slide -- and the
+        // content still renders. Without this, the two tests above would pass just as happily
+        // against a guard that never inherited from anything.
+        var deck = PptxFixtures.SampleAttachedToLayout("Section Header");
+
+        var edited = PresentationEditor.InsertSlides(
+            deck, 2, new[] { PptxSlide.Titled("Inserted Title", "Bullet A") });
+        Assert.Empty(PptxFixtures.Validate(edited));
+
+        using (var ms = new MemoryStream(edited))
+        using (var doc = PresentationDocument.Open(ms, false))
+        {
+            var insertedSlide = doc.PresentationPart!.SlideParts
+                .First(p => p.Slide!.Descendants<A.Text>().Any(t => t.Text == "Inserted Title"));
+            Assert.Empty(insertedSlide.Slide!.Descendants<A.Transform2D>());
+        }
+
+        var text = PdfProbe.ExtractText(PptxToPdfConverter.Convert(edited));
+        Assert.Contains("Inserted Title", text);
+        Assert.Contains("Bullet A", text);
+    }
 }
