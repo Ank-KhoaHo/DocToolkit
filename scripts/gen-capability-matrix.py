@@ -58,7 +58,18 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 # would silently describe a smaller library than ships - which is the exact drift this generated
 # page exists to prevent, arriving through a different door.
 APPROVED = sorted((REPO / "tests" / "DocToolkit.Tests" / "PublicApi").glob("DocToolkit*.approved.txt"))
-PAGE = REPO / "docfx" / "guides" / "capabilities.md"
+
+# (path, mode). "both" is the full page: the conversion grid AND the editing-operations table,
+# each editor's full method list. "conversions" is the grid alone - the compact, scannable half,
+# for a page that links to capabilities.md for the longer operations listing rather than repeating
+# it. README.md carries "conversions" for exactly that reason: the operations table is a dense,
+# comma-separated reference list, right for a guide and too long for a page meant to be read in one
+# screen.
+PAGES = [
+    (REPO / "docfx" / "guides" / "capabilities.md", "both"),
+    (REPO / "README.md", "conversions"),
+    (REPO / "src" / "DocToolkit" / "README.md", "conversions"),
+]
 
 BEGIN = "<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->"
 END = "<!-- END GENERATED -->"
@@ -137,7 +148,7 @@ def parse() -> tuple[list[tuple[str, str]], dict[str, list[str]]]:
     return conversions, editors
 
 
-def render(conversions: list[tuple[str, str]], editors: dict[str, list[str]]) -> str:
+def render_conversions(conversions: list[tuple[str, str]]) -> list[str]:
     formats = sorted({f for pair in conversions for f in pair})
     edges = set(conversions)
 
@@ -151,9 +162,12 @@ def render(conversions: list[tuple[str, str]], editors: dict[str, list[str]]) ->
 
     out += ["", "A **✅** is a converter that ships; **·** is a pair with no converter, not a "
                 "promise about one. Read a row as \"from this format, into these\".", ""]
+    return out
 
-    out += ["## Editing an existing document", "",
-            "| Format | Operations |", "|---|---|"]
+
+def render_editors(editors: dict[str, list[str]]) -> list[str]:
+    out = ["## Editing an existing document", "",
+           "| Format | Operations |", "|---|---|"]
     for editor, methods in sorted(editors.items(), key=lambda kv: EDITOR_FORMAT[kv[0]]):
         listed = ", ".join(f"`{m}`" for m in methods)
         out.append(f"| **{EDITOR_FORMAT[editor]}** (`{editor}`) | {listed} |")
@@ -161,6 +175,13 @@ def render(conversions: list[tuple[str, str]], editors: dict[str, list[str]]) ->
     out += ["", "Method names only. What each one does, and the traps in it, are in the guides — "
                 "this table exists to be complete and current, which prose has repeatedly failed "
                 "to be.", ""]
+    return out
+
+
+def render(conversions: list[tuple[str, str]], editors: dict[str, list[str]], mode: str) -> str:
+    out = render_conversions(conversions)
+    if mode == "both":
+        out += render_editors(editors)
     return "\n".join(out)
 
 
@@ -180,38 +201,45 @@ def main() -> int:
                  "the approved file's shape changed and this script is now blind. Fix the parser "
                  "rather than letting it report an empty table.")
 
-    body = render(conversions, editors)
-
-    if not PAGE.exists():
-        sys.exit(f"error: {PAGE.relative_to(REPO)} does not exist; create it with the "
-                 f"BEGIN/END markers first.")
-
-    text = PAGE.read_text(encoding="utf-8")
-    if BEGIN not in text or END not in text:
-        sys.exit(f"error: {PAGE.relative_to(REPO)} is missing the BEGIN/END GENERATED markers.")
-
-    head, rest = text.split(BEGIN, 1)
-    _, tail = rest.split(END, 1)
-    updated = f"{head}{BEGIN}\n\n{body}\n{END}{tail}"
-
     print(f"{len(conversions)} conversions, {len(editors)} editors, "
           f"{sum(len(v) for v in editors.values())} operations")
 
-    if updated == text:
-        print("capability matrix is up to date")
-        return 0
+    stale = []
+    for page, mode in PAGES:
+        body = render(conversions, editors, mode)
 
-    if check:
-        diff = difflib.unified_diff(
-            text.splitlines(keepends=True), updated.splitlines(keepends=True),
-            fromfile="committed", tofile="derived from the approved API")
-        sys.stdout.writelines(diff)
-        print("\n::error::The capability matrix no longer matches the approved public API. "
-              "Run `python scripts/gen-capability-matrix.py` and commit the result.")
+        if not page.exists():
+            sys.exit(f"error: {page.relative_to(REPO)} does not exist; create it with the "
+                     f"BEGIN/END markers first.")
+
+        text = page.read_text(encoding="utf-8")
+        if BEGIN not in text or END not in text:
+            sys.exit(f"error: {page.relative_to(REPO)} is missing the BEGIN/END GENERATED markers.")
+
+        head, rest = text.split(BEGIN, 1)
+        _, tail = rest.split(END, 1)
+        updated = f"{head}{BEGIN}\n\n{body}\n{END}{tail}"
+
+        if updated == text:
+            print(f"{page.relative_to(REPO)}: up to date")
+            continue
+
+        if check:
+            diff = difflib.unified_diff(
+                text.splitlines(keepends=True), updated.splitlines(keepends=True),
+                fromfile=f"committed {page.relative_to(REPO)}", tofile="derived from the approved API")
+            sys.stdout.writelines(diff)
+            stale.append(page)
+        else:
+            page.write_text(updated, encoding="utf-8", newline="\n")
+            print(f"rewrote {page.relative_to(REPO)}")
+
+    if stale:
+        names = ", ".join(p.relative_to(REPO).as_posix() for p in stale)
+        print(f"\n::error::The capability matrix no longer matches the approved public API in: "
+              f"{names}. Run `python scripts/gen-capability-matrix.py` and commit the result.")
         return 1
 
-    PAGE.write_text(updated, encoding="utf-8", newline="\n")
-    print(f"rewrote {PAGE.relative_to(REPO)}")
     return 0
 
 

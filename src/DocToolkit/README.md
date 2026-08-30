@@ -17,10 +17,27 @@ Generating Word, Excel, PowerPoint or PDF files from .NET usually means one of t
   a few hundred MB and a CVE feed for the privilege;
 - or discovering the package downloads fonts or images at runtime, on a machine with no route out.
 
-**DocToolkit exists because all four are avoidable.** **HTML → DOCX/PDF**, **Markdown →
-DOCX/PDF**, **DOCX → HTML/Markdown/PDF**, **XLSX → CSV/HTML/PDF**, **PPTX → PDF**, legacy Word
-97-2003 **DOC → DOCX**, plus PDF text extraction, open/edit for DOCX, XLSX and PPTX, and password
-protection for all four — from .NET, with:
+**DocToolkit exists because all four are avoidable.**
+
+<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
+
+| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
+|---|---|---|---|---|---|---|---|---|
+| **CSV** | — | · | · | · | · | · | · | · |
+| **DOC** | · | — | **✅** | · | · | · | · | · |
+| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
+| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
+| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
+| **PDF** | · | · | · | · | · | — | · | · |
+| **PPTX** | · | · | · | · | · | **✅** | — | · |
+| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
+
+A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
+
+<!-- END GENERATED -->
+
+Plus PDF text extraction, open/edit for DOCX, XLSX and PPTX, and password protection for all
+four — from .NET, with:
 
 | | |
 |---|---|

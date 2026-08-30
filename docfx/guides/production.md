@@ -138,6 +138,35 @@ Without telemetry, nothing tells you an image never arrived, or why.
 If images are silently missing from your output, `host_not_allowed` and `blocked_address` are the
 two counters that tell you why.
 
+## Verifying a release
+
+Every published `.nupkg` carries a signed **build provenance attestation** naming the workflow,
+commit and runner that produced it — proof it came from this repository's CI, not a laptop:
+
+```bash
+gh attestation verify Ank.DocToolkit.<version>.nupkg --repo Ank-KhoaHo/DocToolkit
+```
+
+The packages are not code-signed — that needs a certificate this project does not hold —
+attestation answers "did this come from that source" without one.
+
+Each release also attaches a **CycloneDX SBOM** per package to its
+[GitHub Release](https://github.com/Ank-KhoaHo/DocToolkit/releases), attested the same way:
+
+```bash
+gh attestation verify DocToolkit.cdx.json --repo Ank-KhoaHo/DocToolkit
+```
+
+**The SBOM's content is reproducible; the file is not** — generation runs with
+`--no-serial-number`, so only `metadata.timestamp` varies between two runs over an identical
+graph. Diff a published SBOM against a fresh one:
+
+```bash
+dotnet tool restore
+dotnet dotnet-CycloneDX src/DocToolkit/DocToolkit.csproj -o . -fn regenerated.cdx.json --json --no-serial-number --exclude-dev
+diff <(jq 'del(.metadata.timestamp)' DocToolkit.cdx.json) <(jq 'del(.metadata.timestamp)' regenerated.cdx.json)
+```
+
 ## What this library will not do
 
 Worth knowing before you design around it:
