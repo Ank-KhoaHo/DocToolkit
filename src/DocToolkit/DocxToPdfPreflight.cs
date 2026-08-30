@@ -39,6 +39,18 @@ namespace DocToolkit;
 /// construct that survives at body level loses its text inside a cell, or wrapping a cell or a row.
 /// This class excluded content controls outright until 2026-08-27, on the body-level evidence
 /// alone — correct for what had been measured, and incomplete.
+///
+/// <b>A footnote is reported only when its BODY reference is missing the run style Word itself
+/// always applies.</b> Neither the footnote's own definition, nor anything about the
+/// separator/continuation-separator boilerplate a <c>FootnotesPart</c> always carries, has any
+/// bearing on whether its text reaches the PDF — measured, not assumed, across four fixture shapes.
+/// A footnote authored by Word, or by <see cref="DocxEditor.AddFootnote(byte[], string, string)"/>,
+/// always carries that style on its reference and is never reported; only a reference built by hand
+/// or by another tool without it is. This is why the count reads
+/// <c>body.Descendants&lt;FootnoteReference&gt;()</c> rather than the footnotes part: a footnote
+/// referenced only from a header or footer, or one defined but never referenced at all, is
+/// therefore not counted either — consistent with this class's own "detection is limited to the
+/// main document body" scope above, not a separate carve-out.
 /// </remarks>
 public static class DocxToPdfPreflight
 {
@@ -111,7 +123,12 @@ public static class DocxToPdfPreflight
             // output (same). No id filter is needed here, unlike the old definition-scanning
             // version: the separator/continuation-separator entries a FootnotesPart always
             // carries are never themselves referenced from the body, so they can never appear in
-            // this scan regardless of id.
+            // this scan regardless of id. Two consequences of scanning references rather than
+            // definitions, both deliberate rather than accidental - see this class's own remarks:
+            // a footnote defined but never referenced is not counted (nothing to lose - it never
+            // rendered), and a footnote referenced only from a header or footer is not counted
+            // either (consistent with "detection is limited to the main document body", not a new
+            // carve-out). Do not "fix" this back to a per-definition count.
             int footnotes = body is null ? 0 : body.Descendants<FootnoteReference>()
                 .Count(r => (r.Parent as Run)?.RunProperties?.RunStyle?.Val?.Value != "FootnoteReference");
 
