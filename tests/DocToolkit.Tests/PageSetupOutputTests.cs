@@ -524,10 +524,7 @@ public class PageSetupOutputTests
             .WithFooter(DocxHeader.Of(HeaderAlignment.Right, DocxHeaderSegment.PageNumber))
             .WithFirstPage(DocxHeader.Text("first"), DocxHeader.Text("first foot"));
 
-        using var ms = new MemoryStream(DocxEditor.Create(Blocks, page));
-        using var doc = WordprocessingDocument.Open(ms, false);
-
-        var errors = new DocumentFormat.OpenXml.Validation.OpenXmlValidator().Validate(doc).ToList();
+        var errors = DocxFixtures.Validate(DocxEditor.Create(Blocks, page));
 
         Assert.True(errors.Count == 0,
             "Schema errors: " + string.Join(" | ", errors.Select(e => e.Description)));
