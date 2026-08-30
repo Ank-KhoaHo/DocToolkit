@@ -775,6 +775,26 @@ public class DocxEditorFootnoteEndnoteTocTests
     }
 
     [Fact]
+    public void AddTableOfContents_PreservesABookmarkStraddlingThePlaceholderParagraph()
+    {
+        var docx = DocxFixtures.Build(
+            DocxFixtures.P(new BookmarkStart { Id = "0", Name = "MyBookmark" }, DocxFixtures.R("{{toc}}")),
+            DocxFixtures.P(DocxFixtures.R("Chapter 1"), new BookmarkEnd { Id = "0" }));
+
+        // Positive control: the bookmark really spans both paragraphs before the edit.
+        Assert.Empty(DocxFixtures.Validate(docx));
+        Assert.Equal(1, DocxFixtures.ReadBody(docx, b => b.Descendants<BookmarkStart>().Count()));
+        Assert.Equal(1, DocxFixtures.ReadBody(docx, b => b.Descendants<BookmarkEnd>().Count()));
+
+        var result = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        Assert.Empty(DocxFixtures.Validate(result));
+        Assert.Equal(1, DocxFixtures.ReadBody(result, b => b.Descendants<BookmarkStart>().Count()));
+        Assert.Equal("MyBookmark", DocxFixtures.ReadBody(result, b => b.Descendants<BookmarkStart>().Single().Name));
+        Assert.Equal(1, DocxFixtures.ReadBody(result, b => b.Descendants<BookmarkEnd>().Count()));
+    }
+
+    [Fact]
     public void AddTableOfContents_DoesNotMatchAPlaceholderThatLivesOnlyInATextBox()
     {
         // Same discipline as "DocxEditor must not reach into nested paragraphs" and "TableRowFinder
