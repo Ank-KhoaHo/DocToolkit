@@ -15,9 +15,9 @@ byte[] pdf = await HtmlToPdfConverter.ConvertAsync(Html);
 byte[] rendered = DocxToPdfConverter.Convert(docx);
 #endregion
 
-Console.WriteLine($"\nHTML -> DOCX : {docx.Length,7:N0} bytes");
-Console.WriteLine($"HTML -> PDF  : {pdf.Length,7:N0} bytes  (pivots through DOCX internally)");
-Console.WriteLine($"DOCX -> PDF  : {rendered.Length,7:N0} bytes  (from the DOCX above)");
+Console.WriteLine($"\nHTML -> DOCX : {docx.Length:N0} bytes");
+Console.WriteLine($"HTML -> PDF  : {pdf.Length:N0} bytes  (pivots through DOCX internally)");
+Console.WriteLine($"DOCX -> PDF  : {rendered.Length:N0} bytes  (from the DOCX above)");
 
 // --- Getting the bytes out of the process ---------------------------------------------------
 // The conversions above hand back a byte[], which is deliberate - this library does not decide
