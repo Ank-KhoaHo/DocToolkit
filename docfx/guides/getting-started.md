@@ -100,8 +100,12 @@ document never has to be resident in memory twice. What they do and do not guara
 [Running in production](production.md#streaming).
 
 Producers — anything that creates a document rather than reading one — take an optional
-@DocToolkit.PageSetup. Left out, they lay out on A4. See
-[Page size and margins](html-to-word-and-pdf.md#page-size-and-margins).
+@DocToolkit.PageSetup. Left out, they lay out on A4. `PageSetup` is immutable, so `Landscape()`
+and `WithMargins()` return a new value instead of changing the shared default:
+
+[!code-csharp[](../../samples/HtmlConversion/Program.cs#page-setup)]
+
+More sizes, margins and orientations: [Page size and margins](html-to-word-and-pdf.md#page-size-and-margins).
 
 ## When something goes wrong
 
