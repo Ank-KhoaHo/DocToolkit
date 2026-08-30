@@ -171,8 +171,11 @@ diff <(jq 'del(.metadata.timestamp)' DocToolkit.cdx.json) <(jq 'del(.metadata.ti
 
 Worth knowing before you design around it:
 
-- **PDF fidelity is bounded, and unsupported features are dropped silently.** Charts, conditional
-  formatting and some shape effects are omitted with no warning channel. The PDF is valid.
+- **PDF fidelity is bounded, and unsupported features are dropped silently.** Conditional
+  formatting and some shape effects are omitted with no warning channel. The PDF is valid. A chart
+  is the one exception, when it was created through `WorkbookEditor.AddChart` or
+  `PresentationEditor.AddChart`: it renders correctly in XLSX → PDF and PPTX → PDF, measured
+  directly.
 - **HTML → PDF goes through Word**, so CSS layout — flexbox, grid, floats, absolute positioning —
   does not survive. Text, headings, tables, lists, inline styling and images do.
 - **DOCX → HTML returns a full document**, not a fragment. Extract the body with a parser.
