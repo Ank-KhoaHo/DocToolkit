@@ -59,6 +59,32 @@ Two pre-2007 binary formats are also accepted, and one deliberately is not:
 seconds and a 2.3 MB one did not finish in ten minutes, while the supported `.xlsx` path renders
 20,000 rows in under four. See the package README for the full numbers.
 
+## Measured on documents nobody here wrote
+
+Every fixture in this repository's own test suite was produced by the code under test, so it can
+only prove the library agrees with itself. These numbers come from
+**[govdocs1](https://digitalcorpora.org/corpora/file-corpora/files/)**, a public crawl of real
+`.gov` files, run monthly by
+[`corpus.yml`](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/.github/workflows/corpus.yml).
+Measured on chunk
+`000`, 2026-08-20:
+
+| conversion | succeeded | of |
+|---|---|---|
+| HTML → DOCX | **97.8%** | 181 real pages |
+| legacy `.doc` → DOCX | **89.2%** | 111 real documents |
+| HTML → PDF | **88.4%** | 181 real pages |
+| legacy `.ppt` → PDF | **60.2%** | 88 real decks |
+
+Reading PDFs is separate and stronger: across **200 real PDFs, 4,588 pages, a dozen producers**,
+every operation succeeded on every file it did not refuse — the only refusals were 11
+permission-restricted documents, reported as exactly that.
+
+**Published because the numbers are unflattering and still useful** — a rate below 100% is what
+real input looks like. **Not measured**: PPTX → PDF and DOCX → PDF have no corpus rate, because
+chunk `000` predates both formats; chaining `.doc` → DOCX → PDF to manufacture one would measure
+the chain, not the converter.
+
 ## Where the detail is
 
 - [HTML to Word and PDF](html-to-word-and-pdf.md) — page setup, remote images, the network guard
