@@ -1589,10 +1589,10 @@ public static class DocxMailMerge
     /// the design.
     ///
     /// <paramref name="body"/> returns <c>refusalMessage: null</c> to mean "proceed" — in which
-    /// case it must itself have called <c><paramref name="body"/>'s own <c>result</c>.Save(...)</c> equivalent, i.e. <c>document.Save(result)</c> followed by
-    /// resetting <c>result.Position</c>, before returning — or a non-null string to mean "refuse
-    /// before merging anything," in which case it must NOT have written to <c>result</c>. This method never touches <c>result</c>'s content, only its
-    /// lifetime.
+    /// case it must itself have saved the document into <c>result</c> (<c>document.Save(result)</c>
+    /// followed by resetting <c>result.Position</c>) before returning — or a non-null string to
+    /// mean "refuse before merging anything," in which case it must NOT have written to
+    /// <c>result</c>. This method never touches <c>result</c>'s content, only its lifetime.
     /// </remarks>
     private static MemoryStream MergeBlockCore(
         Stream source, string failureMessage,
@@ -1642,10 +1642,9 @@ public static class DocxMailMerge
     /// <see langword="false"/> for every missing name before calling <c>Execute</c>, so
     /// <c>Execute</c> never sees an unsupplied key either way.
     ///
-    /// <b>The strict refusal happens INSIDE the try, using a captured flag rather than an early
-    /// throw</b> — matching <see cref="MergeCore"/>'s own reasoning: throwing the specific
-    /// <see cref="DocumentConversionException"/> from inside an unfiltered
-    /// <c>catch (Exception ex)</c> below it would re-wrap it in the generic failure message.
+    /// <b>The strict-refusal control flow itself lives in <see cref="MergeBlockCore"/></b>, shared
+    /// with <see cref="MergeRepeatingCore"/> and <see cref="MergeRepeatingRegionsCore"/> — see its
+    /// own remarks for why the refusal is decided inside the lambda below but thrown outside it.
     /// </remarks>
     private static MemoryStream MergeConditionalCore(
         Stream source, IReadOnlyDictionary<string, bool> conditions, bool strict,
@@ -1685,6 +1684,11 @@ public static class DocxMailMerge
     /// and <see cref="MergeRepeatingCore"/>'s <c>IEnumerable&lt;IReadOnlyDictionary&lt;string,
     /// string&gt;&gt;</c> regions pad with exactly the same copy-then-fill shape, differing only in
     /// the value type and what "missing" defaults to.
+    ///
+    /// <paramref name="defaultValue"/> is evaluated once and shared by reference across every
+    /// padded key — harmless for the current callers (a cached empty array, or a value type), but
+    /// a future caller padding with a mutable reference type would have every missing key alias
+    /// the same instance.
     /// </summary>
     private static Dictionary<string, TValue> CopyWithDefault<TValue>(
         IReadOnlyDictionary<string, TValue> values, IReadOnlyList<string> missingNames, TValue defaultValue)
@@ -1699,8 +1703,8 @@ public static class DocxMailMerge
 
     /// <summary>
     /// The one implementation behind all four <c>MergeRepeating*</c> overloads. Same shape as
-    /// <see cref="MergeConditionalCore"/> — see its remarks for why the preflight and the
-    /// try/catch are structured the way they are.
+    /// <see cref="MergeConditionalCore"/> — see <see cref="MergeBlockCore"/>'s remarks for why the
+    /// refusal control flow is structured the way it is.
     /// </summary>
     private static MemoryStream MergeRepeatingCore(
         Stream source, IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
@@ -1761,10 +1765,10 @@ public static class DocxMailMerge
 
     /// <summary>
     /// The one implementation behind all four <c>MergeRepeatingRegions*</c> overloads. Same shape
-    /// as <see cref="MergeRepeatingCore"/> — see <see cref="MergeConditionalCore"/>'s remarks for
-    /// why the preflight and the try/catch are structured the way they are — except for the two
-    /// things nesting genuinely changes, both measured against OfficeIMO.Word 3.2.6 before this
-    /// method was written.
+    /// as <see cref="MergeRepeatingCore"/> — see <see cref="MergeBlockCore"/>'s remarks for why the
+    /// refusal control flow is structured the way it is — except for the two things nesting
+    /// genuinely changes, both measured against OfficeIMO.Word 3.2.6 before this method was
+    /// written.
     /// </summary>
     /// <remarks>
     /// <b>The supplied-name comparison walks every nesting level</b>, via
