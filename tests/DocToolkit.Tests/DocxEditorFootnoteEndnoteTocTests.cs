@@ -792,6 +792,45 @@ public class DocxEditorFootnoteEndnoteTocTests
         Assert.Equal(1, DocxFixtures.ReadBody(result, b => b.Descendants<BookmarkStart>().Count()));
         Assert.Equal("MyBookmark", DocxFixtures.ReadBody(result, b => b.Descendants<BookmarkStart>().Single().Name));
         Assert.Equal(1, DocxFixtures.ReadBody(result, b => b.Descendants<BookmarkEnd>().Count()));
+
+        var bodyChildren = DocxFixtures.ReadBody(result, b => b.ChildElements.ToList());
+        var startIndex = bodyChildren.FindIndex(e => e is BookmarkStart);
+        var sdtIndex = bodyChildren.FindIndex(e => e is SdtBlock);
+        Assert.True(startIndex >= 0 && sdtIndex >= 0 && startIndex < sdtIndex,
+            $"expected the re-parented BookmarkStart (index {startIndex}) to precede the inserted " +
+            $"SdtBlock (index {sdtIndex})");
+    }
+
+    [Fact]
+    public void AddTableOfContents_ASelfContainedBookmarkWrapsTheInsertedContents_RatherThanCollapsing()
+    {
+        var docx = DocxFixtures.Build(
+            DocxFixtures.P(
+                new BookmarkStart { Id = "0", Name = "MyBookmark" },
+                DocxFixtures.R("{{toc}}"),
+                new BookmarkEnd { Id = "0" }));
+
+        // Positive control: the bookmark really is fully contained in the placeholder paragraph
+        // before the edit, not already spanning something else.
+        Assert.Empty(DocxFixtures.Validate(docx));
+        Assert.Equal(1, DocxFixtures.ReadBody(docx, b => b.Descendants<BookmarkStart>().Count()));
+        Assert.Equal(1, DocxFixtures.ReadBody(docx, b => b.Descendants<BookmarkEnd>().Count()));
+
+        var result = DocxEditor.AddTableOfContents(docx, "{{toc}}");
+
+        Assert.Empty(DocxFixtures.Validate(result));
+
+        // "wraps" rather than "was preserved somewhere" -- a bookmark that collapsed to zero
+        // length would still pass a bare Contains/Count check, which is exactly the gap this test
+        // closes. Only document ORDER proves the bookmark spans the inserted table of contents.
+        var bodyChildren = DocxFixtures.ReadBody(result, b => b.ChildElements.ToList());
+        var startIndex = bodyChildren.FindIndex(e => e is BookmarkStart);
+        var sdtIndex = bodyChildren.FindIndex(e => e is SdtBlock);
+        var endIndex = bodyChildren.FindIndex(e => e is BookmarkEnd);
+        Assert.True(startIndex >= 0 && sdtIndex >= 0 && endIndex >= 0
+            && startIndex < sdtIndex && sdtIndex < endIndex,
+            $"expected BookmarkStart (index {startIndex}) < SdtBlock (index {sdtIndex}) < " +
+            $"BookmarkEnd (index {endIndex})");
     }
 
     [Fact]
