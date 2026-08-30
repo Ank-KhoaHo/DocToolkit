@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.44.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.44.0...v0.44.1) (2026-08-30)
+
+
+### Fixed
+
+* **docs:** point the top README's Guides links at getting-started.html ([#437](https://github.com/Ank-KhoaHo/DocToolkit/issues/437)) ([78e7a63](https://github.com/Ank-KhoaHo/DocToolkit/commit/78e7a6385e0199d0b0e87614e744ef9b18e1b1bc))
+
 ## [0.44.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.43.0...v0.44.0) (2026-08-30)
 
 
