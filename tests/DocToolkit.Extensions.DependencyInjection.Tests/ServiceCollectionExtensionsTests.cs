@@ -120,13 +120,21 @@ public class ServiceCollectionExtensionsTests
         // GetAssemblies(). This test's own assembly happens to touch WorkbookEditor, PptxSlide
         // and others in its OTHER [Fact] methods, which was masking the gap this fixes - but
         // relying on some unrelated test having already run is exactly the "has to be remembered"
-        // failure mode the class doc comment already names, one level down. So every assembly
-        // that could hold a capability class is force-loaded here, explicitly, by name -
-        // independent of what any other test in this file happens to touch or what order tests
-        // run in.
-        foreach (var suffix in new[] { "", ".Docx", ".Pptx", ".Xlsx", ".Pdf", ".Html", ".Primitives" })
+        // failure mode the class doc comment already names, one level down.
+        //
+        // So every assembly that could hold a capability class is force-loaded here, explicitly -
+        // derived from the OUTPUT DIRECTORY rather than a hand-written suffix list, which would
+        // only be the same hardcoded-list failure mode one level further down: a future
+        // DocToolkit.Csv (backlog A72) would silently stay unscanned until something else forced
+        // it to load, exactly how PresentationEditor's own gap survived unnoticed. Every
+        // DocToolkit*.dll actually shipped next to the test binary is the real, ground-truth
+        // list - nothing else can drift from what the package contains, because it IS what the
+        // package contains.
+        foreach (var dll in Directory.GetFiles(AppContext.BaseDirectory, "DocToolkit*.dll"))
         {
-            Assembly.Load($"DocToolkit{suffix}");
+            var name = AssemblyName.GetAssemblyName(dll);
+            if (name.Name is { } n && !n.StartsWith("DocToolkit.Extensions", StringComparison.Ordinal))
+                Assembly.Load(name);
         }
 
         var coreAssemblies = AppDomain.CurrentDomain.GetAssemblies()

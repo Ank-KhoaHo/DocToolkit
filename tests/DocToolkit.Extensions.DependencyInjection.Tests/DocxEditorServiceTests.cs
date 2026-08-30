@@ -320,6 +320,135 @@ public class DocxEditorServiceTests
             () => sut.ExtractTextAsync(source, cts.Token));
     }
 
+    // ---------------------------------------------------------------------------------------
+    // AddFootnote/AddEndnote/AddTableOfContents, mirrored from core 0.43.0 (A81-DI). The
+    // footnote/endnote pair is the highest-risk one to mirror by hand - both take an identical
+    // (byte[], string, string) shape, so a service method calling the WRONG static method
+    // compiles cleanly and a wrapper-vs-wrapper comparison alone would not catch it. Each test
+    // below reads back the footnote/endnote PART directly and asserts on a token unique to that
+    // call, so a footnote/endnote swap fails here even though nothing else in this file would
+    // notice.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AddFootnote_MatchesTheStaticMethodAndAddsAFootnoteNotAnEndnote()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("See{{note}}here.")]);
+
+        var fromWrapper = sut.AddFootnote(docx, "{{note}}", "FOOTNOTE_TOKEN");
+
+        Assert.Equal(
+            DocxEditor.ExtractText(DocxEditor.AddFootnote(docx, "{{note}}", "FOOTNOTE_TOKEN")),
+            DocxEditor.ExtractText(fromWrapper));
+
+        using var ms = new MemoryStream(fromWrapper);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.NotNull(doc.MainDocumentPart!.FootnotesPart);
+        Assert.Null(doc.MainDocumentPart.EndnotesPart);
+        Assert.Contains("FOOTNOTE_TOKEN", doc.MainDocumentPart.FootnotesPart!.Footnotes!.InnerText);
+    }
+
+    [Fact]
+    public async Task AddFootnoteAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("See{{note}}here.")]);
+
+        using var source = new MemoryStream(docx);
+        using var destination = new MemoryStream();
+        await sut.AddFootnoteAsync(source, "{{note}}", "FOOTNOTE_TOKEN", destination);
+
+        using var ms = new MemoryStream(destination.ToArray());
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.NotNull(doc.MainDocumentPart!.FootnotesPart);
+        Assert.Contains("FOOTNOTE_TOKEN", doc.MainDocumentPart.FootnotesPart!.Footnotes!.InnerText);
+    }
+
+    [Fact]
+    public void AddEndnote_MatchesTheStaticMethodAndAddsAnEndnoteNotAFootnote()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("See{{note}}here.")]);
+
+        var fromWrapper = sut.AddEndnote(docx, "{{note}}", "ENDNOTE_TOKEN");
+
+        Assert.Equal(
+            DocxEditor.ExtractText(DocxEditor.AddEndnote(docx, "{{note}}", "ENDNOTE_TOKEN")),
+            DocxEditor.ExtractText(fromWrapper));
+
+        using var ms = new MemoryStream(fromWrapper);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.NotNull(doc.MainDocumentPart!.EndnotesPart);
+        Assert.Null(doc.MainDocumentPart.FootnotesPart);
+        Assert.Contains("ENDNOTE_TOKEN", doc.MainDocumentPart.EndnotesPart!.Endnotes!.InnerText);
+    }
+
+    [Fact]
+    public async Task AddEndnoteAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("See{{note}}here.")]);
+
+        using var source = new MemoryStream(docx);
+        using var destination = new MemoryStream();
+        await sut.AddEndnoteAsync(source, "{{note}}", "ENDNOTE_TOKEN", destination);
+
+        using var ms = new MemoryStream(destination.ToArray());
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.NotNull(doc.MainDocumentPart!.EndnotesPart);
+        Assert.Contains("ENDNOTE_TOKEN", doc.MainDocumentPart.EndnotesPart!.Endnotes!.InnerText);
+    }
+
+    [Fact]
+    public void AddTableOfContents_MatchesTheStaticMethodAndThreadsTheLevels()
+    {
+        using var word = OfficeIMO.Word.WordDocument.Create();
+        word.AddParagraph("{{toc}}");
+        word.AddParagraph("Top").Style = OfficeIMO.Word.WordParagraphStyles.Heading1;
+        word.AddParagraph("Deep").Style = OfficeIMO.Word.WordParagraphStyles.Heading3;
+        using var built = new MemoryStream();
+        word.Save(built);
+        var docx = built.ToArray();
+
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+
+        // minLevel/maxLevel both pinned to 1: a wrapper that dropped or swapped either default
+        // parameter would still compile and still produce A table of contents field, just with
+        // the wrong instruction text - which this reads directly rather than inferring.
+        var fromWrapper = sut.AddTableOfContents(docx, "{{toc}}", minLevel: 1, maxLevel: 1);
+
+        using var ms = new MemoryStream(fromWrapper);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var instr = doc.MainDocumentPart!.Document!.Body!.Descendants<SimpleField>().Single()
+            .Instruction!.Value!;
+        Assert.Contains("\"1-1\"", instr);
+    }
+
+    [Fact]
+    public async Task AddTableOfContentsAsync_MatchesTheStaticMethod()
+    {
+        using var word = OfficeIMO.Word.WordDocument.Create();
+        word.AddParagraph("{{toc}}");
+        word.AddParagraph("Overview").Style = OfficeIMO.Word.WordParagraphStyles.Heading1;
+        using var built = new MemoryStream();
+        word.Save(built);
+        var docx = built.ToArray();
+
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+
+        using var source = new MemoryStream(docx);
+        using var destination = new MemoryStream();
+        await sut.AddTableOfContentsAsync(source, "{{toc}}", destination);
+
+        var written = destination.ToArray();
+        Assert.DoesNotContain("{{toc}}", DocxEditor.ExtractText(written));
+
+        using var ms = new MemoryStream(written);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        Assert.Single(doc.MainDocumentPart!.Document!.Body!.Descendants<SimpleField>());
+    }
+
     private static byte[] DocxWithHeaderAndFooter(string bodyText, string headerText, string footerText)
     {
         using var ms = new MemoryStream();
