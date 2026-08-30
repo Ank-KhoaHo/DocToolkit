@@ -191,8 +191,8 @@ structurally different shape from the one Excel and PowerPoint share, and forcin
 model would under- or over-serve one side. Word charts may get their own API in a future version.
 
 Unlike `AddSmartArt` above, this one **does** reach the render: `PptxToPdfConverter` and
-`XlsxToPdfConverter` both carry the chart through, title and series data included — see *Rendering
-either one to PDF* below for what is measured and what is not.
+`XlsxToPdfConverter` both carry the chart through, title and category labels included — see
+*Rendering either one to PDF* below for what is measured and what is not.
 
 ## Rendering either one to PDF
 
@@ -211,7 +211,7 @@ The same fidelity limit applies as everywhere else: features the rendering engin
 — conditional formatting, some shape effects — are **dropped silently**, with no warning channel on
 the public API. **A chart is not one of those drops, when it was added by this library.** A chart
 created with `WorkbookEditor.AddChart` or `PresentationEditor.AddChart` (see *Charts* above) renders
-correctly here, title and series data included, measured directly rather than assumed. A chart
+correctly here, title and category labels included, measured directly rather than assumed. A chart
 authored some other way — directly in Excel or PowerPoint, or through `OfficeIMO` — and merely
 present in the source file is a different, unmeasured case; if that is your situation, render it to
 an image yourself and place that instead.

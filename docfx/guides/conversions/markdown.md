@@ -95,9 +95,11 @@ nothing was lost *that the converter knows about* — not that nothing was lost.
 > [!IMPORTANT]
 > **The PDF renderers have no report to give.** `DocxToPdfConverter`, `HtmlToPdfConverter`,
 > `XlsxToPdfConverter` and `PptxToPdfConverter` offer no `ConvertWithReport`, and that absence is
-> deliberate. They drop charts, conditional formatting and some shape effects **silently**, and
-> nothing downstream computes what was dropped — so a `ConvertWithReport` there would return an
-> empty list on every call, which is a documented lie rather than a feature.
+> deliberate. They drop conditional formatting and some shape effects **silently** — a chart is the
+> one exception, when it was created through this library's own `AddChart` methods: it renders
+> correctly in XLSX → PDF and PPTX → PDF, measured directly — and nothing downstream computes what
+> was dropped otherwise, so a `ConvertWithReport` there would return an empty list on every call,
+> which is a documented lie rather than a feature.
 
 ## Where to go next
 

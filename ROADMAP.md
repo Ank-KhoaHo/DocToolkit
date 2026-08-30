@@ -43,8 +43,11 @@ Roughly in order of how often the gap has actually been hit. None is scheduled.
   every call and this package was discarding it.
 
   The other half is genuinely absent and cannot be done the same way: **the PDF renderers produce
-  no report to surface.** Features they cannot represent — charts, conditional formatting, some
-  shape effects — are still dropped silently, and the limitation is documented instead.
+  no report to surface.** Features they cannot represent — conditional formatting, some shape
+  effects — are still dropped silently, and the limitation is documented instead. **A chart is the
+  one exception**, when it was created through `WorkbookEditor.AddChart` or
+  `PresentationEditor.AddChart`: it renders correctly in XLSX → PDF and PPTX → PDF, measured
+  directly.
 
   **Two of those silent drops are now measured rather than assumed**, and both lose content rather
   than styling: **an unstyled footnote reference loses its text** — the renderer keys on the
