@@ -8,10 +8,18 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.svg)](https://www.nuget.org/packages/Ank.DocToolkit/)
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 
-**A C# library to convert HTML to PDF without a headless browser** — plus Markdown → DOCX/PDF,
-**DOCX → HTML/Markdown/PDF**, **XLSX → CSV/HTML/PDF**, **PPTX → PDF**, legacy **.doc**, PDF text, and open/edit/**password-protect**
-for **DOCX, XLSX and PPTX**. **Pure managed** — no native binaries, no browser, no LibreOffice, no Office
-interop; runs on Linux, macOS, Windows and arm64, and makes **no network calls at runtime**.
+**Convert HTML to PDF in C# — without a headless browser.** Pure managed code: no native
+binaries, no browser, no LibreOffice, no Office interop. Runs on Linux, macOS, Windows and arm64,
+and makes **no network calls at runtime**.
+
+- **HTML** → DOCX/PDF
+- **Markdown** → DOCX/PDF
+- **DOCX** → HTML/Markdown/PDF
+- **XLSX** → CSV/HTML/PDF
+- **PPTX** → PDF
+- Legacy **.doc** → DOCX
+
+Plus open, edit and **password-protect** DOCX, XLSX and PPTX, and read PDF text.
 
 ```bash
 dotnet add package Ank.DocToolkit
@@ -33,13 +41,72 @@ byte[] locked = PdfEditor.Protect(pdf, new PdfProtection { UserPassword = "s3cre
 
 Targets `net8.0` and `net10.0`. MIT licensed.
 
-📖 [Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html) ·
+📖 [Guides](https://ank-khoaho.github.io/DocToolkit/guides/) ·
 🔎 [API reference](https://ank-khoaho.github.io/DocToolkit/) · 🗺️ [Roadmap](ROADMAP.md) · 📦
 [package README](src/DocToolkit/README.md) · 📝 [CHANGELOG](CHANGELOG.md)
 
 > **Contributing?** Branch from `main` and open a pull request back into it — `main` itself cannot
 > be pushed directly. See [CONTRIBUTING.md](CONTRIBUTING.md) for the build, the commit-message
 > rules, and the four constraints that will get a pull request rejected.
+
+## Measured against the alternatives
+
+Most .NET document stacks fail one of three things: a licence with a revenue threshold, a native
+binary that breaks on Linux, or a claim nobody re-checked. This package is built to fail none of
+them, and the numbers below are how that gets verified rather than asserted.
+
+```mermaid
+xychart-beta
+    title "Native .so/.dylib payload in a plain build (MB)"
+    x-axis [Ank.DocToolkit, EPPlus, QuestPDF, NPOI, ShapeCrawler]
+    y-axis "MB in build output" 0 --> 700
+    bar [0, 1, 83, 416, 664]
+```
+
+| package | native `.so`/`.dylib` in build output | `runtimes/` | licence in NuGet metadata |
+|---|---|---|---|
+| **Ank.DocToolkit** | **0** | **0 MB** | **`MIT`**, as an SPDX expression |
+| EPPlus | 0 | 1 MB | ships `license.md` — read it |
+| QuestPDF | 10 | 83 MB | ships `LICENSE.md` — read it |
+| NPOI | 12 | 416 MB | ships `OSMFEULA.txt` — read it |
+| ShapeCrawler | 19 | 664 MB | none declared |
+
+Every number was measured on 2026-08-09 by adding the package to an empty `net8.0` console app and
+building it. **Reproduce any row in under a minute** — that is the point of publishing the method
+rather than a conclusion:
+
+```bash
+dotnet new console && dotnet add package <name> && dotnet build -c Release
+find bin -path '*runtimes*' \( -name '*.so' -o -name '*.dylib' \) | wc -l
+du -sm bin/Release/net8.0/runtimes
+```
+
+**Two things this table deliberately does not do.** It does not tell you what those licences say —
+they are linked from each package's own page and are the authors' to describe, not ours. And it does
+not claim native payload is everyone's problem: **EPPlus carries essentially none**, so if that is
+your only concern it is not a reason to switch. Where the payload does appear it comes from
+SkiaSharp and Magick.NET, pulled in transitively for image rendering.
+
+What the table is for is the case where **both** columns matter at once — a Linux container that has
+to stay small, with a licence you can clear without asking anybody. That combination is the whole
+reason this package exists, and all four constraints below are re-checked by CI on every push.
+
+## What it does
+
+| | |
+|---|---|
+| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX; legacy PowerPoint 97-2003 `.ppt` to PDF ([at a measured rate](#legacy-powerpoint-97-2003)) |
+| **Edit** | create and edit DOCX, XLSX and PPTX; fill templates, including one row per record; insert images; read text back out |
+| **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
+| **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
+
+The full grid is generated from the shipped API rather than written by hand:
+**[what it can convert](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html)**.
+
+Task-shaped walkthroughs, one per format, live in the
+**[guides](https://ank-khoaho.github.io/DocToolkit/guides/)** — start at
+[Getting started](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html) for the
+install-to-first-conversion path, or jump straight to the page for the format you need.
 
 ## Why this exists
 
@@ -61,7 +128,7 @@ was checked and whose *dependencies* were not. It pulls in SkiaSharp and Magick.
 **38 native `.so`/`.dylib` files and 664 MB of `runtimes/`** into build output — breaking two of
 the four constraints at once, on a package that restored and built perfectly well. It was replaced
 with raw `DocumentFormat.OpenXml`, and the check that would have caught it now runs on every push.
-The [comparison table](#measured-against-the-alternatives) below is the same measurement, applied
+The [comparison table](#measured-against-the-alternatives) above is the same measurement, applied
 to the alternatives.
 
 ### Trimming and native AOT
@@ -141,36 +208,6 @@ dotnet dotnet-CycloneDX src/DocToolkit/DocToolkit.csproj -o . -fn regenerated.cd
 diff <(jq 'del(.metadata.timestamp)' DocToolkit.cdx.json)      <(jq 'del(.metadata.timestamp)' regenerated.cdx.json)
 ```
 
-## Measured against the alternatives
-
-Every number below was measured on 2026-08-09 by adding the package to an empty `net8.0` console
-app and building it. **Reproduce any row in under a minute** — that is the point of publishing the
-method rather than a conclusion:
-
-```bash
-dotnet new console && dotnet add package <name> && dotnet build -c Release
-find bin -path '*runtimes*' \( -name '*.so' -o -name '*.dylib' \) | wc -l
-du -sm bin/Release/net8.0/runtimes
-```
-
-| package | native `.so`/`.dylib` in build output | `runtimes/` | licence in NuGet metadata |
-|---|---|---|---|
-| **Ank.DocToolkit** | **0** | **0 MB** | **`MIT`**, as an SPDX expression |
-| EPPlus | 0 | 1 MB | ships `license.md` — read it |
-| QuestPDF | 10 | 83 MB | ships `LICENSE.md` — read it |
-| NPOI | 12 | 416 MB | ships `OSMFEULA.txt` — read it |
-| ShapeCrawler | 19 | 664 MB | none declared |
-
-**Two things this table deliberately does not do.** It does not tell you what those licences say —
-they are linked from each package's own page and are the authors' to describe, not ours. And it does
-not claim native payload is everyone's problem: **EPPlus carries essentially none**, so if that is
-your only concern it is not a reason to switch. Where the payload does appear it comes from
-SkiaSharp and Magick.NET, pulled in transitively for image rendering.
-
-What the table is for is the case where **both** columns matter at once — a Linux container that has
-to stay small, with a licence you can clear without asking anybody. That combination is the whole
-reason this package exists, and all four constraints are re-checked by CI on every push.
-
 ## Fidelity, measured on documents nobody here wrote
 
 Most conversion libraries tell you what they support. This one tells you **how often it works on
@@ -220,18 +257,6 @@ own text. **None produced a corrupt PDF**; every failure was a clean refusal.
 
 So: worth trying on an archive of old decks, and worth checking the result rather than assuming it.
 If a deck is refused, converting it once in PowerPoint remains the reliable route.
-
-## What it does
-
-| | |
-|---|---|
-| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX; legacy PowerPoint 97-2003 `.ppt` to PDF ([at a measured rate](#legacy-powerpoint-97-2003)) |
-| **Edit** | create and edit DOCX, XLSX and PPTX; fill templates, including one row per record; insert images; read text back out |
-| **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
-| **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
-
-The full grid is generated from the shipped API rather than written by hand:
-**[what it can convert](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html)**.
 
 ## Offline by default
 
