@@ -53,7 +53,7 @@ byte[] locked = PdfEditor.Protect(pdf, new PdfProtection { UserPassword = "s3cre
 
 Targets `net8.0` and `net10.0`. MIT licensed.
 
-📖 [Guides](https://ank-khoaho.github.io/DocToolkit/guides/) ·
+📖 [Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html) ·
 🔎 [API reference](https://ank-khoaho.github.io/DocToolkit/) · 🗺️ [Roadmap](ROADMAP.md) · 📦
 [package README](src/DocToolkit/README.md) · 📝 [CHANGELOG](CHANGELOG.md)
 
@@ -115,9 +115,8 @@ reason this package exists, and all four constraints below are re-checked by CI 
 The full grid is generated from the shipped API rather than written by hand:
 **[what it can convert](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html)**.
 
-Task-shaped walkthroughs, one per format, live in the
-**[guides](https://ank-khoaho.github.io/DocToolkit/guides/)** — start at
-[Getting started](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html) for the
+Task-shaped walkthroughs, one per format, start at
+**[Getting started](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html)** for the
 install-to-first-conversion path, or jump straight to the page for the format you need.
 
 ## Why this exists
