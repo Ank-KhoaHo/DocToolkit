@@ -100,7 +100,7 @@ pointing at a URL is dropped, not downloaded. This is not a configuration defaul
 When you do opt in, per call or through `DocToolkitOptions`, the guard is an allow-list checked
 before any connection is attempted, followed by an address check that refuses loopback,
 link-local, and every private range. See
-[Images the HTML points at](html-to-word-and-pdf.md#images-the-html-points-at).
+[Images the HTML points at](conversions/html-to-word-and-pdf.md#images-the-html-points-at).
 
 ## Telemetry
 

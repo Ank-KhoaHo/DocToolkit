@@ -61,7 +61,7 @@ builder.Services.AddDocToolkit(options =>
 ```
 
 `RemoteImage` is the same @DocToolkit.RemoteImageOptions the static API takes — see
-[Images the HTML points at](html-to-word-and-pdf.md#images-the-html-points-at) for what the
+[Images the HTML points at](conversions/html-to-word-and-pdf.md#images-the-html-points-at) for what the
 allow-list actually guarantees. `AllowRemoteImageDownload` is the master switch; it is `false`
 unless you set it.
 

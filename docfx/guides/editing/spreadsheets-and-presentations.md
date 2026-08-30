@@ -10,7 +10,7 @@ overloads where you need them.
 
 ## Creating a workbook
 
-[!code-csharp[](../../samples/Spreadsheets/Program.cs#create)]
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#create)]
 
 Cell values are `object?`. Numbers are written as numbers and strings as strings, so a column of
 totals arrives in Excel as something you can sum rather than as text that merely looks numeric.
@@ -27,14 +27,14 @@ totals arrives in Excel as something you can sum rather than as text that merely
 
 You do not need to know the shape in advance.
 
-[!code-csharp[](../../samples/Spreadsheets/Program.cs#read)]
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#read)]
 
 `SheetNames` tells you what is in the file and `ReadSheet` returns the used range as rows of
 strings. Together they are enough to walk an upload you have never seen.
 
 ## Several sheets, and formulas between them
 
-[!code-csharp[](../../samples/Spreadsheets/Program.cs#multi-sheet)]
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#multi-sheet)]
 
 Two details in there are worth calling out.
 
@@ -75,7 +75,7 @@ the same immutable object, so they compose in any order — with one rule worth 
 the snippet: an explicit width is applied *after* auto-fit, so naming one wins for that column while
 every other column is still sized to its contents.
 
-[!code-csharp[](../../samples/Spreadsheets/Program.cs#format)]
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#format)]
 
 ```text
 Formatted    : 7,880 bytes (was 7,351)
@@ -104,7 +104,7 @@ the exporters below still see `1200`, per the note further up.
 
 @DocToolkit.XlsxToCsvConverter and @DocToolkit.XlsxToHtmlConverter take one sheet, by name.
 
-[!code-csharp[](../../samples/Spreadsheets/Program.cs#export)]
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#export)]
 
 ```text
 As CSV       : Region,Revenue / EMEA,1200 / APAC,980 / AMER,1450 / 
@@ -130,7 +130,7 @@ page they already have. Every cell is escaped.
 
 `PresentationEditor.Create` builds a deck from a typed model — no template file involved.
 
-[!code-csharp[](../../samples/Presentations/Program.cs#create)]
+[!code-csharp[](../../../samples/Presentations/Program.cs#create)]
 
 [`PptxSlide.Titled`](xref:DocToolkit.PptxSlide.Titled*) gives you a title and any number of bullets, emitted as real title and
 body placeholders rather than free-floating text boxes. That matters if anyone opens the deck in

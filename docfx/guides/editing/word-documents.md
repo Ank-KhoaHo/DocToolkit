@@ -13,7 +13,7 @@ that is not Word.
 The common case. Somebody in the business produces `invoice.docx` in Word with `{{customer}}` typed
 where the name goes, and your job is to put the name there.
 
-[!code-csharp[](../../samples/DocxTemplating/Program.cs#scalars)]
+[!code-csharp[](../../../samples/DocxTemplating/Program.cs#scalars)]
 
 That looks too simple to need a library, and it would be, except for one thing:
 
@@ -37,7 +37,7 @@ replaced too.
 A table where the row count depends on your data — invoice lines, a roster, a statement. Put a
 single template row in the document and let `FillRows` clone it.
 
-[!code-csharp[](../../samples/DocxTemplating/Program.cs#rows)]
+[!code-csharp[](../../../samples/DocxTemplating/Program.cs#rows)]
 
 Each generated row keeps the template row's formatting: borders, shading, fonts, column widths.
 That is the reason to do this rather than build the table yourself.
@@ -55,7 +55,7 @@ The collection name in the placeholder (`{{item.Desc}}`) matches the `collection
 
 `ReplaceImage` swaps a text placeholder for actual image bytes.
 
-[!code-csharp[](../../samples/DocxImages/Program.cs#replace-image)]
+[!code-csharp[](../../../samples/DocxImages/Program.cs#replace-image)]
 
 Sizes are in points. Give one dimension and the other scales to keep the aspect ratio; give
 neither and the image's own header decides, read at 96 DPI.
@@ -67,14 +67,14 @@ file called `logo.png` that actually holds JPEG bytes is read as the JPEG it is,
 alternative is a blank frame in Word and no error anywhere.
 
 For images referenced by URL rather than handed over as bytes, see
-[Images the HTML points at](html-to-word-and-pdf.md#images-the-html-points-at).
+[Images the HTML points at](../conversions/html-to-word-and-pdf.md#images-the-html-points-at).
 
 ## When there is no template
 
 Sometimes the document's shape comes from your data, not from a file somebody made. Describe it as
 a sequence of @DocToolkit.DocxBlock values and skip the round trip through HTML.
 
-[!code-csharp[](../../samples/DocxTemplating/Program.cs#blocks)]
+[!code-csharp[](../../../samples/DocxTemplating/Program.cs#blocks)]
 
 `DocxBlock` has four factories — `Heading`, `Paragraph`, `Table` and `Image` — which is
 deliberately not a document model. It covers reports and statements. Anything that needs real
@@ -87,14 +87,14 @@ layout control wants a template, where a person with Word can do the layout.
 A header belongs to the page, so it goes on the @DocToolkit.PageSetup — which means every producer
 honours it without a new overload.
 
-[!code-csharp[](../../samples/DocxTemplating/Program.cs#headers)]
+[!code-csharp[](../../../samples/DocxTemplating/Program.cs#headers)]
 
 **The page number is a real field.** Written as text it would be fixed when the document was
 generated — correct on one page, wrong on the rest, and looking right the whole time.
 
 ### A different first page
 
-[!code-csharp[](../../samples/DocxTemplating/Program.cs#headers-first-page)]
+[!code-csharp[](../../../samples/DocxTemplating/Program.cs#headers-first-page)]
 
 Calling `WithFirstPage` is the switch, and **null means blank on page one** rather than "use the
 ordinary one". That is the format's own model — there is no inheritance to fall back on — and it is
@@ -124,7 +124,7 @@ an index. Pass `true` when you want the whole thing.
 
 The same document, as a PDF, as HTML for a web page, or as Markdown for a record you can diff.
 
-[!code-csharp[](../../samples/DocxTemplating/Program.cs#export)]
+[!code-csharp[](../../../samples/DocxTemplating/Program.cs#export)]
 
 ```text
 As HTML      : 795 chars, has a <table>: True
@@ -144,7 +144,7 @@ DocxToPdfConverter.ConvertFile("invoice.docx", "invoice.pdf");   // or path to p
 > because leaving it implicit was confusing enough to be
 > [reported](https://github.com/Ank-KhoaHo/DocToolkit/issues/321). Every converter here stops at a
 > `byte[]` on purpose — see
-> [Getting the bytes out](getting-started.md#getting-the-bytes-out) for the three forms and when
+> [Getting the bytes out](../getting-started.md#getting-the-bytes-out) for the three forms and when
 > each is the right one.
 
 Two things to know before you wire these into something:
@@ -158,10 +158,10 @@ get is self-contained with no asset files to host.
 **Both text converters can tell you what they had to drop.** `ConvertWithReport` returns the same
 string alongside a list of warnings, each saying whether something was approximated, omitted
 outright, or failed. `Convert` is that call with the report discarded. See
-[Markdown, and what a conversion drops](markdown.md#what-the-conversion-could-not-carry-across) —
+[Markdown, and what a conversion drops](../conversions/markdown.md#what-the-conversion-could-not-carry-across) —
 and note that `DocxToPdfConverter` has no equivalent, deliberately.
 
 **PDF fonts depend on the machine doing the conversion.** Where a system font is available it is
 embedded; in a slim container with no fonts installed, nothing is embedded and the PDF falls back
 to the base-14 standard fonts. Both are valid and both render, but they are not byte-identical.
-See [Fonts](production.md#fonts-in-containers) before you compare PDF hashes across environments.
+See [Fonts](../production.md#fonts-in-containers) before you compare PDF hashes across environments.
