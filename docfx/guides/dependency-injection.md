@@ -20,27 +20,19 @@ It brings the core package with it transitively — you do not need to reference
 
 [!code-csharp[](../../samples/MinimalApi/Program.cs#register)]
 
-One call registers every interface the package ships, each a thin wrapper over the matching
-static class:
+One call registers all **21** interfaces the package ships, each a thin wrapper over the matching
+static class — grouped here by what they do, not listed alphabetically:
 
-| Interface | Wraps |
+| | Interfaces |
 |---|---|
-| @DocToolkit.Extensions.DependencyInjection.IHtmlToDocxConverter | `HtmlToDocxConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IHtmlToPdfConverter | `HtmlToPdfConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IDocxToPdfConverter | `DocxToPdfConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IXlsxToPdfConverter | `XlsxToPdfConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IPptxToPdfConverter | `PptxToPdfConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IDocxToHtmlConverter | `DocxToHtmlConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IDocxToMarkdownConverter | `DocxToMarkdownConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IMarkdownToDocxConverter | `MarkdownToDocxConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IMarkdownToPdfConverter | `MarkdownToPdfConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IXlsxToCsvConverter | `XlsxToCsvConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IXlsxToHtmlConverter | `XlsxToHtmlConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IDocToDocxConverter | `DocToDocxConverter` |
-| @DocToolkit.Extensions.DependencyInjection.IDocxEditor | `DocxEditor` |
-| @DocToolkit.Extensions.DependencyInjection.IWorkbookEditor | `WorkbookEditor` |
-| @DocToolkit.Extensions.DependencyInjection.IPresentationEditor | `PresentationEditor` |
-| @DocToolkit.Extensions.DependencyInjection.IPdfEditor | `PdfEditor` |
+| **Convert** | `IHtmlToDocxConverter`, `IHtmlToPdfConverter`, `IDocxToPdfConverter`, `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`, `IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`, `IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocToDocxConverter` |
+| **Edit** | `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor`, `IMarkdownEditor` |
+| **Templates & review** | `IDocxMailMerge`, `IDocxForm`, `IDocxReview` |
+| **Preflight** | `IDocxToPdfPreflight` |
+
+Each interface's own name and its wrapped static class differ only by the leading `I` — `IPdfEditor`
+wraps `PdfEditor`, `IDocxMailMerge` wraps `DocxMailMerge`, and so on throughout. The full API
+reference lists every member: @DocToolkit.Extensions.DependencyInjection.
 
 All are registered as **singletons**, which is safe because none of them hold state — every
 operation takes its input and returns its output. They are also registered with `TryAdd`, so your

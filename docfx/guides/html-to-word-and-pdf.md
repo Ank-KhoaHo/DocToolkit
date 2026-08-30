@@ -9,6 +9,18 @@ Two converters, one input. @DocToolkit.HtmlToDocxConverter produces a `.docx`, a
 
 [!code-csharp[](../../samples/HtmlConversion/Program.cs#convert)]
 
+```text
+HTML -> DOCX : <varies> bytes
+HTML -> PDF  : <varies> bytes  (pivots through DOCX internally)
+DOCX -> PDF  : <varies> bytes  (from the DOCX above)
+```
+
+| you pass in | you get back |
+|---|---|
+| HTML, no page/image options | a `.docx` and a `.pdf`, both A4, remote images dropped |
+| HTML with a `<link rel="stylesheet">` | the same output — stylesheets are never fetched |
+| HTML with CSS grid/flexbox | valid output with that layout **not** applied — see below |
+
 ## Why the PDF goes through Word first
 
 There is no HTML renderer in this package. Every free one is a browser engine, and a browser engine

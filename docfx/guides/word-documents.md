@@ -26,6 +26,12 @@ splices the runs back together before matching, which is most of what it is for.
 `ReplaceText` also reaches into headers and footers, so a customer name in a letterhead is
 replaced too.
 
+| you pass in | you get back |
+|---|---|
+| `invoice.docx` with `{{customer}}`, plus `{"customer": "Contoso Ltd"}` | the same document, `{{customer}}` replaced, formatting kept |
+| a key with no matching placeholder | the document unchanged — no error, nothing to replace |
+| a placeholder with no matching key | left as literal text, e.g. `{{unknown}}` stays in the output |
+
 ## One row per record
 
 A table where the row count depends on your data — invoice lines, a roster, a statement. Put a
