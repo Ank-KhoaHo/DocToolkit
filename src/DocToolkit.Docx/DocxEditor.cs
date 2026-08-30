@@ -1077,6 +1077,19 @@ public static class DocxEditor
         }
     }
 
+    /// <summary>
+    /// Scans <paramref name="root"/> for every occurrence of <paramref name="placeholder"/> and
+    /// splices in whatever <paramref name="makeReplacement"/> returns, one call per occurrence.
+    /// Shared by <see cref="InsertImagesIn"/>, <see cref="InsertFootnoteReferencesIn"/> and
+    /// <see cref="InsertEndnoteReferencesIn"/>, which differ only in what they hand back.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="makeReplacement"/> is called exactly once per occurrence, right to left
+    /// within a paragraph — the same order <see cref="SpliceElementIn"/> requires so earlier
+    /// offsets stay valid as later ones are spliced — so a caller with per-occurrence side
+    /// effects (a footnote entry, an endnote entry, an image part) sees them run in that order,
+    /// not left-to-right reading order.
+    /// </remarks>
     private static int ForEachPlaceholderOccurrence(
         OpenXmlElement root, string placeholder, Func<Run> makeReplacement)
     {
@@ -2110,7 +2123,7 @@ public static class DocxEditor
 
     /// <summary>
     /// The text a paragraph owns itself, excluding anything nested inside it via a text box —
-    /// same scoping <see cref="InsertFootnoteReferencesIn"/> and <see cref="ReplaceInParagraph"/>
+    /// same scoping <see cref="ForEachPlaceholderOccurrence"/> and <see cref="ReplaceInParagraph"/>
     /// already use for the identical reason.
     /// </summary>
     private static string OwnParagraphText(Paragraph paragraph) => string.Concat(
