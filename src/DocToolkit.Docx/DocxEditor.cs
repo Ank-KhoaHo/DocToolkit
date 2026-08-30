@@ -2106,6 +2106,12 @@ public static class DocxEditor
                         + "matches the document exactly and has nothing else in its paragraph.");
                 }
 
+                foreach (var bookmark in target.ChildElements.Where(c => c is BookmarkStart or BookmarkEnd).ToList())
+                {
+                    bookmark.Remove();
+                    target.InsertBeforeSelf(bookmark);
+                }
+
                 target.InsertBeforeSelf((SdtBlock)fragment.CloneNode(true));
                 target.Remove();
 
@@ -2162,10 +2168,12 @@ public static class DocxEditor
     /// Formatting (<c>w:pPr</c>, <c>w:rPr</c>) and proofing marks genuinely carry nothing a caller
     /// could lose. Bookmarks are allow-listed for a narrower, practical reason instead: real Word
     /// writes a <c>_GoBack</c> bookmark into nearly every file it saves, so refusing on any
-    /// bookmark would reject most ordinary Word-authored templates. A bookmark IS lost along with
-    /// the paragraph — a <c>REF</c>/<c>PAGEREF</c> field elsewhere pointing at it would go dangling
-    /// — but that loss is judged less severe than blocking the common case, unlike the
-    /// section-break loss below, which is why the two are not treated the same way.
+    /// bookmark would reject most ordinary Word-authored templates. Its
+    /// <c>BookmarkStart</c>/<c>BookmarkEnd</c> are re-parented ahead of the inserted table of
+    /// contents rather than discarded with the paragraph — see
+    /// <see cref="AddTableOfContentsCore"/> — so a <c>REF</c>/<c>PAGEREF</c> field elsewhere
+    /// pointing at it keeps resolving, unlike the section-break loss below, which is refused
+    /// outright rather than preserved.
     /// </para>
     /// <para>
     /// <b><c>w:pPr</c> is on that list only when it holds no <c>w:sectPr</c>.</b> A <c>w:sectPr</c>
