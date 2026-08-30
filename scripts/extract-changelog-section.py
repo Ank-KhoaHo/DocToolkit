@@ -8,11 +8,11 @@ text - including a duplicate line the curation had removed. release-please build
 the Release body from the COMMITS at release time, independently of the changelog
 file it also writes, so the two surfaces diverge the moment anybody edits one.
 
-The repo's whole curation ritual assumed one surface. SOURCE-QUALITY.md Part 3 and
-the enhancement backlog both say "read the changelog entry" before merging a
-Release PR; neither mentions the Release body, and nothing re-synced them. The
-v0.27.2 divergence was fixed by hand afterwards, which works only because somebody
-happened to look.
+The repo's whole curation ritual assumed one surface. DEVELOPMENT-CHECKLIST.md
+Part 3 and the enhancement backlog both say "read the changelog entry" before
+merging a Release PR; neither mentions the Release body, and nothing re-synced
+them. The v0.27.2 divergence was fixed by hand afterwards, which works only
+because somebody happened to look.
 
 So the Release body is now DERIVED from the changelog rather than remembered
 alongside it - the same move as gen-third-party-notices.py reading the lockfile

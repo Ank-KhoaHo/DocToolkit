@@ -15,9 +15,9 @@ contributor is least able to absorb a wrong answer, and the list they are readin
 was hand-maintained.
 
 The same drift had already happened twice in the maintainer-side checklist
-(SOURCE-QUALITY.md Part 1): three CI-wired guards missing on the day it was
-written, and a closing paragraph describing a check as unshipped that had shipped
-the same day.
+(DEVELOPMENT-CHECKLIST.md Part 1, named SOURCE-QUALITY.md before its 2026-08-30
+rename): three CI-wired guards missing on the day it was written, and a closing
+paragraph describing a check as unshipped that had shipped the same day.
 
 DERIVED, NOT LISTED. The mapping comes from .github/workflows/*.yml, so adding a
 guard to a job automatically brings it into the table, and moving one between
@@ -26,13 +26,14 @@ lockfile, automerge-eligible.py reading the workflows, check-readme-coverage.py
 reading the approved API, gen-capability-matrix.py reading the approved API, and
 StreamOverloadTests reflecting over the assembly. Derive, do not remember.
 
-WHY THE TARGET IS CONTRIBUTING.md AND NOT SOURCE-QUALITY.md. SOURCE-QUALITY.md is
-gitignored - it is maintainer guidance and never reaches a runner. A `--check`
-pointed at it would find no file in CI and pass, every time, which is the
-vacuously-green failure this repository has already had to fix twice in its
-probe-based suites. CONTRIBUTING.md is tracked, so the check actually discriminates,
-and the contributor-facing copy is the one that was wrong anyway. Part 1 of
-SOURCE-QUALITY.md now points here instead of keeping a second copy.
+WHY THE TARGET IS CONTRIBUTING.md AND NOT DEVELOPMENT-CHECKLIST.md.
+DEVELOPMENT-CHECKLIST.md is gitignored - it is maintainer guidance and never
+reaches a runner. A `--check` pointed at it would find no file in CI and pass,
+every time, which is the vacuously-green failure this repository has already had
+to fix twice in its probe-based suites. CONTRIBUTING.md is tracked, so the check
+actually discriminates, and the contributor-facing copy is the one that was wrong
+anyway. Part 1 of DEVELOPMENT-CHECKLIST.md now points here instead of keeping a
+second copy.
 
 WHAT IT DOES NOT ATTEMPT. It reports which guard runs in which check. It does not
 describe what a guard means or what to do when it fails - that is the prose table
