@@ -81,13 +81,26 @@ BLOCKS = [
         "guide": "docfx/guides/html-to-word-and-pdf.md",
         "occurrence": 1,
         "sample": "HtmlConversion",
+        # All three masked: each is a freshly-written DOCX or PDF, and OfficeIMO/OpenXml assigns
+        # a fresh random relationship id per document - the same non-determinism DocxImages'
+        # pair below is masked for, just three ways instead of two.
+        "lines": [
+            line("HTML -> DOCX", MASK),
+            line("HTML -> PDF", MASK),
+            line("DOCX -> PDF", MASK),
+        ],
+    },
+    {
+        "guide": "docfx/guides/html-to-word-and-pdf.md",
+        "occurrence": 2,
+        "sample": "HtmlConversion",
         # "Landscape :" also appears between these two in the sample's real output - the guide
         # curates it out, so it is absent from this list on purpose, not a missed line.
         "lines": [line("Default"), line("This one"), line("Letter intact")],
     },
     {
         "guide": "docfx/guides/html-to-word-and-pdf.md",
-        "occurrence": 2,
+        "occurrence": 3,
         "sample": "DocxImages",
         # Masked, not compared or asserted equal: measured 2026-08-28, two otherwise-identical
         # DOCX outputs from THIS SAME sample varied by a byte between consecutive runs in the
@@ -98,7 +111,7 @@ BLOCKS = [
     },
     {
         "guide": "docfx/guides/html-to-word-and-pdf.md",
-        "occurrence": 3,
+        "occurrence": 4,
         "sample": "PdfUtilities",
         "lines": [
             line("Three documents"),
@@ -108,7 +121,7 @@ BLOCKS = [
     },
     {
         "guide": "docfx/guides/html-to-word-and-pdf.md",
-        "occurrence": 4,
+        "occurrence": 5,
         "sample": "PdfUtilities",
         "lines": [line("After retitling")],
     },

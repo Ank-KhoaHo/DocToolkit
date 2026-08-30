@@ -10,9 +10,9 @@ Two converters, one input. @DocToolkit.HtmlToDocxConverter produces a `.docx`, a
 [!code-csharp[](../../samples/HtmlConversion/Program.cs#convert)]
 
 ```text
-HTML -> DOCX : <varies> bytes
+HTML -> DOCX :   <varies> bytes
 HTML -> PDF  : <varies> bytes  (pivots through DOCX internally)
-DOCX -> PDF  : <varies> bytes  (from the DOCX above - same renderer, same output)
+DOCX -> PDF  : <varies> bytes  (from the DOCX above)
 ```
 
 | you pass in | you get back |
