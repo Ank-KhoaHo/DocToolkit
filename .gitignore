@@ -51,8 +51,11 @@ BACKLOG.html
 # Paired with CLAUDE.md and ignored for the same reason: it is guidance for whoever
 # develops this package, not for a consumer of the NuGet package. It moved here from
 # docs/ on 2026-08-15 so it sits beside CLAUDE.md, which cites it - and it needs its
-# OWN rule now, because docs/ above is no longer what covers it.
-SOURCE-QUALITY.md
+# OWN rule now, because docs/ above is no longer what covers it. Renamed from
+# SOURCE-QUALITY.md on 2026-08-30 - this rule moved with it in the SAME commit as the
+# rename, deliberately: a rename whose ignore rule lags even one commit publishes a
+# maintainer-only file on the next `git add -A`, on a public repo, permanently.
+DEVELOPMENT-CHECKLIST.md
 
 # Mutation-testing reports. Regenerated on every run; the score is the artefact
 # that matters and CI uploads it.
