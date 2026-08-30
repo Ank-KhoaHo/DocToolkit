@@ -24,7 +24,7 @@ int pages = PdfEditor.PageCount(pdf);   // 3
 | an encrypted DOCX | `DocumentConversionException` — `DocxEditor.Unprotect` it first |
 
 There are `Stream` and file-path forms too, and an overload taking fonts — see
-[Word documents](word-documents.md) for creating and editing the DOCX in the first place.
+[Word documents](../editing/word-documents.md) for creating and editing the DOCX in the first place.
 
 ## Why this is usually hard
 
@@ -60,7 +60,7 @@ character it could not encode, rather than silently producing a page of boxes.
 **Supplying fonts takes the machine out of the answer** — and supplying too few is worse than
 supplying none, because the fonts you pass *replace* the host's fallbacks rather than adding to them.
 One font scored **63 / 99**, below supplying nothing at all. See
-[Running in production](production.md#containers) for the whole of that.
+[Running in production](../production.md#containers) for the whole of that.
 
 ```csharp
 var fonts = new PdfFontOptions("Noto Sans", File.ReadAllBytes("NotoSans-Regular.ttf"));
@@ -81,5 +81,5 @@ byte[] pdf = DocxToPdfConverter.Convert(docx, fonts);
 ## Related
 
 - [Convert HTML to PDF and DOCX in C# without a browser](html-to-word-and-pdf.md)
-- [Create and edit Word documents in C# without Office interop](word-documents.md)
-- [Run document conversion in production: Linux, Docker and air-gapped hosts](production.md)
+- [Create and edit Word documents in C# without Office interop](../editing/word-documents.md)
+- [Run document conversion in production: Linux, Docker and air-gapped hosts](../production.md)

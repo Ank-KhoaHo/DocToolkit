@@ -2,16 +2,20 @@
   href: getting-started.md
 - name: What it can convert
   href: capabilities.md
-- name: HTML to Word and PDF
-  href: html-to-word-and-pdf.md
-- name: Markdown, and conversion loss
-  href: markdown.md
-- name: Word documents
-  href: word-documents.md
-- name: DOCX to PDF
-  href: docx-to-pdf.md
-- name: Spreadsheets and presentations
-  href: spreadsheets-and-presentations.md
+- name: Conversions
+  items:
+    - name: HTML to Word and PDF
+      href: conversions/html-to-word-and-pdf.md
+    - name: Markdown, and conversion loss
+      href: conversions/markdown.md
+    - name: DOCX to PDF
+      href: conversions/docx-to-pdf.md
+- name: Editing
+  items:
+    - name: Word documents
+      href: editing/word-documents.md
+    - name: Spreadsheets and presentations
+      href: editing/spreadsheets-and-presentations.md
 - name: Dependency injection
   href: dependency-injection.md
 - name: Running in production

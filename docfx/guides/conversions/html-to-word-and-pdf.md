@@ -7,7 +7,7 @@ description: Convert HTML to PDF and DOCX in C# without a browser - page setup, 
 Two converters, one input. @DocToolkit.HtmlToDocxConverter produces a `.docx`, and
 @DocToolkit.HtmlToPdfConverter produces a `.pdf`.
 
-[!code-csharp[](../../samples/HtmlConversion/Program.cs#convert)]
+[!code-csharp[](../../../samples/HtmlConversion/Program.cs#convert)]
 
 ```text
 HTML -> DOCX : <varies> bytes
@@ -49,7 +49,7 @@ directly rather than expect this library to be one.
 Every producer lays out on **A4** with one-inch margins unless you say otherwise. Pass a
 @DocToolkit.PageSetup to choose something else.
 
-[!code-csharp[](../../samples/HtmlConversion/Program.cs#page-setup)]
+[!code-csharp[](../../../samples/HtmlConversion/Program.cs#page-setup)]
 
 ```text
 Default      : 595.3 x 841.9 pt, margins 72/72/72/72 pt
@@ -91,12 +91,12 @@ of someone else's choosing. That is a server-side request forgery primitive, so 
 are **off by default**, and a document converts successfully with the image absent rather than
 failing.
 
-[!code-csharp[](../../samples/DocxImages/Program.cs#remote-default)]
+[!code-csharp[](../../../samples/DocxImages/Program.cs#remote-default)]
 
 When you do want them, opt in per call with @DocToolkit.RemoteImageOptions. The allow-list is the
 part that matters — the timeout and size cap are damage control, not access control.
 
-[!code-csharp[](../../samples/DocxImages/Program.cs#remote-allowlist)]
+[!code-csharp[](../../../samples/DocxImages/Program.cs#remote-allowlist)]
 
 ```text
 Remote off   : <varies> bytes (default - image dropped)
@@ -117,7 +117,7 @@ metadata endpoint.
 **A refused fetch is silent.** Your document succeeds with the image missing. That is the right
 default for a conversion pipeline, and it is also exactly the failure you will not notice in
 production — which is why the fetch path is the one thing in this library that emits telemetry.
-See [Remote-image telemetry](production.md#telemetry).
+See [Remote-image telemetry](../production.md#telemetry).
 
 ## Once you have a PDF
 
@@ -126,7 +126,7 @@ one rather than writing it. Nothing here re-renders, so the fidelity limits abov
 page that came out of the renderer looking right still looks right after being merged and
 extracted.
 
-[!code-csharp[](../../samples/PdfUtilities/Program.cs#merge)]
+[!code-csharp[](../../../samples/PdfUtilities/Program.cs#merge)]
 
 ```text
 Three documents : 1 + 1 + 1 pages
@@ -145,7 +145,7 @@ not open one.
 
 What a file manager shows in its properties panel, and what a search indexer reads.
 
-[!code-csharp[](../../samples/PdfUtilities/Program.cs#metadata)]
+[!code-csharp[](../../../samples/PdfUtilities/Program.cs#metadata)]
 
 Every @DocToolkit.PdfMetadata property is nullable, and `null` means **absent** rather than blank —
 in both directions, which is the part worth remembering:
@@ -161,7 +161,7 @@ After retitling : title "Superseded", author still "Contoso Ltd"
 ```
 
 Injectable as @DocToolkit.Extensions.DependencyInjection.IPdfEditor if you are using the extensions
-package — see [Dependency injection](dependency-injection.md).
+package — see [Dependency injection](../dependency-injection.md).
 
 ## Writing somewhere other than memory
 
@@ -175,4 +175,4 @@ await HtmlToDocxConverter.ConvertToFileAsync(html, "invoice.docx", ct);
 ```
 
 What the `Stream` overloads do and do not buy you is covered in
-[Running in production](production.md#streaming).
+[Running in production](../production.md#streaming).

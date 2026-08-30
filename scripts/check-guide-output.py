@@ -78,7 +78,7 @@ BLOCKS = [
         "lines": [line("Rejected"), line("Inner cause")],
     },
     {
-        "guide": "docfx/guides/html-to-word-and-pdf.md",
+        "guide": "docfx/guides/conversions/html-to-word-and-pdf.md",
         "occurrence": 1,
         "sample": "HtmlConversion",
         # All three masked: each is a freshly-written DOCX or PDF, and OfficeIMO/OpenXml assigns
@@ -91,7 +91,7 @@ BLOCKS = [
         ],
     },
     {
-        "guide": "docfx/guides/html-to-word-and-pdf.md",
+        "guide": "docfx/guides/conversions/html-to-word-and-pdf.md",
         "occurrence": 2,
         "sample": "HtmlConversion",
         # "Landscape :" also appears between these two in the sample's real output - the guide
@@ -99,7 +99,7 @@ BLOCKS = [
         "lines": [line("Default"), line("This one"), line("Letter intact")],
     },
     {
-        "guide": "docfx/guides/html-to-word-and-pdf.md",
+        "guide": "docfx/guides/conversions/html-to-word-and-pdf.md",
         "occurrence": 3,
         "sample": "DocxImages",
         # Masked, not compared or asserted equal: measured 2026-08-28, two otherwise-identical
@@ -110,7 +110,7 @@ BLOCKS = [
         "lines": [line("Remote off", MASK), line("Not on list", MASK)],
     },
     {
-        "guide": "docfx/guides/html-to-word-and-pdf.md",
+        "guide": "docfx/guides/conversions/html-to-word-and-pdf.md",
         "occurrence": 4,
         "sample": "PdfUtilities",
         "lines": [
@@ -120,13 +120,13 @@ BLOCKS = [
         ],
     },
     {
-        "guide": "docfx/guides/html-to-word-and-pdf.md",
+        "guide": "docfx/guides/conversions/html-to-word-and-pdf.md",
         "occurrence": 5,
         "sample": "PdfUtilities",
         "lines": [line("After retitling")],
     },
     {
-        "guide": "docfx/guides/markdown.md",
+        "guide": "docfx/guides/conversions/markdown.md",
         "occurrence": 1,
         "sample": "MarkdownConversion",
         # A blank line separates the warning table from the summary in the guide - reproduced
@@ -134,19 +134,19 @@ BLOCKS = [
         "lines": [line("  Approximation"), line(""), line("HasLoss"), line("What it says")],
     },
     {
-        "guide": "docfx/guides/spreadsheets-and-presentations.md",
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
         "occurrence": 1,
         "sample": "Spreadsheets",
         "lines": [line("Formatted")],
     },
     {
-        "guide": "docfx/guides/spreadsheets-and-presentations.md",
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
         "occurrence": 2,
         "sample": "Spreadsheets",
         "lines": [line("As CSV"), line("As HTML")],
     },
     {
-        "guide": "docfx/guides/word-documents.md",
+        "guide": "docfx/guides/editing/word-documents.md",
         "occurrence": 1,
         "sample": "DocxTemplating",
         "lines": [line("As HTML"), line("As Markdown")],

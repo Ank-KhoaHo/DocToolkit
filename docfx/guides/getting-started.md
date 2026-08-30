@@ -41,7 +41,7 @@ what a web handler wants. File and `Stream` overloads exist for when it isn't �
 [Getting the bytes out](#getting-the-bytes-out) immediately below.
 
 **Nothing reached the network.** An `<img src="https://…">` in that HTML would have been dropped,
-not fetched. See [Remote images](html-to-word-and-pdf.md#images-the-html-points-at) for how to opt
+not fetched. See [Remote images](conversions/html-to-word-and-pdf.md#images-the-html-points-at) for how to opt
 in for specific hosts.
 
 ## Getting the bytes out
@@ -105,7 +105,7 @@ and `WithMargins()` return a new value instead of changing the shared default:
 
 [!code-csharp[](../../samples/HtmlConversion/Program.cs#page-setup)]
 
-More sizes, margins and orientations: [Page size and margins](html-to-word-and-pdf.md#page-size-and-margins).
+More sizes, margins and orientations: [Page size and margins](conversions/html-to-word-and-pdf.md#page-size-and-margins).
 
 ## When something goes wrong
 
@@ -127,10 +127,10 @@ is not a question you can answer from a filename or a content type.
 ## Where to go next
 
 - [What it can convert](capabilities.md) — the complete grid, generated from the shipped API
-- [HTML to Word and PDF](html-to-word-and-pdf.md) — page setup, remote images, the network guard
-- [Markdown, and conversion loss](markdown.md) — Markdown in and out, and `ConvertWithReport`
-- [Word documents](word-documents.md) — fill a template, build one from scratch, export it again
-- [Spreadsheets and presentations](spreadsheets-and-presentations.md) — XLSX and PPTX
+- [HTML to Word and PDF](conversions/html-to-word-and-pdf.md) — page setup, remote images, the network guard
+- [Markdown, and conversion loss](conversions/markdown.md) — Markdown in and out, and `ConvertWithReport`
+- [Word documents](editing/word-documents.md) — fill a template, build one from scratch, export it again
+- [Spreadsheets and presentations](editing/spreadsheets-and-presentations.md) — XLSX and PPTX
 - [Dependency injection](dependency-injection.md) — `AddDocToolkit()` and the injectable interfaces
 - [Running in production](production.md) — streaming, containers, trimming, telemetry, limits
 

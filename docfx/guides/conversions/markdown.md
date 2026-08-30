@@ -13,7 +13,7 @@ is the least expressive format here, so it is the one that most obviously cannot
 
 ## Markdown in
 
-[!code-csharp[](../../samples/MarkdownConversion/Program.cs#convert)]
+[!code-csharp[](../../../samples/MarkdownConversion/Program.cs#convert)]
 
 Headings, emphasis, lists, links, code blocks, blockquotes and **tables** all come through. The
 table is the one worth checking rather than assuming: the sample's document reports
@@ -47,7 +47,7 @@ rather than by a flag being off:
 `Convert` returns the document and discards everything the conversion had to say about it.
 `ConvertWithReport` hands both back.
 
-[!code-csharp[](../../samples/MarkdownConversion/Program.cs#report)]
+[!code-csharp[](../../../samples/MarkdownConversion/Program.cs#report)]
 
 ```text
   Approximation MarkdownToWordWarning    Remote image 'https://img.example.com/badge.svg' was not resolved because MarkdownToWordOptions.RemoteImageResolver is not configured.
@@ -81,7 +81,7 @@ claims the content survived in another form, and reading the text back proves it
 
 ### The other direction, and the empty report
 
-[!code-csharp[](../../samples/MarkdownConversion/Program.cs#round-trip)]
+[!code-csharp[](../../../samples/MarkdownConversion/Program.cs#round-trip)]
 
 DOCX → Markdown is the lossier direction by a wide margin: Word expresses far more than Markdown
 can. The same `ConvertWithReport` pair exists on @DocToolkit.DocxToHtmlConverter and
@@ -101,6 +101,6 @@ nothing was lost *that the converter knows about* — not that nothing was lost.
 
 ## Where to go next
 
-- [What it can convert](capabilities.md) — the full grid, generated from the shipped API
-- [Word documents](word-documents.md) — exporting a DOCX to HTML or Markdown
+- [What it can convert](../capabilities.md) — the full grid, generated from the shipped API
+- [Word documents](../editing/word-documents.md) — exporting a DOCX to HTML or Markdown
 - [HTML to Word and PDF](html-to-word-and-pdf.md) — the other markup input, and the network guard
