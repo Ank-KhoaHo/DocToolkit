@@ -311,6 +311,7 @@ public class StreamOverloadTests
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ReadSmartArtAsync",
+        "PresentationEditor.AddChartAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
@@ -1280,6 +1281,10 @@ public class StreamOverloadTests
                 PresentationEditor.ReadSlideAsync(source!, 1, ct),
             "PresentationEditor.ReadSmartArtAsync" =>
                 PresentationEditor.ReadSmartArtAsync(source!, 1, ct),
+            "PresentationEditor.AddChartAsync" =>
+                PresentationEditor.AddChartAsync(
+                    source!, 1, ChartType.Line,
+                    new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) }), ct: ct),
             "PresentationEditor.ExtractTextAsync" =>
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>

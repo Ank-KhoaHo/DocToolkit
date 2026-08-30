@@ -1465,6 +1465,174 @@ public static class PresentationEditor
     }
 
     /// <summary>
+    /// Adds a chart to slide <paramref name="slideIndex"/> and returns the updated presentation.
+    /// </summary>
+    /// <param name="pptx">The presentation to add the chart to. It is not modified.</param>
+    /// <param name="slideIndex">1-based, because that is how a reader numbers slides.</param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="leftPoints">The chart's left edge, in points from the slide's left edge.</param>
+    /// <param name="topPoints">The chart's top edge, in points from the slide's top edge.</param>
+    /// <param name="widthPoints">The chart's width, in points.</param>
+    /// <param name="heightPoints">The chart's height, in points.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="data"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static byte[] AddChart(
+        byte[] pptx, int slideIndex, ChartType type, ChartData data, string title = "",
+        double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0) throw new ArgumentException("Presentation content was empty.", nameof(pptx));
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentOutOfRangeException.ThrowIfLessThan(slideIndex, 1);
+
+        return AddChartCore(pptx, slideIndex, type, data, title, leftPoints, topPoints, widthPoints, heightPoints);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns a new presentation with a chart
+    /// added to slide <paramref name="slideIndex"/> — see <see cref="AddChart"/> for the
+    /// parameters. <paramref name="source"/> is <b>read</b> to its end and is neither disposed,
+    /// closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="data"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task<byte[]> AddChartAsync(
+        Stream source, int slideIndex, ChartType type, ChartData data, string title = "",
+        double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252,
+        CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentOutOfRangeException.ThrowIfLessThan(slideIndex, 1);
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to add a chart to the PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return AddChartCore(ms.ToArray(), slideIndex, type, data, title, leftPoints, topPoints, widthPoints, heightPoints);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="path"/> and returns a new presentation with a chart
+    /// added to slide <paramref name="slideIndex"/> — see <see cref="AddChart"/> for the
+    /// parameters.
+    /// </summary>
+    /// <param name="path">The .pptx to read.</param>
+    /// <param name="slideIndex">1-based, because that is how a reader numbers slides.</param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="leftPoints">The chart's left edge, in points from the slide's left edge.</param>
+    /// <param name="topPoints">The chart's top edge, in points from the slide's top edge.</param>
+    /// <param name="widthPoints">The chart's width, in points.</param>
+    /// <param name="heightPoints">The chart's height, in points.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> or <paramref name="data"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank, or the file it names is empty.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    public static async Task<byte[]> AddChartAsync(
+        string path, int slideIndex, ChartType type, ChartData data, string title = "",
+        double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentOutOfRangeException.ThrowIfLessThan(slideIndex, 1);
+
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
+        return AddChart(bytes, slideIndex, type, data, title, leftPoints, topPoints, widthPoints, heightPoints);
+    }
+
+    private static byte[] AddChartCore(
+        byte[] pptx, int slideIndex, ChartType type, ChartData data, string title,
+        double leftPoints, double topPoints, double widthPoints, double heightPoints)
+    {
+        try
+        {
+            using var source = new MemoryStream(pptx, writable: false);
+            using var document = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+
+            if (slideIndex > document.Slides.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(slideIndex), slideIndex,
+                    $"Slide {slideIndex} was requested from a deck with {document.Slides.Count} slide(s).");
+            }
+
+            var chart = document.Slides[slideIndex - 1].AddChartPoints(
+                ToOfficeChartKind(type), ToOfficeChartData(data), leftPoints, topPoints, widthPoints, heightPoints);
+            // SetTitle is what makes the title text actually appear when the deck is rendered —
+            // the Title PROPERTY setter alone does not (see docs/superpowers/specs/2026-08-30-
+            // a95-charts-design.md, "Resolved by a follow-up probe": chart.Title = "..." round-
+            // trips through save/reload but the text is absent from the PDF). The reverse gap
+            // was measured directly during this task, and the design doc does not cover it:
+            // chart.SetTitle(...) does NOT populate the Title property that a later Load() reads
+            // back — both a live chart and one reloaded after Save() report Title == null once
+            // only SetTitle was called. The two calls cover disjoint concerns, so both are kept;
+            // dropping either one loses either rendering or round-trip readability.
+            if (!string.IsNullOrEmpty(title))
+            {
+                chart.SetTitle(title);
+                chart.Title = title;
+            }
+
+            using var output = new MemoryStream();
+            document.Save(output);
+            return output.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
+        {
+            throw new DocumentConversionException("Failed to add a chart to the PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    private static OfficeIMO.Drawing.OfficeChartKind ToOfficeChartKind(ChartType type) => type switch
+    {
+        ChartType.ColumnClustered => OfficeIMO.Drawing.OfficeChartKind.ColumnClustered,
+        ChartType.ColumnStacked => OfficeIMO.Drawing.OfficeChartKind.ColumnStacked,
+        ChartType.ColumnStacked100 => OfficeIMO.Drawing.OfficeChartKind.ColumnStacked100,
+        ChartType.BarClustered => OfficeIMO.Drawing.OfficeChartKind.BarClustered,
+        ChartType.BarStacked => OfficeIMO.Drawing.OfficeChartKind.BarStacked,
+        ChartType.BarStacked100 => OfficeIMO.Drawing.OfficeChartKind.BarStacked100,
+        ChartType.Line => OfficeIMO.Drawing.OfficeChartKind.Line,
+        ChartType.LineStacked => OfficeIMO.Drawing.OfficeChartKind.LineStacked,
+        ChartType.LineStacked100 => OfficeIMO.Drawing.OfficeChartKind.LineStacked100,
+        ChartType.Area => OfficeIMO.Drawing.OfficeChartKind.Area,
+        ChartType.AreaStacked => OfficeIMO.Drawing.OfficeChartKind.AreaStacked,
+        ChartType.AreaStacked100 => OfficeIMO.Drawing.OfficeChartKind.AreaStacked100,
+        ChartType.Scatter => OfficeIMO.Drawing.OfficeChartKind.Scatter,
+        ChartType.Radar => OfficeIMO.Drawing.OfficeChartKind.Radar,
+        ChartType.Pie => OfficeIMO.Drawing.OfficeChartKind.Pie,
+        ChartType.Doughnut => OfficeIMO.Drawing.OfficeChartKind.Doughnut,
+        ChartType.Bubble => OfficeIMO.Drawing.OfficeChartKind.Bubble,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
+    };
+
+    private static OfficeIMO.Drawing.OfficeChartData ToOfficeChartData(ChartData data) => new(
+        data.Categories,
+        data.Series.Select(s => new OfficeIMO.Drawing.OfficeChartSeries(s.Name, s.Values)));
+
+    /// <summary>
     /// Reads a .pptx from <paramref name="inputPath"/>, replaces every key with its value across
     /// all slide text, and writes the result to <paramref name="outputPath"/> — see
     /// <see cref="ReplaceText"/> for exactly what counts as a match and how formatting survives

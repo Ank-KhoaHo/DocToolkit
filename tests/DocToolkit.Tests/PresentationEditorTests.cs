@@ -1380,4 +1380,94 @@ public class PresentationEditorTests
         var xfrms = insertedSlide.Slide!.Descendants<A.Transform2D>().ToList();
         Assert.Equal(2, xfrms.Count); // title AND body degrade to the fixed-geometry fallback
     }
+
+    [Fact]
+    public void AddChart_AddsAChart_ThatSurvivesThePptxRoundTrip()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = PresentationEditor.AddChart(
+            pptx, 1, ChartType.ColumnClustered, data, title: "Regional Totals");
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(source);
+        var slide = doc.Slides[0];
+        Assert.Single(slide.Charts);
+        Assert.Equal("Regional Totals", slide.Charts.Single().Title);
+    }
+
+    [Fact]
+    public void AddChart_TheChartAndItsTitleSurviveThePptxToPdfRender()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = PresentationEditor.AddChart(
+            pptx, 1, ChartType.ColumnClustered, data, title: "Regional Totals");
+
+        var text = PdfProbe.ExtractText(PptxToPdfConverter.Convert(result));
+        Assert.Contains("Regional Totals", text);
+        Assert.Contains("North", text);
+        Assert.Contains("South", text);
+    }
+
+    [Fact]
+    public void AddChart_SlideIndexBelowOne_Throws()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.AddChart(pptx, 0, ChartType.Line, data));
+    }
+
+    [Fact]
+    public void AddChart_SlideIndexAboveSlideCount_Throws()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.AddChart(pptx, 2, ChartType.Line, data));
+    }
+
+    [Fact]
+    public void AddChart_NullData_Throws()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+
+        Assert.Throws<ArgumentNullException>(
+            () => PresentationEditor.AddChart(pptx, 1, ChartType.Line, null!));
+    }
+
+    [Fact]
+    public async Task AddChartAsync_FromStream_MatchesTheByteArrayOverload()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+        var expected = PresentationEditor.AddChart(pptx, 1, ChartType.Line, data);
+
+        using var source = new MemoryStream(pptx, writable: false);
+        var actual = await PresentationEditor.AddChartAsync(source, 1, ChartType.Line, data);
+
+        // NOT Assert.Equal(expected, actual) on the raw bytes. OfficeIMO.PowerPoint's Save() mints
+        // fresh internal ids on every independent call -- the same nondeterminism PresentationEditor
+        // .Create's own doc comment already records for the raw OpenXml SDK path ("two calls with
+        // identical slides in the same process differ [in bytes]"), measured here to hold for
+        // OfficeIMO's writer too: two independent AddChartPoints+Save calls from byte-identical
+        // input produced outputs of different LENGTH. So the two overloads are compared structurally
+        // -- both produce a deck with the same slide/chart shape -- rather than byte-for-byte.
+        using var expectedSource = new MemoryStream(expected, writable: false);
+        using var actualSource = new MemoryStream(actual, writable: false);
+        using var expectedDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(expectedSource);
+        using var actualDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(actualSource);
+        Assert.Equal(expectedDoc.Slides.Count, actualDoc.Slides.Count);
+        Assert.Single(expectedDoc.Slides[0].Charts);
+        Assert.Single(actualDoc.Slides[0].Charts);
+    }
 }
