@@ -179,12 +179,46 @@ public class DocxEditorReplaceImageTests
     }
 
     [Fact]
+    public void ReplaceImage_GivesDistinctDrawingIdsAcrossBodyAndHeader()
+    {
+        // The counter that hands out wp:docPr/@id is threaded through every owner InsertImagesIn is
+        // called for -- body, header, footer, footnotes, endnotes -- via one `ref uint nextId`. None
+        // of the other tests in this file exercise more than one owner in a single ReplaceImage call
+        // with the SAME placeholder in both, so a regression that dropped the cross-owner thread
+        // (each owner restarting its own id counter at 1) would pass every one of them. This is that
+        // case.
+        var docx = DocxFixtures.Build(
+            headerText: "Company {{logo}}",
+            footerText: null,
+            DocxFixtures.P(DocxFixtures.R("Body {{logo}}")));
+
+        var filled = DocxEditor.ReplaceImage(docx, "{{logo}}", ImageFixtures.Png());
+
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var main = doc.MainDocumentPart!;
+        var header = main.HeaderParts.Single();
+
+        var ids = main.Document!.Body!.Descendants<DW.DocProperties>()
+            .Concat(header.Header!.Descendants<DW.DocProperties>())
+            .Select(p => p.Id!.Value)
+            .ToList();
+
+        Assert.Equal(2, ids.Count);
+        // Duplicate ids across owners are exactly what make Word declare the file corrupt.
+        Assert.Equal(ids.Count, ids.Distinct().Count());
+
+        AssertValid(filled);
+    }
+
+    [Fact]
     public void ReplaceImage_DoesNotReuseAnIdAlreadyInTheDocument()
     {
-        // The previous test only proves two NEW images differ from each other, which stays true even
-        // if the id counter is seeded wrongly - nextId++ still yields 1 and 2. The trap is colliding
-        // with a drawing the document ALREADY has, which is what makes Word offer to repair the
-        // file. So: insert one image, then insert another into the result.
+        // ReplaceImage_GivesEveryOccurrenceItsOwnDrawingId only proves two NEW images differ from
+        // each other, which stays true even if the id counter is seeded wrongly - nextId++ still
+        // yields 1 and 2. The trap is colliding with a drawing the document ALREADY has, which is
+        // what makes Word offer to repair the file. So: insert one image, then insert another into
+        // the result.
         var docx = DocxFixtures.Build(
             DocxFixtures.P(DocxFixtures.R("{{first}}")),
             DocxFixtures.P(DocxFixtures.R("{{second}}")));
