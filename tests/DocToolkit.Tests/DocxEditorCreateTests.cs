@@ -15,9 +15,7 @@ public class DocxEditorCreateTests
     /// </summary>
     private static void AssertValid(byte[] docx)
     {
-        using var ms = new MemoryStream(docx);
-        using var doc = WordprocessingDocument.Open(ms, false);
-        var errors = new OpenXmlValidator().Validate(doc).ToList();
+        var errors = DocxFixtures.Validate(docx);
         Assert.True(errors.Count == 0,
             "expected a schema-valid package, got:\n" +
             string.Join("\n", errors.Take(3).Select(e => "  " + e.Description)));
