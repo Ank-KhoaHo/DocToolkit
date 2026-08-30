@@ -238,6 +238,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
+        "WorkbookEditor.AddChartAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
@@ -306,6 +307,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
+        "WorkbookEditor.AddChartAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ReadSmartArtAsync",
@@ -1266,6 +1268,11 @@ public class StreamOverloadTests
                 WorkbookEditor.AppendRowsAsync(source!, "Sales", Rows, destination!, ct),
             "WorkbookEditor.FormatAsync" =>
                 WorkbookEditor.FormatAsync(source!, "Sales", XlsxFormat.Report, destination!, ct),
+            "WorkbookEditor.AddChartAsync" =>
+                WorkbookEditor.AddChartAsync(
+                    source!, "Sales", "B2", ChartType.Line,
+                    new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) }),
+                    destination!, ct: ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ReadSlideAsync" =>

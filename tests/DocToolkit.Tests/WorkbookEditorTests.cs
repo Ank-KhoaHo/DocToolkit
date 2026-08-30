@@ -1009,4 +1009,114 @@ public class WorkbookEditorTests
             WorkbookEditor.ReadSheet(WorkbookEditor.AppendRows(xlsx, "Log", rows), "Log"),
             WorkbookEditor.ReadSheet(await File.ReadAllBytesAsync(output.Path), "Log"));
     }
+
+    [Fact]
+    public void AddChart_AddsAChart_ThatSurvivesTheXlsxRoundTrip()
+    {
+        var xlsx = WorkbookEditor.Create(
+            "Sheet1",
+            new object[][]
+            {
+                new object[] { "Region", "Total" },
+                new object[] { "North", 1200 },
+                new object[] { "South", 980 },
+            });
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = WorkbookEditor.AddChart(
+            xlsx, "Sheet1", "B6", ChartType.ColumnClustered, data, title: "Regional Totals");
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        var sheet = doc.Sheets.First(s => s.Name == "Sheet1");
+        Assert.Single(sheet.Charts);
+        Assert.Equal("Regional Totals", sheet.Charts.Single().Title);
+    }
+
+    [Fact]
+    public void AddChart_TheChartSurvivesTheXlsxToPdfRender()
+    {
+        var xlsx = WorkbookEditor.Create(
+            "Sheet1",
+            new object[][]
+            {
+                new object[] { "Region", "Total" },
+                new object[] { "North", 1200 },
+                new object[] { "South", 980 },
+            });
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = WorkbookEditor.AddChart(
+            xlsx, "Sheet1", "B6", ChartType.ColumnClustered, data, title: "Regional Totals");
+
+        var text = PdfProbe.ExtractText(XlsxToPdfConverter.Convert(result));
+        Assert.Contains("Regional Totals", text);
+        Assert.Contains("North", text);
+        Assert.Contains("South", text);
+    }
+
+    [Fact]
+    public void AddChart_UnknownSheetName_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" } });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AddChart(xlsx, "NoSuchSheet", "A1", ChartType.Line, data));
+    }
+
+    [Fact]
+    public void AddChart_InvalidCellRef_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" } });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AddChart(xlsx, "Sheet1", "not a cell", ChartType.Line, data));
+    }
+
+    [Fact]
+    public void AddChart_NullData_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" } });
+
+        Assert.Throws<ArgumentNullException>(
+            () => WorkbookEditor.AddChart(xlsx, "Sheet1", "A1", ChartType.Line, null!));
+    }
+
+    [Fact]
+    public async Task AddChartAsync_FromStream_MatchesTheByteArrayOverload()
+    {
+        // Not a byte-for-byte comparison, unlike this file's other *Async parity tests - measured
+        // directly (two successive WorkbookEditor.AddChart calls on identical input) that
+        // OfficeIMO.Excel's chart writer mints a fresh relationship id (e.g. "Rb7d502c93c1f4fc8")
+        // for the hidden chart-data sheet and a fresh pair of c:axId values on every call, so
+        // xl/workbook.xml, both *.rels parts and xl/drawings/charts/chart1.xml differ between any
+        // two calls even with nothing else changed. That is OfficeIMO's own non-determinism, not a
+        // defect in AddChartCore - same family as this repo's documented "never assert an exact
+        // PDF size or a byte-for-byte comparison" lesson for OfficeIMO-rendered output. So this
+        // asserts the two overloads did the same EDIT rather than produced identical bytes.
+        var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" }, new object[] { 1 } });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+        var expected = WorkbookEditor.AddChart(xlsx, "Sheet1", "C1", ChartType.Line, data);
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var destination = new MemoryStream();
+        await WorkbookEditor.AddChartAsync(source, "Sheet1", "C1", ChartType.Line, data, destination);
+        var actual = destination.ToArray();
+
+        Assert.Equal(
+            WorkbookEditor.ReadSheet(expected, "Sheet1"),
+            WorkbookEditor.ReadSheet(actual, "Sheet1"));
+
+        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(expected, writable: false));
+        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(actual, writable: false));
+        var expectedChart = Assert.Single(expectedDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
+        var actualChart = Assert.Single(actualDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
+        Assert.Equal(expectedChart.Title, actualChart.Title);
+    }
 }

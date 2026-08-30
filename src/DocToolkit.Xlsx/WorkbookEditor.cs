@@ -1326,6 +1326,192 @@ public static class WorkbookEditor
     }
 
     /// <summary>
+    /// Adds a chart to <paramref name="sheetName"/>, anchored at <paramref name="cellRef"/>, and
+    /// returns the updated workbook.
+    /// </summary>
+    /// <param name="xlsx">The workbook to add the chart to. It is not modified.</param>
+    /// <param name="sheetName">The sheet to add the chart to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the chart's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="widthPixels">The chart's width, in pixels.</param>
+    /// <param name="heightPixels">The chart's height, in pixels.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="xlsx"/>, <paramref name="data"/> or another required argument is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, or <paramref name="sheetName"/>/<paramref name="cellRef"/>
+    /// is blank.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    public static byte[] AddChart(
+        byte[] xlsx, string sheetName, string cellRef, ChartType type, ChartData data,
+        string title = "", int widthPixels = 640, int heightPixels = 360)
+    {
+        ValidateArguments(xlsx, sheetName, cellRef);
+        ArgumentNullException.ThrowIfNull(data);
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var result = AddChartCore(source, sheetName, cellRef, type, data, title, widthPixels, heightPixels);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds a chart, and writes the result to
+    /// <paramref name="destination"/> — see <see cref="AddChart"/> for the parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to add the chart to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the chart's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="widthPixels">The chart's width, in pixels.</param>
+    /// <param name="heightPixels">The chart's height, in pixels.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="destination"/> or <paramref name="data"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, a name is blank, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    public static async Task AddChartAsync(
+        Stream source, string sheetName, string cellRef, ChartType type, ChartData data, Stream destination,
+        string title = "", int widthPixels = 640, int heightPixels = 360, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(cellRef);
+        ArgumentNullException.ThrowIfNull(data);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to add a chart to the XLSX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        using var result = AddChartCore(xlsx, sheetName, cellRef, type, data, title, widthPixels, heightPixels);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to add a chart to the XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="inputPath"/>, adds a chart, and writes the result to
+    /// <paramref name="outputPath"/> — see <see cref="AddChart"/> for the parameters. The two
+    /// paths may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The workbook to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="sheetName">The sheet to add the chart to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the chart's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="widthPixels">The chart's width, in pixels.</param>
+    /// <param name="heightPixels">The chart's height, in pixels.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path, a name or <paramref name="data"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path or a name is blank, or the file at <paramref name="inputPath"/> is empty.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    public static async Task AddChartAsync(
+        string inputPath, string outputPath, string sheetName, string cellRef, ChartType type, ChartData data,
+        string title = "", int widthPixels = 640, int heightPixels = 360, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddChart(bytes, sheetName, cellRef, type, data, title, widthPixels, heightPixels);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    private static MemoryStream AddChartCore(
+        Stream xlsx, string sheetName, string cellRef, ChartType type, ChartData data,
+        string title, int widthPixels, int heightPixels)
+    {
+        try
+        {
+            if (!XLHelper.IsValidA1Address(cellRef))
+                throw new DocumentConversionException($"\"{cellRef}\" is not a valid A1-style cell reference.");
+            var column = XLHelper.GetColumnNumberFromAddress(cellRef);
+            var row = int.Parse(
+                new string(cellRef.SkipWhile(char.IsLetter).ToArray()), CultureInfo.InvariantCulture);
+
+            using var source = new MemoryStream();
+            xlsx.CopyTo(source);
+            source.Position = 0;
+            using var document = OfficeIMOExcelExcelDocument.Load(source);
+
+            var sheet = document.Sheets.FirstOrDefault(s => s.Name == sheetName)
+                ?? throw new DocumentConversionException($"Sheet \"{sheetName}\" was not found.");
+
+            sheet.AddChart(
+                ToOfficeChartKind(type), ToOfficeChartData(data), row, column, widthPixels, heightPixels, title);
+
+            var ms = new MemoryStream();
+            document.Save(ms);
+            return ms;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add a chart to the XLSX. See the inner exception for details.", ex);
+        }
+    }
+
+    private static OfficeIMO.Drawing.OfficeChartKind ToOfficeChartKind(ChartType type) => type switch
+    {
+        ChartType.ColumnClustered => OfficeIMO.Drawing.OfficeChartKind.ColumnClustered,
+        ChartType.ColumnStacked => OfficeIMO.Drawing.OfficeChartKind.ColumnStacked,
+        ChartType.ColumnStacked100 => OfficeIMO.Drawing.OfficeChartKind.ColumnStacked100,
+        ChartType.BarClustered => OfficeIMO.Drawing.OfficeChartKind.BarClustered,
+        ChartType.BarStacked => OfficeIMO.Drawing.OfficeChartKind.BarStacked,
+        ChartType.BarStacked100 => OfficeIMO.Drawing.OfficeChartKind.BarStacked100,
+        ChartType.Line => OfficeIMO.Drawing.OfficeChartKind.Line,
+        ChartType.LineStacked => OfficeIMO.Drawing.OfficeChartKind.LineStacked,
+        ChartType.LineStacked100 => OfficeIMO.Drawing.OfficeChartKind.LineStacked100,
+        ChartType.Area => OfficeIMO.Drawing.OfficeChartKind.Area,
+        ChartType.AreaStacked => OfficeIMO.Drawing.OfficeChartKind.AreaStacked,
+        ChartType.AreaStacked100 => OfficeIMO.Drawing.OfficeChartKind.AreaStacked100,
+        ChartType.Scatter => OfficeIMO.Drawing.OfficeChartKind.Scatter,
+        ChartType.Radar => OfficeIMO.Drawing.OfficeChartKind.Radar,
+        ChartType.Pie => OfficeIMO.Drawing.OfficeChartKind.Pie,
+        ChartType.Doughnut => OfficeIMO.Drawing.OfficeChartKind.Doughnut,
+        ChartType.Bubble => OfficeIMO.Drawing.OfficeChartKind.Bubble,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
+    };
+
+    private static OfficeIMO.Drawing.OfficeChartData ToOfficeChartData(ChartData data) => new(
+        data.Categories,
+        data.Series.Select(s => new OfficeIMO.Drawing.OfficeChartSeries(s.Name, s.Values)));
+
+    /// <summary>
     /// A copy of <paramref name="xlsx"/> encrypted with <paramref name="password"/>, so it cannot
     /// be opened without one.
     /// </summary>
