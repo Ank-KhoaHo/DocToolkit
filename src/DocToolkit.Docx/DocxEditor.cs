@@ -1392,8 +1392,10 @@ public static class DocxEditor
     /// body is searched — headers, footers, and content already inside another footnote or
     /// endnote are not.
     ///
-    /// A document built with this method is correctly reported by <c>DocxToPdfPreflight</c> as
-    /// carrying footnote content that does not reach a PDF conversion.
+    /// A document built with this method has its footnote content survive a
+    /// <c>DocxToPdfConverter</c> conversion — measured; see <c>DocxToPdfPreflight</c>'s own
+    /// remarks. <c>DocxToPdfPreflight</c> does not report it, because there is nothing lost to
+    /// report.
     /// </summary>
     /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
     /// <exception cref="ArgumentException">

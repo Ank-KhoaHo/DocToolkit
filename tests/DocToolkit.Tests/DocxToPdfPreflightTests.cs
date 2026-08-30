@@ -83,6 +83,16 @@ public class DocxToPdfPreflightTests
     }
 
     [Fact]
+    public void Inspect_DoesNotReportAStyledFootnote()
+    {
+        // A94: the finding must NOT fire for a footnote shaped the way AddFootnote (and Word)
+        // actually produce one — only for the unstyled shape WithFootnote() deliberately is.
+        var report = DocxToPdfPreflight.Inspect(WithStyledFootnote());
+
+        Assert.DoesNotContain(report.Findings, f => f.Code == "Footnote");
+    }
+
+    [Fact]
     public void Inspect_DoesNotReportAnOrdinaryTable()
     {
         // A table is fine. Only a table INSIDE a cell is the reported case, and confusing the two
@@ -147,6 +157,61 @@ public class DocxToPdfPreflightTests
 
         Assert.Contains(Sibling, box, StringComparison.Ordinal);
         Assert.Contains("BOXTOKEN", box, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AStyledFootnoteSurvivesTheRender()
+    {
+        // The mirror of TheFootnoteLossIsReal... — this is the shape that is now measured NOT to
+        // be lost, so this fails if a future change reintroduces the old blanket "any footnote"
+        // count.
+        byte[] docx = WithStyledFootnote();
+        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+
+        Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
+        Assert.Contains("STYLEDFOOTTOKEN", pdf, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A94's own measurement, pinned rather than left only in a probe: the finding condition reads
+    /// the BODY reference run's style, never the footnote's own definition. Without this pair, a
+    /// predicate rewritten to read the definition's style instead would pass every other test in
+    /// this file.
+    /// </summary>
+    [Fact]
+    public void Inspect_StillReportsAFootnoteStyledOnlyInItsDefinition()
+    {
+        var report = DocxToPdfPreflight.Inspect(WithStyledFootnoteDefinitionOnly());
+
+        Assert.Single(report.Findings, f => f.Code == "Footnote");
+    }
+
+    [Fact]
+    public void TheDefinitionOnlyStyleLossIsReal()
+    {
+        byte[] docx = WithStyledFootnoteDefinitionOnly();
+        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+
+        Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
+        Assert.DoesNotContain("DEFONLYTOKEN", pdf, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Inspect_DoesNotReportAFootnoteStyledOnlyOnItsBodyReference()
+    {
+        var report = DocxToPdfPreflight.Inspect(WithStyledFootnoteReferenceOnly());
+
+        Assert.DoesNotContain(report.Findings, f => f.Code == "Footnote");
+    }
+
+    [Fact]
+    public void AReferenceOnlyStyledFootnoteSurvivesTheRender()
+    {
+        byte[] docx = WithStyledFootnoteReferenceOnly();
+        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+
+        Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
+        Assert.Contains("REFONLYTOKEN", pdf, StringComparison.Ordinal);
     }
 
     // ---- guards -------------------------------------------------------------------------------
@@ -257,6 +322,74 @@ public class DocxToPdfPreflightTests
         body.Append(new Paragraph(
             new Run(new Text("body ")),
             new Run(new FootnoteReference { Id = 1 })));
+    });
+
+    /// <summary>
+    /// A footnote authored the way <see cref="DocxEditor.AddFootnote"/> (and Word itself) actually
+    /// shape one — unlike <see cref="WithFootnote"/> above, which is deliberately the UNSTYLED
+    /// shape neither of those produces. Built through the real API rather than hand-rolled XML, on
+    /// purpose: A94 found <see cref="WithFootnote"/>'s own lack of
+    /// <c>RunStyle="FootnoteReference"</c> was exactly the property this preflight's
+    /// <c>Footnote</c> finding now keys on, and a second hand-built fixture would only re-risk the
+    /// same mistake.
+    /// </summary>
+    private static byte[] WithStyledFootnote() =>
+        DocxEditor.AddFootnote(
+            DocxEditor.Create([DocxBlock.Paragraph($"body {{{{note}}}} here {Sibling}")]),
+            "{{note}}", "STYLEDFOOTTOKEN");
+
+    /// <summary>
+    /// The footnote's own DEFINITION carries <c>ParagraphStyleId="FootnoteText"</c>; the BODY's
+    /// reference run carries no style at all. A94's own probe (Case E) measured this shape lost —
+    /// this pins that the finding condition reads the body reference run, not the definition, since
+    /// a predicate reading the wrong half of the document would pass every other fixture in this
+    /// file and only this one would catch it.
+    /// </summary>
+    private static byte[] WithStyledFootnoteDefinitionOnly() => Build((main, body) =>
+    {
+        var part = main.AddNewPart<FootnotesPart>();
+        part.Footnotes = new Footnotes(
+            new Footnote(new Paragraph(new Run(new SeparatorMark())))
+            { Id = -1, Type = FootnoteEndnoteValues.Separator },
+            new Footnote(new Paragraph(new Run(new ContinuationSeparatorMark())))
+            { Id = 0, Type = FootnoteEndnoteValues.ContinuationSeparator },
+            new Footnote(new Paragraph(
+                new ParagraphProperties(new ParagraphStyleId { Val = "FootnoteText" }),
+                new Run(new FootnoteReferenceMark()),
+                new Run(new Text(" DEFONLYTOKEN"))))
+            { Id = 1 });
+        part.Footnotes.Save();
+
+        body.Append(new Paragraph(
+            new Run(new Text("body ")),
+            new Run(new FootnoteReference { Id = 1 })));
+    });
+
+    /// <summary>
+    /// The mirror of <see cref="WithStyledFootnoteDefinitionOnly"/>: the footnote's own definition
+    /// carries no styling at all; only the BODY's reference run carries
+    /// <c>RunStyle="FootnoteReference"</c>. A94's own probe (Case G) measured this shape survives —
+    /// the definition's own styling turned out never to matter.
+    /// </summary>
+    private static byte[] WithStyledFootnoteReferenceOnly() => Build((main, body) =>
+    {
+        var part = main.AddNewPart<FootnotesPart>();
+        part.Footnotes = new Footnotes(
+            new Footnote(new Paragraph(new Run(new SeparatorMark())))
+            { Id = -1, Type = FootnoteEndnoteValues.Separator },
+            new Footnote(new Paragraph(new Run(new ContinuationSeparatorMark())))
+            { Id = 0, Type = FootnoteEndnoteValues.ContinuationSeparator },
+            new Footnote(new Paragraph(
+                new Run(new FootnoteReferenceMark()),
+                new Run(new Text(" REFONLYTOKEN"))))
+            { Id = 1 });
+        part.Footnotes.Save();
+
+        body.Append(new Paragraph(
+            new Run(new Text("body ")),
+            new Run(
+                new RunProperties(new RunStyle { Val = "FootnoteReference" }),
+                new FootnoteReference { Id = 1 })));
     });
 
     /// <summary>The separators alone — what Word writes into a document with no author footnotes.</summary>
