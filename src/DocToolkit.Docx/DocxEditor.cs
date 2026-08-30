@@ -2168,12 +2168,12 @@ public static class DocxEditor
     /// Formatting (<c>w:pPr</c>, <c>w:rPr</c>) and proofing marks genuinely carry nothing a caller
     /// could lose. Bookmarks are allow-listed for a narrower, practical reason instead: real Word
     /// writes a <c>_GoBack</c> bookmark into nearly every file it saves, so refusing on any
-    /// bookmark would reject most ordinary Word-authored templates. Its
+    /// bookmark would reject most ordinary Word-authored templates. A bookmark's
     /// <c>BookmarkStart</c>/<c>BookmarkEnd</c> are re-parented ahead of the inserted table of
     /// contents rather than discarded with the paragraph — see
     /// <see cref="AddTableOfContentsCore"/> — so a <c>REF</c>/<c>PAGEREF</c> field elsewhere
-    /// pointing at it keeps resolving, unlike the section-break loss below, which is refused
-    /// outright rather than preserved.
+    /// pointing at it keeps resolving, unlike a section break below, which is refused outright
+    /// rather than preserved.
     /// </para>
     /// <para>
     /// <b><c>w:pPr</c> is on that list only when it holds no <c>w:sectPr</c>.</b> A <c>w:sectPr</c>
