@@ -2,6 +2,9 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
 using A = DocumentFormat.OpenXml.Drawing;
 using P = DocumentFormat.OpenXml.Presentation;
+using OfficeIMOPowerPointPowerPointPresentation = OfficeIMO.PowerPoint.PowerPointPresentation;
+using OfficeIMOPowerPointLayoutBox = OfficeIMO.PowerPoint.PowerPointLayoutBox;
+using OfficeIMOPowerPointSmartArtType = OfficeIMO.PowerPoint.PowerPointSmartArtType;
 
 namespace DocToolkit.Tests;
 
@@ -456,6 +459,32 @@ internal static class PptxFixtures
                     new A.Paragraph(new A.Run(
                         new A.RunProperties { Language = "en-US" },
                         new A.Text(placeholder))))))));
+
+    /// <summary>
+    /// The sample deck, opened with <c>OfficeIMO.PowerPoint</c> and given one SmartArt diagram on
+    /// its existing slide — authored through the same library
+    /// <see cref="PresentationEditor.ReadSmartArt(byte[], int)"/> reads with, per the "author it the
+    /// way the library under test authors one" rule (<c>CLAUDE.md</c> records the opposite mistake
+    /// for <c>DocxForm</c>'s hand-built content controls). A hand-built diagram-part fragment would
+    /// risk testing a shape <c>ReadSmartArt</c> happens to tolerate rather than one OfficeIMO itself
+    /// ever produces.
+    ///
+    /// The sample's own text-bearing shape is left untouched, so a test can assert both halves of
+    /// <see cref="PresentationEditor.ExtractText(byte[])"/>'s output independently.
+    /// </summary>
+    public static byte[] DeckWithSmartArt(OfficeIMOPowerPointSmartArtType type, params string[] nodeTexts)
+    {
+        using var source = new MemoryStream(Sample(), writable: false);
+        using var doc = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+
+        var slide = doc.Slides[0];
+        var box = OfficeIMOPowerPointLayoutBox.FromInches(1, 3, 6, 2);
+        slide.AddSmartArt(type, nodeTexts, box);
+
+        using var output = new MemoryStream();
+        doc.Save(output);
+        return output.ToArray();
+    }
 
     /// <summary>Formatting of every run on the deck's first slide, in document order.</summary>
     public static (string Text, bool Bold)[] RunsOfFirstSlide(byte[] pptx)

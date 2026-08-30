@@ -264,6 +264,11 @@ await WorkbookEditor.AppendRowsAsync("workbook.xlsx", "workbook.xlsx", "Sales", 
 byte[] pptx = File.ReadAllBytes("deck.pptx");
 int slides = PresentationEditor.SlideCount(pptx);
 IReadOnlyList<string> slideText = PresentationEditor.ExtractText(pptx);   // in deck order
+
+// A SmartArt diagram's text lives in a different OOXML construct entirely, so ExtractText
+// reports it separately from ordinary shape text - one entry per diagram, in slide order
+IReadOnlyList<IReadOnlyList<string>> diagrams = PresentationEditor.ReadSmartArt(pptx, index: 1);
+
 byte[] editedPptx = PresentationEditor.ReplaceText(pptx, new Dictionary<string, string>
 {
     ["{{title}}"] = "Q3 Results",
@@ -1035,6 +1040,19 @@ and `OfficeIMO` do not resolve external relationships, external workbook links o
 That is asserted, not assumed; see above.
 
 ## Migrating
+
+### 0.45.0 - `PresentationEditor.ExtractText` now includes SmartArt
+
+A SmartArt diagram's text lives in a diagram data part, not a text-bearing shape body, so it was
+**invisible to `ExtractText`** before this release — a deck containing SmartArt reported fewer
+entries than it actually held. `ReadSmartArt` reads the same diagrams directly, one entry per
+diagram on a given slide.
+
+**If you assert an exact `ExtractText(...).Count` against a SmartArt-bearing deck, expect a higher
+number now** — one more entry per SmartArt diagram, appended after that slide's ordinary
+text-bearing bodies. A deck with no SmartArt is completely unaffected. Nothing that creates a
+document changed; this is a correctness fix to what a caller already shipping SmartArt-bearing
+decks (authored in PowerPoint itself, or via `OfficeIMO.PowerPoint` directly) gets back.
 
 ### 0.43.0 - `DocxToPdfPreflight` no longer reports a normally-authored footnote
 

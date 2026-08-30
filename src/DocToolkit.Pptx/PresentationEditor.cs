@@ -164,6 +164,11 @@ public static class PresentationEditor
     /// Paragraphs within one body are joined with newlines. This is deliberately the same walk
     /// <see cref="ReplaceText"/> performs, so anything this reports is something that can be
     /// replaced and vice versa. Speaker notes and slide masters/layouts are not included.
+    ///
+    /// Each slide's SmartArt diagrams follow that slide's own text-bearing bodies, one entry per
+    /// diagram — see <see cref="ReadSmartArt"/>. A SmartArt diagram's text lives in a diagram data
+    /// part, not a &lt;p:txBody&gt;, so it is not itself a text-bearing body and was invisible here
+    /// before this was added; it is not something <see cref="ReplaceText"/> can reach.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
@@ -201,12 +206,14 @@ public static class PresentationEditor
         try
         {
             using var doc = OpenDocument(ms, false);
+            var slides = SlidesInDeckOrder(PresentationPartOf(doc)).Select(p => p.Slide).ToList();
+            var smartArtBySlide = SmartArtTextBySlide(ms.ToArray());
 
             var results = new List<string>();
-            foreach (var slide in SlidesInDeckOrder(PresentationPartOf(doc))
-                         .Select(p => p.Slide).Where(s => s is not null).Select(s => s!))
+            for (var i = 0; i < slides.Count; i++)
             {
-                results.AddRange(TextBodiesOf(slide));
+                if (slides[i] is { } slide) results.AddRange(TextBodiesOf(slide));
+                if (i < smartArtBySlide.Count) results.AddRange(smartArtBySlide[i]);
             }
 
             return results;
@@ -1334,6 +1341,127 @@ public static class PresentationEditor
 
         var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
         return ReadSlide(bytes, index);
+    }
+
+    /// <summary>
+    /// The text of every SmartArt diagram on slide <paramref name="index"/>, one entry per
+    /// diagram, each diagram's nodes joined with newlines in the order OfficeIMO reports them.
+    ///
+    /// A SmartArt diagram's text lives in a diagram data part, not a text-bearing shape body, so
+    /// it is invisible to <see cref="ReadSlide"/> — <see cref="ExtractText(byte[])"/> reports it
+    /// too, alongside every ordinary text-bearing body, for exactly that reason.
+    ///
+    /// An empty list means the slide has no SmartArt, which is not an error — the same convention
+    /// <see cref="ReadSlide"/> uses for a slide with no text-bearing shapes.
+    /// </summary>
+    /// <param name="pptx">The presentation to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static IReadOnlyList<string> ReadSmartArt(byte[] pptx, int index)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0)
+            throw new ArgumentException("Presentation content was empty.", nameof(pptx));
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+
+        return ReadSmartArtCore(pptx, index);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns the text of every SmartArt
+    /// diagram on slide <paramref name="index"/> — see <see cref="ReadSmartArt(byte[], int)"/>.
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ReadSmartArtAsync(
+        Stream source, int index, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+        ct.ThrowIfCancellationRequested();
+
+        using var ms = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to read PPTX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return ReadSmartArtCore(ms.ToArray(), index);
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="path"/> and returns the text of every SmartArt diagram
+    /// on slide <paramref name="index"/> — see <see cref="ReadSmartArt(byte[], int)"/>.
+    /// </summary>
+    /// <param name="path">The .pptx to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank, or the file it names is empty.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="path"/>'s directory does not exist.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ReadSmartArtAsync(
+        string path, int index, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentOutOfRangeException.ThrowIfLessThan(index, 1);
+
+        var bytes = await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false);
+        return ReadSmartArt(bytes, index);
+    }
+
+    /// <summary>
+    /// The text of every SmartArt diagram on every slide, in deck order — <see cref="ReadSmartArt"/>
+    /// applied slide by slide, shared with <see cref="ExtractTextCore"/> so the two can never
+    /// disagree about which diagrams exist or what order they come in.
+    /// </summary>
+    private static IReadOnlyList<IReadOnlyList<string>> SmartArtTextBySlide(byte[] pptx)
+    {
+        try
+        {
+            using var source = new MemoryStream(pptx, writable: false);
+            using var document = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+
+            return document.Slides
+                .Select(slide => (IReadOnlyList<string>)slide.SmartArts
+                    .Select(art => string.Join("\n", art.GetNodeTexts()))
+                    .ToList())
+                .ToList();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    private static IReadOnlyList<string> ReadSmartArtCore(byte[] pptx, int index)
+    {
+        var bySlide = SmartArtTextBySlide(pptx);
+        if (index > bySlide.Count)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(index), index,
+                $"Slide {index} was requested from a deck with {bySlide.Count} slide(s).");
+        }
+
+        return bySlide[index - 1];
     }
 
     /// <summary>

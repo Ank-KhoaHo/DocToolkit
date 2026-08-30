@@ -154,6 +154,104 @@ public class PresentationEditorTests
     }
 
     // -----------------------------------------------------------------------------------------
+    // SmartArt (A98): a diagram's text lives in a diagram data part, not a p:txBody, so it was
+    // invisible to ExtractText/ReadSlide before ReadSmartArt existed to report it separately.
+    // -----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ReadSmartArt_ReturnsEachDiagramsNodeTexts()
+    {
+        var deck = PptxFixtures.DeckWithSmartArt(
+            OfficeIMO.PowerPoint.PowerPointSmartArtType.BasicProcess, "Plan", "Build", "Ship");
+
+        var diagrams = PresentationEditor.ReadSmartArt(deck, 1);
+
+        Assert.Single(diagrams);
+        Assert.Equal("Plan\nBuild\nShip", diagrams[0]);
+    }
+
+    [Fact]
+    public void ReadSmartArt_OnASlideWithNoSmartArt_ReturnsEmpty()
+    {
+        Assert.Empty(PresentationEditor.ReadSmartArt(SampleDeck(), 1));
+    }
+
+    [Fact]
+    public void ReadSmartArt_IndexBelowOne_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.ReadSmartArt(SampleDeck(), 0));
+    }
+
+    [Fact]
+    public void ReadSmartArt_IndexAboveSlideCount_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => PresentationEditor.ReadSmartArt(SampleDeck(), 2));
+    }
+
+    [Fact]
+    public void ExtractText_IncludesSmartArtAlongsideOrdinaryText()
+    {
+        var deck = PptxFixtures.DeckWithSmartArt(
+            OfficeIMO.PowerPoint.PowerPointSmartArtType.BasicProcess, "Plan", "Build", "Ship");
+
+        var texts = PresentationEditor.ExtractText(deck);
+
+        // Both halves present: the sample's own text-bearing shape, untouched by the fixture,
+        // and the SmartArt diagram this test added.
+        Assert.Contains(texts, t => t.Contains("Hello {{who}}"));
+        Assert.Contains(texts, t => t == "Plan\nBuild\nShip");
+    }
+
+    [Fact]
+    public void ExtractText_OnADeckWithNoSmartArt_IsUnchanged()
+    {
+        // The additive-only claim above needs a negative half: a deck with no SmartArt at all
+        // must report exactly what it always did, not an empty diagram entry alongside it.
+        var texts = PresentationEditor.ExtractText(SampleDeck());
+        Assert.Single(texts);
+        Assert.Contains("Hello {{who}}", texts[0]);
+    }
+
+    [Fact]
+    public void ReplaceText_LeavesSmartArtDataUntouched()
+    {
+        // Regression pin for a probe finding (artifacts/a98-probe): a no-op ReplaceText round
+        // trip must not corrupt or drop SmartArt data already in the document.
+        var deck = PptxFixtures.DeckWithSmartArt(
+            OfficeIMO.PowerPoint.PowerPointSmartArtType.BasicProcess, "Plan", "Build", "Ship");
+
+        var edited = PresentationEditor.ReplaceText(deck, new Dictionary<string, string>());
+
+        Assert.Equal(1, PresentationEditor.SlideCount(edited));
+        var diagrams = PresentationEditor.ReadSmartArt(edited, 1);
+        Assert.Single(diagrams);
+        Assert.Equal("Plan\nBuild\nShip", diagrams[0]);
+    }
+
+    [Fact]
+    public async Task ReadSmartArtAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var pptx = PptxFixtures.DeckWithSmartArt(
+            OfficeIMO.PowerPoint.PowerPointSmartArtType.BasicProcess, "Plan", "Build", "Ship");
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        Assert.Equal(
+            PresentationEditor.ReadSmartArt(pptx, 1),
+            await PresentationEditor.ReadSmartArtAsync(input.Path, 1));
+    }
+
+    [Fact]
+    public void ReadSmartArt_WrapsCorruptInputInDocumentConversionException()
+    {
+        Assert.Throws<DocumentConversionException>(
+            () => PresentationEditor.ReadSmartArt(new byte[] { 1, 2, 3, 4, 5 }, 1));
+    }
+
+    // -----------------------------------------------------------------------------------------
     // Error handling (I-6).
     // -----------------------------------------------------------------------------------------
 
