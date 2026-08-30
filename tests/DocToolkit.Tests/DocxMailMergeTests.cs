@@ -1762,7 +1762,35 @@ public class DocxMailMergeTests
             () => DocxMailMerge.MergeBatch(Simple("FirstName"), records).ToList());
 
         Assert.Equal("records", ex.ParamName);
+        Assert.Contains("Record 0:", ex.Message, StringComparison.Ordinal);
         Assert.Contains("FirstName", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_ARecordWithANullValue_NamesTheRecordAndTheRecordsParameter()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = null! },
+            };
+
+            var ex = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFiles(templatePath, records,
+                    (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx")));
+
+            Assert.Equal("records", ex.ParamName);
+            Assert.Contains("Record 0:", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("FirstName", ex.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
     }
 
     [Fact]
