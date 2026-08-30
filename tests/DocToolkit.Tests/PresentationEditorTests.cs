@@ -1467,7 +1467,23 @@ public class PresentationEditorTests
         using var expectedDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(expectedSource);
         using var actualDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(actualSource);
         Assert.Equal(expectedDoc.Slides.Count, actualDoc.Slides.Count);
-        Assert.Single(expectedDoc.Slides[0].Charts);
-        Assert.Single(actualDoc.Slides[0].Charts);
+        var expectedChart = Assert.Single(expectedDoc.Slides[0].Charts);
+        var actualChart = Assert.Single(actualDoc.Slides[0].Charts);
+
+        // The slide/chart-count checks above only prove "exactly one chart landed on each side" --
+        // they say nothing about whether it is the RIGHT chart. TryGetOfficeSnapshot exposes the
+        // chart's type/title/data without relying on Save()'s non-deterministic byte output (see
+        // above), so compare those directly between the two independently-produced decks.
+        Assert.True(expectedChart.TryGetOfficeSnapshot(out var expectedSnapshot));
+        Assert.True(actualChart.TryGetOfficeSnapshot(out var actualSnapshot));
+        Assert.Equal(expectedSnapshot.ChartKind, actualSnapshot.ChartKind);
+        Assert.Equal(expectedSnapshot.Title, actualSnapshot.Title);
+        Assert.Equal(expectedSnapshot.Data.Categories, actualSnapshot.Data.Categories);
+        Assert.Equal(expectedSnapshot.Data.Series.Count, actualSnapshot.Data.Series.Count);
+        for (var i = 0; i < expectedSnapshot.Data.Series.Count; i++)
+        {
+            Assert.Equal(expectedSnapshot.Data.Series[i].Name, actualSnapshot.Data.Series[i].Name);
+            Assert.Equal(expectedSnapshot.Data.Series[i].Values, actualSnapshot.Data.Series[i].Values);
+        }
     }
 }
