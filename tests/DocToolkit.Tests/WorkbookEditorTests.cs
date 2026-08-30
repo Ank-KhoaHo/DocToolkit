@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using DocToolkit;
 using Xunit;
@@ -1118,5 +1119,42 @@ public class WorkbookEditorTests
         var expectedChart = Assert.Single(expectedDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
         var actualChart = Assert.Single(actualDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
         Assert.Equal(expectedChart.Title, actualChart.Title);
+        Assert.Equal(expectedChart.ChartType, actualChart.ChartType);
+
+        // ExcelChart.DataRange is populated only for a chart built in-memory - measured directly
+        // (add a chart, read DataRange straight back: real SeriesCount/CategoryCount; save, then
+        // Load the identical bytes and read the SAME chart's DataRange again: null on both sides
+        // here). So series/category counts cannot be pinned through the OfficeIMO model once the
+        // chart has round-tripped through Save/Load, and this reads the raw chart XML instead -
+        // the one place per-series and per-category content actually survives that round trip.
+        //
+        // Masking exactly the two token families the comment above names as OfficeIMO's own
+        // non-determinism (a relationship id, and the axId/crossAx pair the axes cross-reference)
+        // leaves everything else in chart1.xml - the chart-type element, every series' formula and
+        // cached values, the category range - to compare byte-for-byte. Verified this discriminates
+        // rather than passing vacuously: swapping ChartType (line -> bar) or adding a second series
+        // changes the masked text; two calls on identical input do not.
+        var expectedChartXml = MaskNonDeterministicChartIds(
+            ReadZipEntryText(expected, "xl/drawings/charts/chart1.xml"));
+        var actualChartXml = MaskNonDeterministicChartIds(
+            ReadZipEntryText(actual, "xl/drawings/charts/chart1.xml"));
+        Assert.Equal(expectedChartXml, actualChartXml);
+    }
+
+    private static string ReadZipEntryText(byte[] xlsx, string entryName)
+    {
+        using var zip = new ZipArchive(new MemoryStream(xlsx, writable: false));
+        var entry = zip.GetEntry(entryName)
+            ?? throw new InvalidOperationException($"\"{entryName}\" was not found in the XLSX package.");
+        using var reader = new StreamReader(entry.Open());
+        return reader.ReadToEnd();
+    }
+
+    private static string MaskNonDeterministicChartIds(string chartXml)
+    {
+        var masked = Regex.Replace(chartXml, "r:id=\"[^\"]*\"", "r:id=\"MASKED\"");
+        masked = Regex.Replace(masked, "<c:axId val=\"[0-9]+\"\\s*/>", "<c:axId val=\"MASKED\"/>");
+        masked = Regex.Replace(masked, "<c:crossAx val=\"[0-9]+\"\\s*/>", "<c:crossAx val=\"MASKED\"/>");
+        return masked;
     }
 }

@@ -398,6 +398,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
+        "WorkbookEditor.AddChartAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
