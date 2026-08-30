@@ -1570,6 +1570,63 @@ public static class DocxMailMerge
     }
 
     /// <summary>
+    /// The shared strict-refusal-and-dispose skeleton behind <see cref="MergeConditionalCore"/>,
+    /// <see cref="MergeRepeatingCore"/> and <see cref="MergeRepeatingRegionsCore"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>This exists to protect one specific control-flow shape, not to hide each construct's own
+    /// logic.</b> A75's final whole-branch review found all three callers share an identical
+    /// dispose-then-throw pattern that is easy to get subtly wrong by hand in three places at
+    /// once: the refusal is decided INSIDE the try (so it can read what the inspection found) but
+    /// thrown OUTSIDE it (so the unfiltered <c>catch</c> below never re-wraps a refusal in the
+    /// generic read-or-write failure message), and <c>result</c> — the
+    /// <see cref="MemoryStream"/> this method owns — must be disposed on every path except the one
+    /// that returns it. Everything else that differs between the three constructs (which
+    /// <c>InspectTemplate</c> arguments to pass, which issue-kind table to filter against, which
+    /// <c>Execute*</c> call to make) stays inside <paramref name="body"/>, fully visible in its
+    /// caller rather than parameterised away — see the design doc this ticket shipped from for why
+    /// that split, not a single generic method taking every varying piece as its own parameter, is
+    /// the design.
+    ///
+    /// <paramref name="body"/> returns <c>refusalMessage: null</c> to mean "proceed" — in which
+    /// case it must itself have saved the document into <c>result</c> (<c>document.Save(result)</c>
+    /// followed by resetting <c>result.Position</c>) before returning — or a non-null string to
+    /// mean "refuse before merging anything," in which case it must NOT have written to
+    /// <c>result</c>. This method never touches <c>result</c>'s content, only its lifetime.
+    /// </remarks>
+    private static MemoryStream MergeBlockCore(
+        Stream source, string failureMessage,
+        Func<OfficeIMOWordDocument, MemoryStream,
+            (List<string> missing, List<DocxMailMergeIssue> allIssues, string? refusalMessage)> body,
+        out DocxMailMergeBlockReport report)
+    {
+        var result = new MemoryStream();
+        List<string> missing;
+        List<DocxMailMergeIssue> allIssues;
+        string? refusalMessage;
+
+        try
+        {
+            using var document = OfficeIMOWordDocument.Load(source);
+            (missing, allIssues, refusalMessage) = body(document, result);
+        }
+        catch (Exception ex)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(failureMessage, ex);
+        }
+
+        if (refusalMessage is not null)
+        {
+            result.Dispose();
+            throw new DocumentConversionException(refusalMessage);
+        }
+
+        report = new DocxMailMergeBlockReport(missing, allIssues);
+        return result;
+    }
+
+    /// <summary>
     /// The one implementation behind all four <c>MergeConditional*</c> overloads.
     /// </summary>
     /// <remarks>
@@ -1585,75 +1642,59 @@ public static class DocxMailMerge
     /// <see langword="false"/> for every missing name before calling <c>Execute</c>, so
     /// <c>Execute</c> never sees an unsupplied key either way.
     ///
-    /// <b>The strict refusal happens INSIDE the try, using a captured flag rather than an early
-    /// throw</b> — matching <see cref="MergeCore"/>'s own reasoning: throwing the specific
-    /// <see cref="DocumentConversionException"/> from inside an unfiltered
-    /// <c>catch (Exception ex)</c> below it would re-wrap it in the generic failure message.
+    /// <b>The strict-refusal control flow itself lives in <see cref="MergeBlockCore"/></b>, shared
+    /// with <see cref="MergeRepeatingCore"/> and <see cref="MergeRepeatingRegionsCore"/> — see its
+    /// own remarks for why the refusal is decided inside the lambda below but thrown outside it.
     /// </remarks>
     private static MemoryStream MergeConditionalCore(
         Stream source, IReadOnlyDictionary<string, bool> conditions, bool strict,
-        out DocxMailMergeBlockReport report)
-    {
-        var result = new MemoryStream();
-        List<string> missing;
-        List<DocxMailMergeIssue> allIssues;
-        bool refuse;
-        string? refusalMessage = null;
-
-        try
+        out DocxMailMergeBlockReport report) =>
+        MergeBlockCore(source, ConditionalFailure, (document, result) =>
         {
-            using var document = OfficeIMOWordDocument.Load(source);
-
             var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, conditions.Keys, null!);
-            allIssues = [.. inspection.Issues.Select(Issue)];
-            missing = [.. allIssues
+            List<DocxMailMergeIssue> allIssues = [.. inspection.Issues.Select(Issue)];
+            List<string> missing = [.. allIssues
                 .Where(i => i.Kind == DocxMailMergeIssueKind.MissingConditionalValue)
                 .Select(i => i.Name)];
-
             List<DocxMailMergeIssue> blocking =
                 [.. allIssues.Where(i => ConditionalIssueKinds.Contains(i.Kind))];
 
-            refuse = strict && blocking.Count > 0;
-            if (refuse)
-            {
-                refusalMessage = $"{blocking.Count} conditional block issue(s), refusing before "
-                    + $"merging any: {string.Join("; ", blocking.Select(i => i.Message))}. Call "
-                    + "MergeConditionalWithReport to execute anyway.";
-            }
-            else
+            string? refusalMessage = strict && blocking.Count > 0
+                ? $"{blocking.Count} conditional block issue(s), refusing before merging any: "
+                  + $"{string.Join("; ", blocking.Select(i => i.Message))}. Call "
+                  + "MergeConditionalWithReport to execute anyway."
+                : null;
+
+            if (refusalMessage is null)
             {
                 var execute = CopyWithDefault(conditions, missing, defaultValue: false);
                 OfficeIMOMailMerge.ExecuteConditionalBlocks(document, execute, removeMarkers: true);
                 document.Save(result);
                 result.Position = 0;
             }
-        }
-        catch (Exception ex)
-        {
-            result.Dispose();
-            throw new DocumentConversionException(ConditionalFailure, ex);
-        }
 
-        if (refuse)
-        {
-            result.Dispose();
-            throw new DocumentConversionException(refusalMessage!);
-        }
-
-        report = new DocxMailMergeBlockReport(missing, allIssues);
-        return result;
-    }
+            return (missing, allIssues, refusalMessage);
+        }, out report);
 
     /// <summary>
     /// A mutable copy of <paramref name="values"/> with <paramref name="defaultValue"/> filled in
     /// for every name in <paramref name="missingNames"/> — what lets the lenient overloads call the
     /// underlying engine, which has no tolerance of its own for a dictionary missing an entry.
+    /// Generic over the value type because <see cref="MergeConditionalCore"/>'s <c>bool</c> values
+    /// and <see cref="MergeRepeatingCore"/>'s <c>IEnumerable&lt;IReadOnlyDictionary&lt;string,
+    /// string&gt;&gt;</c> regions pad with exactly the same copy-then-fill shape, differing only in
+    /// the value type and what "missing" defaults to.
+    ///
+    /// <paramref name="defaultValue"/> is evaluated once and shared by reference across every
+    /// padded key — harmless for the current callers (a cached empty array, or a value type), but
+    /// a future caller padding with a mutable reference type would have every missing key alias
+    /// the same instance.
     /// </summary>
-    private static Dictionary<string, bool> CopyWithDefault(
-        IReadOnlyDictionary<string, bool> values, IReadOnlyList<string> missingNames, bool defaultValue)
+    private static Dictionary<string, TValue> CopyWithDefault<TValue>(
+        IReadOnlyDictionary<string, TValue> values, IReadOnlyList<string> missingNames, TValue defaultValue)
     {
-        var copy = new Dictionary<string, bool>(values.Count + missingNames.Count);
-        foreach (KeyValuePair<string, bool> pair in values)
+        var copy = new Dictionary<string, TValue>(values.Count + missingNames.Count);
+        foreach (KeyValuePair<string, TValue> pair in values)
             copy[pair.Key] = pair.Value;
         foreach (string name in missingNames)
             copy[name] = defaultValue;
@@ -1662,8 +1703,8 @@ public static class DocxMailMerge
 
     /// <summary>
     /// The one implementation behind all four <c>MergeRepeating*</c> overloads. Same shape as
-    /// <see cref="MergeConditionalCore"/> — see its remarks for why the preflight and the
-    /// try/catch are structured the way they are.
+    /// <see cref="MergeConditionalCore"/> — see <see cref="MergeBlockCore"/>'s remarks for why the
+    /// refusal control flow is structured the way it is.
     /// </summary>
     private static MemoryStream MergeRepeatingCore(
         Stream source, IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
@@ -1674,72 +1715,34 @@ public static class DocxMailMerge
         Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> records =
             MaterialiseRecords(regions, nameof(regions));
 
-        var result = new MemoryStream();
-        List<string> missing;
-        List<DocxMailMergeIssue> allIssues;
-        bool refuse;
-        string? refusalMessage = null;
-
-        try
+        return MergeBlockCore(source, RepeatingFailure, (document, result) =>
         {
-            using var document = OfficeIMOWordDocument.Load(source);
-
             var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, null!, records.Keys);
-            allIssues = [.. inspection.Issues.Select(Issue)];
-            missing = [.. allIssues
+            List<DocxMailMergeIssue> allIssues = [.. inspection.Issues.Select(Issue)];
+            List<string> missing = [.. allIssues
                 .Where(i => i.Kind == DocxMailMergeIssueKind.MissingRepeatingBlockData)
                 .Select(i => i.Name)];
-
             List<DocxMailMergeIssue> blocking =
                 [.. allIssues.Where(i => RepeatingIssueKinds.Contains(i.Kind))];
 
-            refuse = strict && blocking.Count > 0;
-            if (refuse)
+            string? refusalMessage = strict && blocking.Count > 0
+                ? $"{blocking.Count} repeating block issue(s), refusing before merging any: "
+                  + $"{string.Join("; ", blocking.Select(i => i.Message))}. Call "
+                  + "MergeRepeatingWithReport to execute anyway."
+                : null;
+
+            if (refusalMessage is null)
             {
-                refusalMessage = $"{blocking.Count} repeating block issue(s), refusing before "
-                    + $"merging any: {string.Join("; ", blocking.Select(i => i.Message))}. Call "
-                    + "MergeRepeatingWithReport to execute anyway.";
-            }
-            else
-            {
-                var padded = CopyRegionsWithDefault(records, missing);
+                var padded = CopyWithDefault(
+                    records, missing, defaultValue: Array.Empty<IReadOnlyDictionary<string, string>>());
                 var forEngine = ToEngineRecords(padded);
                 OfficeIMOMailMerge.ExecuteRepeatingBlocks(document, forEngine, removeFields: true);
                 document.Save(result);
                 result.Position = 0;
             }
-        }
-        catch (Exception ex)
-        {
-            result.Dispose();
-            throw new DocumentConversionException(RepeatingFailure, ex);
-        }
 
-        if (refuse)
-        {
-            result.Dispose();
-            throw new DocumentConversionException(refusalMessage!);
-        }
-
-        report = new DocxMailMergeBlockReport(missing, allIssues);
-        return result;
-    }
-
-    /// <summary>
-    /// A mutable copy of <paramref name="regions"/> with an empty sequence filled in for every name
-    /// in <paramref name="missingNames"/> — the repeating-region twin of <see cref="CopyWithDefault"/>.
-    /// </summary>
-    private static Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> CopyRegionsWithDefault(
-        IReadOnlyDictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>> regions,
-        IReadOnlyList<string> missingNames)
-    {
-        var copy = new Dictionary<string, IEnumerable<IReadOnlyDictionary<string, string>>>(
-            regions.Count + missingNames.Count);
-        foreach (KeyValuePair<string, IEnumerable<IReadOnlyDictionary<string, string>>> pair in regions)
-            copy[pair.Key] = pair.Value;
-        foreach (string name in missingNames)
-            copy[name] = Array.Empty<IReadOnlyDictionary<string, string>>();
-        return copy;
+            return (missing, allIssues, refusalMessage);
+        }, out report);
     }
 
     /// <summary>
@@ -1762,10 +1765,10 @@ public static class DocxMailMerge
 
     /// <summary>
     /// The one implementation behind all four <c>MergeRepeatingRegions*</c> overloads. Same shape
-    /// as <see cref="MergeRepeatingCore"/> — see <see cref="MergeConditionalCore"/>'s remarks for
-    /// why the preflight and the try/catch are structured the way they are — except for the two
-    /// things nesting genuinely changes, both measured against OfficeIMO.Word 3.2.6 before this
-    /// method was written.
+    /// as <see cref="MergeRepeatingCore"/> — see <see cref="MergeBlockCore"/>'s remarks for why the
+    /// refusal control flow is structured the way it is — except for the two things nesting
+    /// genuinely changes, both measured against OfficeIMO.Word 3.2.6 before this method was
+    /// written.
     /// </summary>
     /// <remarks>
     /// <b>The supplied-name comparison walks every nesting level</b>, via
@@ -1805,36 +1808,26 @@ public static class DocxMailMerge
         Dictionary<string, IEnumerable<DocxMailMergeBlockData>> rows =
             MaterialiseBlockData(regions, nameof(regions), path: null);
 
-        var result = new MemoryStream();
-        List<string> missing;
-        List<DocxMailMergeIssue> allIssues;
-        bool refuse;
-        string? refusalMessage = null;
-
-        try
+        return MergeBlockCore(source, RepeatingRegionsFailure, (document, result) =>
         {
-            using var document = OfficeIMOWordDocument.Load(source);
-
             var suppliedNames = new HashSet<string>();
             CollectNamesRecursively(rows, suppliedNames);
 
             var inspection = OfficeIMOMailMerge.InspectTemplate(document, null!, null!, suppliedNames);
-            allIssues = [.. inspection.Issues.Select(Issue)];
-            missing = [.. allIssues
+            List<DocxMailMergeIssue> allIssues = [.. inspection.Issues.Select(Issue)];
+            List<string> missing = [.. allIssues
                 .Where(i => i.Kind == DocxMailMergeIssueKind.MissingRepeatingBlockData)
                 .Select(i => i.Name)];
-
             List<DocxMailMergeIssue> blocking =
                 [.. allIssues.Where(i => RepeatingIssueKinds.Contains(i.Kind))];
 
-            refuse = strict && blocking.Count > 0;
-            if (refuse)
-            {
-                refusalMessage = $"{blocking.Count} repeating region issue(s), refusing before "
-                    + $"merging any: {string.Join("; ", blocking.Select(i => i.Message))}. Call "
-                    + "MergeRepeatingRegionsWithReport to execute anyway.";
-            }
-            else
+            string? refusalMessage = strict && blocking.Count > 0
+                ? $"{blocking.Count} repeating region issue(s), refusing before merging any: "
+                  + $"{string.Join("; ", blocking.Select(i => i.Message))}. Call "
+                  + "MergeRepeatingRegionsWithReport to execute anyway."
+                : null;
+
+            if (refusalMessage is null)
             {
                 List<string> pad = strict ? [] : [.. inspection.RepeatingBlockNames];
                 var forEngine = ToEngineRegions(rows, pad);
@@ -1842,21 +1835,9 @@ public static class DocxMailMerge
                 document.Save(result);
                 result.Position = 0;
             }
-        }
-        catch (Exception ex)
-        {
-            result.Dispose();
-            throw new DocumentConversionException(RepeatingRegionsFailure, ex);
-        }
 
-        if (refuse)
-        {
-            result.Dispose();
-            throw new DocumentConversionException(refusalMessage!);
-        }
-
-        report = new DocxMailMergeBlockReport(missing, allIssues);
-        return result;
+            return (missing, allIssues, refusalMessage);
+        }, out report);
     }
 
     /// <summary>
@@ -1884,7 +1865,7 @@ public static class DocxMailMerge
     /// <paramref name="padNames"/> that a level does not already supply.
     /// </summary>
     /// <remarks>
-    /// Padding happens HERE rather than in a <see cref="CopyRegionsWithDefault"/>-style pass over
+    /// Padding happens HERE rather than in a <see cref="CopyWithDefault{TValue}"/>-style pass over
     /// the caller's own dictionary, for two reasons. It has to reach every nesting level — see
     /// <see cref="MergeRepeatingRegionsCore"/> for the measurement that forced that — and this is
     /// already the pass that rebuilds the whole tree, so padding on the way through cannot mutate
