@@ -1755,6 +1755,7 @@ public class DocxMailMergeTests
     {
         var records = new IReadOnlyDictionary<string, string>[]
         {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
             new Dictionary<string, string> { ["FirstName"] = null! },
         };
 
@@ -1762,7 +1763,9 @@ public class DocxMailMergeTests
             () => DocxMailMerge.MergeBatch(Simple("FirstName"), records).ToList());
 
         Assert.Equal("records", ex.ParamName);
-        Assert.Contains("Record 0:", ex.Message, StringComparison.Ordinal);
+        // A single-record batch can't tell $"Record {index}" apart from a hard-coded "Record 0" --
+        // record 1 is what actually pins the index to the loop variable, not a constant.
+        Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
         Assert.Contains("FirstName", ex.Message, StringComparison.Ordinal);
     }
 
@@ -1776,6 +1779,7 @@ public class DocxMailMergeTests
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
                 new Dictionary<string, string> { ["FirstName"] = null! },
             };
 
@@ -1784,8 +1788,14 @@ public class DocxMailMergeTests
                     (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx")));
 
             Assert.Equal("records", ex.ParamName);
-            Assert.Contains("Record 0:", ex.Message, StringComparison.Ordinal);
+            // A single-record batch can't tell $"Record {index}" apart from a hard-coded "Record 0"
+            // -- record 1 is what actually pins the index to the loop variable, not a constant.
+            Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
             Assert.Contains("FirstName", ex.Message, StringComparison.Ordinal);
+            // RequireValues runs in the path-computation loop, before CheckNoPathCollisions and
+            // before any write -- a null value anywhere in the batch means no file is written at
+            // all, unlike a strict field-miss where records before the bad one are already on disk.
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
         }
         finally
         {
