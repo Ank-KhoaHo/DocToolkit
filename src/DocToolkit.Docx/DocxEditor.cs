@@ -1849,7 +1849,8 @@ public static class DocxEditor
     /// than silently trimmed — other text, an inline image, a text box and a tab alike, and so is
     /// a paragraph whose own <c>w:pPr</c> holds a <c>w:sectPr</c>, since that is a section break
     /// carrying its section's paper size, margins and page numbering rather than formatting the
-    /// paragraph could lose harmlessly.
+    /// paragraph could lose harmlessly. A bookmark is the one exception: it is preserved, wrapping
+    /// the inserted content, rather than discarded with the paragraph.
     /// </para>
     /// <para>
     /// <b>Only a top-level paragraph is matched.</b> A placeholder that lives only inside a text
@@ -2106,13 +2107,23 @@ public static class DocxEditor
                         + "matches the document exactly and has nothing else in its paragraph.");
                 }
 
-                foreach (var bookmark in target.ChildElements.Where(c => c is BookmarkStart or BookmarkEnd).ToList())
+                foreach (var start in target.ChildElements.OfType<BookmarkStart>().ToList())
                 {
-                    bookmark.Remove();
-                    target.InsertBeforeSelf(bookmark);
+                    start.Remove();
+                    target.InsertBeforeSelf(start);
                 }
 
-                target.InsertBeforeSelf((SdtBlock)fragment.CloneNode(true));
+                var toc = (SdtBlock)fragment.CloneNode(true);
+                target.InsertBeforeSelf(toc);
+
+                OpenXmlElement afterAnchor = toc;
+                foreach (var end in target.ChildElements.OfType<BookmarkEnd>().ToList())
+                {
+                    end.Remove();
+                    afterAnchor.InsertAfterSelf(end);
+                    afterAnchor = end;
+                }
+
                 target.Remove();
 
                 main.Document!.Save();
