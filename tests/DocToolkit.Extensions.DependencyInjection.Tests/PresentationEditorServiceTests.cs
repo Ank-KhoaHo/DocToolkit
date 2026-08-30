@@ -198,6 +198,152 @@ public class PresentationEditorServiceTests
         Assert.Single(doc.PresentationPart!.SlideParts.Single().ImageParts);
     }
 
+    // ---------------------------------------------------------------------------------------
+    // InsertSlides/ReadSlide/RemoveSlides/ReorderSlides, mirrored from core 0.43.0 (A70-DI).
+    // Each test reads back a concrete, index-specific literal rather than only comparing the
+    // wrapper's output to the static method's own output, since a wrapper calling the RIGHT
+    // method with an off-by-one or reordered argument would otherwise still "match itself".
+    // ---------------------------------------------------------------------------------------
+
+    private static byte[] ThreeSlideDeck() => PresentationEditor.Create(new[]
+    {
+        PptxSlide.Titled("First"),
+        PptxSlide.Titled("Second"),
+        PptxSlide.Titled("Third"),
+    });
+
+    [Fact]
+    public void ReadSlide_MatchesTheStaticMethodAndReadsTheRightSlide()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+
+        var fromWrapper = sut.ReadSlide(deck, 2);
+
+        Assert.Equal(PresentationEditor.ReadSlide(deck, 2), fromWrapper);
+        Assert.Contains(fromWrapper, t => t.Contains("Second"));
+    }
+
+    [Fact]
+    public async Task ReadSlideAsync_MatchesTheStaticMethod()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+
+        using var expectedSource = new MemoryStream(deck);
+        using var actualSource = new MemoryStream(deck);
+
+        var expected = await PresentationEditor.ReadSlideAsync(expectedSource, 2);
+        var actual = await sut.ReadSlideAsync(actualSource, 2);
+
+        Assert.Equal(expected, actual);
+        Assert.Contains(actual, t => t.Contains("Second"));
+    }
+
+    [Fact]
+    public void RemoveSlides_MatchesTheStaticMethodAndRemovesTheRightSlide()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+
+        var fromWrapper = sut.RemoveSlides(deck, new[] { 2 });
+
+        Assert.Equal(
+            PresentationEditor.ExtractText(PresentationEditor.RemoveSlides(deck, new[] { 2 })),
+            PresentationEditor.ExtractText(fromWrapper));
+
+        var remaining = PresentationEditor.ExtractText(fromWrapper);
+        Assert.Contains(remaining, t => t.Contains("First"));
+        Assert.Contains(remaining, t => t.Contains("Third"));
+        Assert.DoesNotContain(remaining, t => t.Contains("Second"));
+    }
+
+    [Fact]
+    public async Task RemoveSlidesAsync_MatchesTheStaticMethod()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+
+        using var source = new MemoryStream(deck);
+        using var destination = new MemoryStream();
+        await sut.RemoveSlidesAsync(source, new[] { 1 }, destination);
+
+        var remaining = PresentationEditor.ExtractText(destination.ToArray());
+        Assert.DoesNotContain(remaining, t => t.Contains("First"));
+        Assert.Contains(remaining, t => t.Contains("Second"));
+        Assert.Contains(remaining, t => t.Contains("Third"));
+    }
+
+    [Fact]
+    public void ReorderSlides_MatchesTheStaticMethodAndAppliesTheRealOrder()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+
+        var fromWrapper = sut.ReorderSlides(deck, new[] { 3, 1, 2 });
+
+        Assert.Equal(
+            PresentationEditor.ExtractText(PresentationEditor.ReorderSlides(deck, new[] { 3, 1, 2 })),
+            PresentationEditor.ExtractText(fromWrapper));
+
+        // Order, not merely membership: a wrapper that ignored `order` and returned the deck
+        // unchanged would still pass a set-equality check but fail this.
+        Assert.Equal(
+            new[] { "Third", "First", "Second" },
+            PresentationEditor.ExtractText(fromWrapper).Where(t => t is "First" or "Second" or "Third"));
+    }
+
+    [Fact]
+    public async Task ReorderSlidesAsync_MatchesTheStaticMethod()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+
+        using var source = new MemoryStream(deck);
+        using var destination = new MemoryStream();
+        await sut.ReorderSlidesAsync(source, new[] { 2, 3, 1 }, destination);
+
+        Assert.Equal(
+            new[] { "Second", "Third", "First" },
+            PresentationEditor.ExtractText(destination.ToArray()).Where(t => t is "First" or "Second" or "Third"));
+    }
+
+    [Fact]
+    public void InsertSlides_MatchesTheStaticMethodAndInsertsAtTheRightPosition()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+        var inserted = new[] { PptxSlide.Titled("Inserted") };
+
+        var fromWrapper = sut.InsertSlides(deck, 2, inserted);
+
+        Assert.Equal(
+            PresentationEditor.ExtractText(PresentationEditor.InsertSlides(deck, 2, inserted)),
+            PresentationEditor.ExtractText(fromWrapper));
+
+        Assert.Equal(
+            new[] { "First", "Inserted", "Second", "Third" },
+            PresentationEditor.ExtractText(fromWrapper).Where(t => t is "First" or "Second" or "Third" or "Inserted"));
+    }
+
+    [Fact]
+    public async Task InsertSlidesAsync_MatchesTheStaticMethod()
+    {
+        var deck = ThreeSlideDeck();
+        var sut = new PresentationEditorService();
+        var inserted = new[] { PptxSlide.Titled("Inserted") };
+
+        using var source = new MemoryStream(deck);
+        using var destination = new MemoryStream();
+        await sut.InsertSlidesAsync(source, 4, inserted, destination);
+
+        // atIndex 4 == SlideCount + 1: appends after everything, so the assertion also proves
+        // the position argument (not just the slide content) threaded through correctly.
+        Assert.Equal(
+            new[] { "First", "Second", "Third", "Inserted" },
+            PresentationEditor.ExtractText(destination.ToArray()).Where(t => t is "First" or "Second" or "Third" or "Inserted"));
+    }
+
     [Fact]
     public async Task SlideCountAsync_HonorsCancellation()
     {

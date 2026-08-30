@@ -159,7 +159,7 @@ Every interface — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfCo
 `IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`,
 `IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocToDocxConverter`, `IDocxEditor`,
 `IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor`, `IDocxReview`, `IDocxMailMerge`,
-`IDocxForm`, `IDocxToPdfPreflight` — mirrors
+`IDocxForm`, `IDocxToPdfPreflight`, `IMarkdownEditor` — mirrors
 [`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
 `byte[]` and its `Stream`-based async overloads.
 

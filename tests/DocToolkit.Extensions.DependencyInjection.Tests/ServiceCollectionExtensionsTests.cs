@@ -63,6 +63,21 @@ public class ServiceCollectionExtensionsTests
     /// reflection while writing this: the assembly it loads reports version 0.26.0, and a public
     /// static class added locally is invisible to it.
     ///
+    /// <b>"Core" means every <c>DocToolkit*</c> assembly the per-concern split produced, not only
+    /// the one named <c>DocToolkit.dll</c> — and this scanned only that one until A70-DI/A80-DI's
+    /// pass found it.</b> Reading only <c>typeof(DocToolkit.DocxEditor).Assembly</c> means only
+    /// classes living in <c>DocToolkit.Docx</c> (<c>DocxEditor</c>, <c>DocxMailMerge</c>,
+    /// <c>DocxForm</c>, <c>DocxReview</c>) were ever checked - the five other assemblies
+    /// (<c>DocToolkit</c> core, <c>.Pptx</c>, <c>.Xlsx</c>, <c>.Pdf</c>, <c>.Html</c>) were
+    /// invisible to this test regardless of how stale their own mirrors went. That is exactly how
+    /// <c>IPresentationEditor</c> missed four members (<c>InsertSlides</c>/<c>ReadSlide</c>/
+    /// <c>RemoveSlides</c>/<c>ReorderSlides</c>, each with a <c>byte[]</c> and a <c>Stream</c>-async
+    /// form) for a full release cycle with this test green throughout: `PresentationEditor` lives
+    /// in <c>DocToolkit.Pptx</c>, and nothing here ever looked there. Now every assembly whose name
+    /// starts with <c>DocToolkit</c> and is actually loaded is scanned, not one hardcoded assembly -
+    /// the same "derive, don't list" fix this test's own history already applies to everything else
+    /// about it.
+    ///
     /// That is the correct semantics rather than a shortcoming, because it matches what the
     /// mirror can actually promise: an interface cannot wrap a method that has not shipped. But it
     /// has a consequence worth stating plainly - <b>this test cannot fail in the same pull request
@@ -71,28 +86,76 @@ public class ServiceCollectionExtensionsTests
     /// does not remove it.
     ///
     /// <b>Two deliberate exclusions.</b> File-path overloads are not mirrored - no interface here
-    /// takes a <c>string path</c> - so a core method whose name ends in <c>ToFileAsync</c>, plus
-    /// <c>ConvertFile</c>, is skipped. And this compares METHOD NAMES, not signatures, so a new
-    /// OVERLOAD of an already-mirrored name stays invisible; that limit is inherited from what the
-    /// interfaces actually promise and is stated here rather than left to be discovered.
+    /// takes a <c>string path</c> - so a core method whose name contains <c>ToFile</c> (singular or
+    /// plural: <c>ConvertToFileAsync</c>, <c>MergeBatchToFilesAsync</c>), plus <c>ConvertFile</c>,
+    /// is skipped. This was a hardcoded list of exact names until it went stale the moment a BATCH
+    /// file-path method shipped under the plural form - <c>MergeBatchToFiles</c> matched none of
+    /// the three literals, so this test reported it as a missing mirror rather than recognising it
+    /// as one more instance of a convention it already knew about. A substring check on what the
+    /// convention actually turns on (the file-path shape) does not have this failure mode. And this
+    /// compares METHOD NAMES, not signatures, so a new OVERLOAD of an already-mirrored name stays
+    /// invisible; that limit is inherited from what the interfaces actually promise and is stated
+    /// here rather than left to be discovered.
     /// </remarks>
     [Fact]
     public void EveryCoreCapabilityClassHasAMatchingInterfaceWithEveryMethod()
     {
-        var fileOnly = new[] { "ConvertFile", "ConvertToFileAsync", "CreateToFileAsync" };
+        // A method's name containing "ToFile" (ConvertToFileAsync, CreateToFileAsync,
+        // MergeBatchToFiles/ToFilesAsync/ToFilesWithReport/ToFilesWithReportAsync - singular AND
+        // plural) is a file-path overload, plus the one method not shaped that way at all,
+        // ConvertFile. This used to be a hardcoded list of exact names and went stale the moment a
+        // BATCH file-path method (plural "ToFiles") shipped - the exact list this check exists to
+        // stop happening again, one level up. A substring match on the shared naming element is
+        // what "no interface here takes a string path" actually depends on, not the specific verbs
+        // around it.
+        bool IsFileOnly(string name) => name == "ConvertFile" || name.Contains("ToFile", StringComparison.Ordinal);
+
         var extensions = typeof(IDocxEditor).Assembly;
+
+        // AppDomain.CurrentDomain.GetAssemblies() only returns assemblies the CLR has actually
+        // loaded, which is lazy per-type - referencing a project, or even reflecting over an
+        // interface whose OWN methods mention a type from it, does not by itself force a load.
+        // Measured directly: a throwaway console app that ProjectReferences every DocToolkit*
+        // project but never touches a member of any of them sees zero of them in
+        // GetAssemblies(). This test's own assembly happens to touch WorkbookEditor, PptxSlide
+        // and others in its OTHER [Fact] methods, which was masking the gap this fixes - but
+        // relying on some unrelated test having already run is exactly the "has to be remembered"
+        // failure mode the class doc comment already names, one level down.
+        //
+        // So every assembly that could hold a capability class is force-loaded here, explicitly -
+        // derived from the OUTPUT DIRECTORY rather than a hand-written suffix list, which would
+        // only be the same hardcoded-list failure mode one level further down: a future
+        // DocToolkit.Csv (backlog A72) would silently stay unscanned until something else forced
+        // it to load, exactly how PresentationEditor's own gap survived unnoticed. Every
+        // DocToolkit*.dll actually shipped next to the test binary is the real, ground-truth
+        // list - nothing else can drift from what the package contains, because it IS what the
+        // package contains.
+        foreach (var dll in Directory.GetFiles(AppContext.BaseDirectory, "DocToolkit*.dll"))
+        {
+            var name = AssemblyName.GetAssemblyName(dll);
+            if (name.Name is { } n && !n.StartsWith("DocToolkit.Extensions", StringComparison.Ordinal))
+                Assembly.Load(name);
+        }
+
+        var coreAssemblies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => a.GetName().Name is { } name
+                && name.StartsWith("DocToolkit", StringComparison.Ordinal)
+                && !name.StartsWith("DocToolkit.Extensions", StringComparison.Ordinal)
+                && !name.EndsWith(".Tests", StringComparison.Ordinal))
+            .ToList();
 
         var problems = new List<string>();
         var pairs = 0;
 
-        foreach (var core in typeof(DocToolkit.DocxEditor).Assembly.GetExportedTypes()
+        foreach (var core in coreAssemblies
+                     .SelectMany(a => a.GetExportedTypes())
                      .Where(t => t is { IsAbstract: true, IsSealed: true })
                      .OrderBy(t => t.Name))
         {
             var methods = core
                 .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
                 .Select(m => m.Name)
-                .Where(n => !fileOnly.Contains(n))
+                .Where(n => !IsFileOnly(n))
                 .ToHashSet(StringComparer.Ordinal);
 
             if (methods.Count == 0) continue;

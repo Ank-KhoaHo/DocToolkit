@@ -49,4 +49,32 @@ internal sealed class PresentationEditorService : IPresentationEditor
 
     public Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
         => DocToolkit.PresentationEditor.UnprotectAsync(source, destination, password, ct);
+
+    public IReadOnlyList<string> ReadSlide(byte[] pptx, int index)
+        => DocToolkit.PresentationEditor.ReadSlide(pptx, index);
+
+    public Task<IReadOnlyList<string>> ReadSlideAsync(Stream source, int index, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ReadSlideAsync(source, index, ct);
+
+    public byte[] RemoveSlides(byte[] pptx, IEnumerable<int> indices)
+        => DocToolkit.PresentationEditor.RemoveSlides(pptx, indices);
+
+    public Task RemoveSlidesAsync(
+        Stream source, IEnumerable<int> indices, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.RemoveSlidesAsync(source, indices, destination, ct);
+
+    public byte[] ReorderSlides(byte[] pptx, IEnumerable<int> order)
+        => DocToolkit.PresentationEditor.ReorderSlides(pptx, order);
+
+    public Task ReorderSlidesAsync(
+        Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ReorderSlidesAsync(source, order, destination, ct);
+
+    public byte[] InsertSlides(byte[] pptx, int atIndex, IEnumerable<DocToolkit.PptxSlide> slides)
+        => DocToolkit.PresentationEditor.InsertSlides(pptx, atIndex, slides);
+
+    public Task InsertSlidesAsync(
+        Stream source, int atIndex, IEnumerable<DocToolkit.PptxSlide> slides, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.InsertSlidesAsync(source, atIndex, slides, destination, ct);
 }
