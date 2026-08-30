@@ -10,6 +10,28 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.43.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.42.0...v0.43.0) (2026-08-30)
+
+
+### Added
+
+* **docx:** add conditional blocks, repeating blocks/regions and table-row repetition to mail merge ([#416](https://github.com/Ank-KhoaHo/DocToolkit/issues/416)) ([dd0291b](https://github.com/Ank-KhoaHo/DocToolkit/commit/dd0291b995a6099b795c7662af39f234c1557754))
+* **docx:** add DocxMailMerge batch mail merge ([#415](https://github.com/Ank-KhoaHo/DocToolkit/issues/415)) ([49c5c42](https://github.com/Ank-KhoaHo/DocToolkit/commit/49c5c42ca72e97e391408e3018174d3e04121a49))
+* **docx:** add footnotes, endnotes and a table of contents ([#414](https://github.com/Ank-KhoaHo/DocToolkit/issues/414)) ([a6ad924](https://github.com/Ank-KhoaHo/DocToolkit/commit/a6ad924e5ddf0b10ce274170b462edd6cf8a8544))
+* **markdown:** add MarkdownEditor -- read and edit an existing Markdown document ([#413](https://github.com/Ank-KhoaHo/DocToolkit/issues/413)) ([47d279b](https://github.com/Ank-KhoaHo/DocToolkit/commit/47d279b4ef76d8b0feb450035b63d521eb3afd2a))
+* **pptx:** add slide structural operations to PresentationEditor ([#411](https://github.com/Ank-KhoaHo/DocToolkit/issues/411)) ([2c1a7a2](https://github.com/Ank-KhoaHo/DocToolkit/commit/2c1a7a2b5a8caa9d76e3f2d850b2988dbcaef295))
+
+
+### Fixed
+
+* **core:** name the record in a batch null-value error ([#421](https://github.com/Ank-KhoaHo/DocToolkit/issues/421)) ([8c30060](https://github.com/Ank-KhoaHo/DocToolkit/commit/8c3006070f928f795e3637b6ddd81dbe2c440bd1))
+* **core:** unify mail-merge batch exception attribution ([#418](https://github.com/Ank-KhoaHo/DocToolkit/issues/418)) ([2d79543](https://github.com/Ank-KhoaHo/DocToolkit/commit/2d79543db4a4bc95cb001c93f3203aa87f359fc9))
+* **docx:** a bookmark contained in the AddTableOfContents placeholder now wraps the TOC ([#423](https://github.com/Ank-KhoaHo/DocToolkit/issues/423)) ([c5dbe8c](https://github.com/Ank-KhoaHo/DocToolkit/commit/c5dbe8c839fc20515a321b5158e0df83a8e570b6))
+* **docx:** confirm endnote content survives DocxToPdfConverter ([#426](https://github.com/Ank-KhoaHo/DocToolkit/issues/426)) ([244716c](https://github.com/Ank-KhoaHo/DocToolkit/commit/244716c984909c7f052701e127e4b00f09e7eda4))
+* **docx:** narrow FootnoteCode to footnotes actually lost on render ([#428](https://github.com/Ank-KhoaHo/DocToolkit/issues/428)) ([8c4b433](https://github.com/Ank-KhoaHo/DocToolkit/commit/8c4b4336b47235962c9fdece3e4554128e7e1183))
+* **docx:** preserve bookmarks when AddTableOfContents replaces the placeholder paragraph ([#422](https://github.com/Ank-KhoaHo/DocToolkit/issues/422)) ([88fd34b](https://github.com/Ank-KhoaHo/DocToolkit/commit/88fd34bcace6fc88fefbed011bd7cac63cc23a86))
+* **pptx:** InsertSlides inherits the target layout's placeholder geometry ([#417](https://github.com/Ank-KhoaHo/DocToolkit/issues/417)) ([e06ff51](https://github.com/Ank-KhoaHo/DocToolkit/commit/e06ff510bade4dd2f15b735a802569bfceaeca22))
+
 ## [0.42.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.41.0...v0.42.0) (2026-08-27)
 
 
