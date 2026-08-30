@@ -1,5 +1,37 @@
 namespace DocToolkit
 {
+    public sealed class ChartData
+    {
+        public ChartData(System.Collections.Generic.IEnumerable<string> categories, System.Collections.Generic.IEnumerable<DocToolkit.ChartSeries> series) { }
+        public System.Collections.Generic.IReadOnlyList<string> Categories { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.ChartSeries> Series { get; }
+    }
+    public sealed class ChartSeries
+    {
+        public ChartSeries(string name, System.Collections.Generic.IEnumerable<double> values) { }
+        public string Name { get; }
+        public System.Collections.Generic.IReadOnlyList<double> Values { get; }
+    }
+    public enum ChartType
+    {
+        ColumnClustered = 0,
+        ColumnStacked = 1,
+        ColumnStacked100 = 2,
+        BarClustered = 3,
+        BarStacked = 4,
+        BarStacked100 = 5,
+        Line = 6,
+        LineStacked = 7,
+        LineStacked100 = 8,
+        Area = 9,
+        AreaStacked = 10,
+        AreaStacked100 = 11,
+        Scatter = 12,
+        Radar = 13,
+        Pie = 14,
+        Doughnut = 15,
+        Bubble = 16,
+    }
     public enum ConversionLossKind
     {
         None = 0,
