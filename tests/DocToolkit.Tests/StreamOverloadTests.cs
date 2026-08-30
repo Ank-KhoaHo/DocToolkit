@@ -308,6 +308,7 @@ public class StreamOverloadTests
         "WorkbookEditor.FormatAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
+        "PresentationEditor.ReadSmartArtAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
@@ -1269,6 +1270,8 @@ public class StreamOverloadTests
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ReadSlideAsync" =>
                 PresentationEditor.ReadSlideAsync(source!, 1, ct),
+            "PresentationEditor.ReadSmartArtAsync" =>
+                PresentationEditor.ReadSmartArtAsync(source!, 1, ct),
             "PresentationEditor.ExtractTextAsync" =>
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>

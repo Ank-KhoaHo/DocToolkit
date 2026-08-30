@@ -151,6 +151,24 @@ byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, stri
 });
 ```
 
+### SmartArt is read, not (yet) written
+
+`ReadSmartArt` returns the text of every SmartArt diagram on a slide, one entry per diagram:
+
+```csharp
+IReadOnlyList<IReadOnlyList<string>> diagrams = PresentationEditor.ReadSmartArt(pptx, index: 1);
+```
+
+**A SmartArt diagram's text lives in a different OOXML construct entirely** — a diagram data
+part, not a text-bearing shape body — which is why it needs its own method rather than showing up
+in `ReadSlide`. `ExtractText` includes it too, appended after that slide's ordinary text, for the
+same reason.
+
+There is no `AddSmartArt` here yet: creating one through this package's usual `byte[]`-in/`byte[]`-out
+shape is measured to have a rendering gap — content added that way does not currently reach
+`PptxToPdfConverter`'s output, so it is left out rather than shipped with a silent surprise. A deck
+authored in PowerPoint itself, or built with `OfficeIMO.PowerPoint` directly, reads back correctly.
+
 ## Rendering either one to PDF
 
 @DocToolkit.XlsxToPdfConverter and @DocToolkit.PptxToPdfConverter mirror
