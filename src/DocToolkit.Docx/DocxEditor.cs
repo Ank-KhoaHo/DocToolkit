@@ -1605,9 +1605,10 @@ public static class DocxEditor
     /// matched and how each occurrence is handled. The only difference is where the note ends up:
     /// the document's endnotes, not its footnotes.
     ///
-    /// Unlike footnotes, <c>DocxToPdfPreflight</c> does not currently inspect endnotes, so whether
-    /// endnote content survives a <c>DocxToPdfConverter</c> conversion has not been measured either
-    /// way.
+    /// Endnote content added this way survives a <c>DocxToPdfConverter</c> conversion — measured,
+    /// not inferred: the endnote text is present in the rendered PDF alongside the rest of the
+    /// document. So <c>DocxToPdfPreflight</c> carries no <c>Endnote</c> finding; there is nothing
+    /// for it to report.
     /// </summary>
     /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
     /// <exception cref="ArgumentException">

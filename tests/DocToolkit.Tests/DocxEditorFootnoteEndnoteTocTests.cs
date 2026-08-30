@@ -306,6 +306,23 @@ public class DocxEditorFootnoteEndnoteTocTests
     }
 
     [Fact]
+    public void AddEndnote_RendersRealTextWhenConvertedToPdf()
+    {
+        // A83: the measurement AddEndnote's own doc comment now states, pinned rather than only
+        // observed once. Endnote content survives DocxToPdfConverter -- confirmed by measuring the
+        // real API end to end, not by inference from the footnote case. DocxToPdfPreflight has no
+        // Endnote finding, deliberately: there is nothing lost to report.
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("See the note{{note}} here.")));
+
+        var withEndnote = DocxEditor.AddEndnote(docx, "{{note}}", "The endnote text itself.");
+        var pdf = DocxToPdfConverter.Convert(withEndnote);
+        var pageText = string.Join("\n", PdfEditor.ExtractText(pdf));
+
+        Assert.Contains("See the note", pageText);
+        Assert.Contains("The endnote text itself.", pageText);
+    }
+
+    [Fact]
     public void AddEndnote_ThrowsWhenThePlaceholderIsAbsent()
     {
         var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("nothing to add a note to")));
