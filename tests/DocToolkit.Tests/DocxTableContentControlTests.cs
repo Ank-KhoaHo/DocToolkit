@@ -1,6 +1,5 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Validation;
 using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace DocToolkit.Tests;
@@ -48,9 +47,7 @@ public class DocxTableContentControlTests
 
     private static void AssertSchemaValid(byte[] docx)
     {
-        using var ms = new MemoryStream(docx);
-        using var doc = WordprocessingDocument.Open(ms, false);
-        Assert.Empty(new OpenXmlValidator().Validate(doc).Select(e => e.Description).Take(1));
+        Assert.Empty(DocxFixtures.Validate(docx).Select(e => e.Description).Take(1));
     }
 
     private static string Flat(IReadOnlyList<IReadOnlyList<string>> table) =>

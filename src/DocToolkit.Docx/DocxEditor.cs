@@ -1077,30 +1077,23 @@ public static class DocxEditor
         }
     }
 
-    private static int InsertImagesIn(
-        OpenXmlPartContainer owner, OpenXmlElement root, string placeholder, byte[] image,
-        ImageInfo info, long widthEmu, long heightEmu, string name, ref uint nextId)
+    /// <summary>
+    /// Scans <paramref name="root"/> for every occurrence of <paramref name="placeholder"/> and
+    /// splices in whatever <paramref name="makeReplacement"/> returns, one call per occurrence.
+    /// Shared by <see cref="InsertImagesIn"/>, <see cref="InsertFootnoteReferencesIn"/> and
+    /// <see cref="InsertEndnoteReferencesIn"/>, which differ only in what they hand back.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="makeReplacement"/> is called exactly once per occurrence, right to left
+    /// within a paragraph — the same order <see cref="SpliceElementIn"/> requires so earlier
+    /// offsets stay valid as later ones are spliced — so a caller with per-occurrence side
+    /// effects (a footnote entry, an endnote entry, an image part) sees them run in that order,
+    /// not left-to-right reading order.
+    /// </remarks>
+    private static int ForEachPlaceholderOccurrence(
+        OpenXmlElement root, string placeholder, Func<Run> makeReplacement)
     {
         var inserted = 0;
-
-        // ONE image part per owner, created on first use, shared by every occurrence in it.
-        //
-        // This used to be added inside the per-offset loop, so the same bytes were embedded once
-        // per placeholder occurrence. Measured 2026-08-20 with a 40 KB image: one occurrence gave
-        // one media part and a 41,983-byte package; THREE gave media/image.png, media/image2.png
-        // and media/image3.png, three identical copies, and 122,483 bytes. It grows linearly with
-        // occurrences, and a letterhead logo repeated across a body, a header and a footer is the
-        // ordinary case rather than a contrived one.
-        //
-        // PER OWNER, not once per document, and that is the constraint that decides where this
-        // line goes. An image part must belong to the container that owns the paragraph - a
-        // header's image added to the main document part yields a relationship id that resolves in
-        // the wrong scope, and Word then opens the file and silently shows nothing. So callers hand
-        // this method one owner at a time and each gets its own part; what is removed is the
-        // duplication WITHIN an owner, not the separation BETWEEN them.
-        //
-        // Lazy, so a root containing no occurrence does not gain an orphan part.
-        string? relationshipId = null;
 
         foreach (var paragraph in root.Descendants<Paragraph>().ToList())
         {
@@ -1124,18 +1117,51 @@ public static class DocxEditor
             // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
             for (var i = offsets.Count - 1; i >= 0; i--)
             {
-                relationshipId ??= AddImagePart(owner, image, info);
-                // The placeholder-derived name doubles as the alt text here, deliberately and as
-                // shipped: "{{logo}}" gives "logo", which is a genuine if terse description. That is
-                // NOT true of the create path, whose names are generated ("Image 1"), so it passes
-                // real alt text or none. Do not "unify" these - they differ because the inputs do.
-                var drawing = DrawingFactory.InlineImage(
-                    relationshipId, name, nextId++, widthEmu, heightEmu, description: name);
-                SpliceElementIn(texts, offsets[i], placeholder.Length, new Run(drawing));
+                SpliceElementIn(texts, offsets[i], placeholder.Length, makeReplacement());
                 inserted++;
             }
         }
 
+        return inserted;
+    }
+
+    private static int InsertImagesIn(
+        OpenXmlPartContainer owner, OpenXmlElement root, string placeholder, byte[] image,
+        ImageInfo info, long widthEmu, long heightEmu, string name, ref uint nextId)
+    {
+        // ONE image part per owner, created on first use, shared by every occurrence in it.
+        //
+        // This used to be added inside the per-offset loop, so the same bytes were embedded once
+        // per placeholder occurrence. Measured 2026-08-20 with a 40 KB image: one occurrence gave
+        // one media part and a 41,983-byte package; THREE gave media/image.png, media/image2.png
+        // and media/image3.png, three identical copies, and 122,483 bytes. It grows linearly with
+        // occurrences, and a letterhead logo repeated across a body, a header and a footer is the
+        // ordinary case rather than a contrived one.
+        //
+        // PER OWNER, not once per document, and that is the constraint that decides where this
+        // line goes. An image part must belong to the container that owns the paragraph - a
+        // header's image added to the main document part yields a relationship id that resolves in
+        // the wrong scope, and Word then opens the file and silently shows nothing. So callers hand
+        // this method one owner at a time and each gets its own part; what is removed is the
+        // duplication WITHIN an owner, not the separation BETWEEN them.
+        //
+        // Lazy, so a root containing no occurrence does not gain an orphan part.
+        string? relationshipId = null;
+        var id = nextId;
+
+        var inserted = ForEachPlaceholderOccurrence(root, placeholder, () =>
+        {
+            relationshipId ??= AddImagePart(owner, image, info);
+            // The placeholder-derived name doubles as the alt text here, deliberately and as
+            // shipped: "{{logo}}" gives "logo", which is a genuine if terse description. That is
+            // NOT true of the create path, whose names are generated ("Image 1"), so it passes
+            // real alt text or none. Do not "unify" these - they differ because the inputs do.
+            var drawing = DrawingFactory.InlineImage(
+                relationshipId, name, id++, widthEmu, heightEmu, description: name);
+            return new Run(drawing);
+        });
+
+        nextId = id;
         return inserted;
     }
 
@@ -1514,39 +1540,19 @@ public static class DocxEditor
     private static int InsertFootnoteReferencesIn(
         MainDocumentPart main, Body body, string placeholder, string footnoteText)
     {
-        var inserted = 0;
         var nextId = NextFootnoteId(main);
 
-        foreach (var paragraph in body.Descendants<Paragraph>().ToList())
+        var inserted = ForEachPlaceholderOccurrence(body, placeholder, () =>
         {
-            var texts = paragraph.Descendants<Text>()
-                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
-                                 .ToList();
-            if (texts.Count == 0) continue;
+            var id = nextId++;
+            AddFootnoteEntry(main, id, footnoteText);
 
-            var merged = string.Concat(texts.Select(t => t.Text));
+            return new Run(
+                new RunProperties(new RunStyle { Val = "FootnoteReference" }),
+                new FootnoteReference { Id = id });
+        });
 
-            var offsets = new List<int>();
-            for (var at = merged.IndexOf(placeholder, StringComparison.Ordinal);
-                 at >= 0;
-                 at = merged.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal))
-            {
-                offsets.Add(at);
-            }
-
-            // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
-            for (var i = offsets.Count - 1; i >= 0; i--)
-            {
-                var id = nextId++;
-                AddFootnoteEntry(main, id, footnoteText);
-
-                var referenceRun = new Run(
-                    new RunProperties(new RunStyle { Val = "FootnoteReference" }),
-                    new FootnoteReference { Id = id });
-                SpliceElementIn(texts, offsets[i], placeholder.Length, referenceRun);
-                inserted++;
-            }
-        }
+        if (inserted > 0) main.FootnotesPart!.Footnotes!.Save();
 
         return inserted;
     }
@@ -1591,8 +1597,6 @@ public static class DocxEditor
                     new FootnoteReferenceMark()),
                 new Run(new Text(footnoteText) { Space = SpaceProcessingModeValues.Preserve })))
         { Id = id });
-
-        footnotesPart.Footnotes.Save();
     }
 
     /// <summary>
@@ -1750,39 +1754,19 @@ public static class DocxEditor
     private static int InsertEndnoteReferencesIn(
         MainDocumentPart main, Body body, string placeholder, string endnoteText)
     {
-        var inserted = 0;
         var nextId = NextEndnoteId(main);
 
-        foreach (var paragraph in body.Descendants<Paragraph>().ToList())
+        var inserted = ForEachPlaceholderOccurrence(body, placeholder, () =>
         {
-            var texts = paragraph.Descendants<Text>()
-                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
-                                 .ToList();
-            if (texts.Count == 0) continue;
+            var id = nextId++;
+            AddEndnoteEntry(main, id, endnoteText);
 
-            var merged = string.Concat(texts.Select(t => t.Text));
+            return new Run(
+                new RunProperties(new RunStyle { Val = "EndnoteReference" }),
+                new EndnoteReference { Id = id });
+        });
 
-            var offsets = new List<int>();
-            for (var at = merged.IndexOf(placeholder, StringComparison.Ordinal);
-                 at >= 0;
-                 at = merged.IndexOf(placeholder, at + placeholder.Length, StringComparison.Ordinal))
-            {
-                offsets.Add(at);
-            }
-
-            // Right to left, so the offsets of earlier matches stay valid as later ones are spliced.
-            for (var i = offsets.Count - 1; i >= 0; i--)
-            {
-                var id = nextId++;
-                AddEndnoteEntry(main, id, endnoteText);
-
-                var referenceRun = new Run(
-                    new RunProperties(new RunStyle { Val = "EndnoteReference" }),
-                    new EndnoteReference { Id = id });
-                SpliceElementIn(texts, offsets[i], placeholder.Length, referenceRun);
-                inserted++;
-            }
-        }
+        if (inserted > 0) main.EndnotesPart!.Endnotes!.Save();
 
         return inserted;
     }
@@ -1824,8 +1808,6 @@ public static class DocxEditor
                     new EndnoteReferenceMark()),
                 new Run(new Text(endnoteText) { Space = SpaceProcessingModeValues.Preserve })))
         { Id = id });
-
-        endnotesPart.Endnotes.Save();
     }
 
     /// <summary>
@@ -2141,7 +2123,7 @@ public static class DocxEditor
 
     /// <summary>
     /// The text a paragraph owns itself, excluding anything nested inside it via a text box —
-    /// same scoping <see cref="InsertFootnoteReferencesIn"/> and <see cref="ReplaceInParagraph"/>
+    /// same scoping <see cref="ForEachPlaceholderOccurrence"/> and <see cref="ReplaceInParagraph"/>
     /// already use for the identical reason.
     /// </summary>
     private static string OwnParagraphText(Paragraph paragraph) => string.Concat(
