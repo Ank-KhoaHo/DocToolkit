@@ -154,14 +154,15 @@ app.MapPost("/invoices/pdf", async (InvoiceRequest request, IHtmlToPdfConverter 
 });
 ```
 
-Every interface — `IHtmlToDocxConverter`, `IDocxToPdfConverter`, `IHtmlToPdfConverter`,
-`IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`,
-`IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`,
-`IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocToDocxConverter`, `IDocxEditor`,
-`IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor`, `IDocxReview`, `IDocxMailMerge`,
-`IDocxForm`, `IDocxToPdfPreflight`, `IMarkdownEditor` — mirrors
-[`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static API, including both its
-`byte[]` and its `Stream`-based async overloads.
+Every interface mirrors [`Ank.DocToolkit`](https://www.nuget.org/packages/Ank.DocToolkit)'s static
+API, including both its `byte[]` and its `Stream`-based async overloads:
+
+| | |
+|---|---|
+| **Convert** | `IHtmlToDocxConverter`, `IHtmlToPdfConverter`, `IDocxToPdfConverter`, `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`, `IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`, `IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocToDocxConverter` |
+| **Edit** | `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor`, `IMarkdownEditor` |
+| **Templates & review** | `IDocxMailMerge`, `IDocxForm`, `IDocxReview` |
+| **Preflight** | `IDocxToPdfPreflight` |
 
 **That mirroring is now enforced rather than asserted.** It had gone stale nine times — most
 recently with seven gaps at once, four of them whole interfaces that simply did not exist — because

@@ -9,9 +9,19 @@ LibreOffice, no Office interop and no native binaries** — the whole conversion
 runs inside a Linux container and on arm64 exactly as it does on a Windows desktop.
 
 ```csharp
+// input: a 3-page contract.docx
 byte[] docx = File.ReadAllBytes("contract.docx");
 byte[] pdf  = DocxToPdfConverter.Convert(docx);
+
+// output: a PDF with the same page count, text, tables and images
+int pages = PdfEditor.PageCount(pdf);   // 3
 ```
+
+| you pass in | you get back |
+|---|---|
+| a `.docx` `byte[]` | a `.pdf` `byte[]`, same page count, same text/tables/images |
+| a document with fonts the host lacks | still a valid PDF — see [fonts](#how-well-it-actually-works) below before assuming it's broken |
+| an encrypted DOCX | `DocumentConversionException` — `DocxEditor.Unprotect` it first |
 
 There are `Stream` and file-path forms too, and an overload taking fonts — see
 [Word documents](word-documents.md) for creating and editing the DOCX in the first place.
