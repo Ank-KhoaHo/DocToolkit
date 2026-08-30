@@ -2004,7 +2004,7 @@ public static class DocxMailMerge
         var index = 0;
         foreach (var record in records)
         {
-            RequireValues(record, nameof(records));
+            RequireValues(record, nameof(records), $"Record {index}");
 
             using var source = new MemoryStream(docx, writable: false);
             using var result = MergeCoreForBatch(source, record, strict, index, out var report);
@@ -2042,7 +2042,7 @@ public static class DocxMailMerge
         var paths = new string[records.Count];
         for (var i = 0; i < records.Count; i++)
         {
-            RequireValues(records[i], nameof(records));
+            RequireValues(records[i], nameof(records), $"Record {i}");
 
             var path = outputPathFactory(i, records[i]);
             if (string.IsNullOrWhiteSpace(path))

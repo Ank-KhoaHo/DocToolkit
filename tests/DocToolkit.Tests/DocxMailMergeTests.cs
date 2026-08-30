@@ -1755,6 +1755,7 @@ public class DocxMailMergeTests
     {
         var records = new IReadOnlyDictionary<string, string>[]
         {
+            new Dictionary<string, string> { ["FirstName"] = "Alice" },
             new Dictionary<string, string> { ["FirstName"] = null! },
         };
 
@@ -1762,7 +1763,44 @@ public class DocxMailMergeTests
             () => DocxMailMerge.MergeBatch(Simple("FirstName"), records).ToList());
 
         Assert.Equal("records", ex.ParamName);
+        // A single-record batch can't tell $"Record {index}" apart from a hard-coded "Record 0" --
+        // record 1 is what actually pins the index to the loop variable, not a constant.
+        Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
         Assert.Contains("FirstName", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MergeBatchToFiles_ARecordWithANullValue_NamesTheRecordAndTheRecordsParameter()
+    {
+        var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
+        try
+        {
+            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            File.WriteAllBytes(templatePath, Simple("FirstName"));
+            var records = new IReadOnlyDictionary<string, string>[]
+            {
+                new Dictionary<string, string> { ["FirstName"] = "Alice" },
+                new Dictionary<string, string> { ["FirstName"] = null! },
+            };
+
+            var ex = Assert.Throws<ArgumentException>(() =>
+                DocxMailMerge.MergeBatchToFiles(templatePath, records,
+                    (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx")));
+
+            Assert.Equal("records", ex.ParamName);
+            // A single-record batch can't tell $"Record {index}" apart from a hard-coded "Record 0"
+            // -- record 1 is what actually pins the index to the loop variable, not a constant.
+            Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("FirstName", ex.Message, StringComparison.Ordinal);
+            // RequireValues runs in the path-computation loop, before CheckNoPathCollisions and
+            // before any write -- a null value anywhere in the batch means no file is written at
+            // all, unlike a strict field-miss where records before the bad one are already on disk.
+            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
     }
 
     [Fact]
