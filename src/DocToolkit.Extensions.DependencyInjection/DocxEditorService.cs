@@ -94,4 +94,28 @@ internal sealed class DocxEditorService : IDocxEditor
 
     public Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
         => DocToolkit.DocxEditor.UnprotectAsync(source, destination, password, ct);
+
+    public byte[] AddFootnote(byte[] docx, string placeholder, string footnoteText)
+        => DocToolkit.DocxEditor.AddFootnote(docx, placeholder, footnoteText);
+
+    public Task AddFootnoteAsync(
+        Stream source, string placeholder, string footnoteText, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.DocxEditor.AddFootnoteAsync(source, placeholder, footnoteText, destination, ct);
+
+    public byte[] AddEndnote(byte[] docx, string placeholder, string endnoteText)
+        => DocToolkit.DocxEditor.AddEndnote(docx, placeholder, endnoteText);
+
+    public Task AddEndnoteAsync(
+        Stream source, string placeholder, string endnoteText, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.DocxEditor.AddEndnoteAsync(source, placeholder, endnoteText, destination, ct);
+
+    public byte[] AddTableOfContents(byte[] docx, string placeholder, int minLevel = 1, int maxLevel = 3)
+        => DocToolkit.DocxEditor.AddTableOfContents(docx, placeholder, minLevel, maxLevel);
+
+    public Task AddTableOfContentsAsync(
+        Stream source, string placeholder, Stream destination,
+        int minLevel = 1, int maxLevel = 3, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.AddTableOfContentsAsync(source, placeholder, destination, minLevel, maxLevel, ct);
 }

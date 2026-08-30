@@ -256,4 +256,115 @@ public interface IDocxEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The password was wrong, or it could not be read.</exception>
     Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds a footnote at every occurrence of <paramref name="placeholder"/>, inline, across the
+    /// document body.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be edited, or <paramref name="placeholder"/> does not appear in the
+    /// body.
+    /// </exception>
+    byte[] AddFootnote(byte[] docx, string placeholder, string footnoteText);
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, adds a footnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="destination"/> —
+    /// see <see cref="AddFootnote"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    Task AddFootnoteAsync(
+        Stream source, string placeholder, string footnoteText, Stream destination,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds an endnote at every occurrence of <paramref name="placeholder"/>, inline, across the
+    /// document body.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any of the three required arguments is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be edited, or <paramref name="placeholder"/> does not appear in the
+    /// body.
+    /// </exception>
+    byte[] AddEndnote(byte[] docx, string placeholder, string endnoteText);
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, adds an endnote at every occurrence of
+    /// <paramref name="placeholder"/>, and writes the result to <paramref name="destination"/> —
+    /// see <see cref="AddEndnote"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="placeholder"/> is blank.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be edited, or the placeholder was not found.
+    /// </exception>
+    Task AddEndnoteAsync(
+        Stream source, string placeholder, string endnoteText, Stream destination,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Replaces the paragraph containing only <paramref name="placeholder"/> with a table of
+    /// contents spanning heading levels <paramref name="minLevel"/> through
+    /// <paramref name="maxLevel"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Either required argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, <paramref name="placeholder"/> is blank, or
+    /// <paramref name="minLevel"/> is greater than <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be edited; no paragraph containing only the placeholder was found; the
+    /// paragraph holding it also holds content other than plain text; that paragraph's
+    /// <c>w:pPr</c> carries a <c>w:sectPr</c>, so replacing it would discard a section break; or
+    /// more than one paragraph's text exactly matches the placeholder.
+    /// </exception>
+    byte[] AddTableOfContents(byte[] docx, string placeholder, int minLevel = 1, int maxLevel = 3);
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/>, replaces the paragraph containing only
+    /// <paramref name="placeholder"/> with a table of contents, and writes the result to
+    /// <paramref name="destination"/> — see <see cref="AddTableOfContents"/>. Neither stream is
+    /// disposed, closed or sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, <paramref name="placeholder"/> is blank, or <paramref name="minLevel"/> is
+    /// greater than <paramref name="maxLevel"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLevel"/> or <paramref name="maxLevel"/> is outside 1-9.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be edited; no matching paragraph was found; the paragraph holding the
+    /// placeholder also holds content other than plain text; that paragraph's <c>w:pPr</c>
+    /// carries a <c>w:sectPr</c>, so replacing it would discard a section break; or more than one
+    /// paragraph's text exactly matches the placeholder.
+    /// </exception>
+    Task AddTableOfContentsAsync(
+        Stream source, string placeholder, Stream destination,
+        int minLevel = 1, int maxLevel = 3, CancellationToken ct = default);
 }

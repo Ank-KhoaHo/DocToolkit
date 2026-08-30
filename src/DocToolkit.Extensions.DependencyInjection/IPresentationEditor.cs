@@ -175,4 +175,156 @@ public interface IPresentationEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The password was wrong, or it could not be read.</exception>
     Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// All text found on slide <paramref name="index"/>. See <see cref="ExtractText(byte[])"/> for
+    /// exactly what counts as a text-bearing body.
+    /// </summary>
+    /// <param name="pptx">The presentation to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
+    IReadOnlyList<string> ReadSlide(byte[] pptx, int index);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns all text found on slide
+    /// <paramref name="index"/> — see <see cref="ReadSlide(byte[], int)"/>. <paramref name="source"/>
+    /// is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
+    Task<IReadOnlyList<string>> ReadSlideAsync(Stream source, int index, CancellationToken ct = default);
+
+    /// <summary>A copy of <paramref name="pptx"/> with the slides at <paramref name="indices"/> removed.</summary>
+    /// <param name="pptx">The presentation to remove slides from. It is not modified.</param>
+    /// <param name="indices">
+    /// 1-based slide numbers to remove, each exactly once and in any order — not a contiguous
+    /// range.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="indices"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
+    byte[] RemoveSlides(byte[] pptx, IEnumerable<int> indices);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, removes the slides at
+    /// <paramref name="indices"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="RemoveSlides"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="indices">1-based slide numbers to remove, each exactly once, any order.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="indices"/> contains a duplicate.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// An index in <paramref name="indices"/> is outside the deck's slide range, or removing every
+    /// listed index would leave a zero-slide deck.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
+    Task RemoveSlidesAsync(
+        Stream source, IEnumerable<int> indices, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> with its slides in the order given by
+    /// <paramref name="order"/>, which holds 1-based slide numbers.
+    /// </summary>
+    /// <param name="pptx">The presentation to reorder. It is not modified.</param>
+    /// <param name="order">A permutation of every slide — the same slides, in a different order.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="order"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or <paramref name="order"/> is not a permutation of
+    /// 1..<c>SlideCount</c>.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
+    byte[] ReorderSlides(byte[] pptx, IEnumerable<int> order);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, reorders its slides per
+    /// <paramref name="order"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="ReorderSlides"/>. Neither stream is disposed, closed or sought.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="order">A permutation of every slide's 1-based number.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or <paramref name="order"/> is not a permutation of every slide.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
+    Task ReorderSlidesAsync(
+        Stream source, IEnumerable<int> order, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> with <paramref name="slides"/> inserted so that the first
+    /// of them becomes slide <paramref name="atIndex"/>. See <see cref="Create"/> for what a
+    /// <see cref="DocToolkit.PptxSlide"/> becomes.
+    /// </summary>
+    /// <param name="pptx">The presentation to insert into. It is not modified.</param>
+    /// <param name="atIndex">
+    /// 1-based position the first inserted slide will occupy. <c>SlideCount + 1</c> appends.
+    /// </param>
+    /// <param name="slides">The slides to insert, in order.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="slides"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="pptx"/> is empty, or an element of <paramref name="slides"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="atIndex"/> is below 1 or more than one past the last slide.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be opened or edited, or the slide the new content would attach to has
+    /// no layout of its own.
+    /// </exception>
+    byte[] InsertSlides(byte[] pptx, int atIndex, IEnumerable<DocToolkit.PptxSlide> slides);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/>, inserts <paramref name="slides"/> at
+    /// <paramref name="atIndex"/>, and writes the result to <paramref name="destination"/> — see
+    /// <see cref="InsertSlides"/> for the insertion and layout rules. Neither stream is disposed,
+    /// closed or sought.
+    /// </summary>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="atIndex">1-based insertion position; <c>SlideCount + 1</c> appends.</param>
+    /// <param name="slides">The slides to insert, in order.</param>
+    /// <param name="destination">The stream the edited .pptx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="destination"/>
+    /// is not writable, or an element of <paramref name="slides"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="atIndex"/> is below 1 or more than one past the last slide.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The package could not be opened or edited, or the slide the new content would attach to has
+    /// no layout of its own.
+    /// </exception>
+    Task InsertSlidesAsync(
+        Stream source, int atIndex, IEnumerable<DocToolkit.PptxSlide> slides, Stream destination,
+        CancellationToken ct = default);
 }
