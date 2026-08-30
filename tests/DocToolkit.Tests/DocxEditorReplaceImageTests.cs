@@ -214,10 +214,11 @@ public class DocxEditorReplaceImageTests
     [Fact]
     public void ReplaceImage_DoesNotReuseAnIdAlreadyInTheDocument()
     {
-        // The previous test only proves two NEW images differ from each other, which stays true even
-        // if the id counter is seeded wrongly - nextId++ still yields 1 and 2. The trap is colliding
-        // with a drawing the document ALREADY has, which is what makes Word offer to repair the
-        // file. So: insert one image, then insert another into the result.
+        // ReplaceImage_GivesEveryOccurrenceItsOwnDrawingId only proves two NEW images differ from
+        // each other, which stays true even if the id counter is seeded wrongly - nextId++ still
+        // yields 1 and 2. The trap is colliding with a drawing the document ALREADY has, which is
+        // what makes Word offer to repair the file. So: insert one image, then insert another into
+        // the result.
         var docx = DocxFixtures.Build(
             DocxFixtures.P(DocxFixtures.R("{{first}}")),
             DocxFixtures.P(DocxFixtures.R("{{second}}")));
