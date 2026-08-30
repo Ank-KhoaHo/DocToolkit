@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.44.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.43.0...v0.44.0) (2026-08-30)
+
+
+### Added
+
+* **extensions:** mirror MarkdownEditor, footnote/endnote/TOC, slide operations, mail-merge batch/conditional/repeating ([#429](https://github.com/Ank-KhoaHo/DocToolkit/issues/429)) ([903ddbd](https://github.com/Ank-KhoaHo/DocToolkit/commit/903ddbd319c801139f386ec5255db8903c1588d7))
+
 ## [0.43.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.42.0...v0.43.0) (2026-08-30)
 
 
