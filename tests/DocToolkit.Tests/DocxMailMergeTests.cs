@@ -1813,6 +1813,9 @@ public class DocxMailMergeTests
         });
 
         Assert.Single(seen);
+        // "1" alone would also match the unrelated "1 merge field(s)" substring MergeCore's own
+        // message already contains -- "Record 1:" is what actually pins the index.
+        Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Balance", ex.Message, StringComparison.Ordinal);
     }
 
@@ -2199,6 +2202,7 @@ public class DocxMailMergeTests
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
                     (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : null!));
             Assert.Equal("outputPathFactory", nullEx.ParamName);
+            Assert.Contains("Record 1:", nullEx.Message, StringComparison.Ordinal);
             // Proves the batch is refused before any write, not mid-batch -- record 0's path was
             // already computed (and would have been valid) by the time record 1's bad path is found.
             Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
@@ -2207,6 +2211,7 @@ public class DocxMailMergeTests
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
                     (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : "   "));
             Assert.Equal("outputPathFactory", blankEx.ParamName);
+            Assert.Contains("Record 1:", blankEx.Message, StringComparison.Ordinal);
             Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
         }
         finally
