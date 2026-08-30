@@ -96,27 +96,35 @@ public static class DocxToPdfPreflight
         {
             using var doc = WordprocessingDocument.Open(source, false);
             var main = doc.MainDocumentPart;
+            var body = main?.Document?.Body;
             var findings = new List<DocxToPdfPreflightFinding>();
 
             // Read the PACKAGE, never ExtractText. That method has its own blind spots - measured
             // 2026-08-25, it returns nothing for content-control text that IS in the PDF - and a
             // detector built on it would inherit them.
 
-            // A footnotes part always carries the separator (id -1) and continuation separator
-            // (id 0) whether or not the author wrote a footnote, so counting every Footnote would
-            // report every document Word has touched. Only positive ids are real footnotes.
-            int footnotes = main?.FootnotesPart?.Footnotes?
-                .Elements<Footnote>()
-                .Count(f => f.Id?.Value > 0) ?? 0;
+            // Measured (A94): survival is decided entirely by the BODY's own FootnoteReference
+            // run, never by anything in the footnote's own definition inside FootnotesPart. A
+            // reference is lost from the render specifically when its run lacks
+            // RunStyle="FootnoteReference" - confirmed against OfficeIMO.Word's own footnote
+            // authoring (which always applies it) and against DocxEditor.AddFootnote's real
+            // output (same). No id filter is needed here, unlike the old definition-scanning
+            // version: the separator/continuation-separator entries a FootnotesPart always
+            // carries are never themselves referenced from the body, so they can never appear in
+            // this scan regardless of id.
+            int footnotes = body is null ? 0 : body.Descendants<FootnoteReference>()
+                .Count(r => (r.Parent as Run)?.RunProperties?.RunStyle?.Val?.Value != "FootnoteReference");
 
             if (footnotes > 0)
             {
                 findings.Add(new DocxToPdfPreflightFinding(
                     FootnoteCode,
                     "Footnotes",
-                    $"{footnotes} footnote(s). Footnote text does not reach the PDF - measured, "
-                    + "with the rest of the document rendering normally. The output will look "
-                    + "complete without them.",
+                    $"{footnotes} footnote reference(s) without the character style a "
+                    + "normally-authored footnote carries. Their text does not reach the PDF - "
+                    + "measured. Word itself, and this library's own AddFootnote, always apply "
+                    + "that style, so this fires only for a footnote built by hand or by another "
+                    + "tool without it.",
                     footnotes,
                     DocxToPdfRisk.Known));
             }
@@ -130,7 +138,6 @@ public static class DocxToPdfPreflight
             // measured, the same document reported 1 nested table unwrapped and 0 wrapped. A
             // preflight that under-reports is worse than one that does not run, because a caller
             // reads silence as "nothing will be lost".
-            var body = main?.Document?.Body;
             int nested = body is null ? 0 : Cells(body).SelectMany(ContentControls.Tables).Count();
 
             if (nested > 0)
