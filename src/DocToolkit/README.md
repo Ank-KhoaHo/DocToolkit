@@ -175,6 +175,20 @@ byte[] report = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.Report
 byte[] withTable = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.None
     .WithTable(XlsxTable.Named("A1:C10", "Sales", XlsxTableStyle.Medium)));
 
+// The rest of a sheet's own furniture: a print setup (orientation, print area, rows to
+// repeat at the top), merged cells, hyperlinks and cell comments. Each With... call can be
+// repeated - two merged ranges, two hyperlinks, whatever the sheet needs.
+byte[] withFurniture = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.None
+    .WithPageSetup(XlsxPageSetup.Of(XlsxPageOrientation.Landscape, printArea: "A1:C10", repeatRowCount: 1))
+    .WithMergedCells("A1:C1")
+    .WithHyperlink(XlsxHyperlink.To("D1", "https://example.com/policy"))
+    .WithComment(XlsxComment.On("B2", "Confirmed with finance.")));
+
+// A defined name and an embedded image are workbook edits rather than a presentation, so
+// they are their own WorkbookEditor methods, not part of XlsxFormat.
+byte[] withDefinedName = WorkbookEditor.AddDefinedName(xlsx, "SalesTotal", "Sales", "C2:C10");
+byte[] withImage = WorkbookEditor.AddImage(xlsx, "Sales", "E1", File.ReadAllBytes("logo.png"));
+
 // ...and, if you need to know what those conversions could NOT carry across, the same
 // call with a report. ConversionResult<T> gives you the output plus a ConversionWarning
 // list; each warning carries a Code, a Message and a ConversionLossKind saying how bad

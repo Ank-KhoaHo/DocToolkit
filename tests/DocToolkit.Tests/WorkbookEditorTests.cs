@@ -1865,6 +1865,306 @@ public class WorkbookEditorTests
         Assert.Single(reopenedWorksheet.Pictures);
     }
 
+    // ---------------------------------------------------------------------------------------
+    // AddDefinedName (A105). A workbook-scoped edit rather than an XlsxFormat member - unlike
+    // Rules/Validations/Tables, a defined name has no natural "one sheet" home even though its
+    // reference happens to point into one, so it takes sheetName as its own parameter the same
+    // way AddChart/AddPivotTable do rather than composing through Format.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AddDefinedName_AddsANameThatSurvivesTheXlsxRoundTrip()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "Total", 42 } });
+
+        var result = WorkbookEditor.AddDefinedName(xlsx, "GrandTotal", "Data", "B1");
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        var name = Assert.Single(doc.DefinedNames, d => d.Name == "GrandTotal");
+        Assert.Equal("'Data'!B1", name.RefersTo);
+        Assert.Equal("42", name.Ranges.Single().Cell(1, 1).GetString());
+    }
+
+    [Fact]
+    public void AddDefinedName_AlwaysQuotesTheSheetName_SoASpaceContainingNameStillRoundTrips()
+    {
+        // Measured directly: an UNQUOTED reference to a space-containing sheet name does not
+        // raise an error at write time - the defined name is simply absent when the file is
+        // reopened, with nothing telling the caller why. This is the case that would have failed
+        // silently without the always-quote rule.
+        var xlsx = WorkbookEditor.Create("My Sheet", new object[][] { new object[] { "x" } });
+
+        var result = WorkbookEditor.AddDefinedName(xlsx, "N", "My Sheet", "A1");
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        Assert.Contains(doc.DefinedNames, d => d.Name == "N");
+    }
+
+    [Fact]
+    public void AddDefinedName_ADuplicateNameThrows()
+    {
+        var xlsx = WorkbookEditor.AddDefinedName(
+            WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } }), "Dup", "Data", "A1");
+
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AddDefinedName(xlsx, "Dup", "Data", "A1"));
+    }
+
+    [Fact]
+    public void AddDefinedName_UnknownSheetName_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AddDefinedName(xlsx, "N", "NoSuchSheet", "A1"));
+    }
+
+    [Fact]
+    public void AddDefinedName_NullOrBlankArguments_Throw()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.AddDefinedName(null!, "N", "Data", "A1"));
+        Assert.Equal("xlsx", Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AddDefinedName([], "N", "Data", "A1")).ParamName);
+        Assert.Equal("name", Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AddDefinedName(xlsx, "  ", "Data", "A1")).ParamName);
+        Assert.Equal("sheetName", Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AddDefinedName(xlsx, "N", "  ", "A1")).ParamName);
+        Assert.Equal("range", Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AddDefinedName(xlsx, "N", "Data", "  ")).ParamName);
+    }
+
+    [Fact]
+    public async Task AddDefinedNameAsync_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        await WorkbookEditor.AddDefinedNameAsync(source, "N", "Data", "A1", destination);
+
+        using var reopened = new XLWorkbook(new MemoryStream(destination.ToArray(), writable: false));
+        Assert.Contains(reopened.DefinedNames, d => d.Name == "N");
+    }
+
+    [Fact]
+    public async Task AddDefinedNameAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        await WorkbookEditor.AddDefinedNameAsync(input.Path, output.Path, "N", "Data", "A1");
+
+        using var reopened = new XLWorkbook(new MemoryStream(await File.ReadAllBytesAsync(output.Path), writable: false));
+        Assert.Contains(reopened.DefinedNames, d => d.Name == "N");
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // AddImage (A105). Format decided by magic bytes, the same rule DocxEditor/PresentationEditor
+    // ReplaceImage follow. Sizing is in PIXELS, matching AddChart's own convention for this
+    // format, not the points ImageInspector.Resolve uses for DOCX/PPTX.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AddImage_AddsAPictureThatSurvivesTheXlsxRoundTrip()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        var result = WorkbookEditor.AddImage(xlsx, "Data", "B2", ImageFixtures.Png());
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        var picture = Assert.Single(doc.Worksheet("Data").Pictures);
+        Assert.Equal("B2", picture.TopLeftCell.Address.ToString());
+    }
+
+    [Fact]
+    public void AddImage_NeitherDimensionGiven_UsesTheImagesIntrinsicSize()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        // 300x260 rather than the fixture's own 2x3 default - a small square-ish size could pass
+        // an intrinsic-sizing assertion even with width and height swapped.
+        var result = WorkbookEditor.AddImage(xlsx, "Data", "A1", ImageFixtures.Png(300, 260));
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        var picture = doc.Worksheet("Data").Pictures.Single();
+        Assert.Equal(300, picture.OriginalWidth);
+        Assert.Equal(260, picture.OriginalHeight);
+    }
+
+    [Fact]
+    public void AddImage_OneDimensionGiven_ScalesTheOtherToPreserveAspectRatio()
+    {
+        // 2 wide, 1 tall - the failure mode this guards is scaling the WRONG side, which a
+        // square source image cannot discriminate.
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        var result = WorkbookEditor.AddImage(xlsx, "Data", "A1", ImageFixtures.Png(2, 1), widthPixels: 100);
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        var picture = doc.Worksheet("Data").Pictures.Single();
+        Assert.Equal(100, picture.Width);
+        Assert.Equal(50, picture.Height);
+    }
+
+    [Fact]
+    public void AddImage_OnlyHeightGiven_ScalesWidthToPreserveAspectRatio()
+    {
+        // The sibling of OneDimensionGiven above, deliberately covering the OTHER branch of the
+        // same three-way rule - width given scales height, height given scales width, and a
+        // square source image could not discriminate either from swapping the two.
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        var result = WorkbookEditor.AddImage(xlsx, "Data", "A1", ImageFixtures.Png(2, 1), heightPixels: 50);
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        var picture = doc.Worksheet("Data").Pictures.Single();
+        Assert.Equal(100, picture.Width);
+        Assert.Equal(50, picture.Height);
+    }
+
+    [Fact]
+    public void AddImage_BothDimensionsGiven_UsesExactlyThose()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        var result = WorkbookEditor.AddImage(xlsx, "Data", "A1", ImageFixtures.Png(), widthPixels: 30, heightPixels: 90);
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        var picture = doc.Worksheet("Data").Pictures.Single();
+        Assert.Equal(30, picture.Width);
+        Assert.Equal(90, picture.Height);
+    }
+
+    [Fact]
+    public void AddImage_AcceptsAJpeg()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        var result = WorkbookEditor.AddImage(xlsx, "Data", "A1", ImageFixtures.Jpeg());
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = new XLWorkbook(source);
+        Assert.Single(doc.Worksheet("Data").Pictures);
+    }
+
+    [Fact]
+    public void AddImage_UnsupportedFormat_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AddImage(xlsx, "Data", "A1", "not an image"u8.ToArray()));
+        Assert.Contains("Only PNG and JPEG", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AddImage_NonPositiveSize_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        Assert.Equal("widthPixels", Assert.Throws<ArgumentOutOfRangeException>(
+            () => WorkbookEditor.AddImage(xlsx, "Data", "A1", ImageFixtures.Png(), widthPixels: 0)).ParamName);
+        Assert.Equal("heightPixels", Assert.Throws<ArgumentOutOfRangeException>(
+            () => WorkbookEditor.AddImage(xlsx, "Data", "A1", ImageFixtures.Png(), heightPixels: -1)).ParamName);
+    }
+
+    [Fact]
+    public void AddImage_EmptyImage_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        Assert.Equal("image", Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.AddImage(xlsx, "Data", "A1", [])).ParamName);
+    }
+
+    [Fact]
+    public void AddImage_UnknownSheetName_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AddImage(xlsx, "NoSuchSheet", "A1", ImageFixtures.Png()));
+    }
+
+    [Fact]
+    public void AddImage_InvalidCellRef_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.AddImage(xlsx, "Data", "not a cell", ImageFixtures.Png()));
+    }
+
+    [Fact]
+    public async Task AddImageAsync_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        await WorkbookEditor.AddImageAsync(source, "Data", "B2", ImageFixtures.Png(), destination);
+
+        using var reopened = new XLWorkbook(new MemoryStream(destination.ToArray(), writable: false));
+        Assert.Single(reopened.Worksheet("Data").Pictures);
+    }
+
+    [Fact]
+    public async Task AddImageAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        await WorkbookEditor.AddImageAsync(input.Path, output.Path, "Data", "B2", ImageFixtures.Png());
+
+        using var reopened = new XLWorkbook(new MemoryStream(await File.ReadAllBytesAsync(output.Path), writable: false));
+        Assert.Single(reopened.Worksheet("Data").Pictures);
+    }
+
+    [Fact]
+    public async Task AddImageAsync_NonPositiveSize_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        using var widthSource = new MemoryStream(xlsx);
+        using var widthDestination = new MemoryStream();
+        var widthEx = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => WorkbookEditor.AddImageAsync(widthSource, "Data", "A1", ImageFixtures.Png(), widthDestination, widthPixels: 0));
+        Assert.Equal("widthPixels", widthEx.ParamName);
+
+        using var heightSource = new MemoryStream(xlsx);
+        using var heightDestination = new MemoryStream();
+        var heightEx = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => WorkbookEditor.AddImageAsync(heightSource, "Data", "A1", ImageFixtures.Png(), heightDestination, heightPixels: -1));
+        Assert.Equal("heightPixels", heightEx.ParamName);
+    }
+
+    [Fact]
+    public async Task AddImageAsync_EmptyImage_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "x" } });
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => WorkbookEditor.AddImageAsync(source, "Data", "A1", [], destination));
+        Assert.Equal("image", ex.ParamName);
+    }
+
     [Fact]
     public void InspectSignatures_ReportsAnUnsignedWorkbookCleanly()
     {
