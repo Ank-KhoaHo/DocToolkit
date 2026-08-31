@@ -42,6 +42,8 @@ namespace DocToolkit
         public static byte[] FillRows(byte[] docx, string collection, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> rows) { }
         public static System.Threading.Tasks.Task FillRowsAsync(System.IO.Stream source, string collection, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> rows, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task FillRowsAsync(string inputPath, string outputPath, string collection, System.Collections.Generic.IEnumerable<System.Collections.Generic.IReadOnlyDictionary<string, string>> rows, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] docx) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static bool IsProtected(byte[] docx) { }
         public static byte[] Protect(byte[] docx, string password) { }
         public static System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
@@ -59,6 +61,8 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<int> TableCountAsync(string path, System.Threading.CancellationToken ct = default) { }
         public static byte[] Unprotect(byte[] docx, string password) { }
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] docx, DocToolkit.DocumentSignatureValidationOptions? options = null) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(System.IO.Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, System.Threading.CancellationToken ct = default) { }
     }
     public static class DocxForm
     {

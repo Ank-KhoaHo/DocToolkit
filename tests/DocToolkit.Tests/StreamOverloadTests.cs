@@ -300,8 +300,10 @@ public class StreamOverloadTests
         "XlsxToCsvConverter.ConvertAsync",
         "XlsxToHtmlConverter.ConvertAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
+        "DocxEditor.InspectSignaturesAsync",
         "DocxEditor.TableCountAsync",
         "DocxEditor.ReadTableAsync",
+        "DocxEditor.ValidateSignaturesAsync",
         "WorkbookEditor.ReadCellAsync",
         "WorkbookEditor.SheetNamesAsync",
         "WorkbookEditor.ReadSheetAsync",
@@ -1231,6 +1233,8 @@ public class StreamOverloadTests
                 DocxEditor.AddTableOfContentsAsync(source!, "{{toc}}", destination!, ct: ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
+            "DocxEditor.InspectSignaturesAsync" =>
+                DocxEditor.InspectSignaturesAsync(source!, ct),
             "PdfEditor.ExtractTextAsync" =>
                 PdfEditor.ExtractTextAsync(source!, ct),
             "DocxToHtmlConverter.ConvertAsync" =>
@@ -1251,6 +1255,8 @@ public class StreamOverloadTests
                 DocxEditor.TableCountAsync(source!, ct),
             "DocxEditor.ReadTableAsync" =>
                 DocxEditor.ReadTableAsync(source!, 0, ct),
+            "DocxEditor.ValidateSignaturesAsync" =>
+                DocxEditor.ValidateSignaturesAsync(source!, ct: ct),
             "DocxEditor.CreateAsync" =>
                 DocxEditor.CreateAsync(Blocks, destination!, ct),
             // PageSetup.Letter rather than A4: A4 is the default, so an arm passing it

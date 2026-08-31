@@ -2560,4 +2560,81 @@ public static class DocxEditor
             .EmitAsync(result, destination, "Failed to read the encrypted DOCX.", ct)
             .ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Inspects <paramref name="docx"/> for digital signatures — whether it carries one, how
+    /// many, and who claims to have signed it. Does not validate anything cryptographically; see
+    /// <see cref="ValidateSignatures"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be inspected.</exception>
+    public static DocumentSignatureInfo InspectSignatures(byte[] docx)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+
+        return OfficeSignature.Inspect(docx, ".docx", OfficeIMOWordWordDocument.InspectPackageSignatures, "DOCX");
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and inspects it for digital signatures — see
+    /// <see cref="InspectSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be inspected.</exception>
+    public static async Task<DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to inspect DOCX signatures. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return OfficeSignature.Inspect(docx.ToArray(), ".docx", OfficeIMOWordWordDocument.InspectPackageSignatures, "DOCX");
+    }
+
+    /// <summary>
+    /// Validates every digital signature <paramref name="docx"/> carries — cryptographic
+    /// integrity (tamper detection), certificate chain trust, and revocation, each reported
+    /// independently. Never performs revocation checking or certificate downloads over the
+    /// network, regardless of <paramref name="options"/> — see
+    /// <see cref="DocumentSignatureValidationOptions"/>'s own remarks.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be validated.</exception>
+    public static DocumentSignatureValidationReport ValidateSignatures(byte[] docx, DocumentSignatureValidationOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+
+        return OfficeSignature.Validate(docx, ".docx", OfficeIMOWordWordDocument.ValidatePackageSignatures, options, "DOCX");
+    }
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and validates its digital signatures — see
+    /// <see cref="ValidateSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be validated.</exception>
+    public static async Task<DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocumentSignatureValidationOptions? options = null, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to validate DOCX signatures. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return OfficeSignature.Validate(docx.ToArray(), ".docx", OfficeIMOWordWordDocument.ValidatePackageSignatures, options, "DOCX");
+    }
 }
