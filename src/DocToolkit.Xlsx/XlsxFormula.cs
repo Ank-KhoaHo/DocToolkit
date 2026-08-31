@@ -14,6 +14,16 @@ namespace DocToolkit;
 /// third-party reader that only reads cached values, such as openpyxl with
 /// <c>data_only=True</c>, sees an empty cell until Excel has opened and saved the file.</para>
 ///
+/// <para><b>This package's own <c>XlsxToPdfConverter</c> used to be exactly such a reader</b> —
+/// its renderer reads the raw cell rather than going through ClosedXML's lazy evaluation, so a
+/// formula cell rendered its own source text where the value belonged, found 2026-08-31. It now
+/// calculates before rendering, so this is no longer a caveat for it specifically. It remains one
+/// for anything else that reads this package's output: use
+/// <see cref="WorkbookEditor.EvaluateFormulas(byte[])"/> to write the computed value into the file
+/// itself before handing it to a reader that will not recalculate on its own, and
+/// <see cref="WorkbookEditor.InspectFormulas(byte[])"/> to find out first whether the engine
+/// understands a given formula well enough to trust its value.</para>
+///
 /// <para>A formula that cannot be evaluated reads back as its Excel error string — <c>#DIV/0!</c>,
 /// <c>#NAME?</c>, <c>#REF!</c> — rather than throwing, which is what Excel itself shows.</para>
 /// </summary>

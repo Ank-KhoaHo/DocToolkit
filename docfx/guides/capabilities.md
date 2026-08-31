@@ -38,7 +38,7 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 | **Markdown** (`MarkdownEditor`) | `FindHeading`, `ReadFrontMatter`, `ReadTable`, `ReplaceSection`, `TableCount` |
 | **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |
 | **PPTX** (`PresentationEditor`) | `AddChart`, `Create`, `ExtractText`, `InsertSlides`, `InspectSignatures`, `IsProtected`, `Protect`, `ReadMetadata`, `ReadSlide`, `ReadSmartArt`, `RemoveSlides`, `ReorderSlides`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect`, `ValidateSignatures`, `WithMetadata` |
-| **XLSX** (`WorkbookEditor`) | `AddChart`, `AddPivotTable`, `AppendRows`, `Create`, `Format`, `InspectSignatures`, `IsProtected`, `Protect`, `ReadCell`, `ReadMetadata`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect`, `ValidateSignatures`, `WithMetadata` |
+| **XLSX** (`WorkbookEditor`) | `AddChart`, `AddPivotTable`, `AppendRows`, `Create`, `EvaluateFormulas`, `Format`, `InspectFormulas`, `InspectSignatures`, `IsProtected`, `Protect`, `ReadCell`, `ReadMetadata`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect`, `ValidateSignatures`, `WithMetadata` |
 
 Method names only. What each one does, and the traps in it, are in the guides — this table exists to be complete and current, which prose has repeatedly failed to be.
 

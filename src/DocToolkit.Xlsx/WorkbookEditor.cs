@@ -2,6 +2,7 @@ using System.Globalization;
 using ClosedXML.Excel;
 
 using OfficeIMOExcelExcelDocument = OfficeIMO.Excel.ExcelDocument;
+using OfficeIMOExcelExcelSaveOptions = OfficeIMO.Excel.ExcelSaveOptions;
 namespace DocToolkit;
 
 /// <summary>Creates, reads and edits Excel (.xlsx) workbooks. Legacy .xls is not supported.</summary>
@@ -2088,6 +2089,84 @@ public static class WorkbookEditor
         catch (Exception ex) when (ex is not DocumentConversionException)
         {
             throw new DocumentConversionException("Failed to write XLSX metadata. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Every formula <paramref name="xlsx"/> carries, and whether each one is understood well
+    /// enough to trust its value. See <see cref="XlsxFormulaInspection"/> for why this asks rather
+    /// than assumes.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read.</exception>
+    public static XlsxFormulaInspection InspectFormulas(byte[] xlsx)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        if (xlsx.Length == 0) throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
+
+        try
+        {
+            using var source = new MemoryStream(xlsx, writable: false);
+            using var document = OfficeIMOExcelExcelDocument.Load(source);
+            var inspection = document.InspectFormulas();
+
+            var cells = inspection.Formulas
+                .Select(f => new XlsxFormulaCell(
+                    f.SheetName, f.CellReference, f.Formula, f.IsSupportedByOfficeIMO, f.UnsupportedReason))
+                .ToList();
+
+            return new XlsxFormulaInspection(cells);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to inspect XLSX formulas. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="xlsx"/> with every formula's computed value written into the
+    /// file, not just held in memory.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="XlsxFormula"/>'s own remarks explain why this is needed at all: a formula this
+    /// package writes carries a formula and nothing else, so a reader that trusts a cached value
+    /// rather than recalculating — a third-party tool, or this package's own
+    /// <c>XlsxToPdfConverter</c> before it started calling this internally — sees the formula's
+    /// source text where a value belongs. Excel itself is unaffected, because it recalculates on
+    /// open by default; this exists for everything that is not Excel.
+    ///
+    /// A formula <see cref="XlsxFormulaInspection"/> would report as unsupported is left exactly as
+    /// it was — no plausible-looking value is invented for it. Call <see cref="InspectFormulas"/>
+    /// first if that distinction matters to the caller.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read or written.</exception>
+    public static byte[] EvaluateFormulas(byte[] xlsx)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        if (xlsx.Length == 0) throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
+
+        try
+        {
+            // xlsx is typically a non-writable MemoryStream and OfficeIMO's ExcelDocument.Load
+            // needs an editable package, so this copy is load-bearing - see AddChartCore's own
+            // identical comment for the full reasoning.
+            using var source = new MemoryStream();
+            source.Write(xlsx, 0, xlsx.Length);
+            source.Position = 0;
+            using var document = OfficeIMOExcelExcelDocument.Load(source);
+
+            document.Calculate();
+
+            using var destination = new MemoryStream();
+            document.Save(destination, new OfficeIMOExcelExcelSaveOptions { EvaluateFormulasBeforeSave = true });
+            return destination.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to evaluate XLSX formulas. See the inner exception for details.", ex);
         }
     }
 }

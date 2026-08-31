@@ -327,6 +327,26 @@ read — but a third-party reader that only reads cached values, such as openpyx
 cannot be evaluated reads back as its Excel error string (`#DIV/0!`, `#NAME?`, `#REF!`) rather than
 throwing.
 
+Two operations exist for anything that is not Excel and not this package's own readers:
+
+```csharp
+// Write the computed value into the file itself, not just into memory for this call.
+byte[] withCachedValues = WorkbookEditor.EvaluateFormulas(xlsx);
+
+// Ask first, rather than trust a value the engine may not actually understand.
+XlsxFormulaInspection inspection = WorkbookEditor.InspectFormulas(xlsx);
+if (!inspection.AllSupported)
+{
+    IEnumerable<XlsxFormulaCell> unsupported = inspection.Formulas.Where(f => !f.IsSupported);
+    // Each XlsxFormulaCell's UnsupportedReason names the specific function or construct.
+}
+```
+
+`EvaluateFormulas` is what `XlsxToPdfConverter` calls internally before rendering, so a formula
+cell shows its value rather than its own source text in the PDF. A formula `InspectFormulas` marks
+unsupported is left exactly as it was by `EvaluateFormulas` — no plausible-looking value is
+invented for one the engine does not understand.
+
 ## Repeating table rows
 
 A table row whose cells contain `{{item.Field}}` placeholders repeats once per record — invoice

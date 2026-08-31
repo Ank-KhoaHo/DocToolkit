@@ -73,6 +73,15 @@ public static class XlsxToPdfConverter
             input.Position = 0;
 
             using var workbook = ExcelDocument.Load(input);
+
+            // A formula this package writes carries no cached value at all - see XlsxFormula's
+            // own remarks - and the renderer beneath ToPdf reads the raw cell, not ClosedXML's
+            // lazy in-memory evaluation the way ReadCell/ReadSheet do. Without this, a formula
+            // cell rendered its own SOURCE TEXT where the computed value belongs. Measured
+            // 2026-08-31. Calculate() updates the in-memory model only - no re-save, no second
+            // round trip - which ToPdf then reads directly.
+            workbook.Calculate();
+
             return workbook.ToPdf(PdfRenderPolicy.ForWorkbook());
         }
         catch (Exception ex)
@@ -149,6 +158,11 @@ public static class XlsxToPdfConverter
         {
             xlsx.Position = 0;
             using var workbook = ExcelDocument.Load(xlsx);
+
+            // See Convert(byte[])'s identical comment: a formula cell renders its own source text
+            // without this.
+            workbook.Calculate();
+
             await workbook
                 .SaveAsPdfAsync(destination, PdfRenderPolicy.ForWorkbook(), ct)
                 .ConfigureAwait(false);

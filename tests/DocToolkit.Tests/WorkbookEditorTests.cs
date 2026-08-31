@@ -2029,4 +2029,130 @@ public class WorkbookEditorTests
             () => WorkbookEditor.WithMetadata(Array.Empty<byte>(), new DocumentMetadata()));
         Assert.Equal("xlsx", ex.ParamName);
     }
+
+    // =========================================================================================
+    // Formula evaluation and inspection
+    // =========================================================================================
+
+    private static byte[] WorkbookWithFormula(string formula) => WorkbookEditor.Create("S", new object?[][]
+    {
+        new object?[] { 2, 40, XlsxFormula.From(formula) },
+    });
+
+    [Fact]
+    public void InspectFormulas_ReportsASupportedFormula()
+    {
+        var xlsx = WorkbookWithFormula("=SUM(A1:B1)");
+
+        var inspection = WorkbookEditor.InspectFormulas(xlsx);
+
+        Assert.Equal(1, inspection.TotalFormulas);
+        Assert.Equal(1, inspection.SupportedFormulas);
+        Assert.Equal(0, inspection.UnsupportedFormulas);
+        Assert.True(inspection.AllSupported);
+        var cell = Assert.Single(inspection.Formulas);
+        Assert.Equal("S", cell.SheetName);
+        Assert.Equal("C1", cell.CellReference);
+        Assert.Equal("SUM(A1:B1)", cell.Formula);
+        Assert.True(cell.IsSupported);
+        Assert.Null(cell.UnsupportedReason);
+    }
+
+    [Fact]
+    public void InspectFormulas_ReportsAnUnsupportedFormulaWithAReasonRatherThanAWrongValue()
+    {
+        // The control this whole capability exists for: a caller must be able to tell "this is a
+        // real 42" from "this looks like a number but nothing computed it" before trusting either.
+        var xlsx = WorkbookWithFormula("=NOTAREALFUNCTION(A1:B1)");
+
+        var inspection = WorkbookEditor.InspectFormulas(xlsx);
+
+        Assert.Equal(0, inspection.SupportedFormulas);
+        Assert.Equal(1, inspection.UnsupportedFormulas);
+        Assert.False(inspection.AllSupported);
+        var cell = Assert.Single(inspection.Formulas);
+        Assert.False(cell.IsSupported);
+        Assert.NotNull(cell.UnsupportedReason);
+        Assert.Contains("NOTAREALFUNCTION", cell.UnsupportedReason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InspectFormulas_OnAWorkbookWithNoFormulas_ReportsZero()
+    {
+        var inspection = WorkbookEditor.InspectFormulas(SampleWorkbook());
+
+        Assert.Equal(0, inspection.TotalFormulas);
+        Assert.Empty(inspection.Formulas);
+        Assert.True(inspection.AllSupported);
+    }
+
+    [Fact]
+    public void InspectFormulas_NullXlsx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.InspectFormulas(null!));
+    }
+
+    [Fact]
+    public void InspectFormulas_EmptyXlsx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => WorkbookEditor.InspectFormulas(Array.Empty<byte>()));
+        Assert.Equal("xlsx", ex.ParamName);
+    }
+
+    [Fact]
+    public void EvaluateFormulas_WritesTheComputedValueIntoTheFileItself()
+    {
+        // The distinction EvaluateFormulas exists for: ReadCell already returns "42" via
+        // ClosedXML's own in-memory evaluation on every read, whatever the file contains - so
+        // this asserts against the RAW XML, not ReadCell, or the test could pass even if nothing
+        // was ever written back.
+        var xlsx = WorkbookWithFormula("=SUM(A1:B1)");
+        var before = RawSheetXml(xlsx, "sheet1.xml");
+        Assert.DoesNotContain(">42<", before, StringComparison.Ordinal);
+
+        var evaluated = WorkbookEditor.EvaluateFormulas(xlsx);
+
+        // Namespace-prefixed elements (<x:v>, not <v>) - this is OfficeIMO's own writer, a
+        // different library from the ClosedXML writer WorkbookWithFormula went through, and the
+        // two are not obliged to share a convention. ">42<" matches either.
+        var after = RawSheetXml(evaluated, "sheet1.xml");
+        Assert.Contains(">42<", after, StringComparison.Ordinal);
+        // The formula itself must survive - this replaces a missing cached value, not the formula.
+        Assert.Contains("SUM(A1:B1)", after, StringComparison.Ordinal);
+    }
+
+    private static string RawSheetXml(byte[] xlsx, string entryNameContains)
+    {
+        using var ms = new MemoryStream(xlsx, writable: false);
+        using var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Read);
+        var entry = zip.Entries.First(e => e.FullName.Contains(entryNameContains, StringComparison.Ordinal));
+        using var stream = entry.Open();
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    [Fact]
+    public void EvaluateFormulas_DoesNotDisturbOrdinaryCellValues()
+    {
+        var xlsx = WorkbookWithFormula("=SUM(A1:B1)");
+
+        var evaluated = WorkbookEditor.EvaluateFormulas(xlsx);
+
+        Assert.Equal("2", WorkbookEditor.ReadCell(evaluated, "S", "A1"));
+        Assert.Equal("40", WorkbookEditor.ReadCell(evaluated, "S", "B1"));
+        Assert.Equal("42", WorkbookEditor.ReadCell(evaluated, "S", "C1"));
+    }
+
+    [Fact]
+    public void EvaluateFormulas_NullXlsx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.EvaluateFormulas(null!));
+    }
+
+    [Fact]
+    public void EvaluateFormulas_EmptyXlsx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => WorkbookEditor.EvaluateFormulas(Array.Empty<byte>()));
+        Assert.Equal("xlsx", ex.ParamName);
+    }
 }
