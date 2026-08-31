@@ -1519,6 +1519,257 @@ public static class WorkbookEditor
         data.Series.Select(s => new OfficeIMO.Drawing.OfficeChartSeries(s.Name, s.Values)));
 
     /// <summary>
+    /// Adds a pivot table to <paramref name="sheetName"/> and returns the updated workbook.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>The result grid is empty until Excel opens and recalculates it.</b> A pivot
+    /// table's aggregated values are computed by whichever application opens the file — nothing
+    /// that WRITES it (this method included) populates the grid. This is the same class of
+    /// limitation this package already documents for <see cref="XlsxFormula"/>: reading the
+    /// pivot's own cells back with <see cref="ReadCell"/> immediately after calling this method
+    /// returns empty strings, and <c>XlsxToPdfConverter</c> renders nothing where the pivot's
+    /// results would be — for the identical reason it renders a formula's literal text rather
+    /// than its computed value. Open the result in Excel (or an equivalent) to see it populated.
+    /// </para>
+    /// <para>Further edits to the workbook through this class's other methods (all
+    /// ClosedXML-based) re-serialize the pivot table's XML — measured directly — but its field
+    /// structure and aggregation choices survive that re-serialization correctly.</para>
+    /// </remarks>
+    /// <param name="xlsx">The workbook to add the pivot table to. It is not modified.</param>
+    /// <param name="sheetName">The sheet to add the pivot table to.</param>
+    /// <param name="sourceRange">An A1-style range naming the source data, e.g. <c>"A1:C10"</c>.</param>
+    /// <param name="destinationCell">
+    /// An A1-style cell reference for the pivot table's top-left corner, e.g. <c>"E1"</c>.
+    /// </param>
+    /// <param name="name">The pivot table's name.</param>
+    /// <param name="rowFields">Source column headers to group by, down the rows. At least one.</param>
+    /// <param name="dataFields">The aggregated value columns. At least one.</param>
+    /// <param name="columnFields">Source column headers to group by, across the columns. Optional.</param>
+    /// <param name="pageFields">Source column headers used as report filters. Optional.</param>
+    /// <param name="showRowGrandTotals">Whether to show a grand total row.</param>
+    /// <param name="showColumnGrandTotals">Whether to show a grand total column.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="xlsx"/>, <paramref name="rowFields"/>, <paramref name="dataFields"/> or
+    /// another required argument is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, a name argument is blank, or
+    /// <paramref name="rowFields"/>/<paramref name="dataFields"/> is empty.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or
+    /// <paramref name="destinationCell"/> is not a valid cell reference.
+    /// </exception>
+    public static byte[] AddPivotTable(
+        byte[] xlsx, string sheetName, string sourceRange, string destinationCell, string name,
+        IEnumerable<string> rowFields, IEnumerable<PivotDataField> dataFields,
+        IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
+        bool showRowGrandTotals = true, bool showColumnGrandTotals = true)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        if (xlsx.Length == 0) throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRange);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationCell);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var rowFieldList = ValidatePivotFields(rowFields, nameof(rowFields));
+        var dataFieldList = (dataFields ?? throw new ArgumentNullException(nameof(dataFields))).ToList();
+        if (dataFieldList.Count == 0)
+            throw new ArgumentException("Data fields were empty.", nameof(dataFields));
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var result = AddPivotTableCore(
+            source, sheetName, sourceRange, destinationCell, name, rowFieldList, dataFieldList,
+            columnFields?.ToList(), pageFields?.ToList(), showRowGrandTotals, showColumnGrandTotals);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds a pivot table, and writes the
+    /// result to <paramref name="destination"/> — see <see cref="AddPivotTable"/> for the
+    /// parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to add the pivot table to.</param>
+    /// <param name="sourceRange">An A1-style range naming the source data, e.g. <c>"A1:C10"</c>.</param>
+    /// <param name="destinationCell">
+    /// An A1-style cell reference for the pivot table's top-left corner, e.g. <c>"E1"</c>.
+    /// </param>
+    /// <param name="name">The pivot table's name.</param>
+    /// <param name="rowFields">Source column headers to group by, down the rows. At least one.</param>
+    /// <param name="dataFields">The aggregated value columns. At least one.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="columnFields">Source column headers to group by, across the columns. Optional.</param>
+    /// <param name="pageFields">Source column headers used as report filters. Optional.</param>
+    /// <param name="showRowGrandTotals">Whether to show a grand total row.</param>
+    /// <param name="showColumnGrandTotals">Whether to show a grand total column.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="destination"/>, <paramref name="rowFields"/> or
+    /// <paramref name="dataFields"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, a name is blank, or
+    /// <paramref name="rowFields"/>/<paramref name="dataFields"/> is empty.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or
+    /// <paramref name="destinationCell"/> is not a valid cell reference.
+    /// </exception>
+    public static async Task AddPivotTableAsync(
+        Stream source, string sheetName, string sourceRange, string destinationCell, string name,
+        IEnumerable<string> rowFields, IEnumerable<PivotDataField> dataFields, Stream destination,
+        IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
+        bool showRowGrandTotals = true, bool showColumnGrandTotals = true, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRange);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationCell);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var rowFieldList = ValidatePivotFields(rowFields, nameof(rowFields));
+        var dataFieldList = (dataFields ?? throw new ArgumentNullException(nameof(dataFields))).ToList();
+        if (dataFieldList.Count == 0)
+            throw new ArgumentException("Data fields were empty.", nameof(dataFields));
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to add a pivot table to the XLSX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        using var result = AddPivotTableCore(
+            xlsx, sheetName, sourceRange, destinationCell, name, rowFieldList, dataFieldList,
+            columnFields?.ToList(), pageFields?.ToList(), showRowGrandTotals, showColumnGrandTotals);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to add a pivot table to the XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="inputPath"/>, adds a pivot table, and writes the
+    /// result to <paramref name="outputPath"/> — see <see cref="AddPivotTable"/> for the
+    /// parameters. The two paths may be the same file: the updated bytes are computed in full
+    /// before <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The workbook to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="sheetName">The sheet to add the pivot table to.</param>
+    /// <param name="sourceRange">An A1-style range naming the source data, e.g. <c>"A1:C10"</c>.</param>
+    /// <param name="destinationCell">
+    /// An A1-style cell reference for the pivot table's top-left corner, e.g. <c>"E1"</c>.
+    /// </param>
+    /// <param name="name">The pivot table's name.</param>
+    /// <param name="rowFields">Source column headers to group by, down the rows. At least one.</param>
+    /// <param name="dataFields">The aggregated value columns. At least one.</param>
+    /// <param name="columnFields">Source column headers to group by, across the columns. Optional.</param>
+    /// <param name="pageFields">Source column headers used as report filters. Optional.</param>
+    /// <param name="showRowGrandTotals">Whether to show a grand total row.</param>
+    /// <param name="showColumnGrandTotals">Whether to show a grand total column.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// A path, a name, <paramref name="rowFields"/> or <paramref name="dataFields"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// A path or a name is blank, the file at <paramref name="inputPath"/> is empty, or
+    /// <paramref name="rowFields"/>/<paramref name="dataFields"/> is empty.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or
+    /// <paramref name="destinationCell"/> is not a valid cell reference.
+    /// </exception>
+    public static async Task AddPivotTableAsync(
+        string inputPath, string outputPath, string sheetName, string sourceRange,
+        string destinationCell, string name, IEnumerable<string> rowFields,
+        IEnumerable<PivotDataField> dataFields, IEnumerable<string>? columnFields = null,
+        IEnumerable<string>? pageFields = null, bool showRowGrandTotals = true,
+        bool showColumnGrandTotals = true, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddPivotTable(
+            bytes, sheetName, sourceRange, destinationCell, name, rowFields, dataFields,
+            columnFields, pageFields, showRowGrandTotals, showColumnGrandTotals);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    private static List<string> ValidatePivotFields(IEnumerable<string> fields, string paramName)
+    {
+        var list = (fields ?? throw new ArgumentNullException(paramName)).ToList();
+        if (list.Count == 0) throw new ArgumentException($"{paramName} were empty.", paramName);
+        return list;
+    }
+
+    private static MemoryStream AddPivotTableCore(
+        Stream xlsx, string sheetName, string sourceRange, string destinationCell, string name,
+        IReadOnlyList<string> rowFields, IReadOnlyList<PivotDataField> dataFields,
+        IReadOnlyList<string>? columnFields, IReadOnlyList<string>? pageFields,
+        bool showRowGrandTotals, bool showColumnGrandTotals)
+    {
+        try
+        {
+            var cleanedDestinationCell = destinationCell.Replace("$", string.Empty);
+            if (!XLHelper.IsValidA1Address(cleanedDestinationCell))
+                throw new DocumentConversionException($"\"{destinationCell}\" is not a valid A1-style cell reference.");
+
+            // xlsx is typically a non-writable MemoryStream and OfficeIMO's ExcelDocument.Load
+            // needs an editable package, so this copy is load-bearing - see AddChartCore's own
+            // identical comment for the full reasoning.
+            using var source = new MemoryStream();
+            xlsx.CopyTo(source);
+            source.Position = 0;
+            using var document = OfficeIMOExcelExcelDocument.Load(source);
+
+            var sheet = document.Sheets.FirstOrDefault(s => s.Name == sheetName)
+                ?? throw new DocumentConversionException($"Sheet \"{sheetName}\" was not found.");
+
+            sheet.AddPivotTable(
+                sourceRange: sourceRange,
+                destinationCell: cleanedDestinationCell,
+                name: name,
+                rowFields: rowFields,
+                columnFields: columnFields,
+                pageFields: pageFields,
+                dataFields: dataFields.Select(f => new OfficeIMO.Excel.ExcelPivotDataField(f.FieldName, ToPivotDataFunction(f.Function))),
+                showRowGrandTotals: showRowGrandTotals,
+                showColumnGrandTotals: showColumnGrandTotals);
+
+            var ms = new MemoryStream();
+            document.Save(ms);
+            return ms;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add a pivot table to the XLSX. See the inner exception for details.", ex);
+        }
+    }
+
+    private static OfficeIMO.Excel.ExcelPivotDataFunction ToPivotDataFunction(PivotFunction function) => function switch
+    {
+        PivotFunction.Sum => OfficeIMO.Excel.ExcelPivotDataFunction.Sum,
+        PivotFunction.Average => OfficeIMO.Excel.ExcelPivotDataFunction.Average,
+        PivotFunction.Count => OfficeIMO.Excel.ExcelPivotDataFunction.Count,
+        PivotFunction.CountNumbers => OfficeIMO.Excel.ExcelPivotDataFunction.CountNumbers,
+        PivotFunction.Maximum => OfficeIMO.Excel.ExcelPivotDataFunction.Maximum,
+        PivotFunction.Minimum => OfficeIMO.Excel.ExcelPivotDataFunction.Minimum,
+        PivotFunction.Product => OfficeIMO.Excel.ExcelPivotDataFunction.Product,
+        PivotFunction.StandardDeviation => OfficeIMO.Excel.ExcelPivotDataFunction.StandardDeviation,
+        PivotFunction.StandardDeviationP => OfficeIMO.Excel.ExcelPivotDataFunction.StandardDeviationP,
+        PivotFunction.Variance => OfficeIMO.Excel.ExcelPivotDataFunction.Variance,
+        PivotFunction.VarianceP => OfficeIMO.Excel.ExcelPivotDataFunction.VarianceP,
+        _ => throw new ArgumentOutOfRangeException(nameof(function), function, null),
+    };
+
+    /// <summary>
     /// A copy of <paramref name="xlsx"/> encrypted with <paramref name="password"/>, so it cannot
     /// be opened without one.
     /// </summary>

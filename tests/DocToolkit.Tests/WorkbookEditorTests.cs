@@ -1219,6 +1219,226 @@ public class WorkbookEditorTests
         Assert.NotNull(chart);
     }
 
+    [Fact]
+    public void AddPivotTable_CreatesAPivotTable_ThatSurvivesTheXlsxRoundTrip()
+    {
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Amount" },
+                new object[] { "North", 100 },
+                new object[] { "South", 200 },
+            });
+
+        var result = WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:B3", "D1", "MyPivot",
+            new[] { "Region" },
+            new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        Assert.Single(doc.GetPivotTables());
+    }
+
+    [Fact]
+    public void AddPivotTable_TheGridIsEmptyUntilExcelRecalculates()
+    {
+        // Load-bearing: pins this design's central finding. A pivot table's result grid is
+        // computed only by Excel, on open - nothing that WRITES the file (OfficeIMO here)
+        // populates it. If a future OfficeIMO version starts writing computed values, or a
+        // regression populates garbage, this test is what catches either.
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Amount" },
+                new object[] { "North", 100 },
+                new object[] { "South", 200 },
+            });
+
+        var result = WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:B3", "D1", "MyPivot",
+            new[] { "Region" },
+            new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+
+        foreach (var cell in new[] { "D1", "D2", "D3", "E1", "E2", "E3" })
+            Assert.Equal(string.Empty, WorkbookEditor.ReadCell(result, "Data", cell));
+    }
+
+    [Fact]
+    public void AddPivotTable_SurvivesAnUnrelatedClosedXmlEdit()
+    {
+        // ClosedXML re-serializes the pivot table's XML on ANY subsequent edit through this
+        // file's other (ClosedXML-based) methods - measured directly. The structure survives;
+        // the bytes do not. This pins that the field configuration specifically survives.
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Amount" },
+                new object[] { "North", 100 },
+                new object[] { "South", 200 },
+            });
+
+        var withPivot = WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:B3", "D1", "MyPivot",
+            new[] { "Region" },
+            new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+
+        var afterEdit = WorkbookEditor.SetCell(withPivot, "Data", "A10", "unrelated edit");
+
+        using var source = new MemoryStream(afterEdit, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        Assert.Single(doc.GetPivotTables());
+
+        var pivotXml = ReadZipEntryText(afterEdit, "xl/pivotTables/pivotTable.xml");
+        Assert.Contains("location ref=\"D1:E2\"", pivotXml);
+        Assert.Contains("<field x=\"0\" />", pivotXml);
+        Assert.Contains("dataField name=\"Sum of Amount\" fld=\"1\"", pivotXml);
+    }
+
+    [Fact]
+    public void AddPivotTable_WithColumnFieldsAndMultipleDataFields_Succeeds()
+    {
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Product", "Amount", "Qty" },
+                new object[] { "North", "Widget", 100, 2 },
+                new object[] { "South", "Gadget", 200, 4 },
+            });
+
+        var withPivot = WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:D3", "F1", "RichPivot",
+            new[] { "Region" },
+            new[]
+            {
+                new PivotDataField("Amount", PivotFunction.Sum),
+                new PivotDataField("Qty", PivotFunction.Average),
+            },
+            columnFields: new[] { "Product" });
+
+        var afterEdit = WorkbookEditor.SetCell(withPivot, "Data", "A10", "x");
+
+        using var source = new MemoryStream(afterEdit, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        Assert.Single(doc.GetPivotTables());
+
+        var pivotXml = ReadZipEntryText(afterEdit, "xl/pivotTables/pivotTable.xml");
+        // Sum is OOXML's own default and its explicit subtotal="sum" attribute is dropped by
+        // ClosedXML's re-serialization (measured) - only the non-default aggregation's
+        // attribute survives explicitly, which is what proves the choice really round-tripped
+        // rather than every field silently defaulting to Sum.
+        Assert.Contains("dataField name=\"Average of Qty\"", pivotXml);
+        Assert.Contains("subtotal=\"average\"", pivotXml);
+    }
+
+    [Fact]
+    public void AddPivotTable_UnknownSheetName_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        var ex = Assert.Throws<DocumentConversionException>(() => WorkbookEditor.AddPivotTable(
+            xlsx, "NoSuchSheet", "A1:A1", "D1", "P",
+            new[] { "A" }, new[] { new PivotDataField("A", PivotFunction.Sum) }));
+        Assert.Contains("was not found", ex.Message);
+    }
+
+    [Fact]
+    public void AddPivotTable_InvalidDestinationCell_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        var ex = Assert.Throws<DocumentConversionException>(() => WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:A1", "not a cell", "P",
+            new[] { "A" }, new[] { new PivotDataField("A", PivotFunction.Sum) }));
+        Assert.Contains("is not a valid A1-style cell reference", ex.Message);
+    }
+
+    [Fact]
+    public void AddPivotTable_EmptyRowFields_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        Assert.Throws<ArgumentException>(() => WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:A1", "D1", "P",
+            Array.Empty<string>(), new[] { new PivotDataField("A", PivotFunction.Sum) }));
+    }
+
+    [Fact]
+    public void AddPivotTable_EmptyDataFields_Throws()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        Assert.Throws<ArgumentException>(() => WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:A1", "D1", "P",
+            new[] { "A" }, Array.Empty<PivotDataField>()));
+    }
+
+    [Fact]
+    public async Task AddPivotTableAsync_FromStream_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Amount" },
+                new object[] { "North", 100 },
+                new object[] { "South", 200 },
+            });
+        var rowFields = new[] { "Region" };
+        var dataFields = new[] { new PivotDataField("Amount", PivotFunction.Sum) };
+
+        var expected = WorkbookEditor.AddPivotTable(xlsx, "Data", "A1:B3", "D1", "P", rowFields, dataFields);
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var destination = new MemoryStream();
+        await WorkbookEditor.AddPivotTableAsync(
+            source, "Data", "A1:B3", "D1", "P", rowFields, dataFields, destination);
+        var actual = destination.ToArray();
+
+        // NOT Assert.Equal(expected, actual) on raw bytes - confirmed non-deterministic by probe
+        // (two independent AddPivotTable calls on identical input: 8510 vs 8509 bytes). Compare
+        // structurally instead, the same shape A95's own corrected chart parity tests use.
+        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(expected, writable: false));
+        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(actual, writable: false));
+        Assert.Single(expectedDoc.GetPivotTables());
+        Assert.Single(actualDoc.GetPivotTables());
+
+        var expectedXml = ReadZipEntryText(expected, "xl/pivotTables/pivotTable.xml");
+        var actualXml = ReadZipEntryText(actual, "xl/pivotTables/pivotTable.xml");
+        Assert.Contains("dataField name=\"Sum of Amount\"", expectedXml);
+        Assert.Contains("dataField name=\"Sum of Amount\"", actualXml);
+    }
+
+    [Fact]
+    public async Task AddPivotTableAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Amount" },
+                new object[] { "North", 100 },
+                new object[] { "South", 200 },
+            });
+        var rowFields = new[] { "Region" };
+        var dataFields = new[] { new PivotDataField("Amount", PivotFunction.Sum) };
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        await WorkbookEditor.AddPivotTableAsync(
+            input.Path, output.Path, "Data", "A1:B3", "D1", "P", rowFields, dataFields);
+
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(
+            new MemoryStream(await File.ReadAllBytesAsync(output.Path), writable: false));
+        Assert.Single(doc.GetPivotTables());
+    }
+
     private static string ReadZipEntryText(byte[] xlsx, string entryName)
     {
         using var zip = new ZipArchive(new MemoryStream(xlsx, writable: false));
