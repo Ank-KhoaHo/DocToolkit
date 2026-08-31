@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.45.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.45.0...v0.45.1) (2026-08-31)
+
+
+### Fixed
+
+* address code review findings on the A100/A101 samples ([#447](https://github.com/Ank-KhoaHo/DocToolkit/issues/447)) ([6f1558a](https://github.com/Ank-KhoaHo/DocToolkit/commit/6f1558a662b0571d358255a62be8be43c91996af))
+
 ## [0.45.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.44.1...v0.45.0) (2026-08-31)
 
 
