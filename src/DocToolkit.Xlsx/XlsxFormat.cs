@@ -15,7 +15,7 @@ public readonly record struct XlsxFreeze(int Row, int Column);
 /// <summary>
 /// The presentation <see cref="WorkbookEditor.Format(byte[], string, XlsxFormat)"/> applies to a
 /// sheet: a bold header row, a freeze position, auto-fitted or explicit column widths, a number
-/// format per column, an autofilter, conditional formats and data validations.
+/// format per column, an autofilter, conditional formats, data validations and tables.
 /// </summary>
 /// <remarks>
 /// <b>The boundary here is a CLOSED vocabulary, not a small one — and that is a change.</b> This type
@@ -27,7 +27,7 @@ public readonly record struct XlsxFreeze(int Row, int Column);
 /// <listheader><term>in</term><description>out</description></listheader>
 /// <item><term>
 /// a vocabulary this library can enumerate, measure and guarantee — six rule conditions, five
-/// validation kinds, four highlights, a freeze position, a column width
+/// validation kinds, four highlights, four table style tiers, a freeze position, a column width
 /// </term><description>
 /// an open one it would have to own forever — arbitrary fonts, borders, fills, merged ranges, colour
 /// scales, icon sets
@@ -52,7 +52,8 @@ public sealed class XlsxFormat
         XlsxFreeze? freezeAt,
         bool autoFilter,
         IReadOnlyList<XlsxRule> rules,
-        IReadOnlyList<XlsxValidation> validations)
+        IReadOnlyList<XlsxValidation> validations,
+        IReadOnlyList<XlsxTable> tables)
     {
         BoldHeaderRow = boldHeaderRow;
         AutoFitColumns = autoFitColumns;
@@ -80,6 +81,7 @@ public sealed class XlsxFormat
             new Dictionary<string, double>(columnWidths, StringComparer.OrdinalIgnoreCase));
         Rules = new ReadOnlyCollection<XlsxRule>([.. rules]);
         Validations = new ReadOnlyCollection<XlsxValidation>([.. validations]);
+        Tables = new ReadOnlyCollection<XlsxTable>([.. tables]);
     }
 
     /// <summary>Applies nothing. The starting point for building a format up.</summary>
@@ -87,7 +89,7 @@ public sealed class XlsxFormat
         false, false,
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-        null, false, [], []);
+        null, false, [], [], []);
 
     /// <summary>
     /// The three settings that make a generated sheet readable: a bold header row, that row frozen
@@ -102,7 +104,7 @@ public sealed class XlsxFormat
         true, true,
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-        new XlsxFreeze(1, 0), false, [], []);
+        new XlsxFreeze(1, 0), false, [], [], []);
 
     /// <summary>Whether the first row is bold.</summary>
     public bool BoldHeaderRow { get; }
@@ -164,6 +166,9 @@ public sealed class XlsxFormat
     /// stay six — so do not reason from one to the other.
     /// </remarks>
     public IReadOnlyList<XlsxValidation> Validations { get; }
+
+    /// <summary>The tables to create, in the order given. Empty unless set.</summary>
+    public IReadOnlyList<XlsxTable> Tables { get; }
 
     /// <summary>Returns a copy with <see cref="BoldHeaderRow"/> set.</summary>
     /// <param name="bold">Whether the first row is bold.</param>
@@ -286,6 +291,22 @@ public sealed class XlsxFormat
         return With(validations: [.. Validations, validation]);
     }
 
+    /// <summary>Returns a copy carrying one more table.</summary>
+    /// <remarks>
+    /// <b>Do not also call <see cref="WithAutoFilter"/> over a range that overlaps this table.</b>
+    /// A ClosedXML table already carries its own autofilter, and applying the sheet-wide one on
+    /// top of an overlapping table range throws <see cref="DocumentConversionException"/> at
+    /// <see cref="WorkbookEditor.Format(byte[], string, XlsxFormat)"/> time — measured directly,
+    /// not merely likely. Use one or the other over the same cells.
+    /// </remarks>
+    /// <param name="table">The table to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="table"/> is null.</exception>
+    public XlsxFormat WithTable(XlsxTable table)
+    {
+        ArgumentNullException.ThrowIfNull(table);
+        return With(tables: [.. Tables, table]);
+    }
+
     /// <summary>
     /// The one place a modified copy is made. Every <c>With…</c> method goes through it, so adding a
     /// field means changing one call site rather than nine.
@@ -304,7 +325,8 @@ public sealed class XlsxFormat
         bool clearFreeze = false,
         bool? autoFilter = null,
         IReadOnlyList<XlsxRule>? rules = null,
-        IReadOnlyList<XlsxValidation>? validations = null)
+        IReadOnlyList<XlsxValidation>? validations = null,
+        IReadOnlyList<XlsxTable>? tables = null)
         => new(boldHeaderRow ?? BoldHeaderRow,
                autoFitColumns ?? AutoFitColumns,
                columnNumberFormats ?? ColumnNumberFormats,
@@ -312,7 +334,8 @@ public sealed class XlsxFormat
                clearFreeze ? null : freezeAt ?? FreezeAt,
                autoFilter ?? AutoFilter,
                rules ?? Rules,
-               validations ?? Validations);
+               validations ?? Validations,
+               tables ?? Tables);
 
     /// <summary>
     /// A cheap SHAPE check, run here rather than at apply time so a typo fails where it was

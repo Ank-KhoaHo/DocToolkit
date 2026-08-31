@@ -757,7 +757,34 @@ public static class WorkbookEditor
 
         foreach (XlsxValidation validation in format.Validations)
             ApplyValidation(sheet, validation);
+
+        foreach (XlsxTable table in format.Tables)
+            ApplyTable(sheet, table);
     }
+
+    /// <summary>The one place an <see cref="XlsxTable"/> description becomes a ClosedXML table.</summary>
+    private static void ApplyTable(IXLWorksheet sheet, XlsxTable table)
+    {
+        var xlTable = sheet.Range(table.Range).CreateTable(table.Name);
+        xlTable.Theme = TableTheme(table.Style);
+    }
+
+    /// <summary>
+    /// Four tiers to four ClosedXML themes — see <see cref="XlsxTableStyle"/>. <c>Medium</c> maps to
+    /// <c>TableStyleMedium2</c>, ClosedXML's own measured default for a freshly created table.
+    /// </summary>
+    private static XLTableTheme TableTheme(XlsxTableStyle style) => style switch
+    {
+        XlsxTableStyle.None => XLTableTheme.None,
+        XlsxTableStyle.Light => XLTableTheme.TableStyleLight1,
+        XlsxTableStyle.Medium => XLTableTheme.TableStyleMedium2,
+        XlsxTableStyle.Dark => XLTableTheme.TableStyleDark1,
+
+        // NOT a fall-through arm - see ApplyRule's identical comment on the same trap.
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(style), style,
+            "Not a defined XlsxTableStyle. The vocabulary is closed; see XlsxTable's factory."),
+    };
 
     /// <summary>
     /// The one place a rule becomes a conditional format.
