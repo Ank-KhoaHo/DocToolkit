@@ -426,5 +426,18 @@ public class DocxEditorReplaceImageTests
         Assert.Equal(beforePayload.Kind, afterPayload.Kind);
         Assert.Equal(beforePayload.ContentType, afterPayload.ContentType);
         Assert.Equal(beforePayload.Length, afterPayload.Length);
+
+        // AssertValid can't be used directly here: OfficeIMO's own AddEmbeddedObject produces a
+        // pre-existing schema error (an ObjectID attribute in an invalid hex format) that is
+        // present even before ReplaceImage runs - confirmed by an independent probe this session,
+        // unrelated to ReplaceImage. Asserting "no NEW errors" keeps this test able to catch a
+        // schema defect ReplaceImage itself might introduce, without failing on OfficeIMO's own
+        // pre-existing quirk.
+        var errorsBefore = DocxFixtures.Validate(docx).Select(e => e.Description).ToHashSet();
+        var errorsAfter = DocxFixtures.Validate(filled).Select(e => e.Description).ToHashSet();
+        var newErrors = errorsAfter.Except(errorsBefore).ToList();
+        Assert.True(newErrors.Count == 0,
+            "ReplaceImage must not introduce new schema validation errors:\n" +
+            string.Join("\n", newErrors.Select(e => "  " + e)));
     }
 }

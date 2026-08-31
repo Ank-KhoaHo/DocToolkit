@@ -1687,11 +1687,12 @@ public class WorkbookEditorTests
     /// <summary>
     /// A worksheet-level embedded package, anchored the way Excel anchors one: a
     /// &lt;drawing r:id="..."/&gt; element in the worksheet XML pointing at a
-    /// <see cref="DrawingsPart"/>, which owns an <see cref="EmbeddedPackagePart"/> carrying the
-    /// payload. OfficeIMO 3.2.6 has no XLSX-side embedding API at all (confirmed by reflection),
-    /// so this is built directly through DocumentFormat.OpenXml.Packaging's own typed part API -
-    /// the SDK-level equivalent of "authored the way the library under test authors one", since
-    /// there is no higher-level typed API to prefer.
+    /// <see cref="DrawingsPart"/>, plus a separate <see cref="EmbeddedPackagePart"/> carrying the
+    /// payload, added directly to the <see cref="WorksheetPart"/> rather than nested under the
+    /// <see cref="DrawingsPart"/>. OfficeIMO 3.2.6 has no XLSX-side embedding API at all (confirmed
+    /// by reflection), so this is built directly through DocumentFormat.OpenXml.Packaging's own
+    /// typed part API - the SDK-level equivalent of "authored the way the library under test
+    /// authors one", since there is no higher-level typed API to prefer.
     ///
     /// Note: DrawingsPart does NOT support EmbeddedPackagePart as a direct child via this SDK's
     /// typed relationship API (attempting it is a compile error, CS0311 - only WorksheetPart,
@@ -1760,6 +1761,19 @@ public class WorkbookEditorTests
         return hasDrawingElement
             && drawingsParts.Count == 1
             && wsPart.EmbeddedPackageParts.Any();
+    }
+
+    [Fact]
+    public void AddChart_PreservesAnEmbeddedPackage()
+    {
+        var xlsx = WorkbookWithEmbeddedPackage();
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = WorkbookEditor.AddChart(xlsx, "Data", "D1", ChartType.ColumnClustered, data);
+
+        Assert.True(EmbeddedPackageIsFullyIntact(result));
     }
 
     [Fact]
