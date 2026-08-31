@@ -1926,4 +1926,107 @@ public class WorkbookEditorTests
         var ex = Assert.Throws<ArgumentException>(() => WorkbookEditor.InspectSignatures(Array.Empty<byte>()));
         Assert.Equal("xlsx", ex.ParamName);
     }
+
+    // =========================================================================================
+    // Metadata
+    // =========================================================================================
+
+    [Fact]
+    public void MetadataSurvivesARoundTrip()
+    {
+        var xlsx = SampleWorkbook();
+
+        var stamped = WorkbookEditor.WithMetadata(xlsx, new DocumentMetadata
+        {
+            Title = "Quarterly report",
+            Creator = "Contoso Ltd",
+            Subject = "Revenue",
+            Keywords = "revenue, quarterly",
+        });
+
+        var read = WorkbookEditor.ReadMetadata(stamped);
+
+        Assert.Equal("Quarterly report", read.Title);
+        Assert.Equal("Contoso Ltd", read.Creator);
+        Assert.Equal("Revenue", read.Subject);
+        Assert.Equal("revenue, quarterly", read.Keywords);
+    }
+
+    [Fact]
+    public void MetadataNotSetReadsBackAsNullRatherThanEmpty()
+    {
+        var read = WorkbookEditor.ReadMetadata(SampleWorkbook());
+
+        Assert.Null(read.Title);
+        Assert.Null(read.Creator);
+        Assert.Null(read.Subject);
+        Assert.Null(read.Keywords);
+    }
+
+    [Fact]
+    public void WithMetadata_ANullPropertyLeavesTheExistingValueInPlace()
+    {
+        var withTitle = WorkbookEditor.WithMetadata(SampleWorkbook(), new DocumentMetadata { Title = "Original title" });
+
+        var stamped = WorkbookEditor.WithMetadata(withTitle, new DocumentMetadata { Creator = "Later author" });
+
+        var read = WorkbookEditor.ReadMetadata(stamped);
+        Assert.Equal("Original title", read.Title);
+        Assert.Equal("Later author", read.Creator);
+    }
+
+    [Fact]
+    public void WithMetadata_AnEmptyStringClearsAnExistingValue()
+    {
+        var withTitle = WorkbookEditor.WithMetadata(SampleWorkbook(), new DocumentMetadata { Title = "Original title" });
+
+        var cleared = WorkbookEditor.WithMetadata(withTitle, new DocumentMetadata { Title = "" });
+
+        Assert.Equal("", WorkbookEditor.ReadMetadata(cleared).Title);
+    }
+
+    [Fact]
+    public void WithMetadata_DoesNotDisturbTheSheetData()
+    {
+        var xlsx = SampleWorkbook();
+
+        var stamped = WorkbookEditor.WithMetadata(xlsx, new DocumentMetadata { Title = "T" });
+
+        using var workbook = Open(stamped);
+        Assert.Equal("North", workbook.Worksheet("Sales").Cell("A2").GetString());
+    }
+
+    [Fact]
+    public void ReadMetadata_NullXlsx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.ReadMetadata(null!));
+    }
+
+    [Fact]
+    public void ReadMetadata_EmptyXlsx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => WorkbookEditor.ReadMetadata(Array.Empty<byte>()));
+        Assert.Equal("xlsx", ex.ParamName);
+    }
+
+    [Fact]
+    public void WithMetadata_NullXlsx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => WorkbookEditor.WithMetadata(null!, new DocumentMetadata()));
+    }
+
+    [Fact]
+    public void WithMetadata_NullMetadata_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.WithMetadata(SampleWorkbook(), null!));
+    }
+
+    [Fact]
+    public void WithMetadata_EmptyXlsx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => WorkbookEditor.WithMetadata(Array.Empty<byte>(), new DocumentMetadata()));
+        Assert.Equal("xlsx", ex.ParamName);
+    }
 }

@@ -25,6 +25,7 @@ namespace DocToolkit
         public static bool IsProtected(byte[] pptx) { }
         public static byte[] Protect(byte[] pptx, string password) { }
         public static System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocumentMetadata ReadMetadata(byte[] pptx) { }
         public static System.Collections.Generic.IReadOnlyList<string> ReadSlide(byte[] pptx, int index) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> ReadSlideAsync(System.IO.Stream source, int index, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> ReadSlideAsync(string path, int index, System.Threading.CancellationToken ct = default) { }
@@ -50,5 +51,6 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
         public static DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] pptx, DocToolkit.DocumentSignatureValidationOptions? options = null) { }
         public static System.Threading.Tasks.Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(System.IO.Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, System.Threading.CancellationToken ct = default) { }
+        public static byte[] WithMetadata(byte[] pptx, DocToolkit.DocumentMetadata metadata) { }
     }
 }

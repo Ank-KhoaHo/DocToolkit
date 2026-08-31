@@ -2019,4 +2019,75 @@ public static class WorkbookEditor
 
         return OfficeSignature.Validate(xlsx.ToArray(), ".xlsx", OfficeIMOExcelExcelDocument.ValidatePackageSignatures, options, "XLSX");
     }
+
+    /// <summary>The document properties <paramref name="xlsx"/> carries.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read.</exception>
+    public static DocumentMetadata ReadMetadata(byte[] xlsx)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        if (xlsx.Length == 0) throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
+
+        try
+        {
+            using var source = new MemoryStream(xlsx, writable: false);
+            using var document = OfficeIMOExcelExcelDocument.Load(source);
+            var properties = document.BuiltinDocumentProperties;
+
+            return new DocumentMetadata
+            {
+                Title = properties.Title,
+                Creator = properties.Creator,
+                Subject = properties.Subject,
+                Keywords = properties.Keywords,
+            };
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read XLSX metadata. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="xlsx"/> carrying <paramref name="metadata"/>.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> property leaves what the workbook already had in place, so
+    /// stamping a title does not silently erase an author. Pass an empty string to clear one.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="metadata"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read or written.</exception>
+    public static byte[] WithMetadata(byte[] xlsx, DocumentMetadata metadata)
+    {
+        ArgumentNullException.ThrowIfNull(xlsx);
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (xlsx.Length == 0) throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
+
+        try
+        {
+            // xlsx is typically a non-writable MemoryStream and OfficeIMO's ExcelDocument.Load
+            // needs an editable package, so this copy is load-bearing - see AddChartCore's own
+            // identical comment for the full reasoning.
+            using var source = new MemoryStream();
+            source.Write(xlsx, 0, xlsx.Length);
+            source.Position = 0;
+            using var document = OfficeIMOExcelExcelDocument.Load(source);
+            var properties = document.BuiltinDocumentProperties;
+
+            if (metadata.Title is not null) properties.Title = metadata.Title;
+            if (metadata.Creator is not null) properties.Creator = metadata.Creator;
+            if (metadata.Subject is not null) properties.Subject = metadata.Subject;
+            if (metadata.Keywords is not null) properties.Keywords = metadata.Keywords;
+
+            using var destination = new MemoryStream();
+            document.Save(destination);
+            return destination.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to write XLSX metadata. See the inner exception for details.", ex);
+        }
+    }
 }

@@ -2641,4 +2641,70 @@ public static class DocxEditor
 
         return OfficeSignature.Validate(docx.ToArray(), ".docx", OfficeIMOWordWordDocument.ValidatePackageSignatures, options, "DOCX");
     }
+
+    /// <summary>The document properties <paramref name="docx"/> carries.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be read.</exception>
+    public static DocumentMetadata ReadMetadata(byte[] docx)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+
+        try
+        {
+            using var source = new MemoryStream(docx, writable: false);
+            using var document = OfficeIMOWordWordDocument.Load(source);
+            var properties = document.BuiltinDocumentProperties;
+
+            return new DocumentMetadata
+            {
+                Title = properties.Title,
+                Creator = properties.Creator,
+                Subject = properties.Subject,
+                Keywords = properties.Keywords,
+            };
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read DOCX metadata. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> carrying <paramref name="metadata"/>.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> property leaves what the document already had in place, so
+    /// stamping a title does not silently erase an author. Pass an empty string to clear one.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="metadata"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be read or written.</exception>
+    public static byte[] WithMetadata(byte[] docx, DocumentMetadata metadata)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+
+        try
+        {
+            using var source = new MemoryStream(docx, writable: false);
+            using var document = OfficeIMOWordWordDocument.Load(source);
+            var properties = document.BuiltinDocumentProperties;
+
+            if (metadata.Title is not null) properties.Title = metadata.Title;
+            if (metadata.Creator is not null) properties.Creator = metadata.Creator;
+            if (metadata.Subject is not null) properties.Subject = metadata.Subject;
+            if (metadata.Keywords is not null) properties.Keywords = metadata.Keywords;
+
+            using var destination = new MemoryStream();
+            document.Save(destination);
+            return destination.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to write DOCX metadata. See the inner exception for details.", ex);
+        }
+    }
 }

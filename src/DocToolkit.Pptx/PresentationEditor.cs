@@ -1,3 +1,4 @@
+using System.IO.Packaging;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using A = DocumentFormat.OpenXml.Drawing;
@@ -2067,5 +2068,138 @@ public static class PresentationEditor
             .ConfigureAwait(false);
 
         return OfficeSignature.Validate(pptx.ToArray(), ".pptx", OfficeIMOPowerPointPowerPointPresentation.ValidatePackageSignatures, options, "PPTX");
+    }
+
+    /// <summary>The document properties <paramref name="pptx"/> carries.</summary>
+    /// <remarks>
+    /// On a freshly created deck every property is null, exactly like DOCX and XLSX — measured
+    /// directly rather than assumed. That is <b>not</b> true of <see cref="WithMetadata"/>; see its
+    /// own remarks for why writing and reading disagree here.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be read.</exception>
+    public static DocumentMetadata ReadMetadata(byte[] pptx)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0) throw new ArgumentException("PPTX content was empty.", nameof(pptx));
+
+        try
+        {
+            using var source = new MemoryStream(pptx, writable: false);
+            using var document = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+            var properties = document.BuiltinDocumentProperties;
+
+            return new DocumentMetadata
+            {
+                Title = properties.Title,
+                Creator = properties.Creator,
+                Subject = properties.Subject,
+                Keywords = properties.Keywords,
+            };
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to read PPTX metadata. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> carrying <paramref name="metadata"/>.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> property leaves what the presentation already had in place, so
+    /// stamping a title does not silently erase an author. Pass an empty string to clear one.
+    ///
+    /// <b>One exception, forced by OfficeIMO itself: <see cref="DocumentMetadata.Creator"/> never
+    /// survives as null through this method.</b> Measured directly: OfficeIMO.PowerPoint's own
+    /// <c>Save()</c> unconditionally stamps <c>Creator</c> to <c>"OfficeIMO"</c> whenever it is
+    /// empty at save time — even on a call that never touches <c>Creator</c> at all, and even on a
+    /// bare save that changes nothing else. <see cref="ReadMetadata"/> alone, with no save
+    /// involved, correctly reports <see langword="null"/> on an untouched deck; it is specifically
+    /// going through <b>this</b> method — which always saves — that loses the distinction. DOCX and
+    /// XLSX do not have this behaviour; it is PowerPoint-side only, and there is no supported way
+    /// around it short of never calling this method.
+    ///
+    /// <b>A second, narrower OfficeIMO defect is also worked around here rather than merely
+    /// avoided.</b> A deck built by <see cref="Create(System.Collections.Generic.IEnumerable{PptxSlide})"/>
+    /// carries <b>zero</b> core-properties relationships — verified directly, and identical to what
+    /// <c>DocxDocumentWriter</c> produces for DOCX, which does not hit this. Touching
+    /// <c>BuiltinDocumentProperties</c> on such a deck before <c>Save()</c> makes OfficeIMO create
+    /// <b>two</b> relationships instead of one, and the save then fails with
+    /// <see cref="FileFormatException"/> ("more than one Core Properties relationship") — a defect
+    /// in OfficeIMO.PowerPoint's own save path, not in the input. The retry below seeds exactly one
+    /// relationship via the plain, non-experimental <see cref="Package"/> API before OfficeIMO ever
+    /// sees the bytes, then tries again. The seed value is drawn from <paramref name="metadata"/>
+    /// itself — this branch is only ever reached after a real setter has already fired, so at
+    /// least one of the four properties is guaranteed non-null — so the throwaway seed write and
+    /// the real value applied moments later are identical, and nothing leaks through as a
+    /// placeholder the way a made-up seed string would.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="metadata"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be read or written.</exception>
+    public static byte[] WithMetadata(byte[] pptx, DocumentMetadata metadata)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        ArgumentNullException.ThrowIfNull(metadata);
+        if (pptx.Length == 0) throw new ArgumentException("PPTX content was empty.", nameof(pptx));
+
+        try
+        {
+            return WithMetadataCore(pptx, metadata);
+        }
+        catch (FileFormatException ex) when (ex.Message.Contains("Core Properties", StringComparison.Ordinal))
+        {
+            return WithMetadataCore(SeedCorePropertiesIfMissing(pptx, metadata), metadata);
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to write PPTX metadata. See the inner exception for details.", ex);
+        }
+    }
+
+    private static byte[] WithMetadataCore(byte[] pptx, DocumentMetadata metadata)
+    {
+        using var source = new MemoryStream(pptx, writable: false);
+        using var document = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+        var properties = document.BuiltinDocumentProperties;
+
+        if (metadata.Title is not null) properties.Title = metadata.Title;
+        if (metadata.Creator is not null) properties.Creator = metadata.Creator;
+        if (metadata.Subject is not null) properties.Subject = metadata.Subject;
+        if (metadata.Keywords is not null) properties.Keywords = metadata.Keywords;
+
+        using var destination = new MemoryStream();
+        document.Save(destination);
+        return destination.ToArray();
+    }
+
+    private const string CorePropertiesRelationshipType =
+        "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties";
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> guaranteed to carry exactly one core-properties
+    /// relationship, added via the plain <see cref="Package"/> API rather than OfficeIMO — see
+    /// <see cref="WithMetadata"/>'s remarks for why this exists at all.
+    /// </summary>
+    private static byte[] SeedCorePropertiesIfMissing(byte[] pptx, DocumentMetadata metadata)
+    {
+        using var work = new MemoryStream();
+        work.Write(pptx, 0, pptx.Length);
+        work.Position = 0;
+
+        using (var package = Package.Open(work, FileMode.Open, FileAccess.ReadWrite))
+        {
+            if (!package.GetRelationshipsByType(CorePropertiesRelationshipType).Any())
+            {
+                // Any one of the four is enough to materialise the part; WithMetadataCore applies
+                // the real values a moment later, so which one is used here does not matter.
+                package.PackageProperties.Title =
+                    metadata.Title ?? metadata.Creator ?? metadata.Subject ?? metadata.Keywords;
+            }
+        }
+
+        return work.ToArray();
     }
 }

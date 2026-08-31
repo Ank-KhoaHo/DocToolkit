@@ -468,4 +468,114 @@ public class DocxEditorTests
         var ex = Assert.Throws<ArgumentException>(() => DocxEditor.InspectSignatures(Array.Empty<byte>()));
         Assert.Equal("docx", ex.ParamName);
     }
+
+    // =========================================================================================
+    // Metadata
+    // =========================================================================================
+
+    [Fact]
+    public void MetadataSurvivesARoundTrip()
+    {
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("body") });
+
+        var stamped = DocxEditor.WithMetadata(docx, new DocumentMetadata
+        {
+            Title = "Quarterly report",
+            Creator = "Contoso Ltd",
+            Subject = "Revenue",
+            Keywords = "revenue, quarterly",
+        });
+
+        var read = DocxEditor.ReadMetadata(stamped);
+
+        Assert.Equal("Quarterly report", read.Title);
+        Assert.Equal("Contoso Ltd", read.Creator);
+        Assert.Equal("Revenue", read.Subject);
+        Assert.Equal("revenue, quarterly", read.Keywords);
+    }
+
+    [Fact]
+    public void MetadataNotSetReadsBackAsNullRatherThanEmpty()
+    {
+        // Distinguishing "absent" from "present but blank" matters to anything that merges
+        // metadata from more than one source, so the absent case must not arrive as "".
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("body") });
+
+        var read = DocxEditor.ReadMetadata(docx);
+
+        Assert.Null(read.Title);
+        Assert.Null(read.Creator);
+        Assert.Null(read.Subject);
+        Assert.Null(read.Keywords);
+    }
+
+    [Fact]
+    public void WithMetadata_ANullPropertyLeavesTheExistingValueInPlace()
+    {
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("body") });
+        var withTitle = DocxEditor.WithMetadata(docx, new DocumentMetadata { Title = "Original title" });
+
+        // Creator is set; Title is left null in this second call and must survive from the first.
+        var stamped = DocxEditor.WithMetadata(withTitle, new DocumentMetadata { Creator = "Later author" });
+
+        var read = DocxEditor.ReadMetadata(stamped);
+        Assert.Equal("Original title", read.Title);
+        Assert.Equal("Later author", read.Creator);
+    }
+
+    [Fact]
+    public void WithMetadata_AnEmptyStringClearsAnExistingValue()
+    {
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("body") });
+        var withTitle = DocxEditor.WithMetadata(docx, new DocumentMetadata { Title = "Original title" });
+
+        var cleared = DocxEditor.WithMetadata(withTitle, new DocumentMetadata { Title = "" });
+
+        Assert.Equal("", DocxEditor.ReadMetadata(cleared).Title);
+    }
+
+    [Fact]
+    public void WithMetadata_DoesNotDisturbTheBodyText()
+    {
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("BODY-MARKER") });
+
+        var stamped = DocxEditor.WithMetadata(docx, new DocumentMetadata { Title = "T" });
+
+        Assert.Equal("BODY-MARKER", DocxEditor.ExtractText(stamped).Trim());
+    }
+
+    [Fact]
+    public void ReadMetadata_NullDocx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.ReadMetadata(null!));
+    }
+
+    [Fact]
+    public void ReadMetadata_EmptyDocx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => DocxEditor.ReadMetadata(Array.Empty<byte>()));
+        Assert.Equal("docx", ex.ParamName);
+    }
+
+    [Fact]
+    public void WithMetadata_NullDocx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => DocxEditor.WithMetadata(null!, new DocumentMetadata()));
+    }
+
+    [Fact]
+    public void WithMetadata_NullMetadata_Throws()
+    {
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("x") });
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.WithMetadata(docx, null!));
+    }
+
+    [Fact]
+    public void WithMetadata_EmptyDocx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => DocxEditor.WithMetadata(Array.Empty<byte>(), new DocumentMetadata()));
+        Assert.Equal("docx", ex.ParamName);
+    }
 }

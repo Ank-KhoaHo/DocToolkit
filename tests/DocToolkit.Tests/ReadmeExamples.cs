@@ -90,6 +90,25 @@ public class ReadmeExamples
     }
 
     [Fact]
+    public void DocumentMetadataExample()
+    {
+        byte[] docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("Body") });
+
+        #region readme-document-metadata
+        byte[] stamped = DocxEditor.WithMetadata(docx, new DocumentMetadata
+        {
+            Title = "Q3 board report",
+            Creator = "Contoso Ltd",
+        });
+
+        DocumentMetadata info = DocxEditor.ReadMetadata(stamped);
+        #endregion
+
+        Assert.Equal("Q3 board report", info.Title);
+        Assert.Equal("Contoso Ltd", info.Creator);
+    }
+
+    [Fact]
     public void PageSetupExample()
     {
         var blocks = new[] { DocxBlock.Paragraph("Body") };
