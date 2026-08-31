@@ -91,9 +91,11 @@ public class OfficeSignatureTests
         // i.e. it really is independent of CertificateChainStatus in both directions.
         Assert.Equal(DocumentSignatureStatus.Passed, signature.CryptographicStatus);
         Assert.Equal(DocumentSignatureStatus.Failed, signature.CertificateChainStatus);
+        Assert.Contains(signature.Signers, s => s.Contains("DocToolkit Test Signer"));
         // The untrusted root correctly fails the overall policy verdict even though the content
         // itself was never tampered with.
         Assert.False(report.IsValidUnderPolicy);
+        Assert.NotNull(report.Findings);
     }
 
     [Fact]
@@ -177,5 +179,53 @@ public class OfficeSignatureTests
         Assert.Equal(
             Enum.GetNames<OfficeIMO.Security.OfficePackageSignatureValidationState>().OrderBy(n => n, StringComparer.Ordinal),
             Enum.GetNames<DocumentSignatureStatus>().OrderBy(n => n, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Inspect_WrapsAnUnexpectedFailureFromOfficeIMO()
+    {
+        // Simulates OfficeIMO throwing something other than the two types this package's own
+        // guard clauses raise - the failure mode the catch-and-wrap block exists for.
+        var ex = Assert.Throws<DocumentConversionException>(() => OfficeSignature.Inspect(
+            [1, 2, 3], ".docx",
+            (_, _) => throw new InvalidOperationException("simulated OfficeIMO failure"),
+            "DOCX"));
+
+        Assert.Contains("Failed to inspect DOCX signatures", ex.Message);
+        Assert.IsType<InvalidOperationException>(ex.InnerException);
+    }
+
+    [Fact]
+    public void Validate_WrapsAnUnexpectedFailureFromOfficeIMO()
+    {
+        var ex = Assert.Throws<DocumentConversionException>(() => OfficeSignature.Validate(
+            [1, 2, 3], ".docx",
+            (_, _, _) => throw new InvalidOperationException("simulated OfficeIMO failure"),
+            new DocumentSignatureValidationOptions(), "DOCX"));
+
+        Assert.Contains("Failed to validate DOCX signatures", ex.Message);
+        Assert.IsType<InvalidOperationException>(ex.InnerException);
+    }
+
+    [Theory]
+    [InlineData(OfficeIMO.Security.OfficePackageSignatureValidationState.NotPresent, DocumentSignatureStatus.NotPresent)]
+    [InlineData(OfficeIMO.Security.OfficePackageSignatureValidationState.NotChecked, DocumentSignatureStatus.NotChecked)]
+    [InlineData(OfficeIMO.Security.OfficePackageSignatureValidationState.Passed, DocumentSignatureStatus.Passed)]
+    [InlineData(OfficeIMO.Security.OfficePackageSignatureValidationState.Failed, DocumentSignatureStatus.Failed)]
+    [InlineData(OfficeIMO.Security.OfficePackageSignatureValidationState.Unsupported, DocumentSignatureStatus.Unsupported)]
+    public void ToStatus_MapsEveryRealStateToItsNamedCounterpart(
+        OfficeIMO.Security.OfficePackageSignatureValidationState state, DocumentSignatureStatus expected)
+    {
+        Assert.Equal(expected, OfficeSignature.ToStatus(state));
+    }
+
+    [Fact]
+    public void ToStatus_RejectsAnUnrecognizedState()
+    {
+        var bogus = (OfficeIMO.Security.OfficePackageSignatureValidationState)999;
+
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => OfficeSignature.ToStatus(bogus));
+
+        Assert.Equal("state", ex.ParamName);
     }
 }

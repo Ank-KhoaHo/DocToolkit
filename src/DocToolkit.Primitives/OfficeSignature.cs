@@ -94,7 +94,7 @@ internal static class OfficeSignature
             part.SignaturePart.X509SubjectNames);
     }
 
-    private static DocumentSignatureStatus ToStatus(OfficePackageSignatureValidationState state) => state switch
+    internal static DocumentSignatureStatus ToStatus(OfficePackageSignatureValidationState state) => state switch
     {
         OfficePackageSignatureValidationState.NotPresent => DocumentSignatureStatus.NotPresent,
         OfficePackageSignatureValidationState.NotChecked => DocumentSignatureStatus.NotChecked,
