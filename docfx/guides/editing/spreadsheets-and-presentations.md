@@ -169,6 +169,31 @@ shape is measured to have a rendering gap — content added that way does not cu
 `PptxToPdfConverter`'s output, so it is left out rather than shipped with a silent surprise. A deck
 authored in PowerPoint itself, or built with `OfficeIMO.PowerPoint` directly, reads back correctly.
 
+### Charts
+
+`WorkbookEditor.AddChart` and `PresentationEditor.AddChart` create charts in an existing workbook
+or presentation, sharing one `ChartType`/`ChartData` model:
+
+```csharp
+var data = new ChartData(
+    new[] { "North", "South" },
+    new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+var xlsx = WorkbookEditor.AddChart(
+    workbook, "Sheet1", "B2", ChartType.ColumnClustered, data, title: "Regional Totals");
+
+var pptx = PresentationEditor.AddChart(
+    presentation, 1, ChartType.ColumnClustered, data, title: "Regional Totals");
+```
+
+DOCX chart creation is not included in this version — `OfficeIMO.Word`'s chart API has a
+structurally different shape from the one Excel and PowerPoint share, and forcing it into the same
+model would under- or over-serve one side. Word charts may get their own API in a future version.
+
+Unlike the SmartArt case above, this one **does** reach the render: `PptxToPdfConverter` and
+`XlsxToPdfConverter` both carry the chart through, title and category labels included — see
+*Rendering either one to PDF* below for what is measured and what is not.
+
 ## Rendering either one to PDF
 
 @DocToolkit.XlsxToPdfConverter and @DocToolkit.PptxToPdfConverter mirror
@@ -183,9 +208,13 @@ await PptxToPdfConverter.ConvertAsync(source, destination, ct);
 ```
 
 The same fidelity limit applies as everywhere else: features the rendering engine cannot represent
-— charts, conditional formatting, some shape effects — are **dropped silently**. There is no
-warning channel on the public API. The PDF is valid; it just will not have the chart in it. If a
-chart is the point of the document, render it to an image yourself and place that.
+— conditional formatting, some shape effects — are **dropped silently**, with no warning channel on
+the public API. **A chart is not one of those drops, when it was added by this library.** A chart
+created with `WorkbookEditor.AddChart` or `PresentationEditor.AddChart` (see *Charts* above) renders
+correctly here, title and category labels included, measured directly rather than assumed. A chart
+authored some other way — directly in Excel or PowerPoint, or through `OfficeIMO` — and merely
+present in the source file is a different, unmeasured case; if that is your situation, render it to
+an image yourself and place that instead.
 
 ### Legacy `.ppt` decks
 

@@ -37,8 +37,8 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 | **DOCX** (`DocxMailMerge`) | `InspectTemplate`, `Merge`, `MergeBatch`, `MergeBatchToFiles`, `MergeBatchToFilesWithReport`, `MergeBatchWithReport`, `MergeConditional`, `MergeConditionalWithReport`, `MergeRepeating`, `MergeRepeatingRegions`, `MergeRepeatingRegionsWithReport`, `MergeRepeatingWithReport`, `MergeTableRowGroups`, `MergeTableRows`, `MergeWithReport` |
 | **Markdown** (`MarkdownEditor`) | `FindHeading`, `ReadFrontMatter`, `ReadTable`, `ReplaceSection`, `TableCount` |
 | **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |
-| **PPTX** (`PresentationEditor`) | `Create`, `ExtractText`, `InsertSlides`, `IsProtected`, `Protect`, `ReadSlide`, `ReadSmartArt`, `RemoveSlides`, `ReorderSlides`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect` |
-| **XLSX** (`WorkbookEditor`) | `AppendRows`, `Create`, `Format`, `IsProtected`, `Protect`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect` |
+| **PPTX** (`PresentationEditor`) | `AddChart`, `Create`, `ExtractText`, `InsertSlides`, `IsProtected`, `Protect`, `ReadSlide`, `ReadSmartArt`, `RemoveSlides`, `ReorderSlides`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect` |
+| **XLSX** (`WorkbookEditor`) | `AddChart`, `AppendRows`, `Create`, `Format`, `IsProtected`, `Protect`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect` |
 
 Method names only. What each one does, and the traps in it, are in the guides — this table exists to be complete and current, which prose has repeatedly failed to be.
 
@@ -101,7 +101,9 @@ the chain, not the converter.
 capability once; see [the shape of the API](getting-started.md#the-shape-of-the-api).
 
 **A ✅ is not a fidelity claim.** Every conversion through the PDF renderers drops what it cannot
-represent — charts, conditional formatting, some shape effects — and does so *silently*, because
-those renderers produce no report to surface. The DOCX text exporters and the Markdown importers do
-report their losses, through `ConvertWithReport`. Which is which, and what each one drops, is in the
-guides and in the [known limitations](https://github.com/Ank-KhoaHo/DocToolkit#known-limitations).
+represent — conditional formatting, some shape effects — and does so *silently*, because those
+renderers produce no report to surface. A chart is the one exception when it was added through this
+library's own `AddChart` methods: it renders correctly in XLSX → PDF and PPTX → PDF, measured
+directly. The DOCX text exporters and the Markdown importers do report their losses, through
+`ConvertWithReport`. Which is which, and what each one drops, is in the guides and in the
+[known limitations](https://github.com/Ank-KhoaHo/DocToolkit#known-limitations).

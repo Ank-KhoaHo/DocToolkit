@@ -8,6 +8,9 @@ namespace DocToolkit
     }
     public static class PresentationEditor
     {
+        public static byte[] AddChart(byte[] pptx, int slideIndex, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "", double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252) { }
+        public static System.Threading.Tasks.Task<byte[]> AddChartAsync(System.IO.Stream source, int slideIndex, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "", double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<byte[]> AddChartAsync(string path, int slideIndex, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "", double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252, System.Threading.CancellationToken ct = default) { }
         public static byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.PptxSlide> slides) { }
         public static System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.PptxSlide> slides, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task CreateToFileAsync(System.Collections.Generic.IEnumerable<DocToolkit.PptxSlide> slides, string outputPath, System.Threading.CancellationToken ct = default) { }

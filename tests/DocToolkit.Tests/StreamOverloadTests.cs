@@ -238,6 +238,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
+        "WorkbookEditor.AddChartAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
@@ -306,9 +307,11 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
+        "WorkbookEditor.AddChartAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ReadSmartArtAsync",
+        "PresentationEditor.AddChartAsync",
         "PresentationEditor.ExtractTextAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
@@ -396,6 +399,7 @@ public class StreamOverloadTests
         "WorkbookEditor.SetCellAsync",
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
+        "WorkbookEditor.AddChartAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
@@ -1266,12 +1270,21 @@ public class StreamOverloadTests
                 WorkbookEditor.AppendRowsAsync(source!, "Sales", Rows, destination!, ct),
             "WorkbookEditor.FormatAsync" =>
                 WorkbookEditor.FormatAsync(source!, "Sales", XlsxFormat.Report, destination!, ct),
+            "WorkbookEditor.AddChartAsync" =>
+                WorkbookEditor.AddChartAsync(
+                    source!, "Sales", "B2", ChartType.Line,
+                    new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) }),
+                    destination!, ct: ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ReadSlideAsync" =>
                 PresentationEditor.ReadSlideAsync(source!, 1, ct),
             "PresentationEditor.ReadSmartArtAsync" =>
                 PresentationEditor.ReadSmartArtAsync(source!, 1, ct),
+            "PresentationEditor.AddChartAsync" =>
+                PresentationEditor.AddChartAsync(
+                    source!, 1, ChartType.Line,
+                    new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) }), ct: ct),
             "PresentationEditor.ExtractTextAsync" =>
                 PresentationEditor.ExtractTextAsync(source!, ct),
             "PresentationEditor.ReplaceTextAsync" =>
