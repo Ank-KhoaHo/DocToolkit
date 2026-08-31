@@ -10,6 +10,23 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.46.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.45.1...v0.46.0) (2026-08-31)
+
+
+### Added
+
+* read and write document properties on DOCX, XLSX and PPTX ([#451](https://github.com/Ank-KhoaHo/DocToolkit/issues/451)) ([6ed35db](https://github.com/Ank-KhoaHo/DocToolkit/commit/6ed35dbad8f921cf4640d8172b71c45a59a87013))
+
+
+### Fixed
+
+* evaluate XLSX formulas before rendering to PDF, and expose the mechanism ([#452](https://github.com/Ank-KhoaHo/DocToolkit/issues/452)) ([721af55](https://github.com/Ank-KhoaHo/DocToolkit/commit/721af55f6256d8c88c9e9a064d57d1f451b41c65))
+
+
+### Changed
+
+* widen NuGet tags to fix hyphen-fragment matching and named-capability misses ([#449](https://github.com/Ank-KhoaHo/DocToolkit/issues/449)) ([af2b3af](https://github.com/Ank-KhoaHo/DocToolkit/commit/af2b3aff27722a3637ebd3450ae0f46839d54b4c))
+
 ## [0.45.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.45.0...v0.45.1) (2026-08-31)
 
 
