@@ -885,4 +885,218 @@ public class XlsxPresentationTests
             Assert.Contains("the sheet.", message, StringComparison.Ordinal);
         }
     }
+
+    // ---- A105: page setup, merged cells, hyperlinks and comments --------------------------------
+
+    [Fact]
+    public void XlsxPageSetup_CarriesItsOrientationPrintAreaAndRepeatRowCount()
+    {
+        XlsxPageSetup setup = XlsxPageSetup.Of(XlsxPageOrientation.Landscape, "A1:B5", 2);
+
+        Assert.Equal(XlsxPageOrientation.Landscape, setup.Orientation);
+        Assert.Equal("A1:B5", setup.PrintArea);
+        Assert.Equal(2, setup.RepeatRowCount);
+
+        // The control: the default is Portrait, no print area, no repeat rows.
+        XlsxPageSetup defaults = XlsxPageSetup.Of();
+        Assert.Equal(XlsxPageOrientation.Portrait, defaults.Orientation);
+        Assert.Null(defaults.PrintArea);
+        Assert.Null(defaults.RepeatRowCount);
+    }
+
+    [Fact]
+    public void XlsxPageSetup_RefusesABlankOrSheetQualifiedPrintAreaAndANonPositiveRepeatRowCount()
+    {
+        // Both the exact-empty and the whitespace-only case, since they take different paths
+        // through the `Length == 0 || Trim().Length == 0` short circuit.
+        Assert.Equal("printArea", Assert.Throws<ArgumentException>(
+            () => XlsxPageSetup.Of(printArea: "")).ParamName);
+        Assert.Equal("printArea", Assert.Throws<ArgumentException>(
+            () => XlsxPageSetup.Of(printArea: "  ")).ParamName);
+        Assert.Equal("printArea", Assert.Throws<ArgumentException>(
+            () => XlsxPageSetup.Of(printArea: "Other!A1:B2")).ParamName);
+        Assert.Equal("repeatRowCount", Assert.Throws<ArgumentOutOfRangeException>(
+            () => XlsxPageSetup.Of(repeatRowCount: 0)).ParamName);
+        Assert.Equal("repeatRowCount", Assert.Throws<ArgumentOutOfRangeException>(
+            () => XlsxPageSetup.Of(repeatRowCount: -1)).ParamName);
+    }
+
+    [Fact]
+    public void APageSetupReachesTheSavedWorkbook()
+    {
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithPageSetup(XlsxPageSetup.Of(XlsxPageOrientation.Landscape, "A1:B2", 1)));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var pageSetup = workbook.Worksheet("Data").PageSetup;
+
+        Assert.Equal(ClosedXML.Excel.XLPageOrientation.Landscape, pageSetup.PageOrientation);
+        Assert.Single(pageSetup.PrintAreas);
+        Assert.Equal(1, pageSetup.FirstRowToRepeatAtTop);
+        Assert.Equal(1, pageSetup.LastRowToRepeatAtTop);
+
+        // Portrait too - the switch in ApplyPageSetup has two real arms and the case above only
+        // ever exercises Landscape.
+        byte[] portrait = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithPageSetup(XlsxPageSetup.Of(XlsxPageOrientation.Portrait)));
+
+        using var portraitMs = new MemoryStream(portrait);
+        using var portraitWorkbook = new ClosedXML.Excel.XLWorkbook(portraitMs);
+        Assert.Equal(
+            ClosedXML.Excel.XLPageOrientation.Portrait,
+            portraitWorkbook.Worksheet("Data").PageSetup.PageOrientation);
+    }
+
+    [Fact]
+    public void WithPageSetup_RefusesNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithPageSetup(null!));
+    }
+
+    [Fact]
+    public void XlsxHyperlink_RefusesABlankOrSheetQualifiedCellAndANonAbsoluteUrl()
+    {
+        Assert.Equal("cell", Assert.Throws<ArgumentException>(
+            () => XlsxHyperlink.To("  ", "https://example.invalid/")).ParamName);
+        Assert.Equal("cell", Assert.Throws<ArgumentException>(
+            () => XlsxHyperlink.To("Other!A1", "https://example.invalid/")).ParamName);
+        Assert.Equal("url", Assert.Throws<ArgumentNullException>(
+            () => XlsxHyperlink.To("A1", null!)).ParamName);
+        Assert.Equal("url", Assert.Throws<ArgumentException>(
+            () => XlsxHyperlink.To("A1", "not a url")).ParamName);
+
+        // The control: a real absolute URI is accepted.
+        Assert.Equal("https://example.invalid/", XlsxHyperlink.To("A1", "https://example.invalid/").Url);
+    }
+
+    [Fact]
+    public void AHyperlinkReachesTheSavedWorkbook()
+    {
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithHyperlink(XlsxHyperlink.To("A2", "https://example.invalid/")));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var cell = workbook.Worksheet("Data").Cell("A2");
+
+        Assert.True(cell.HasHyperlink);
+        Assert.Equal("https://example.invalid/", cell.GetHyperlink().ExternalAddress!.ToString());
+    }
+
+    [Fact]
+    public void XlsxComment_RefusesABlankOrSheetQualifiedCellAndBlankText()
+    {
+        Assert.Equal("cell", Assert.Throws<ArgumentException>(
+            () => XlsxComment.On("  ", "note")).ParamName);
+        Assert.Equal("cell", Assert.Throws<ArgumentException>(
+            () => XlsxComment.On("Other!A1", "note")).ParamName);
+        Assert.Equal("text", Assert.Throws<ArgumentException>(
+            () => XlsxComment.On("A1", "  ")).ParamName);
+    }
+
+    [Fact]
+    public void ACommentReachesTheSavedWorkbook()
+    {
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithComment(XlsxComment.On("A2", "check this")));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var cell = workbook.Worksheet("Data").Cell("A2");
+
+        Assert.True(cell.HasComment);
+        Assert.Equal("check this", cell.GetComment().Text);
+    }
+
+    [Fact]
+    public void AMergedRangeReachesTheSavedWorkbook()
+    {
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithMergedCells("A1:B1"));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var sheet = workbook.Worksheet("Data");
+
+        Assert.Single(sheet.MergedRanges);
+        Assert.Equal("A1:B1", sheet.MergedRanges.Single().RangeAddress.ToString());
+    }
+
+    [Fact]
+    public void WithMergedCells_RefusesABlankOrSheetQualifiedRange()
+    {
+        Assert.Equal("range", Assert.Throws<ArgumentException>(
+            () => XlsxFormat.None.WithMergedCells("  ")).ParamName);
+        Assert.Equal("range", Assert.Throws<ArgumentException>(
+            () => XlsxFormat.None.WithMergedCells("Other!A1:B1")).ParamName);
+        Assert.Equal("range", Assert.Throws<ArgumentNullException>(
+            () => XlsxFormat.None.WithMergedCells(null!)).ParamName);
+    }
+
+    [Fact]
+    public void AllFourA105MembersComposeInOneFormatCall()
+    {
+        // Distinct, non-overlapping ranges/cells - WithTable and WithAutoFilter's own documented
+        // conflict does not apply to any of these four members against each other or against a
+        // table, so this is a genuine composition check rather than a narrower one avoiding it.
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None
+            .WithPageSetup(XlsxPageSetup.Of(XlsxPageOrientation.Landscape))
+            .WithMergedCells("D1:E1")
+            .WithHyperlink(XlsxHyperlink.To("A2", "https://example.invalid/"))
+            .WithComment(XlsxComment.On("B2", "note")));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var sheet = workbook.Worksheet("Data");
+
+        Assert.Equal(ClosedXML.Excel.XLPageOrientation.Landscape, sheet.PageSetup.PageOrientation);
+        Assert.Single(sheet.MergedRanges);
+        Assert.True(sheet.Cell("A2").HasHyperlink);
+        Assert.True(sheet.Cell("B2").HasComment);
+    }
+
+    [Fact]
+    public void WithTable_AcceptsMoreThanOneCall()
+    {
+        byte[] xlsx = WorkbookEditor.Create("Data",
+        [
+            ["Description", "Amount", "Region", "Total"],
+            ["first", 1.0, "North", 10.0],
+            ["second", 2.0, "South", 20.0],
+        ]);
+
+        byte[] result = WorkbookEditor.Format(xlsx, "Data", XlsxFormat.None
+            .WithTable(XlsxTable.Named("A1:B3", "Sales"))
+            .WithTable(XlsxTable.Named("C1:D3", "Regions")));
+
+        using var ms = new MemoryStream(result);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var sheet = workbook.Worksheet("Data");
+
+        Assert.Equal(2, sheet.Tables.Count());
+        Assert.Contains(sheet.Tables, t => t.Name == "Sales");
+        Assert.Contains(sheet.Tables, t => t.Name == "Regions");
+    }
+
+    [Fact]
+    public void WithMergedCellsWithHyperlinkAndWithComment_EachAcceptMoreThanOneCall()
+    {
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None
+            .WithMergedCells("A1:B1")
+            .WithMergedCells("D1:E1")
+            .WithHyperlink(XlsxHyperlink.To("A2", "https://example.invalid/"))
+            .WithHyperlink(XlsxHyperlink.To("B2", "https://second.example.invalid/"))
+            .WithComment(XlsxComment.On("A3", "first"))
+            .WithComment(XlsxComment.On("B3", "second")));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var sheet = workbook.Worksheet("Data");
+
+        Assert.Equal(2, sheet.MergedRanges.Count);
+        Assert.True(sheet.Cell("A2").HasHyperlink);
+        Assert.True(sheet.Cell("B2").HasHyperlink);
+        Assert.True(sheet.Cell("A3").HasComment);
+        Assert.True(sheet.Cell("B3").HasComment);
+    }
 }

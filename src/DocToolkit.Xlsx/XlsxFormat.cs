@@ -15,7 +15,8 @@ public readonly record struct XlsxFreeze(int Row, int Column);
 /// <summary>
 /// The presentation <see cref="WorkbookEditor.Format(byte[], string, XlsxFormat)"/> applies to a
 /// sheet: a bold header row, a freeze position, auto-fitted or explicit column widths, a number
-/// format per column, an autofilter, conditional formats, data validations and tables.
+/// format per column, an autofilter, conditional formats, data validations, tables, a print setup,
+/// merged cells, hyperlinks and comments.
 /// </summary>
 /// <remarks>
 /// <b>The boundary here is a CLOSED vocabulary, not a small one — and that is a change.</b> This type
@@ -27,10 +28,11 @@ public readonly record struct XlsxFreeze(int Row, int Column);
 /// <listheader><term>in</term><description>out</description></listheader>
 /// <item><term>
 /// a vocabulary this library can enumerate, measure and guarantee — six rule conditions, five
-/// validation kinds, four highlights, four table style tiers, a freeze position, a column width
+/// validation kinds, four highlights, four table style tiers, a freeze position, a column width, a
+/// merged range, a hyperlink, a comment
 /// </term><description>
-/// an open one it would have to own forever — arbitrary fonts, borders, fills, merged ranges, colour
-/// scales, icon sets
+/// an open one it would have to own forever — arbitrary fonts, borders, fills, colour scales, icon
+/// sets
 /// </description></item>
 /// </list>
 ///
@@ -53,12 +55,17 @@ public sealed class XlsxFormat
         bool autoFilter,
         IReadOnlyList<XlsxRule> rules,
         IReadOnlyList<XlsxValidation> validations,
-        IReadOnlyList<XlsxTable> tables)
+        IReadOnlyList<XlsxTable> tables,
+        XlsxPageSetup? pageSetup,
+        IReadOnlyList<string> mergedRanges,
+        IReadOnlyList<XlsxHyperlink> hyperlinks,
+        IReadOnlyList<XlsxComment> comments)
     {
         BoldHeaderRow = boldHeaderRow;
         AutoFitColumns = autoFitColumns;
         FreezeAt = freezeAt;
         AutoFilter = autoFilter;
+        PageSetup = pageSetup;
 
         // Wrapped, not just typed as IReadOnlyDictionary. A plain Dictionary handed out behind
         // that interface casts straight back to Dictionary, and this type's two instances are
@@ -82,6 +89,9 @@ public sealed class XlsxFormat
         Rules = new ReadOnlyCollection<XlsxRule>([.. rules]);
         Validations = new ReadOnlyCollection<XlsxValidation>([.. validations]);
         Tables = new ReadOnlyCollection<XlsxTable>([.. tables]);
+        MergedRanges = new ReadOnlyCollection<string>([.. mergedRanges]);
+        Hyperlinks = new ReadOnlyCollection<XlsxHyperlink>([.. hyperlinks]);
+        Comments = new ReadOnlyCollection<XlsxComment>([.. comments]);
     }
 
     /// <summary>Applies nothing. The starting point for building a format up.</summary>
@@ -89,7 +99,7 @@ public sealed class XlsxFormat
         false, false,
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-        null, false, [], [], []);
+        null, false, [], [], [], null, [], [], []);
 
     /// <summary>
     /// The three settings that make a generated sheet readable: a bold header row, that row frozen
@@ -104,7 +114,7 @@ public sealed class XlsxFormat
         true, true,
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-        new XlsxFreeze(1, 0), false, [], [], []);
+        new XlsxFreeze(1, 0), false, [], [], [], null, [], [], []);
 
     /// <summary>Whether the first row is bold.</summary>
     public bool BoldHeaderRow { get; }
@@ -169,6 +179,18 @@ public sealed class XlsxFormat
 
     /// <summary>The tables to create, in the order given. Empty unless set.</summary>
     public IReadOnlyList<XlsxTable> Tables { get; }
+
+    /// <summary>The sheet's print setup, or <see langword="null"/> if none is set.</summary>
+    public XlsxPageSetup? PageSetup { get; }
+
+    /// <summary>The ranges to merge, in the order given. Empty unless set.</summary>
+    public IReadOnlyList<string> MergedRanges { get; }
+
+    /// <summary>The hyperlinks to add, in the order given. Empty unless set.</summary>
+    public IReadOnlyList<XlsxHyperlink> Hyperlinks { get; }
+
+    /// <summary>The comments to add, in the order given. Empty unless set.</summary>
+    public IReadOnlyList<XlsxComment> Comments { get; }
 
     /// <summary>Returns a copy with <see cref="BoldHeaderRow"/> set.</summary>
     /// <param name="bold">Whether the first row is bold.</param>
@@ -307,6 +329,40 @@ public sealed class XlsxFormat
         return With(tables: [.. Tables, table]);
     }
 
+    /// <summary>Returns a copy carrying a print setup.</summary>
+    /// <param name="pageSetup">The print setup to apply.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pageSetup"/> is null.</exception>
+    public XlsxFormat WithPageSetup(XlsxPageSetup pageSetup)
+    {
+        ArgumentNullException.ThrowIfNull(pageSetup);
+        return With(pageSetup: pageSetup);
+    }
+
+    /// <summary>Returns a copy carrying one more merged range.</summary>
+    /// <param name="range">The cells to merge, such as <c>A1:C1</c>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="range"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="range"/> is blank or names a sheet.</exception>
+    public XlsxFormat WithMergedCells(string range)
+        => With(mergedRanges: [.. MergedRanges, RequireRange(range, nameof(range))]);
+
+    /// <summary>Returns a copy carrying one more hyperlink.</summary>
+    /// <param name="hyperlink">The hyperlink to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="hyperlink"/> is null.</exception>
+    public XlsxFormat WithHyperlink(XlsxHyperlink hyperlink)
+    {
+        ArgumentNullException.ThrowIfNull(hyperlink);
+        return With(hyperlinks: [.. Hyperlinks, hyperlink]);
+    }
+
+    /// <summary>Returns a copy carrying one more comment.</summary>
+    /// <param name="comment">The comment to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="comment"/> is null.</exception>
+    public XlsxFormat WithComment(XlsxComment comment)
+    {
+        ArgumentNullException.ThrowIfNull(comment);
+        return With(comments: [.. Comments, comment]);
+    }
+
     /// <summary>
     /// The one place a modified copy is made. Every <c>With…</c> method goes through it, so adding a
     /// field means changing one call site rather than nine.
@@ -326,7 +382,11 @@ public sealed class XlsxFormat
         bool? autoFilter = null,
         IReadOnlyList<XlsxRule>? rules = null,
         IReadOnlyList<XlsxValidation>? validations = null,
-        IReadOnlyList<XlsxTable>? tables = null)
+        IReadOnlyList<XlsxTable>? tables = null,
+        XlsxPageSetup? pageSetup = null,
+        IReadOnlyList<string>? mergedRanges = null,
+        IReadOnlyList<XlsxHyperlink>? hyperlinks = null,
+        IReadOnlyList<XlsxComment>? comments = null)
         => new(boldHeaderRow ?? BoldHeaderRow,
                autoFitColumns ?? AutoFitColumns,
                columnNumberFormats ?? ColumnNumberFormats,
@@ -335,7 +395,11 @@ public sealed class XlsxFormat
                autoFilter ?? AutoFilter,
                rules ?? Rules,
                validations ?? Validations,
-               tables ?? Tables);
+               tables ?? Tables,
+               pageSetup ?? PageSetup,
+               mergedRanges ?? MergedRanges,
+               hyperlinks ?? Hyperlinks,
+               comments ?? Comments);
 
     /// <summary>
     /// A cheap SHAPE check, run here rather than at apply time so a typo fails where it was
@@ -354,5 +418,26 @@ public sealed class XlsxFormat
                 $"Column must be one or more letters, such as \"B\". Got \"{column}\".",
                 nameof(column));
         }
+    }
+
+    /// <summary>
+    /// The sheet-qualifier check <see cref="XlsxRule"/> and <see cref="XlsxTable"/> each carry their
+    /// own copy of, for <see cref="WithMergedCells"/>'s own range argument.
+    /// </summary>
+    private static string RequireRange(string range, string paramName)
+    {
+        ArgumentNullException.ThrowIfNull(range, paramName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(range, paramName);
+
+        if (range.Contains('!'))
+        {
+            throw new ArgumentException(
+                $"\"{range}\" names a sheet, and the sheet qualifier is silently discarded rather "
+                + "than honoured. Pass the range alone; Format's own sheetName parameter chooses "
+                + "the sheet.",
+                paramName);
+        }
+
+        return range;
     }
 }

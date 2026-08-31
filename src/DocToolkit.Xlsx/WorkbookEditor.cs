@@ -760,6 +760,39 @@ public static class WorkbookEditor
 
         foreach (XlsxTable table in format.Tables)
             ApplyTable(sheet, table);
+
+        foreach (var range in format.MergedRanges)
+            sheet.Range(range).Merge();
+
+        foreach (XlsxHyperlink hyperlink in format.Hyperlinks)
+            sheet.Cell(hyperlink.Cell).SetHyperlink(new XLHyperlink(hyperlink.Url));
+
+        foreach (XlsxComment comment in format.Comments)
+            sheet.Cell(comment.Cell).CreateComment().AddText(comment.Text);
+
+        if (format.PageSetup is { } pageSetup)
+            ApplyPageSetup(sheet, pageSetup);
+    }
+
+    /// <summary>The one place an <see cref="XlsxPageSetup"/> becomes a ClosedXML print setup.</summary>
+    private static void ApplyPageSetup(IXLWorksheet sheet, XlsxPageSetup pageSetup)
+    {
+        sheet.PageSetup.PageOrientation = pageSetup.Orientation switch
+        {
+            XlsxPageOrientation.Portrait => XLPageOrientation.Portrait,
+            XlsxPageOrientation.Landscape => XLPageOrientation.Landscape,
+
+            // NOT a fall-through arm - see ApplyRule's identical comment on the same trap.
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(pageSetup), pageSetup.Orientation,
+                "Not a defined XlsxPageOrientation. The vocabulary is closed; see XlsxPageSetup's factory."),
+        };
+
+        if (pageSetup.PrintArea is { } printArea)
+            sheet.PageSetup.PrintAreas.Add(printArea);
+
+        if (pageSetup.RepeatRowCount is { } count)
+            sheet.PageSetup.SetRowsToRepeatAtTop(1, count);
     }
 
     /// <summary>The one place an <see cref="XlsxTable"/> description becomes a ClosedXML table.</summary>
@@ -1803,6 +1836,360 @@ public static class WorkbookEditor
         PivotFunction.Variance => OfficeIMO.Excel.ExcelPivotDataFunction.Variance,
         PivotFunction.VarianceP => OfficeIMO.Excel.ExcelPivotDataFunction.VarianceP,
         _ => throw new ArgumentOutOfRangeException(nameof(function), function, null),
+    };
+
+    /// <summary>
+    /// Adds a workbook-scoped defined name pointing at <paramref name="range"/> on
+    /// <paramref name="sheetName"/>, and returns the updated workbook.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="sheetName"/> is always single-quoted in the reference this writes (e.g.
+    /// <c>'Sales'!A1:B2</c>), whether or not it needs to be. Measured directly: a sheet name
+    /// containing a space and left unquoted does not raise an error at write time — the defined
+    /// name simply is not present when the file is reopened, with nothing telling the caller why.
+    /// Quoting a name with no space is harmless, so this is not a conditional worth the risk of
+    /// getting the "needs quoting" rule wrong.
+    /// </remarks>
+    /// <param name="xlsx">The workbook to add the defined name to. It is not modified.</param>
+    /// <param name="name">The defined name.</param>
+    /// <param name="sheetName">The sheet <paramref name="range"/> is on.</param>
+    /// <param name="range">The cells the name refers to, such as <c>A1:B2</c>.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, a name argument is blank, or <paramref name="range"/>
+    /// names a sheet.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or <paramref name="name"/> is
+    /// already in use.
+    /// </exception>
+    public static byte[] AddDefinedName(byte[] xlsx, string name, string sheetName, string range)
+    {
+        // NOT ValidateArguments(xlsx, sheetName, range) - that method's own third parameter is
+        // named cellRef, so a blank range would be reported against the wrong argument. See
+        // CLAUDE.md's "a file-path overload must report against the parameter the CALLER passed"
+        // for the exact shape of this trap.
+        ArgumentNullException.ThrowIfNull(xlsx);
+        if (xlsx.Length == 0) throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(range);
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var result = AddDefinedNameCore(source, name, sheetName, range);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds a defined name, and writes the result
+    /// to <paramref name="destination"/> — see <see cref="AddDefinedName"/> for the parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="name">The defined name.</param>
+    /// <param name="sheetName">The sheet <paramref name="range"/> is on.</param>
+    /// <param name="range">The cells the name refers to, such as <c>A1:B2</c>.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, a name argument is blank,
+    /// <paramref name="range"/> names a sheet, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or <paramref name="name"/> is
+    /// already in use.
+    /// </exception>
+    public static async Task AddDefinedNameAsync(
+        Stream source, string name, string sheetName, string range, Stream destination,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(range);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to add a defined name to the XLSX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        using var result = AddDefinedNameCore(xlsx, name, sheetName, range);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to add a defined name to the XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="inputPath"/>, adds a defined name, and writes the
+    /// result to <paramref name="outputPath"/> — see <see cref="AddDefinedName"/> for the
+    /// parameters. The two paths may be the same file: the updated bytes are computed in full
+    /// before <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The workbook to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="name">The defined name.</param>
+    /// <param name="sheetName">The sheet <paramref name="range"/> is on.</param>
+    /// <param name="range">The cells the name refers to, such as <c>A1:B2</c>.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path or a name argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path or a name argument is blank, <paramref name="range"/> names a sheet, or the file at
+    /// <paramref name="inputPath"/> is empty.
+    /// </exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or <paramref name="name"/> is
+    /// already in use.
+    /// </exception>
+    public static async Task AddDefinedNameAsync(
+        string inputPath, string outputPath, string name, string sheetName, string range,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddDefinedName(bytes, name, sheetName, range);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    private static MemoryStream AddDefinedNameCore(Stream xlsx, string name, string sheetName, string range)
+    {
+        try
+        {
+            using var workbook = new XLWorkbook(xlsx);
+            _ = Sheet(workbook, sheetName);
+
+            try
+            {
+                workbook.DefinedNames.Add(name, $"'{sheetName}'!{range}");
+            }
+            catch (ArgumentException ex)
+            {
+                throw new DocumentConversionException($"\"{name}\" is already a defined name in this workbook.", ex);
+            }
+
+            var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add a defined name to the XLSX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Inserts <paramref name="image"/> into <paramref name="sheetName"/>, anchored at
+    /// <paramref name="cellRef"/>, and returns the updated workbook.
+    /// </summary>
+    /// <param name="xlsx">The workbook to add the image to. It is not modified.</param>
+    /// <param name="sheetName">The sheet to add the image to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the image's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="image">The image bytes. PNG and JPEG only, decided by magic bytes.</param>
+    /// <param name="widthPixels">
+    /// The image's width, in pixels. <see langword="null"/> uses the image's own intrinsic width,
+    /// scaled to match <paramref name="heightPixels"/> if that is given.
+    /// </param>
+    /// <param name="heightPixels">
+    /// The image's height, in pixels. <see langword="null"/> uses the image's own intrinsic
+    /// height, scaled to match <paramref name="widthPixels"/> if that is given.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="xlsx"/>, <paramref name="image"/> or another required argument is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> or <paramref name="image"/> is empty, or
+    /// <paramref name="sheetName"/>/<paramref name="cellRef"/> is blank.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// A supplied size is zero or negative.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, the reference is not valid, or
+    /// the image is neither PNG nor JPEG.
+    /// </exception>
+    public static byte[] AddImage(
+        byte[] xlsx, string sheetName, string cellRef, byte[] image,
+        int? widthPixels = null, int? heightPixels = null)
+    {
+        ValidateArguments(xlsx, sheetName, cellRef);
+        ArgumentNullException.ThrowIfNull(image);
+        if (image.Length == 0) throw new ArgumentException("Image content was empty.", nameof(image));
+        if (widthPixels is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(widthPixels), widthPixels, "Width must be positive.");
+        if (heightPixels is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(heightPixels), heightPixels, "Height must be positive.");
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var result = AddImageCore(source, sheetName, cellRef, image, widthPixels, heightPixels);
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds an image, and writes the result to
+    /// <paramref name="destination"/> — see <see cref="AddImage"/> for the parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to add the image to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the image's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="image">The image bytes. PNG and JPEG only, decided by magic bytes.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="widthPixels">The image's width, in pixels. See <see cref="AddImage"/>.</param>
+    /// <param name="heightPixels">The image's height, in pixels. See <see cref="AddImage"/>.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="destination"/> or <paramref name="image"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="image"/> is
+    /// empty, a name is blank, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, the reference is not valid, or
+    /// the image is neither PNG nor JPEG.
+    /// </exception>
+    public static async Task AddImageAsync(
+        Stream source, string sheetName, string cellRef, byte[] image, Stream destination,
+        int? widthPixels = null, int? heightPixels = null, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(cellRef);
+        ArgumentNullException.ThrowIfNull(image);
+        if (image.Length == 0) throw new ArgumentException("Image content was empty.", nameof(image));
+        if (widthPixels is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(widthPixels), widthPixels, "Width must be positive.");
+        if (heightPixels is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(heightPixels), heightPixels, "Height must be positive.");
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var xlsx = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", nameof(source), "Failed to add an image to the XLSX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        using var result = AddImageCore(xlsx, sheetName, cellRef, image, widthPixels, heightPixels);
+        await StreamPipeline.EmitAsync(result, destination, "Failed to add an image to the XLSX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="inputPath"/>, adds an image, and writes the result to
+    /// <paramref name="outputPath"/> — see <see cref="AddImage"/> for the parameters. The two paths
+    /// may be the same file: the updated bytes are computed in full before
+    /// <paramref name="outputPath"/> is opened.
+    /// </summary>
+    /// <param name="inputPath">The workbook to read.</param>
+    /// <param name="outputPath">Where to write the result. Overwritten if it exists.</param>
+    /// <param name="sheetName">The sheet to add the image to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the image's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="image">The image bytes. PNG and JPEG only, decided by magic bytes.</param>
+    /// <param name="widthPixels">The image's width, in pixels. See <see cref="AddImage"/>.</param>
+    /// <param name="heightPixels">The image's height, in pixels. See <see cref="AddImage"/>.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">A path, a name or <paramref name="image"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// A path or a name is blank, <paramref name="image"/> is empty, or the file at
+    /// <paramref name="inputPath"/> is empty.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="FileNotFoundException"><paramref name="inputPath"/> does not exist.</exception>
+    /// <exception cref="DirectoryNotFoundException">
+    /// <paramref name="inputPath"/>'s or <paramref name="outputPath"/>'s directory does not exist.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, the reference is not valid, or
+    /// the image is neither PNG nor JPEG.
+    /// </exception>
+    public static async Task AddImageAsync(
+        string inputPath, string outputPath, string sheetName, string cellRef, byte[] image,
+        int? widthPixels = null, int? heightPixels = null, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
+
+        var bytes = await FilePipeline.ReadAsync(inputPath, nameof(inputPath), ct).ConfigureAwait(false);
+        var result = AddImage(bytes, sheetName, cellRef, image, widthPixels, heightPixels);
+        await File.WriteAllBytesAsync(outputPath, result, ct).ConfigureAwait(false);
+    }
+
+    private static MemoryStream AddImageCore(
+        Stream xlsx, string sheetName, string cellRef, byte[] image, int? widthPixels, int? heightPixels)
+    {
+        try
+        {
+            if (!XLHelper.IsValidA1Address(cellRef))
+                throw new DocumentConversionException($"\"{cellRef}\" is not a valid A1-style cell reference.");
+
+            // Format decided by magic bytes, never by a filename - the same rule ReplaceImage
+            // follows for DOCX and PPTX. Only the format and intrinsic pixel size are used here;
+            // ImageInspector.Resolve is NOT reused, because it resolves POINTS to EMU for the
+            // DOCX/PPTX drawing model, while ClosedXML's own IXLPicture.Width/Height are already
+            // pixels - the same unit AddChart already uses for this format.
+            var info = ImageInspector.Inspect(image);
+            var (width, height) = ResolvePixelSize(info.WidthPx, info.HeightPx, widthPixels, heightPixels);
+
+            using var workbook = new XLWorkbook(xlsx);
+            var sheet = Sheet(workbook, sheetName);
+
+            // MoveTo BEFORE WithSize, deliberately - a freshly added picture's placement is
+            // MoveAndSize, and ClosedXML refuses to set Width/Height until it is FreeFloating or
+            // Move; MoveTo(IXLCell) switches it. The reverse order throws ArgumentException.
+            using var imageStream = new MemoryStream(image);
+            var picture = sheet.AddPicture(imageStream, ToPictureFormat(info.Format));
+            picture.MoveTo(sheet.Cell(cellRef)).WithSize(width, height);
+
+            var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            return ms;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException("Failed to add an image to the XLSX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Neither dimension given: the image's own intrinsic pixel size. One given: the other scales
+    /// to preserve the aspect ratio. Both given: exactly those, distortion accepted as the
+    /// caller's choice. The same three-way rule <see cref="ImageInspector.Resolve"/> applies for
+    /// DOCX/PPTX, in pixels rather than EMU because that is what ClosedXML's own picture sizing
+    /// takes.
+    /// </summary>
+    private static (int Width, int Height) ResolvePixelSize(
+        int intrinsicWidth, int intrinsicHeight, int? widthPixels, int? heightPixels)
+        => (widthPixels, heightPixels) switch
+        {
+            (null, null) => (intrinsicWidth, intrinsicHeight),
+            (not null, not null) => (widthPixels.Value, heightPixels.Value),
+            (not null, null) => (widthPixels.Value, (int)Math.Round(widthPixels.Value * (double)intrinsicHeight / intrinsicWidth)),
+            (null, not null) => ((int)Math.Round(heightPixels.Value * (double)intrinsicWidth / intrinsicHeight), heightPixels.Value),
+        };
+
+    private static ClosedXML.Excel.Drawings.XLPictureFormat ToPictureFormat(ImageFormat format) => format switch
+    {
+        ImageFormat.Png => ClosedXML.Excel.Drawings.XLPictureFormat.Png,
+        ImageFormat.Jpeg => ClosedXML.Excel.Drawings.XLPictureFormat.Jpeg,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
     };
 
     /// <summary>

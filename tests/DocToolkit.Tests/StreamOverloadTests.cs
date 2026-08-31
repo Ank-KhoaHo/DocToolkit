@@ -240,6 +240,8 @@ public class StreamOverloadTests
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
         "WorkbookEditor.AddPivotTableAsync",
+        "WorkbookEditor.AddDefinedNameAsync",
+        "WorkbookEditor.AddImageAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
@@ -312,6 +314,8 @@ public class StreamOverloadTests
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
         "WorkbookEditor.AddPivotTableAsync",
+        "WorkbookEditor.AddDefinedNameAsync",
+        "WorkbookEditor.AddImageAsync",
         "WorkbookEditor.InspectSignaturesAsync",
         "WorkbookEditor.ValidateSignaturesAsync",
         "PresentationEditor.SlideCountAsync",
@@ -409,6 +413,8 @@ public class StreamOverloadTests
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
         "WorkbookEditor.AddPivotTableAsync",
+        "WorkbookEditor.AddDefinedNameAsync",
+        "WorkbookEditor.AddImageAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
@@ -1295,6 +1301,10 @@ public class StreamOverloadTests
                 WorkbookEditor.AddPivotTableAsync(
                     source!, "Sales", "A1:B2", "D1", "P", new[] { "Region" },
                     new[] { new PivotDataField("Total", PivotFunction.Sum) }, destination!, ct: ct),
+            "WorkbookEditor.AddDefinedNameAsync" =>
+                WorkbookEditor.AddDefinedNameAsync(source!, "N", "Sales", "A1", destination!, ct),
+            "WorkbookEditor.AddImageAsync" =>
+                WorkbookEditor.AddImageAsync(source!, "Sales", "B2", ImageFixtures.Png(), destination!, ct: ct),
             "WorkbookEditor.InspectSignaturesAsync" =>
                 WorkbookEditor.InspectSignaturesAsync(source!, ct),
             "WorkbookEditor.ValidateSignaturesAsync" =>
