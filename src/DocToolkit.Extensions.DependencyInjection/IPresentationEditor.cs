@@ -327,4 +327,151 @@ public interface IPresentationEditor
     Task InsertSlidesAsync(
         Stream source, int atIndex, IEnumerable<DocToolkit.PptxSlide> slides, Stream destination,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Inspects <paramref name="pptx"/> for digital signatures — whether it carries one, how
+    /// many, and who claims to have signed it. Does not validate anything cryptographically; see
+    /// <see cref="ValidateSignatures"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The presentation could not be inspected.</exception>
+    DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] pptx);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and inspects it for digital signatures — see
+    /// <see cref="InspectSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The presentation could not be inspected.</exception>
+    Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default);
+
+    /// <summary>
+    /// Validates every digital signature <paramref name="pptx"/> carries, returning the
+    /// report-level tamper-detection verdict alongside each signature's own certificate chain
+    /// trust and revocation status. Never performs revocation checking or certificate downloads
+    /// over the network, regardless of <paramref name="options"/> — see
+    /// <see cref="DocToolkit.DocumentSignatureValidationOptions"/>'s own remarks.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The presentation could not be validated.</exception>
+    DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] pptx, DocToolkit.DocumentSignatureValidationOptions? options = null);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and validates its digital signatures — see
+    /// <see cref="ValidateSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The presentation could not be validated.</exception>
+    Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, CancellationToken ct = default);
+
+    /// <summary>The document properties <paramref name="pptx"/> carries.</summary>
+    /// <remarks>
+    /// On a freshly created deck every property is null, exactly like DOCX and XLSX. That is
+    /// <b>not</b> true after <see cref="WithMetadata"/>; see its own remarks for why writing and
+    /// reading disagree here.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The presentation could not be read.</exception>
+    DocToolkit.DocumentMetadata ReadMetadata(byte[] pptx);
+
+    /// <summary>
+    /// A copy of <paramref name="pptx"/> carrying <paramref name="metadata"/>.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> property leaves what the presentation already had in place, so
+    /// stamping a title does not silently erase an author. Pass an empty string to clear one.
+    ///
+    /// <b>One exception, forced by OfficeIMO itself:
+    /// <see cref="DocToolkit.DocumentMetadata.Creator"/> never survives as null through this
+    /// method.</b> OfficeIMO.PowerPoint's own <c>Save()</c> unconditionally stamps
+    /// <c>Creator</c> to <c>"OfficeIMO"</c> whenever it is empty at save time.
+    /// <see cref="ReadMetadata"/> alone, with no save involved, correctly reports
+    /// <see langword="null"/> on an untouched deck; it is specifically going through <b>this</b>
+    /// method — which always saves — that loses the distinction. DOCX and XLSX do not have this
+    /// behaviour.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="metadata"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The presentation could not be read or written.</exception>
+    byte[] WithMetadata(byte[] pptx, DocToolkit.DocumentMetadata metadata);
+
+    /// <summary>
+    /// The text of every SmartArt diagram on slide <paramref name="index"/>, one entry per
+    /// diagram, each diagram's nodes joined with newlines in the order OfficeIMO reports them. An
+    /// empty list means the slide has no SmartArt, which is not an error.
+    /// </summary>
+    /// <param name="pptx">The presentation to read.</param>
+    /// <param name="index">1-based, because that is how a reader numbers slides.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
+    IReadOnlyList<string> ReadSmartArt(byte[] pptx, int index);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns the text of every SmartArt
+    /// diagram on slide <paramref name="index"/> — see <see cref="ReadSmartArt"/>.
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="index"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
+    Task<IReadOnlyList<string>> ReadSmartArtAsync(Stream source, int index, CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds a chart to slide <paramref name="slideIndex"/> and returns the updated presentation.
+    /// </summary>
+    /// <param name="pptx">The presentation to add the chart to. It is not modified.</param>
+    /// <param name="slideIndex">1-based, because that is how a reader numbers slides.</param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="leftPoints">The chart's left edge, in points from the slide's left edge.</param>
+    /// <param name="topPoints">The chart's top edge, in points from the slide's top edge.</param>
+    /// <param name="widthPoints">The chart's width, in points.</param>
+    /// <param name="heightPoints">The chart's height, in points.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="data"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
+    byte[] AddChart(
+        byte[] pptx, int slideIndex, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "",
+        double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and returns a new presentation with a chart
+    /// added to slide <paramref name="slideIndex"/> — see <see cref="AddChart"/> for the
+    /// parameters. <paramref name="source"/> is <b>read</b> to its end and is neither disposed,
+    /// closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="data"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
+    Task<byte[]> AddChartAsync(
+        Stream source, int slideIndex, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "",
+        double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252,
+        CancellationToken ct = default);
 }

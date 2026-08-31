@@ -74,4 +74,57 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
 
     public Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default)
         => DocToolkit.WorkbookEditor.UnprotectAsync(source, destination, password, ct);
+
+    public DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] xlsx)
+        => DocToolkit.WorkbookEditor.InspectSignatures(xlsx);
+
+    public Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.InspectSignaturesAsync(source, ct);
+
+    public DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] xlsx, DocToolkit.DocumentSignatureValidationOptions? options = null)
+        => DocToolkit.WorkbookEditor.ValidateSignatures(xlsx, options);
+
+    public Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.ValidateSignaturesAsync(source, options, ct);
+
+    public DocToolkit.DocumentMetadata ReadMetadata(byte[] xlsx)
+        => DocToolkit.WorkbookEditor.ReadMetadata(xlsx);
+
+    public byte[] WithMetadata(byte[] xlsx, DocToolkit.DocumentMetadata metadata)
+        => DocToolkit.WorkbookEditor.WithMetadata(xlsx, metadata);
+
+    public DocToolkit.XlsxFormulaInspection InspectFormulas(byte[] xlsx)
+        => DocToolkit.WorkbookEditor.InspectFormulas(xlsx);
+
+    public byte[] EvaluateFormulas(byte[] xlsx)
+        => DocToolkit.WorkbookEditor.EvaluateFormulas(xlsx);
+
+    public byte[] AddChart(
+        byte[] xlsx, string sheetName, string cellRef, DocToolkit.ChartType type, DocToolkit.ChartData data,
+        string title = "", int widthPixels = 640, int heightPixels = 360)
+        => DocToolkit.WorkbookEditor.AddChart(xlsx, sheetName, cellRef, type, data, title, widthPixels, heightPixels);
+
+    public Task AddChartAsync(
+        Stream source, string sheetName, string cellRef, DocToolkit.ChartType type, DocToolkit.ChartData data, Stream destination,
+        string title = "", int widthPixels = 640, int heightPixels = 360, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.AddChartAsync(source, sheetName, cellRef, type, data, destination, title, widthPixels, heightPixels, ct);
+
+    public byte[] AddPivotTable(
+        byte[] xlsx, string sheetName, string sourceRange, string destinationCell, string name,
+        IEnumerable<string> rowFields, IEnumerable<DocToolkit.PivotDataField> dataFields,
+        IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
+        bool showRowGrandTotals = true, bool showColumnGrandTotals = true)
+        => DocToolkit.WorkbookEditor.AddPivotTable(
+            xlsx, sheetName, sourceRange, destinationCell, name, rowFields, dataFields,
+            columnFields, pageFields, showRowGrandTotals, showColumnGrandTotals);
+
+    public Task AddPivotTableAsync(
+        Stream source, string sheetName, string sourceRange, string destinationCell, string name,
+        IEnumerable<string> rowFields, IEnumerable<DocToolkit.PivotDataField> dataFields, Stream destination,
+        IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
+        bool showRowGrandTotals = true, bool showColumnGrandTotals = true, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.AddPivotTableAsync(
+            source, sheetName, sourceRange, destinationCell, name, rowFields, dataFields, destination,
+            columnFields, pageFields, showRowGrandTotals, showColumnGrandTotals, ct);
 }

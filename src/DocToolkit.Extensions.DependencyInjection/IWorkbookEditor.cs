@@ -308,4 +308,235 @@ public interface IWorkbookEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The password was wrong, or it could not be read.</exception>
     Task UnprotectAsync(Stream source, Stream destination, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// Inspects <paramref name="xlsx"/> for digital signatures — whether it carries one, how
+    /// many, and who claims to have signed it. Does not validate anything cryptographically; see
+    /// <see cref="ValidateSignatures"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be inspected.</exception>
+    DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] xlsx);
+
+    /// <summary>
+    /// Reads an .xlsx from <paramref name="source"/> and inspects it for digital signatures — see
+    /// <see cref="InspectSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be inspected.</exception>
+    Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default);
+
+    /// <summary>
+    /// Validates every digital signature <paramref name="xlsx"/> carries, returning the
+    /// report-level tamper-detection verdict alongside each signature's own certificate chain
+    /// trust and revocation status. Never performs revocation checking or certificate downloads
+    /// over the network, regardless of <paramref name="options"/> — see
+    /// <see cref="DocToolkit.DocumentSignatureValidationOptions"/>'s own remarks.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be validated.</exception>
+    DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] xlsx, DocToolkit.DocumentSignatureValidationOptions? options = null);
+
+    /// <summary>
+    /// Reads an .xlsx from <paramref name="source"/> and validates its digital signatures — see
+    /// <see cref="ValidateSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be validated.</exception>
+    Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, CancellationToken ct = default);
+
+    /// <summary>The document properties <paramref name="xlsx"/> carries.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read.</exception>
+    DocToolkit.DocumentMetadata ReadMetadata(byte[] xlsx);
+
+    /// <summary>
+    /// A copy of <paramref name="xlsx"/> carrying <paramref name="metadata"/>.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> property leaves what the workbook already had in place, so
+    /// stamping a title does not silently erase an author. Pass an empty string to clear one.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> or <paramref name="metadata"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read or written.</exception>
+    byte[] WithMetadata(byte[] xlsx, DocToolkit.DocumentMetadata metadata);
+
+    /// <summary>
+    /// Every formula <paramref name="xlsx"/> carries, and whether each one is understood well
+    /// enough to trust its value. See <see cref="DocToolkit.XlsxFormulaInspection"/> for why this
+    /// asks rather than assumes.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read.</exception>
+    DocToolkit.XlsxFormulaInspection InspectFormulas(byte[] xlsx);
+
+    /// <summary>
+    /// A copy of <paramref name="xlsx"/> with every formula's computed value written into the
+    /// file, not just held in memory.
+    /// </summary>
+    /// <remarks>
+    /// A formula <see cref="DocToolkit.XlsxFormulaInspection"/> would report as unsupported is left
+    /// exactly as it was — no plausible-looking value is invented for it. Call
+    /// <see cref="InspectFormulas"/> first if that distinction matters to the caller.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read or written.</exception>
+    byte[] EvaluateFormulas(byte[] xlsx);
+
+    /// <summary>
+    /// Adds a chart to <paramref name="sheetName"/>, anchored at <paramref name="cellRef"/>, and
+    /// returns the updated workbook.
+    /// </summary>
+    /// <param name="xlsx">The workbook to add the chart to. It is not modified.</param>
+    /// <param name="sheetName">The sheet to add the chart to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the chart's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="widthPixels">The chart's width, in pixels.</param>
+    /// <param name="heightPixels">The chart's height, in pixels.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="xlsx"/>, <paramref name="data"/> or another required argument is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, or <paramref name="sheetName"/>/<paramref name="cellRef"/>
+    /// is blank.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    byte[] AddChart(
+        byte[] xlsx, string sheetName, string cellRef, DocToolkit.ChartType type, DocToolkit.ChartData data,
+        string title = "", int widthPixels = 640, int heightPixels = 360);
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds a chart, and writes the result to
+    /// <paramref name="destination"/> — see <see cref="AddChart"/> for the parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to add the chart to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the chart's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="type">The chart's shape.</param>
+    /// <param name="data">The chart's categories and value series.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="title">The chart's title. Empty for no title.</param>
+    /// <param name="widthPixels">The chart's width, in pixels.</param>
+    /// <param name="heightPixels">The chart's height, in pixels.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="destination"/> or <paramref name="data"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, a name is blank, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or the reference is not valid.
+    /// </exception>
+    Task AddChartAsync(
+        Stream source, string sheetName, string cellRef, DocToolkit.ChartType type, DocToolkit.ChartData data, Stream destination,
+        string title = "", int widthPixels = 640, int heightPixels = 360, CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds a pivot table to <paramref name="sheetName"/> and returns the updated workbook.
+    /// </summary>
+    /// <remarks>
+    /// <b>The result grid is empty until Excel opens and recalculates it.</b> A pivot table's
+    /// aggregated values are computed by whichever application opens the file — nothing that
+    /// writes it (this method included) populates the grid. Open the result in Excel (or an
+    /// equivalent) to see it populated.
+    /// </remarks>
+    /// <param name="xlsx">The workbook to add the pivot table to. It is not modified.</param>
+    /// <param name="sheetName">The sheet to add the pivot table to.</param>
+    /// <param name="sourceRange">An A1-style range naming the source data, e.g. <c>"A1:C10"</c>.</param>
+    /// <param name="destinationCell">
+    /// An A1-style cell reference for the pivot table's top-left corner, e.g. <c>"E1"</c>.
+    /// </param>
+    /// <param name="name">The pivot table's name.</param>
+    /// <param name="rowFields">Source column headers to group by, down the rows. At least one.</param>
+    /// <param name="dataFields">The aggregated value columns. At least one.</param>
+    /// <param name="columnFields">Source column headers to group by, across the columns. Optional.</param>
+    /// <param name="pageFields">Source column headers used as report filters. Optional.</param>
+    /// <param name="showRowGrandTotals">Whether to show a grand total row.</param>
+    /// <param name="showColumnGrandTotals">Whether to show a grand total column.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="xlsx"/>, <paramref name="rowFields"/>, <paramref name="dataFields"/> or
+    /// another required argument is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, a name argument is blank, or
+    /// <paramref name="rowFields"/>/<paramref name="dataFields"/> is empty.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or
+    /// <paramref name="destinationCell"/> is not a valid cell reference.
+    /// </exception>
+    byte[] AddPivotTable(
+        byte[] xlsx, string sheetName, string sourceRange, string destinationCell, string name,
+        IEnumerable<string> rowFields, IEnumerable<DocToolkit.PivotDataField> dataFields,
+        IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
+        bool showRowGrandTotals = true, bool showColumnGrandTotals = true);
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds a pivot table, and writes the
+    /// result to <paramref name="destination"/> — see <see cref="AddPivotTable"/> for the
+    /// parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to add the pivot table to.</param>
+    /// <param name="sourceRange">An A1-style range naming the source data, e.g. <c>"A1:C10"</c>.</param>
+    /// <param name="destinationCell">
+    /// An A1-style cell reference for the pivot table's top-left corner, e.g. <c>"E1"</c>.
+    /// </param>
+    /// <param name="name">The pivot table's name.</param>
+    /// <param name="rowFields">Source column headers to group by, down the rows. At least one.</param>
+    /// <param name="dataFields">The aggregated value columns. At least one.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="columnFields">Source column headers to group by, across the columns. Optional.</param>
+    /// <param name="pageFields">Source column headers used as report filters. Optional.</param>
+    /// <param name="showRowGrandTotals">Whether to show a grand total row.</param>
+    /// <param name="showColumnGrandTotals">Whether to show a grand total column.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="destination"/>, <paramref name="rowFields"/> or
+    /// <paramref name="dataFields"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, a name is blank, or
+    /// <paramref name="rowFields"/>/<paramref name="dataFields"/> is empty.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or
+    /// <paramref name="destinationCell"/> is not a valid cell reference.
+    /// </exception>
+    Task AddPivotTableAsync(
+        Stream source, string sheetName, string sourceRange, string destinationCell, string name,
+        IEnumerable<string> rowFields, IEnumerable<DocToolkit.PivotDataField> dataFields, Stream destination,
+        IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
+        bool showRowGrandTotals = true, bool showColumnGrandTotals = true, CancellationToken ct = default);
 }

@@ -1527,13 +1527,12 @@ public static class WorkbookEditor
     /// table's aggregated values are computed by whichever application opens the file — nothing
     /// that WRITES it (this method included) populates the grid. This is a HARDER version of the
     /// limitation this package already documents for <see cref="XlsxFormula"/>: a formula's value
-    /// <b>is</b> computed by <see cref="ReadCell"/>/<see cref="ReadSheet"/> on read, because this
-    /// library's own engine evaluates it — but there is no equivalent pivot-evaluation engine
-    /// here, so reading the pivot's own cells back with <see cref="ReadCell"/> immediately after
-    /// calling this method returns empty strings, and <c>XlsxToPdfConverter</c> renders nothing
-    /// where the pivot's results would be — for the identical reason it renders a formula's
-    /// literal text rather than its computed value. Open the result in Excel (or an equivalent)
-    /// to see it populated.
+    /// <b>is</b> computed by <see cref="ReadCell"/>/<see cref="ReadSheet"/> on read, and, since
+    /// <c>XlsxToPdfConverter</c> started calling <c>Calculate()</c> before rendering, is now
+    /// computed there too — but there is no equivalent pivot-evaluation engine here, so reading
+    /// the pivot's own cells back with <see cref="ReadCell"/> immediately after calling this
+    /// method returns empty strings, and <c>XlsxToPdfConverter</c> renders nothing where the
+    /// pivot's results would be. Open the result in Excel (or an equivalent) to see it populated.
     /// </para>
     /// <para>Further edits to the workbook through this class's other methods (all
     /// ClosedXML-based) re-serialize the pivot table's XML — measured directly — but its field
