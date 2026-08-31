@@ -1508,8 +1508,10 @@ public class WorkbookEditorTests
         // independent calls (measured directly - unlike A95's chart XML, which needed masking for
         // a relationship id and axId/crossAx pair), so this compares that part directly rather
         // than only checking a single substring is present on each side.
-        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(expected, writable: false));
-        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(actual, writable: false));
+        using var expectedStream = new MemoryStream(expected, writable: false);
+        using var actualStream = new MemoryStream(actual, writable: false);
+        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(expectedStream);
+        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(actualStream);
         Assert.Single(expectedDoc.GetPivotTables());
         Assert.Single(actualDoc.GetPivotTables());
 
@@ -1541,7 +1543,8 @@ public class WorkbookEditorTests
             input.Path, output.Path, "Data", "A1:B3", "D1", "P", rowFields, dataFields);
         var actual = await File.ReadAllBytesAsync(output.Path);
 
-        using var doc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(actual, writable: false));
+        using var actualStream = new MemoryStream(actual, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(actualStream);
         Assert.Single(doc.GetPivotTables());
 
         // See AddPivotTableAsync_FromStream_MatchesTheByteArrayOverload's comment: pivotTable.xml
@@ -1604,7 +1607,8 @@ public class WorkbookEditorTests
         // element, which only the re-serialized form (what the rest of this file checks) drops.
         var afterEdit = WorkbookEditor.SetCell(destination.ToArray(), "Data", "A10", "unrelated edit");
 
-        using var doc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(afterEdit, writable: false));
+        using var afterEditStream = new MemoryStream(afterEdit, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(afterEditStream);
         Assert.Single(doc.GetPivotTables());
 
         // Without this, a dropped or misrouted columnFields/pageFields argument on the Stream

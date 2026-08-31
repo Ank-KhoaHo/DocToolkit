@@ -3,6 +3,7 @@ namespace DocToolkit;
 /// <summary>One aggregated value column in a pivot table's data area.</summary>
 public sealed class PivotDataField
 {
+    /// <summary>Creates a data field aggregating one source column.</summary>
     /// <param name="fieldName">The source column's header text, e.g. <c>"Amount"</c>.</param>
     /// <param name="function">The aggregation applied to <paramref name="fieldName"/>'s values.</param>
     /// <exception cref="ArgumentNullException"><paramref name="fieldName"/> is null.</exception>
