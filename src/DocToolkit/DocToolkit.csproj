@@ -46,8 +46,9 @@
       wkhtmltopdf, no native binaries, no LibreOffice, no Office interop. Also converts Markdown to
       DOCX and PDF; renders DOCX, XLSX and PPTX to PDF; exports DOCX to HTML/Markdown and XLSX to
       CSV/HTML; reads legacy Word 97-2003 .doc files; reads text out of a PDF; creates/edits DOCX,
-      XLSX and PPTX; and password-protects PDF, DOCX, XLSX and PPTX. Runs on Linux, Windows, macOS
-      and arm64, and makes no network calls at runtime.
+      XLSX and PPTX; password-protects PDF, DOCX, XLSX and PPTX; and inspects and validates digital
+      signatures in DOCX, XLSX and PPTX. Runs on Linux, Windows, macOS and arm64, and makes no
+      network calls at runtime.
     </Description>
     <!--
       Three groups, and the ORDER of thought matters more than the list. The old set was eight

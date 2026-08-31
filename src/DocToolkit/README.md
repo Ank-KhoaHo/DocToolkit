@@ -900,6 +900,46 @@ first bytes, without a password.
 A wrong password and a file that was never encrypted are reported as **different** failures, because
 a caller can only act on one of them.
 
+## Digital signatures
+
+Inspect a document for OPC package signatures, and validate what they actually prove.
+`DocxEditor`, `WorkbookEditor` and `PresentationEditor` each carry the same four members, with
+`Stream` overloads:
+
+```csharp
+DocumentSignatureInfo info = WorkbookEditor.InspectSignatures(xlsx);
+// info.HasSignatures, info.SignatureCount, info.Signers (CLAIMED identity - see below)
+
+DocumentSignatureValidationReport report = WorkbookEditor.ValidateSignatures(xlsx);
+// report.IsCryptographicallyValid   - was the signed content tampered with since signing?
+// report.Signatures[0].CertificateChainStatus - does the signer's certificate chain to a
+//                                                certificate this machine trusts?
+```
+
+`report.Signatures[0]` is a `DocumentSignatureValidationResult`, whose `CryptographicStatus` —
+a `DocumentSignatureStatus` — carries that one signature's own tamper-detection outcome,
+alongside `CertificateChainStatus` for its chain trust. `IsCryptographicallyValid` above is a
+separate, report-level verdict rather than something computed from either.
+
+**`InspectSignatures` reports a claimed identity, not a proven one.** `Signers` is read from each
+signing certificate's own subject name, without validating the signature at all — anyone can put
+any name on a self-signed certificate. Use `ValidateSignatures` before treating a signer's name as
+real.
+
+**Cryptographic integrity and certificate trust are independent findings, deliberately.**
+Measured directly against a real self-signed certificate: an untampered signature reports
+`IsCryptographicallyValid = true` even when the certificate never chains to a trusted root
+(`CertificateChainStatus = Failed`, the ordinary and expected outcome for an internal/enterprise
+signer). Pass `AdditionalTrustedCertificates` on `DocumentSignatureValidationOptions` to trust an
+internal certificate authority explicitly, or set `ValidateCertificateTrust = false` to skip chain
+checking entirely and only ask "was this tampered with."
+
+**No revocation checking, ever, and no network access of any kind.** Not configurable. Chain
+validation checks only this machine's local trust store.
+
+**An unsigned document and a tampered one can both report `IsCryptographicallyValid = false`.**
+Check `HasSignatures` first — the two are different findings.
+
 ## Legacy binary Office files (.ppt, .xls, .doc)
 
 **`.doc` and `.ppt` are read; `.xls` is not.** That split is measured rather than arbitrary, and it

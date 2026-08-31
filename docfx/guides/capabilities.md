@@ -33,12 +33,12 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 
 | Format | Operations |
 |---|---|
-| **DOCX** (`DocxEditor`) | `AddEndnote`, `AddFootnote`, `AddTableOfContents`, `Create`, `ExtractText`, `FillRows`, `IsProtected`, `Protect`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect` |
+| **DOCX** (`DocxEditor`) | `AddEndnote`, `AddFootnote`, `AddTableOfContents`, `Create`, `ExtractText`, `FillRows`, `InspectSignatures`, `IsProtected`, `Protect`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect`, `ValidateSignatures` |
 | **DOCX** (`DocxMailMerge`) | `InspectTemplate`, `Merge`, `MergeBatch`, `MergeBatchToFiles`, `MergeBatchToFilesWithReport`, `MergeBatchWithReport`, `MergeConditional`, `MergeConditionalWithReport`, `MergeRepeating`, `MergeRepeatingRegions`, `MergeRepeatingRegionsWithReport`, `MergeRepeatingWithReport`, `MergeTableRowGroups`, `MergeTableRows`, `MergeWithReport` |
 | **Markdown** (`MarkdownEditor`) | `FindHeading`, `ReadFrontMatter`, `ReadTable`, `ReplaceSection`, `TableCount` |
 | **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |
-| **PPTX** (`PresentationEditor`) | `AddChart`, `Create`, `ExtractText`, `InsertSlides`, `IsProtected`, `Protect`, `ReadSlide`, `ReadSmartArt`, `RemoveSlides`, `ReorderSlides`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect` |
-| **XLSX** (`WorkbookEditor`) | `AddChart`, `AddPivotTable`, `AppendRows`, `Create`, `Format`, `IsProtected`, `Protect`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect` |
+| **PPTX** (`PresentationEditor`) | `AddChart`, `Create`, `ExtractText`, `InsertSlides`, `InspectSignatures`, `IsProtected`, `Protect`, `ReadSlide`, `ReadSmartArt`, `RemoveSlides`, `ReorderSlides`, `ReplaceImage`, `ReplaceText`, `SlideCount`, `Unprotect`, `ValidateSignatures` |
+| **XLSX** (`WorkbookEditor`) | `AddChart`, `AddPivotTable`, `AppendRows`, `Create`, `Format`, `InspectSignatures`, `IsProtected`, `Protect`, `ReadCell`, `ReadSheet`, `SetCell`, `SheetNames`, `Unprotect`, `ValidateSignatures` |
 
 Method names only. What each one does, and the traps in it, are in the guides — this table exists to be complete and current, which prose has repeatedly failed to be.
 
