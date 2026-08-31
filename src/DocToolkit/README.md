@@ -1161,11 +1161,12 @@ That is asserted, not assumed; see above.
 is empty until Excel opens and recalculates it** — nothing that writes the file, this method
 included, computes a pivot aggregation. That is a harder version of the caveat `XlsxFormula`
 already carries (see *Known limitations* below): a formula's value **is**
-computed by `ReadCell`/`ReadSheet` on read, because this library's own engine evaluates it, while a
-pivot table's is not. Reading the pivot's own cells back with `ReadCell`/`ReadSheet` immediately
-after this call returns empty strings, and `XlsxToPdfConverter` renders nothing where the pivot's
-results would be, for the identical reason it renders a formula's literal text rather than its
-computed value. See the [spreadsheets and presentations
+computed by `ReadCell`/`ReadSheet` on read, and, since `XlsxToPdfConverter` started calling
+`Calculate()` before rendering, is now computed there too — see *Formulas carry no cached value*
+below. A pivot aggregation is not, on any of those paths: nothing in this library evaluates one.
+Reading the pivot's own cells back with `ReadCell`/`ReadSheet` immediately after this call returns
+empty strings, and `XlsxToPdfConverter` renders nothing where the pivot's results would be. See
+the [spreadsheets and presentations
 guide](https://ank-khoaho.github.io/DocToolkit/guides/editing/spreadsheets-and-presentations.html#pivot-tables)
 for a worked example.
 
@@ -1406,8 +1407,8 @@ is that you find out by reading the source.
 | **Headers and footers are one line each** | A header or footer is a single aligned line of text and page-number fields, set on `PageSetup`. One running header and footer per document, plus an optional distinct first page — per-section headers and odd/even (mirrored) variants are not supported. |
 | **One page setup per document** | `PageSetup` applies to the whole document; multiple sections with different paper is not supported. |
 | **DOCX → HTML returns a full document, not a fragment** | Extract the body with a parser if you are embedding it. |
-| **Formulas carry no cached value** | Excel recalculates on open and `ReadCell`/`ReadSheet` evaluate on read, but a reader that only reads cached values sees an empty cell until Excel has opened and saved the file. |
-| **Pivot table results carry no cached value either, and not even `ReadCell` computes them** | `WorkbookEditor.AddPivotTable`'s result grid is populated only when Excel opens and recalculates the file — a harder version of the row above: a formula's value *is* computed by `ReadCell`/`ReadSheet` on read, while a pivot table's is not, because nothing in this library evaluates a pivot aggregation. `XlsxToPdfConverter` renders nothing where the results would be, for the same reason it renders a formula's literal text rather than its computed value. See the [spreadsheets and presentations guide](https://ank-khoaho.github.io/DocToolkit/guides/editing/spreadsheets-and-presentations.html#pivot-tables). |
+| **Formulas carry no cached value in the file itself** | Excel recalculates on open, and `ReadCell`/`ReadSheet` evaluate on read, and `XlsxToPdfConverter` calculates before rendering — but a reader that only trusts a cached value and never recalculates sees an empty cell until something writes one. Call `WorkbookEditor.EvaluateFormulas` first to put one in the file for such a reader, or `InspectFormulas` to check first whether a given formula is even understood. |
+| **Pivot table results carry no cached value either, and NOTHING computes them — not `ReadCell`, not `XlsxToPdfConverter`** | `WorkbookEditor.AddPivotTable`'s result grid is populated only when Excel opens and recalculates the file — a harder version of the row above: a formula's value is computed on every path that reads one, while a pivot table's is not on any of them, because nothing in this library evaluates a pivot aggregation. `XlsxToPdfConverter` renders nothing where the results would be. See the [spreadsheets and presentations guide](https://ank-khoaho.github.io/DocToolkit/guides/editing/spreadsheets-and-presentations.html#pivot-tables). |
 | **An OLE-embedded object survives some `WorkbookEditor` operations and not others** | `WorkbookEditor.AddChart`, `AddPivotTable`, `Protect` and `Unprotect` go through `OfficeIMO.Excel.ExcelDocument`, editing the package in place, and preserve a worksheet's embedded object exactly. `SetCell`, `AppendRows`, and the rest of that class's ClosedXML-backed surface for editing an *existing* workbook go through `ClosedXML.Excel.XLWorkbook`, which reconstructs the package from its own object model on save — it silently drops the `<drawing>` element and its part that anchor the object to the sheet, while the embedded content's own bytes survive as an orphaned, unreachable part. Measured directly, not assumed: a picture ClosedXML inserted itself survives the identical `SetCell` round-trip, so this is specific to drawing content ClosedXML did not create. **`PresentationEditor` is unaffected** — every operation, including PPTX's `AddChart`, `RemoveSlides`, `ReorderSlides` and `InsertSlides`, was measured to preserve an embedded/linked OLE object correctly. **`DocxEditor.ReplaceText` and `ReplaceImage` were measured the same way and also preserve one** — its other editing operations (`FillRows`, footnotes/endnotes, table of contents, `Protect`/`Unprotect`) have not been measured against an embedded object. |
 | **Memory scales with the document, not the file** | Peak is dominated by the OOXML object model — measured ~120 MB for `ReadSheet` and ~233 MB for `SetCell` on a 1.9 MB, 40,000-row workbook. See above; the `Stream` overloads are not cheaper. |
 | **Below 1.0.0, permanently** | Anything may change in a minor version. |
