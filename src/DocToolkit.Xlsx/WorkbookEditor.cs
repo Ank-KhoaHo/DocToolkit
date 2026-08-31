@@ -1524,12 +1524,15 @@ public static class WorkbookEditor
     /// <remarks>
     /// <para><b>The result grid is empty until Excel opens and recalculates it.</b> A pivot
     /// table's aggregated values are computed by whichever application opens the file — nothing
-    /// that WRITES it (this method included) populates the grid. This is the same class of
-    /// limitation this package already documents for <see cref="XlsxFormula"/>: reading the
-    /// pivot's own cells back with <see cref="ReadCell"/> immediately after calling this method
-    /// returns empty strings, and <c>XlsxToPdfConverter</c> renders nothing where the pivot's
-    /// results would be — for the identical reason it renders a formula's literal text rather
-    /// than its computed value. Open the result in Excel (or an equivalent) to see it populated.
+    /// that WRITES it (this method included) populates the grid. This is a HARDER version of the
+    /// limitation this package already documents for <see cref="XlsxFormula"/>: a formula's value
+    /// <b>is</b> computed by <see cref="ReadCell"/>/<see cref="ReadSheet"/> on read, because this
+    /// library's own engine evaluates it — but there is no equivalent pivot-evaluation engine
+    /// here, so reading the pivot's own cells back with <see cref="ReadCell"/> immediately after
+    /// calling this method returns empty strings, and <c>XlsxToPdfConverter</c> renders nothing
+    /// where the pivot's results would be — for the identical reason it renders a formula's
+    /// literal text rather than its computed value. Open the result in Excel (or an equivalent)
+    /// to see it populated.
     /// </para>
     /// <para>Further edits to the workbook through this class's other methods (all
     /// ClosedXML-based) re-serialize the pivot table's XML — measured directly — but its field
@@ -1566,11 +1569,11 @@ public static class WorkbookEditor
         IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
         bool showRowGrandTotals = true, bool showColumnGrandTotals = true)
     {
-        ArgumentNullException.ThrowIfNull(xlsx);
-        if (xlsx.Length == 0) throw new ArgumentException("Workbook content was empty.", nameof(xlsx));
-        ArgumentException.ThrowIfNullOrWhiteSpace(sheetName);
+        // ValidateArguments already covers xlsx (null/empty), sheetName and destinationCell
+        // (blank) in one place shared with AddChart, so the two methods cannot disagree about
+        // which argument a mistake gets blamed on.
+        ValidateArguments(xlsx, sheetName, destinationCell);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceRange);
-        ArgumentException.ThrowIfNullOrWhiteSpace(destinationCell);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         var rowFieldList = ValidatePivotFields(rowFields, nameof(rowFields));
         var dataFieldList = (dataFields ?? throw new ArgumentNullException(nameof(dataFields))).ToList();
@@ -1717,6 +1720,12 @@ public static class WorkbookEditor
     {
         try
         {
+            // Cleans then validates - the reverse order from AddChartCore's cellRef handling,
+            // which validates the original string first. Both accept every reference the other
+            // does; the one difference is a malformed-but-strippable input like "D1$", which this
+            // order accepts and AddChartCore's rejects. Not unified deliberately: AddChartCore
+            // decomposes cellRef into row/column ints afterward, while this passes the string
+            // straight to OfficeIMO, so the two validate different things even where they agree.
             var cleanedDestinationCell = destinationCell.Replace("$", string.Empty);
             if (!XLHelper.IsValidA1Address(cleanedDestinationCell))
                 throw new DocumentConversionException($"\"{destinationCell}\" is not a valid A1-style cell reference.");

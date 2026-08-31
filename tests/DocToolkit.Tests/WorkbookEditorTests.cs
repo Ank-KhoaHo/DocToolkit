@@ -1262,6 +1262,12 @@ public class WorkbookEditorTests
             new[] { "Region" },
             new[] { new PivotDataField("Amount", PivotFunction.Sum) });
 
+        // Establish the premise first: a pivot table genuinely exists here, so the empty reads
+        // below are the interesting finding rather than evidence AddPivotTable did nothing.
+        using (var source = new MemoryStream(result, writable: false))
+        using (var doc = OfficeIMO.Excel.ExcelDocument.Load(source))
+            Assert.Single(doc.GetPivotTables());
+
         foreach (var cell in new[] { "D1", "D2", "D3", "E1", "E2", "E3" })
             Assert.Equal(string.Empty, WorkbookEditor.ReadCell(result, "Data", cell));
     }
@@ -1333,6 +1339,11 @@ public class WorkbookEditorTests
         // rather than every field silently defaulting to Sum.
         Assert.Contains("dataField name=\"Average of Qty\"", pivotXml);
         Assert.Contains("subtotal=\"average\"", pivotXml);
+        // Without this, the test's own name promises columnFields coverage that nothing above
+        // actually checks - a dropped or misrouted columnFields argument would still pass every
+        // other assertion here. "Product" is column index 1 (0-based), confirmed by probe.
+        Assert.Contains("<colFields count=\"1\">", pivotXml);
+        Assert.Contains("<field x=\"1\" />", pivotXml);
     }
 
     [Fact]
@@ -1362,9 +1373,12 @@ public class WorkbookEditorTests
     {
         var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
 
-        Assert.Throws<ArgumentException>(() => WorkbookEditor.AddPivotTable(
+        var ex = Assert.Throws<ArgumentException>(() => WorkbookEditor.AddPivotTable(
             xlsx, "Data", "A1:A1", "D1", "P",
             Array.Empty<string>(), new[] { new PivotDataField("A", PivotFunction.Sum) }));
+        // Without this, a helper called with the wrong paramName (e.g. blaming dataFields for a
+        // rowFields problem) would still pass, since both cases throw the same exception type.
+        Assert.Equal("rowFields", ex.ParamName);
     }
 
     [Fact]
@@ -1372,9 +1386,10 @@ public class WorkbookEditorTests
     {
         var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
 
-        Assert.Throws<ArgumentException>(() => WorkbookEditor.AddPivotTable(
+        var ex = Assert.Throws<ArgumentException>(() => WorkbookEditor.AddPivotTable(
             xlsx, "Data", "A1:A1", "D1", "P",
             new[] { "A" }, Array.Empty<PivotDataField>()));
+        Assert.Equal("dataFields", ex.ParamName);
     }
 
     [Fact]
@@ -1427,9 +1442,12 @@ public class WorkbookEditorTests
             source, "Data", "A1:B3", "D1", "P", rowFields, dataFields, destination);
         var actual = destination.ToArray();
 
-        // NOT Assert.Equal(expected, actual) on raw bytes - confirmed non-deterministic by probe
-        // (two independent AddPivotTable calls on identical input: 8510 vs 8509 bytes). Compare
-        // structurally instead, the same shape A95's own corrected chart parity tests use.
+        // NOT Assert.Equal(expected, actual) on the whole workbook - confirmed non-deterministic
+        // by probe (two independent AddPivotTable calls on identical input produced 8510 vs 8509
+        // total bytes). But xl/pivotTables/pivotTable.xml itself IS byte-identical between two
+        // independent calls (measured directly - unlike A95's chart XML, which needed masking for
+        // a relationship id and axId/crossAx pair), so this compares that part directly rather
+        // than only checking a single substring is present on each side.
         using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(expected, writable: false));
         using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(actual, writable: false));
         Assert.Single(expectedDoc.GetPivotTables());
@@ -1437,8 +1455,7 @@ public class WorkbookEditorTests
 
         var expectedXml = ReadZipEntryText(expected, "xl/pivotTables/pivotTable.xml");
         var actualXml = ReadZipEntryText(actual, "xl/pivotTables/pivotTable.xml");
-        Assert.Contains("dataField name=\"Sum of Amount\"", expectedXml);
-        Assert.Contains("dataField name=\"Sum of Amount\"", actualXml);
+        Assert.Equal(expectedXml, actualXml);
     }
 
     [Fact]
@@ -1454,6 +1471,7 @@ public class WorkbookEditorTests
             });
         var rowFields = new[] { "Region" };
         var dataFields = new[] { new PivotDataField("Amount", PivotFunction.Sum) };
+        var expected = WorkbookEditor.AddPivotTable(xlsx, "Data", "A1:B3", "D1", "P", rowFields, dataFields);
 
         using var input = new TempFile();
         using var output = new TempFile();
@@ -1461,9 +1479,57 @@ public class WorkbookEditorTests
 
         await WorkbookEditor.AddPivotTableAsync(
             input.Path, output.Path, "Data", "A1:B3", "D1", "P", rowFields, dataFields);
+        var actual = await File.ReadAllBytesAsync(output.Path);
 
-        using var doc = OfficeIMO.Excel.ExcelDocument.Load(
-            new MemoryStream(await File.ReadAllBytesAsync(output.Path), writable: false));
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(actual, writable: false));
+        Assert.Single(doc.GetPivotTables());
+
+        // See AddPivotTableAsync_FromStream_MatchesTheByteArrayOverload's comment: pivotTable.xml
+        // is byte-identical between independent calls, so this compares it directly.
+        Assert.Equal(
+            ReadZipEntryText(expected, "xl/pivotTables/pivotTable.xml"),
+            ReadZipEntryText(actual, "xl/pivotTables/pivotTable.xml"));
+    }
+
+    [Fact]
+    public void PivotFunction_MirrorsOfficeChartDataFunctionByName()
+    {
+        // ToPivotDataFunction's doc comment claims this 1:1 mirror "so nothing here can drift
+        // from what the writer beneath supports" - that claim needs something re-checking it on
+        // every run, or a future OfficeIMO version adding a twelfth ExcelPivotDataFunction value
+        // drifts silently. Matches ChartType's own parity discipline from A95.
+        Assert.Equal(
+            Enum.GetNames<OfficeIMO.Excel.ExcelPivotDataFunction>().OrderBy(n => n, StringComparer.Ordinal),
+            Enum.GetNames<PivotFunction>().OrderBy(n => n, StringComparer.Ordinal));
+    }
+
+    public static IEnumerable<object[]> AllPivotFunctions() =>
+        Enum.GetValues<PivotFunction>().Select(f => new object[] { f });
+
+    [Theory]
+    [MemberData(nameof(AllPivotFunctions))]
+    public void AddPivotTable_EveryAggregationFunctionProducesALoadablePivotTable(PivotFunction function)
+    {
+        // Only Sum and Average were exercised by the other pivot tests in this file before this
+        // theory - a swapped mapping arm (e.g. Variance <-> VarianceP) would have shipped with
+        // nothing failing. Probed directly against the real OfficeIMO.Excel 3.2.6 API first
+        // (unlike A95's Scatter/Bubble, all 11 ExcelPivotDataFunction values succeed with this
+        // ticket's categories+values shape - no exclusion needed here).
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Amount" },
+                new object[] { "North", 100 },
+                new object[] { "South", 200 },
+            });
+
+        var result = WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:B3", "D1", "P",
+            new[] { "Region" }, new[] { new PivotDataField("Amount", function) });
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
         Assert.Single(doc.GetPivotTables());
     }
 
