@@ -48,6 +48,15 @@ reads cached values — which is most of them — sees an empty cell until Excel
 the file. This is a genuinely surprising interop failure, and it is worth knowing which side of it
 you are on.
 
+**Two operations exist for the reader that is neither this library nor Excel.**
+@DocToolkit.WorkbookEditor.InspectFormulas* reports which formulas the underlying engine actually
+understands, before you trust a value — each carries its own reason when it does not.
+@DocToolkit.WorkbookEditor.EvaluateFormulas* writes the computed value into the file itself, for a
+reader that will not recalculate on its own — a spreadsheet viewer that only trusts a cached value,
+or a parser that reads the XML directly.
+
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#formula-evaluate)]
+
 `AppendRows` adds after the sheet's last used row and leaves every other sheet untouched, which is
 the operation you want for a log or an export that accumulates.
 
@@ -138,12 +147,12 @@ Pivot cell D1 right after creation: ""
 
 **The result grid is empty until Excel opens and recalculates it.** That is a harder version of
 the formula caveat above (*Several sheets, and formulas between them*): a formula's value **is**
-computed by `ReadCell`/`ReadSheet` on read, because this library's own engine evaluates it — a
-pivot table's is not, because nothing that writes a workbook, this method included, computes a
-pivot aggregation. Reading the pivot's own cells back with `ReadCell`/`ReadSheet` immediately after
-this call returns empty strings, and `XlsxToPdfConverter` renders nothing where the pivot's results
-would be, for the identical reason it renders a formula's literal text rather than its computed
-value. Open the result in Excel (or an equivalent) to see it populated.
+computed by `ReadCell`/`ReadSheet` on read, and, since `XlsxToPdfConverter` started calling
+`Calculate()` before rendering, is now computed there too. A pivot aggregation is not, on any of
+those paths: nothing in this library evaluates one. Reading the pivot's own cells back with
+`ReadCell`/`ReadSheet` immediately after this call returns empty strings, and `XlsxToPdfConverter`
+renders nothing where the pivot's results would be. Open the result in Excel (or an equivalent) to
+see it populated.
 
 ## Presentations
 
@@ -242,6 +251,12 @@ authored some other way — directly in Excel or PowerPoint, or through `OfficeI
 present in the source file is a different, unmeasured case; if that is your situation, render it to
 an image yourself and place that instead.
 
+**A formula cell renders its computed value here too, not its source text.** `XlsxToPdfConverter`
+calls `Calculate()` before rendering, the same evaluation `ReadCell`/`ReadSheet` already do on
+read — so `=SUM(A1:B1)` renders as `42`, not as the literal text `SUM(A1:B1)`. A pivot table's
+result grid is a different, unfixed case: see *Pivot tables* above for why nothing renders there
+until Excel has recalculated the file.
+
 ### Legacy `.ppt` decks
 
 `PptxToPdfConverter.Convert` also reads **PowerPoint 97-2003 binary decks**. No separate call and no
@@ -255,6 +270,32 @@ cannot be read is refused, not rendered blank.
 So it is worth pointing at an archive of old decks, and worth checking the result rather than
 assuming it. `XlsxToPdfConverter` has no equivalent: a legacy `.xls` workbook is **refused**, with a
 message saying so.
+
+## Document properties
+
+What a file manager shows in its properties panel, and what a search indexer reads.
+@DocToolkit.DocumentMetadata is shared across XLSX, PPTX and DOCX — the same type comes back from
+@DocToolkit.WorkbookEditor.ReadMetadata* and @DocToolkit.PresentationEditor.ReadMetadata*, since
+the three formats' property bags are identical in shape. See
+[Document properties](word-documents.md#document-properties) for the DOCX side, and note it is
+deliberately **not** shared with the PDF-specific `PdfMetadata` — the two ecosystems use the word
+`Creator` for two different things, and forcing one type to cover both would collide them.
+
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#metadata)]
+
+```text
+After retitling: title "Superseded", creator still "Contoso Finance"
+```
+
+[!code-csharp[](../../../samples/Presentations/Program.cs#metadata)]
+
+```text
+After retitling: title "Superseded", creator still "Contoso Finance"
+```
+
+**Every property is `null` when absent, not empty**, and a `null` passed to `WithMetadata` leaves
+whatever the document already had alone — retitling a workbook does not silently erase its author.
+Pass an empty string to actually clear a value.
 
 ## Choosing a starting point
 

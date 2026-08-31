@@ -130,4 +130,27 @@ Console.WriteLine($"Title page   : {withCover.Length:N0} bytes (page one carries
 bool headerSurvived = headerText.Contains("Contoso Ltd", StringComparison.Ordinal);
 
 Console.WriteLine($"Header found : {headerSurvived}");
+
+// --- Metadata -----------------------------------------------------------------------------
+// What a file manager shows in its properties panel, and what a search indexer reads - shared
+// across DOCX, XLSX and PPTX; see the Spreadsheets sample for the same type on a workbook.
+
+#region metadata
+byte[] withMetadata = DocxEditor.WithMetadata(invoice, new DocumentMetadata
+{
+    Title = "Invoice for Contoso Ltd",
+    Creator = "Billing",
+});
+
+DocumentMetadata readBack = DocxEditor.ReadMetadata(withMetadata);
+#endregion
+
+Console.WriteLine($"\nTitle          : {readBack.Title}");
+Console.WriteLine($"Creator        : {readBack.Creator}");
+
+byte[] retitled = DocxEditor.WithMetadata(withMetadata, new DocumentMetadata { Title = "Superseded" });
+
+Console.WriteLine($"After retitling: title \"{DocxEditor.ReadMetadata(retitled).Title}\", "
+    + $"creator still \"{DocxEditor.ReadMetadata(retitled).Creator}\"");
+
 Console.WriteLine("\nDone.");

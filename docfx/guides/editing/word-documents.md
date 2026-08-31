@@ -165,3 +165,26 @@ and note that `DocxToPdfConverter` has no equivalent, deliberately.
 embedded; in a slim container with no fonts installed, nothing is embedded and the PDF falls back
 to the base-14 standard fonts. Both are valid and both render, but they are not byte-identical.
 See [Fonts](../production.md#fonts-in-containers) before you compare PDF hashes across environments.
+
+## Document properties
+
+What a file manager shows in its properties panel, and what a search indexer reads — not the
+document's content, but metadata alongside it.
+
+[!code-csharp[](../../../samples/DocxTemplating/Program.cs#metadata)]
+
+```text
+After retitling: title "Superseded", creator still "Billing"
+```
+
+@DocToolkit.DocumentMetadata is shared across DOCX, XLSX and PPTX — the same type comes back from
+@DocToolkit.WorkbookEditor.ReadMetadata* and @DocToolkit.PresentationEditor.ReadMetadata*, covered
+for those two formats in
+[Document properties](spreadsheets-and-presentations.md#document-properties). It is deliberately
+**not** shared with the PDF-specific `PdfMetadata` (see [Metadata](../conversions/html-to-word-and-pdf.md#metadata)) —
+the two ecosystems use the word `Creator` for two different things, and forcing one type to cover
+both would collide them.
+
+**Every property is `null` when absent, not empty**, and a `null` passed to `WithMetadata` leaves
+whatever the document already had alone — so retitling a document does not silently erase its
+author. Pass an empty string to actually clear a value.
