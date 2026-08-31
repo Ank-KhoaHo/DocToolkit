@@ -2026,11 +2026,15 @@ public static class PresentationEditor
     }
 
     /// <summary>
-    /// Validates every digital signature <paramref name="pptx"/> carries — cryptographic
-    /// integrity (tamper detection), certificate chain trust, and revocation, each reported
-    /// independently. Never performs revocation checking or certificate downloads over the
-    /// network, regardless of <paramref name="options"/> — see
-    /// <see cref="DocumentSignatureValidationOptions"/>'s own remarks.
+    /// Validates every digital signature <paramref name="pptx"/> carries, returning the
+    /// report-level tamper-detection verdict alongside each signature's own certificate chain
+    /// trust and revocation status. <b>Read
+    /// <see cref="DocumentSignatureValidationResult"/>'s own remarks before treating its
+    /// <c>CryptographicStatus</c> as tamper detection — it is not; the report-level
+    /// <see cref="DocumentSignatureValidationReport.IsCryptographicallyValid"/> is.</b> Never
+    /// performs revocation checking or certificate downloads over the network, regardless of
+    /// <paramref name="options"/> — see <see cref="DocumentSignatureValidationOptions"/>'s own
+    /// remarks.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
