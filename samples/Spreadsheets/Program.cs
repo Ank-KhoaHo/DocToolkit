@@ -151,7 +151,10 @@ byte[] withChart = WorkbookEditor.AddChart(
     sales, "Sales", "D8", ChartType.ColumnClustered, chartData, title: "Regional Totals");
 #endregion
 
-Console.WriteLine($"\nWith chart   : {withChart.Length:N0} bytes (was {sales.Length:N0})");
+// The exact byte count varies between runs and between platforms - AddChart writes chart XML
+// parts through DocumentFormat.OpenXml directly, which assigns each saved part a fresh random
+// relationship id (the same non-determinism the Presentations sample's own chart line has).
+Console.WriteLine($"\nWith chart   : {withChart.Length:N0} bytes (does not touch the sheet's cell data)");
 Console.WriteLine("^ unlike the pivot above, this DOES reach XlsxToPdfConverter's output - see the guide.");
 
 Console.WriteLine("\nDone.");

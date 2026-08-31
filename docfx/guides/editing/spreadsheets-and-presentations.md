@@ -172,8 +172,14 @@ byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, stri
 
 ### Charts
 
-`WorkbookEditor.AddChart` (see *Pivot tables* above for the `Spreadsheets` sample this is drawn
-from) and `PresentationEditor.AddChart` create charts, sharing one `ChartType`/`ChartData` model:
+`WorkbookEditor.AddChart` and `PresentationEditor.AddChart` create charts, sharing one
+`ChartType`/`ChartData` model:
+
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#chart)]
+
+```text
+With chart   : <varies> bytes (does not touch the sheet's cell data)
+```
 
 [!code-csharp[](../../../samples/Presentations/Program.cs#chart)]
 
@@ -185,7 +191,7 @@ DOCX chart creation is not included in this version — `OfficeIMO.Word`'s chart
 structurally different shape from the one Excel and PowerPoint share, and forcing it into the same
 model would under- or over-serve one side. Word charts may get their own API in a future version.
 
-This **does** reach the render: `PptxToPdfConverter` and `XlsxToPdfConverter` both carry the chart
+Both calls above reach the render: `PptxToPdfConverter` and `XlsxToPdfConverter` carry the chart
 through, title and category labels included — see *Rendering either one to PDF* below for what is
 measured and what is not.
 

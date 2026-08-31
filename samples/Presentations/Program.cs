@@ -23,12 +23,12 @@ Console.WriteLine($"\nSlides       : {slides}");
 Console.WriteLine($"Bodies       : {text.Count}");
 Console.WriteLine($"First body   : \"{(text.Count > 0 ? text[0] : "(empty)")}\"");
 
-byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, string>
+pptx = PresentationEditor.ReplaceText(pptx, new Dictionary<string, string>
 {
     ["{{who}}"] = "World",
 });
 
-IReadOnlyList<string> editedText = PresentationEditor.ExtractText(edited);
+IReadOnlyList<string> editedText = PresentationEditor.ExtractText(pptx);
 Console.WriteLine($"After replace: \"{(editedText.Count > 0 ? editedText[0] : "(empty)")}\"");
 
 // --- A chart on a slide ----------------------------------------------------------------------
@@ -40,13 +40,13 @@ var chartData = new ChartData(
     new[] { "North", "South" },
     new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
 
-byte[] withChart = PresentationEditor.AddChart(
+pptx = PresentationEditor.AddChart(
     pptx, slideIndex: 1, ChartType.ColumnClustered, chartData, title: "Regional Totals");
 #endregion
 
 // The exact byte count varies between runs - DocumentFormat.OpenXml assigns each saved part a
 // fresh random relationship id, which shifts a compressed ZIP's size independent of content.
-Console.WriteLine($"\nWith chart   : {withChart.Length:N0} bytes (reaches PptxToPdfConverter's output)");
+Console.WriteLine($"\nWith chart   : {pptx.Length:N0} bytes (reaches PptxToPdfConverter's output)");
 
 // --- Reading SmartArt --------------------------------------------------------------------------
 // This library cannot AUTHOR a SmartArt diagram yet (see the guide for why), so the deck below is

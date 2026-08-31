@@ -853,17 +853,23 @@ jobs:
       # commit: a sample edit changed a printed byte count and the guide kept the old number
       # until this check was written.
       #
-      # Runs each referenced sample once (six samples, cached across the guides that share one)
+      # Runs each referenced sample once (seven samples, cached across the guides that share one)
       # against the PUBLISHED package, same as every other sample in this repo - so this also
-      # only ever proves what a consumer would actually see. Two labels' byte counts are masked
-      # rather than compared: PDF sizes for the reason CLAUDE.md already gives (font-dependent,
-      # not a property of this code), and DOCX sizes because two otherwise-identical outputs
-      # measured a byte apart in the same process - DocumentFormat.OpenXml assigns each document
-      # a fresh random relationship ID, which shifts a compressed ZIP's size independent of
-      # content. The XLSX byte count is NOT masked: five consecutive identical calls produced the
-      # same size five times, and this job runs on one pinned leg (ubuntu-24.04, same as every
-      # other generated-content guard here), so there is no cross-platform question to hedge
-      # against even if ClosedXML behaved the same way OpenXml does.
+      # only ever proves what a consumer would actually see. Several labels' byte counts are
+      # masked rather than compared: PDF sizes for the reason CLAUDE.md already gives
+      # (font-dependent, not a property of this code); DOCX sizes because two otherwise-identical
+      # outputs measured a byte apart in the same process; and both AddChart byte counts (XLSX and
+      # PPTX), for the same reason as DOCX - DocumentFormat.OpenXml assigns each saved part a
+      # fresh random relationship ID, which shifts a compressed ZIP's size independent of content.
+      #
+      # The plain XLSX Format/pivot byte counts ARE compared exactly, and that is safe for a
+      # narrower reason than "no cross-platform question exists" - that claim was tried here once
+      # and was wrong: a value hand-verified on Windows (7,907 bytes) differed from this pinned
+      # ubuntu-24.04 leg's own measurement (7,880 bytes), same .NET SDK on both machines, so the
+      # gap is DEFLATE's output differing by OS. The check itself is still sound, because it always
+      # compares against exactly the platform it runs on - what breaks is generating or
+      # hand-verifying the recorded guide text anywhere else. See check-guide-output.py's own
+      # module docstring for the full account.
       - name: Assert the guides' recorded output matches a live sample run
         run: python3 scripts/check-guide-output.py --check
 
