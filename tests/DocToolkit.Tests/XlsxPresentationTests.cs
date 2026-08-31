@@ -88,6 +88,19 @@ public class XlsxPresentationTests
         Assert.Equal("options", Assert.Throws<ArgumentException>(
             () => XlsxValidation.OneOf("A1")).ParamName);
     }
+
+    [Fact]
+    public void XlsxTable_CarriesItsRangeNameAndStyle()
+    {
+        XlsxTable table = XlsxTable.Named("A1:B2", "Sales", XlsxTableStyle.Dark);
+
+        Assert.Equal("A1:B2", table.Range);
+        Assert.Equal("Sales", table.Name);
+        Assert.Equal(XlsxTableStyle.Dark, table.Style);
+
+        // The control: the default is Medium, not whatever value happens to be zero in the enum.
+        Assert.Equal(XlsxTableStyle.Medium, XlsxTable.Named("A1:B2", "Sales").Style);
+    }
     // ---- XlsxFormat's five new members ---------------------------------------------------------
 
     [Fact]
@@ -140,7 +153,8 @@ public class XlsxPresentationTests
             .WithColumnWidth("A", 42)
             .WithAutoFilter()
             .WithRule(XlsxRule.Blank("A1:A9", XlsxHighlight.Grey))
-            .WithValidation(XlsxValidation.OneOf("B1:B9", "yes", "no"));
+            .WithValidation(XlsxValidation.OneOf("B1:B9", "yes", "no"))
+            .WithTable(XlsxTable.Named("A1:B9", "Sales"));
 
         // The starting instance is STATIC and shared, so a builder that mutated in place would
         // poison XlsxFormat.None for every caller in the process.
@@ -148,11 +162,13 @@ public class XlsxPresentationTests
         Assert.False(baseline.AutoFilter);
         Assert.Empty(baseline.Rules);
         Assert.Empty(baseline.Validations);
+        Assert.Empty(baseline.Tables);
 
         Assert.Equal(42, grown.ColumnWidths["A"]);
         Assert.True(grown.AutoFilter);
         Assert.Single(grown.Rules);
         Assert.Single(grown.Validations);
+        Assert.Single(grown.Tables);
     }
     // ---- applied, and read back out of the SAVED BYTES ------------------------------------------
 
@@ -167,7 +183,7 @@ public class XlsxPresentationTests
     /// Reads the presentation back out of the SAVED bytes. Asserting on the <see cref="XlsxFormat"/>
     /// object would pass against an <c>ApplyFormat</c> that discarded every one of these.
     /// </summary>
-    private static (double Width, int Rules, int Validations, bool Filter, int FrozenRows, int FrozenColumns, string Colour)
+    private static (double Width, int Rules, int Validations, bool Filter, int FrozenRows, int FrozenColumns, string Colour, int Tables)
         Read(byte[] xlsx)
     {
         using var ms = new MemoryStream(xlsx);
@@ -184,7 +200,8 @@ public class XlsxPresentationTests
                 sheet.AutoFilter is { IsEnabled: true },
                 sheet.SheetView.SplitRow,
                 sheet.SheetView.SplitColumn,
-                colour);
+                colour,
+                sheet.Tables.Count());
     }
 
     [Fact]
@@ -198,6 +215,7 @@ public class XlsxPresentationTests
         Assert.Equal(0, read.Validations);
         Assert.False(read.Filter);
         Assert.Equal(0, read.FrozenRows);
+        Assert.Equal(0, read.Tables);
     }
 
     [Fact]
@@ -259,6 +277,82 @@ public class XlsxPresentationTests
     public void AnAutoFilterReachesTheSavedWorkbook()
     {
         Assert.True(Read(WorkbookEditor.Format(Sheet(), "Data", XlsxFormat.None.WithAutoFilter())).Filter);
+    }
+
+    [Fact]
+    public void ATableReachesTheSavedWorkbook_WithItsNameAndTheme()
+    {
+        byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithTable(XlsxTable.Named("A1:B3", "Sales", XlsxTableStyle.Dark)));
+
+        using var ms = new MemoryStream(xlsx);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var table = workbook.Worksheet("Data").Tables.Single();
+
+        Assert.Equal("Sales", table.Name);
+        Assert.Equal(ClosedXML.Excel.XLTableTheme.TableStyleDark1, table.Theme);
+    }
+
+    [Fact]
+    public void EveryTableStyleReachesTheSavedWorkbookAsItsOwnTheme()
+    {
+        // Four tiers must not collapse onto one theme, the same discrimination
+        // EveryHighlightProducesADistinctColour already applies to XlsxHighlight. Medium maps to
+        // TableStyleMedium2 - ClosedXML's own measured default for a table with no theme set -
+        // which this also proves by asserting the SAVED theme rather than assuming it.
+        var themes = new Dictionary<XlsxTableStyle, ClosedXML.Excel.XLTableTheme>();
+        foreach (XlsxTableStyle style in Enum.GetValues<XlsxTableStyle>())
+        {
+            byte[] xlsx = WorkbookEditor.Format(Sheet(), "Data",
+                XlsxFormat.None.WithTable(XlsxTable.Named("A1:B3", "T" + style, style)));
+
+            using var ms = new MemoryStream(xlsx);
+            using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+            themes[style] = workbook.Worksheet("Data").Tables.Single().Theme;
+        }
+
+        Assert.Equal(ClosedXML.Excel.XLTableTheme.None, themes[XlsxTableStyle.None]);
+        Assert.Equal(ClosedXML.Excel.XLTableTheme.TableStyleLight1, themes[XlsxTableStyle.Light]);
+        Assert.Equal(ClosedXML.Excel.XLTableTheme.TableStyleMedium2, themes[XlsxTableStyle.Medium]);
+        Assert.Equal(ClosedXML.Excel.XLTableTheme.TableStyleDark1, themes[XlsxTableStyle.Dark]);
+        Assert.Equal(4, themes.Values.Select(t => t.Name).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void CombiningWithAutoFilterAndWithTableOverAnOverlappingRangeThrows()
+    {
+        // Pins the claim WithTable's own doc comment makes: a ClosedXML table already carries
+        // its own autofilter, so the sheet-wide one on top of an overlapping table range throws
+        // rather than silently picking one or the other.
+        XlsxFormat conflicting = XlsxFormat.None
+            .WithAutoFilter()
+            .WithTable(XlsxTable.Named("A1:B3", "Sales"));
+
+        Assert.Throws<DocumentConversionException>(
+            () => WorkbookEditor.Format(Sheet(), "Data", conflicting));
+    }
+
+    [Fact]
+    public void AppendingRowsDoesNotExpandAnExistingTable()
+    {
+        // The measured finding XlsxTable's own remarks document: AppendRows writes a raw cell
+        // value at the sheet's last used row, with no awareness of any table on the sheet. A row
+        // appended after this table sits adjacent to it, not inside it - pinned here directly
+        // rather than left to be rediscovered.
+        byte[] withTable = WorkbookEditor.Format(WorkbookEditor.Create("Data",
+            [
+                ["Region", "Total"],
+                ["North", 1200],
+            ]), "Data", XlsxFormat.None.WithTable(XlsxTable.Named("A1:B2", "Sales")));
+
+        byte[] appended = WorkbookEditor.AppendRows(withTable, "Data", [["South", 950]]);
+
+        using var ms = new MemoryStream(appended);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var table = workbook.Worksheet("Data").Tables.Single();
+
+        Assert.Equal(1, table.DataRange.RowCount());
+        Assert.Equal("950", workbook.Worksheet("Data").Cell("B3").GetString());
     }
 
     [Fact]
@@ -514,6 +608,8 @@ public class XlsxPresentationTests
             () => ((IList<XlsxValidation>)XlsxFormat.None.Validations).Add(XlsxValidation.OneOf("A1", "x")));
         Assert.Throws<NotSupportedException>(
             () => ((IList<string>)XlsxValidation.OneOf("A1", "x").Options).Add("y"));
+        Assert.Throws<NotSupportedException>(
+            () => ((IList<XlsxTable>)XlsxFormat.None.Tables).Add(XlsxTable.Named("A1", "T")));
     }
     // ---- the vocabulary is CLOSED, which means it must refuse what falls outside it ------------
 
@@ -555,6 +651,8 @@ public class XlsxPresentationTests
             () => XlsxRule.GreaterThan(range, 1, XlsxHighlight.Red)).ParamName);
         Assert.Equal("range", Assert.Throws<ArgumentException>(
             () => XlsxValidation.WholeNumberBetween(range, 1, 2)).ParamName);
+        Assert.Equal("range", Assert.Throws<ArgumentException>(
+            () => XlsxTable.Named(range, "Sales")).ParamName);
     }
 
     [Fact]
@@ -563,6 +661,7 @@ public class XlsxPresentationTests
         // The control. Without this, a guard that refused EVERY range would pass the theory above.
         Assert.Equal("A2:B2", XlsxRule.GreaterThan("A2:B2", 1, XlsxHighlight.Red).Range);
         Assert.Equal("A2:B2", XlsxValidation.WholeNumberBetween("A2:B2", 1, 2).Range);
+        Assert.Equal("A2:B2", XlsxTable.Named("A2:B2", "Sales").Range);
     }
     // ---- aimed at the survivor list, not written blind ----------------------------------------
     //
@@ -613,6 +712,9 @@ public class XlsxPresentationTests
         Assert.Throws<ArgumentNullException>(() => XlsxValidation.OneOf("A1", null!));
         Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithRule(null!));
         Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithValidation(null!));
+        Assert.Throws<ArgumentNullException>(() => XlsxTable.Named(null!, "Sales"));
+        Assert.Throws<ArgumentNullException>(() => XlsxTable.Named("A1", null!));
+        Assert.Throws<ArgumentNullException>(() => XlsxFormat.None.WithTable(null!));
     }
 
     [Fact]
@@ -625,6 +727,7 @@ public class XlsxPresentationTests
         {
             Assert.Throws<ArgumentException>(() => XlsxRule.Blank(blank, XlsxHighlight.Grey));
             Assert.Throws<ArgumentException>(() => XlsxValidation.OneOf(blank, "x"));
+            Assert.Throws<ArgumentException>(() => XlsxTable.Named(blank, "Sales"));
         }
 
         // Null, on BOTH vocabularies, naming the caller's argument. XlsxValidation had no
@@ -738,6 +841,13 @@ public class XlsxPresentationTests
         Assert.True(read.Filter);
         Assert.Equal(1, read.Rules);
         Assert.Equal(1, read.Validations);
+
+        // WithTable is a second, separate call in the README - combining it with WithAutoFilter
+        // over an overlapping range throws (a table already brings its own autofilter), which
+        // this second call proves does NOT happen when they are not combined.
+        byte[] withTable = WorkbookEditor.Format(Sheet(), "Data",
+            XlsxFormat.None.WithTable(XlsxTable.Named("A1:B3", "Sales", XlsxTableStyle.Medium)));
+        Assert.Equal(1, Read(withTable).Tables);
     }
     [Fact]
     public void SettingAFreezeTwiceKeepsTheLastOne_NotTheFirst()
@@ -752,18 +862,21 @@ public class XlsxPresentationTests
     }
 
     [Fact]
-    public void BothVocabulariesExplainTheSheetQualifierInFull_NotJustTheFirstHalf()
+    public void AllThreeVocabulariesExplainTheSheetQualifierInFull_NotJustTheFirstHalf()
     {
-        // XlsxValidation carries its own copy of the refusal message and the theory above asserts
-        // only ParamName, so every string in that copy survived. The message spans three literals
-        // and the LAST one names the fix, so asserting the opening phrase alone leaves the useful
-        // half unpinned - which is how a message decays into "no" with the "why" quietly gone.
+        // XlsxValidation and XlsxTable each carry their own copy of the refusal message and the
+        // theory above asserts only ParamName, so every string in each copy survived unpinned. The
+        // message spans three literals and the LAST one names the fix, so asserting the opening
+        // phrase alone leaves the useful half unpinned - which is how a message decays into "no"
+        // with the "why" quietly gone.
         foreach (string message in new[]
         {
             Assert.Throws<ArgumentException>(
                 () => XlsxRule.GreaterThan("Other!A1:B2", 1, XlsxHighlight.Red)).Message,
             Assert.Throws<ArgumentException>(
                 () => XlsxValidation.WholeNumberBetween("Other!A1:B2", 1, 2)).Message,
+            Assert.Throws<ArgumentException>(
+                () => XlsxTable.Named("Other!A1:B2", "Sales")).Message,
         })
         {
             Assert.Contains("silently discarded", message, StringComparison.Ordinal);

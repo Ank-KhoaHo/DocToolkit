@@ -152,9 +152,10 @@ string sheetHtml = XlsxToHtmlConverter.Convert(xlsx, "Sales");
 // and columns auto-fitted. Everything else is a With... call on top of it.
 //
 // The boundary is a CLOSED vocabulary rather than a small one: six rule conditions, five
-// validation kinds, four highlights, a freeze position, a column width - each enumerable,
-// measured and guaranteed. If what you need cannot be expressed as a closed set (arbitrary
-// fonts, borders, fills, colour scales), use ClosedXML directly rather than a thinner API.
+// validation kinds, four highlights, four table style tiers, a freeze position, a column
+// width - each enumerable, measured and guaranteed. If what you need cannot be expressed as
+// a closed set (arbitrary fonts, borders, fills, colour scales), use ClosedXML directly
+// rather than a thinner API.
 byte[] report = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.Report
     .WithNumberFormat("B", "#,##0.00")
     .WithColumnWidth("A", 42)                    // explicit; beats auto-fit for this column
@@ -167,6 +168,12 @@ byte[] report = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.Report
     // XlsxValidationKind: WholeNumber, Decimal, TextLength, Date, List. This is the half of a
     // generated workbook that survives a human editing it.
     .WithValidation(XlsxValidation.OneOf("C2:C999", "Free", "Pro", "Team")));
+
+// A named, banded Excel table (a ListObject), separately - a table already brings its own
+// autofilter, so combining WithTable with WithAutoFilter over an overlapping range throws
+// rather than silently picking one. XlsxTableStyle: None, Light, Medium, Dark.
+byte[] withTable = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.None
+    .WithTable(XlsxTable.Named("A1:C10", "Sales", XlsxTableStyle.Medium)));
 
 // ...and, if you need to know what those conversions could NOT carry across, the same
 // call with a report. ConversionResult<T> gives you the output plus a ConversionWarning
@@ -1428,6 +1435,8 @@ is that you find out by reading the source.
 | **DOCX → HTML returns a full document, not a fragment** | Extract the body with a parser if you are embedding it. |
 | **Formulas carry no cached value in the file itself** | Excel recalculates on open, and `ReadCell`/`ReadSheet` evaluate on read, and `XlsxToPdfConverter` calculates before rendering — but a reader that only trusts a cached value and never recalculates sees an empty cell until something writes one. Call `WorkbookEditor.EvaluateFormulas` first to put one in the file for such a reader, or `InspectFormulas` to check first whether a given formula is even understood. |
 | **Pivot table results carry no cached value either, and NOTHING computes them — not `ReadCell`, not `XlsxToPdfConverter`** | `WorkbookEditor.AddPivotTable`'s result grid is populated only when Excel opens and recalculates the file — a harder version of the row above: a formula's value is computed on every path that reads one, while a pivot table's is not on any of them, because nothing in this library evaluates a pivot aggregation. `XlsxToPdfConverter` renders nothing where the results would be. See the [spreadsheets and presentations guide](https://ank-khoaho.github.io/DocToolkit/guides/editing/spreadsheets-and-presentations.html#pivot-tables). |
+| **`WithTable` does not make `AppendRows` keep the table current** | `AppendRows` writes a raw cell value at the sheet's last used row — it has no awareness of any table on the sheet, and ClosedXML does not retroactively absorb an adjacent cell write into a table's range on its own. Measured directly: appending a row after a table leaves the table's own range and row count unchanged, with the new row sitting adjacent to it rather than inside it. Recreate the table over the new range if you need it current. |
+| **`WithTable` and `WithAutoFilter` cannot target overlapping ranges** | A ClosedXML table already carries its own autofilter, so applying the sheet-wide one on top of an overlapping table range throws rather than silently picking one. Use one or the other over the same cells. |
 | **An OLE-embedded object survives some `WorkbookEditor` operations and not others** | `WorkbookEditor.AddChart`, `AddPivotTable`, `Protect` and `Unprotect` go through `OfficeIMO.Excel.ExcelDocument`, editing the package in place, and preserve a worksheet's embedded object exactly. `SetCell`, `AppendRows`, and the rest of that class's ClosedXML-backed surface for editing an *existing* workbook go through `ClosedXML.Excel.XLWorkbook`, which reconstructs the package from its own object model on save — it silently drops the `<drawing>` element and its part that anchor the object to the sheet, while the embedded content's own bytes survive as an orphaned, unreachable part. Measured directly, not assumed: a picture ClosedXML inserted itself survives the identical `SetCell` round-trip, so this is specific to drawing content ClosedXML did not create. **`PresentationEditor` is unaffected** — every operation, including PPTX's `AddChart`, `RemoveSlides`, `ReorderSlides` and `InsertSlides`, was measured to preserve an embedded/linked OLE object correctly. **`DocxEditor.ReplaceText` and `ReplaceImage` were measured the same way and also preserve one** — its other editing operations (`FillRows`, footnotes/endnotes, table of contents, `Protect`/`Unprotect`) have not been measured against an embedded object. |
 | **Memory scales with the document, not the file** | Peak is dominated by the OOXML object model — measured ~120 MB for `ReadSheet` and ~233 MB for `SetCell` on a 1.9 MB, 40,000-row workbook. See above; the `Stream` overloads are not cheaper. |
 | **Below 1.0.0, permanently** | Anything may change in a minor version. |

@@ -75,6 +75,7 @@ namespace DocToolkit
         public DocToolkit.XlsxFreeze? FreezeAt { get; }
         public bool FreezeHeaderRow { get; }
         public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxRule> Rules { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxTable> Tables { get; }
         public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxValidation> Validations { get; }
         public static DocToolkit.XlsxFormat None { get; }
         public static DocToolkit.XlsxFormat Report { get; }
@@ -86,6 +87,7 @@ namespace DocToolkit
         public DocToolkit.XlsxFormat WithFrozenHeaderRow(bool frozen = true) { }
         public DocToolkit.XlsxFormat WithNumberFormat(string column, string numberFormat) { }
         public DocToolkit.XlsxFormat WithRule(DocToolkit.XlsxRule rule) { }
+        public DocToolkit.XlsxFormat WithTable(DocToolkit.XlsxTable table) { }
         public DocToolkit.XlsxFormat WithValidation(DocToolkit.XlsxValidation validation) { }
     }
     public sealed class XlsxFormula
@@ -151,6 +153,20 @@ namespace DocToolkit
         public string Name { get; }
         public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<object?>> Rows { get; }
         public static DocToolkit.XlsxSheet Named(string name, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
+    }
+    public sealed class XlsxTable
+    {
+        public string Name { get; }
+        public string Range { get; }
+        public DocToolkit.XlsxTableStyle Style { get; }
+        public static DocToolkit.XlsxTable Named(string range, string name, DocToolkit.XlsxTableStyle style = 2) { }
+    }
+    public enum XlsxTableStyle
+    {
+        None = 0,
+        Light = 1,
+        Medium = 2,
+        Dark = 3,
     }
     public sealed class XlsxValidation
     {
