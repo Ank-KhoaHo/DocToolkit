@@ -300,8 +300,10 @@ public class StreamOverloadTests
         "XlsxToCsvConverter.ConvertAsync",
         "XlsxToHtmlConverter.ConvertAsync",
         "DocxEditor.ExtractTextAsync(includeHeadersAndFooters)",
+        "DocxEditor.InspectSignaturesAsync",
         "DocxEditor.TableCountAsync",
         "DocxEditor.ReadTableAsync",
+        "DocxEditor.ValidateSignaturesAsync",
         "WorkbookEditor.ReadCellAsync",
         "WorkbookEditor.SheetNamesAsync",
         "WorkbookEditor.ReadSheetAsync",
@@ -310,6 +312,8 @@ public class StreamOverloadTests
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
         "WorkbookEditor.AddPivotTableAsync",
+        "WorkbookEditor.InspectSignaturesAsync",
+        "WorkbookEditor.ValidateSignaturesAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ReadSmartArtAsync",
@@ -320,6 +324,8 @@ public class StreamOverloadTests
         "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
+        "PresentationEditor.InspectSignaturesAsync",
+        "PresentationEditor.ValidateSignaturesAsync",
         "PdfEditor.PageCountAsync",
         "PdfEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
@@ -1231,6 +1237,8 @@ public class StreamOverloadTests
                 DocxEditor.AddTableOfContentsAsync(source!, "{{toc}}", destination!, ct: ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
+            "DocxEditor.InspectSignaturesAsync" =>
+                DocxEditor.InspectSignaturesAsync(source!, ct),
             "PdfEditor.ExtractTextAsync" =>
                 PdfEditor.ExtractTextAsync(source!, ct),
             "DocxToHtmlConverter.ConvertAsync" =>
@@ -1251,6 +1259,8 @@ public class StreamOverloadTests
                 DocxEditor.TableCountAsync(source!, ct),
             "DocxEditor.ReadTableAsync" =>
                 DocxEditor.ReadTableAsync(source!, 0, ct),
+            "DocxEditor.ValidateSignaturesAsync" =>
+                DocxEditor.ValidateSignaturesAsync(source!, ct: ct),
             "DocxEditor.CreateAsync" =>
                 DocxEditor.CreateAsync(Blocks, destination!, ct),
             // PageSetup.Letter rather than A4: A4 is the default, so an arm passing it
@@ -1285,6 +1295,10 @@ public class StreamOverloadTests
                 WorkbookEditor.AddPivotTableAsync(
                     source!, "Sales", "A1:B2", "D1", "P", new[] { "Region" },
                     new[] { new PivotDataField("Total", PivotFunction.Sum) }, destination!, ct: ct),
+            "WorkbookEditor.InspectSignaturesAsync" =>
+                WorkbookEditor.InspectSignaturesAsync(source!, ct),
+            "WorkbookEditor.ValidateSignaturesAsync" =>
+                WorkbookEditor.ValidateSignaturesAsync(source!, ct: ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ReadSlideAsync" =>
@@ -1308,6 +1322,10 @@ public class StreamOverloadTests
                 PresentationEditor.RemoveSlidesAsync(source!, new[] { 1 }, destination!, ct),
             "PresentationEditor.ReplaceImageAsync" =>
                 PresentationEditor.ReplaceImageAsync(source!, "{{chart}}", ImageFixtures.Png(), destination!, ct),
+            "PresentationEditor.InspectSignaturesAsync" =>
+                PresentationEditor.InspectSignaturesAsync(source!, ct),
+            "PresentationEditor.ValidateSignaturesAsync" =>
+                PresentationEditor.ValidateSignaturesAsync(source!, ct: ct),
             "PresentationEditor.CreateAsync" =>
                 PresentationEditor.CreateAsync(Slides, destination!, ct),
             "MarkdownToDocxConverter.ConvertAsync" =>

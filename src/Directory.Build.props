@@ -138,6 +138,18 @@
     <PackageReference Include="OfficeIMO.PowerPoint" Version="3.2.6" />
 
     <!--
+      Digital-signature inspection and validation (A99). The abstractions (IOfficeSecurityProvider,
+      OfficePackageSignatureInfo, etc.) already arrive transitively through OfficeIMO.Word/.Excel/
+      .PowerPoint via OfficeIMO.Core - this package is what supplies the one CONCRETE provider,
+      OfficeSecurityProvider, without which ValidateSignatures has no cryptographic engine to call.
+      Fully managed: BouncyCastle.Cryptography 2.7.0 (MIT, confirmed from its own nuspec) plus the
+      first-party System.Security.Cryptography.Pkcs/.Xml - no native binaries, measured this
+      session via `dotnet list package` with the include-transitive flag on a throwaway probe
+      project.
+    -->
+    <PackageReference Include="OfficeIMO.Security" Version="3.2.6" />
+
+    <!--
       Promoted from TRANSITIVE to direct for DocToDocxConverter (legacy .doc import). It arrived
       transitively through the four packages above, so the resolved closure does not change - this
       only makes the dependency this code binds against explicit, the same bookkeeping the PDF

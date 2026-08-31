@@ -39,6 +39,8 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task CreateToFileAsync(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static byte[] Format(byte[] xlsx, string sheetName, DocToolkit.XlsxFormat format) { }
         public static System.Threading.Tasks.Task FormatAsync(System.IO.Stream source, string sheetName, DocToolkit.XlsxFormat format, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] xlsx) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static bool IsProtected(byte[] xlsx) { }
         public static byte[] Protect(byte[] xlsx, string password) { }
         public static System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
@@ -56,6 +58,8 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> SheetNamesAsync(string path, System.Threading.CancellationToken ct = default) { }
         public static byte[] Unprotect(byte[] xlsx, string password) { }
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] xlsx, DocToolkit.DocumentSignatureValidationOptions? options = null) { }
+        public static System.Threading.Tasks.Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(System.IO.Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, System.Threading.CancellationToken ct = default) { }
     }
     public sealed class XlsxFormat
     {

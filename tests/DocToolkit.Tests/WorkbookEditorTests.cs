@@ -1864,4 +1864,66 @@ public class WorkbookEditorTests
         Assert.NotNull(reopenedWorksheet);
         Assert.Single(reopenedWorksheet.Pictures);
     }
+
+    [Fact]
+    public void InspectSignatures_ReportsAnUnsignedWorkbookCleanly()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        var info = WorkbookEditor.InspectSignatures(xlsx);
+
+        Assert.False(info.HasSignatures);
+        Assert.Equal(0, info.SignatureCount);
+    }
+
+    [Fact]
+    public async Task InspectSignaturesAsync_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        var expected = WorkbookEditor.InspectSignatures(xlsx);
+        using var source = new MemoryStream(xlsx, writable: false);
+        var actual = await WorkbookEditor.InspectSignaturesAsync(source);
+
+        Assert.Equal(expected.HasSignatures, actual.HasSignatures);
+        Assert.Equal(expected.SignatureCount, actual.SignatureCount);
+    }
+
+    [Fact]
+    public void ValidateSignatures_ReportsAnUnsignedWorkbookCleanly()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        var report = WorkbookEditor.ValidateSignatures(xlsx);
+
+        Assert.False(report.HasSignatures);
+        Assert.False(report.IsCryptographicallyValid);
+        Assert.Empty(report.Signatures);
+    }
+
+    [Fact]
+    public async Task ValidateSignaturesAsync_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][] { new object[] { "A" } });
+
+        var expected = WorkbookEditor.ValidateSignatures(xlsx);
+        using var source = new MemoryStream(xlsx, writable: false);
+        var actual = await WorkbookEditor.ValidateSignaturesAsync(source);
+
+        Assert.Equal(expected.HasSignatures, actual.HasSignatures);
+        Assert.Equal(expected.IsCryptographicallyValid, actual.IsCryptographicallyValid);
+    }
+
+    [Fact]
+    public void InspectSignatures_NullXlsx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => WorkbookEditor.InspectSignatures(null!));
+    }
+
+    [Fact]
+    public void InspectSignatures_EmptyXlsx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => WorkbookEditor.InspectSignatures(Array.Empty<byte>()));
+        Assert.Equal("xlsx", ex.ParamName);
+    }
 }

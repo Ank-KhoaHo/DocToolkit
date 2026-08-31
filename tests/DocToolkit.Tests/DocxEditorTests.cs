@@ -406,4 +406,66 @@ public class DocxEditorTests
         Assert.Equal(beforePayload.ContentType, afterPayload.ContentType);
         Assert.Equal(beforePayload.Length, afterPayload.Length);
     }
+
+    [Fact]
+    public void InspectSignatures_ReportsAnUnsignedDocumentCleanly()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("unsigned")));
+
+        var info = DocxEditor.InspectSignatures(docx);
+
+        Assert.False(info.HasSignatures);
+        Assert.Equal(0, info.SignatureCount);
+    }
+
+    [Fact]
+    public async Task InspectSignaturesAsync_MatchesTheByteArrayOverload()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("unsigned")));
+
+        var expected = DocxEditor.InspectSignatures(docx);
+        using var source = new MemoryStream(docx, writable: false);
+        var actual = await DocxEditor.InspectSignaturesAsync(source);
+
+        Assert.Equal(expected.HasSignatures, actual.HasSignatures);
+        Assert.Equal(expected.SignatureCount, actual.SignatureCount);
+    }
+
+    [Fact]
+    public void ValidateSignatures_ReportsAnUnsignedDocumentCleanly()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("unsigned")));
+
+        var report = DocxEditor.ValidateSignatures(docx);
+
+        Assert.False(report.HasSignatures);
+        Assert.False(report.IsCryptographicallyValid);
+        Assert.Empty(report.Signatures);
+    }
+
+    [Fact]
+    public async Task ValidateSignaturesAsync_MatchesTheByteArrayOverload()
+    {
+        var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("unsigned")));
+
+        var expected = DocxEditor.ValidateSignatures(docx);
+        using var source = new MemoryStream(docx, writable: false);
+        var actual = await DocxEditor.ValidateSignaturesAsync(source);
+
+        Assert.Equal(expected.HasSignatures, actual.HasSignatures);
+        Assert.Equal(expected.IsCryptographicallyValid, actual.IsCryptographicallyValid);
+    }
+
+    [Fact]
+    public void InspectSignatures_NullDocx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => DocxEditor.InspectSignatures(null!));
+    }
+
+    [Fact]
+    public void InspectSignatures_EmptyDocx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => DocxEditor.InspectSignatures(Array.Empty<byte>()));
+        Assert.Equal("docx", ex.ParamName);
+    }
 }

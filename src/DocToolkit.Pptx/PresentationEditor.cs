@@ -1987,4 +1987,85 @@ public static class PresentationEditor
             .EmitAsync(result, destination, "Failed to read the encrypted PPTX.", ct)
             .ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Inspects <paramref name="pptx"/> for digital signatures — whether it carries one, how
+    /// many, and who claims to have signed it. Does not validate anything cryptographically; see
+    /// <see cref="ValidateSignatures"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be inspected.</exception>
+    public static DocumentSignatureInfo InspectSignatures(byte[] pptx)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0) throw new ArgumentException("Presentation content was empty.", nameof(pptx));
+
+        return OfficeSignature.Inspect(pptx, ".pptx", OfficeIMOPowerPointPowerPointPresentation.InspectPackageSignatures, "PPTX");
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and inspects it for digital signatures — see
+    /// <see cref="InspectSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be inspected.</exception>
+    public static async Task<DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var pptx = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to inspect PPTX signatures. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return OfficeSignature.Inspect(pptx.ToArray(), ".pptx", OfficeIMOPowerPointPowerPointPresentation.InspectPackageSignatures, "PPTX");
+    }
+
+    /// <summary>
+    /// Validates every digital signature <paramref name="pptx"/> carries, returning the
+    /// report-level tamper-detection verdict alongside each signature's own certificate chain
+    /// trust and revocation status. <b>Read
+    /// <see cref="DocumentSignatureValidationResult"/>'s own remarks before treating its
+    /// <c>CryptographicStatus</c> as tamper detection — it is not; the report-level
+    /// <see cref="DocumentSignatureValidationReport.IsCryptographicallyValid"/> is.</b> Never
+    /// performs revocation checking or certificate downloads over the network, regardless of
+    /// <paramref name="options"/> — see <see cref="DocumentSignatureValidationOptions"/>'s own
+    /// remarks.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be validated.</exception>
+    public static DocumentSignatureValidationReport ValidateSignatures(byte[] pptx, DocumentSignatureValidationOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0) throw new ArgumentException("Presentation content was empty.", nameof(pptx));
+
+        return OfficeSignature.Validate(pptx, ".pptx", OfficeIMOPowerPointPowerPointPresentation.ValidatePackageSignatures, options, "PPTX");
+    }
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and validates its digital signatures — see
+    /// <see cref="ValidateSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be validated.</exception>
+    public static async Task<DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocumentSignatureValidationOptions? options = null, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var pptx = await StreamPipeline
+            .DrainAsync(source, "Presentation content was empty.", nameof(source), "Failed to validate PPTX signatures. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        return OfficeSignature.Validate(pptx.ToArray(), ".pptx", OfficeIMOPowerPointPowerPointPresentation.ValidatePackageSignatures, options, "PPTX");
+    }
 }

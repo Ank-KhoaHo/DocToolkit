@@ -60,6 +60,43 @@ namespace DocToolkit
         public DocumentConversionException(string message) { }
         public DocumentConversionException(string message, System.Exception inner) { }
     }
+    public sealed class DocumentSignatureInfo
+    {
+        public DocumentSignatureInfo(bool hasSignatures, int signatureCount, System.Collections.Generic.IEnumerable<string> signers) { }
+        public bool HasSignatures { get; }
+        public int SignatureCount { get; }
+        public System.Collections.Generic.IReadOnlyList<string> Signers { get; }
+    }
+    public enum DocumentSignatureStatus
+    {
+        NotPresent = 0,
+        NotChecked = 1,
+        Passed = 2,
+        Failed = 3,
+        Unsupported = 4,
+    }
+    public sealed class DocumentSignatureValidationOptions
+    {
+        public DocumentSignatureValidationOptions() { }
+        public bool ValidateCertificateTrust { get; set; }
+    }
+    public sealed class DocumentSignatureValidationReport
+    {
+        public DocumentSignatureValidationReport(bool hasSignatures, bool isCryptographicallyValid, bool isValidUnderPolicy, System.Collections.Generic.IEnumerable<DocToolkit.DocumentSignatureValidationResult> signatures, System.Collections.Generic.IEnumerable<string> findings) { }
+        public System.Collections.Generic.IReadOnlyList<string> Findings { get; }
+        public bool HasSignatures { get; }
+        public bool IsCryptographicallyValid { get; }
+        public bool IsValidUnderPolicy { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.DocumentSignatureValidationResult> Signatures { get; }
+    }
+    public sealed class DocumentSignatureValidationResult
+    {
+        public DocumentSignatureValidationResult(DocToolkit.DocumentSignatureStatus cryptographicStatus, DocToolkit.DocumentSignatureStatus certificateChainStatus, DocToolkit.DocumentSignatureStatus revocationStatus, System.Collections.Generic.IEnumerable<string> signers) { }
+        public DocToolkit.DocumentSignatureStatus CertificateChainStatus { get; }
+        public DocToolkit.DocumentSignatureStatus CryptographicStatus { get; }
+        public DocToolkit.DocumentSignatureStatus RevocationStatus { get; }
+        public System.Collections.Generic.IReadOnlyList<string> Signers { get; }
+    }
     public sealed class DocxHeader
     {
         public DocToolkit.HeaderAlignment Alignment { get; }
