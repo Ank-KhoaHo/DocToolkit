@@ -36,7 +36,9 @@ finally
 {
     // Best effort: a delete failure (e.g. a locked handle from an AV scanner) must not mask
     // whatever exception the try block itself raised.
-    try { File.Delete(tempPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    try { File.Delete(tempPath); }
+    catch (IOException) { /* best effort */ }
+    catch (UnauthorizedAccessException) { /* best effort */ }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -88,7 +90,9 @@ try
 }
 finally
 {
-    try { File.Delete(tamperedPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    try { File.Delete(tamperedPath); }
+    catch (IOException) { /* best effort */ }
+    catch (UnauthorizedAccessException) { /* best effort */ }
 }
 
 DocumentSignatureValidationReport tamperedReport = DocxEditor.ValidateSignatures(
