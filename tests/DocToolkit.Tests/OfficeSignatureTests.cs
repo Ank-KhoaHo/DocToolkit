@@ -85,6 +85,10 @@ public class OfficeSignatureTests
         Assert.True(report.HasSignatures);
         Assert.True(report.IsCryptographicallyValid);
         var signature = Assert.Single(report.Signatures);
+        // signature.CryptographicStatus does NOT discriminate tamper (see
+        // Validate_RejectsATamperedDocument and DocumentSignatureValidationResult's own remarks) -
+        // it is asserted here only to pin that an untrusted chain doesn't drag it to Failed either,
+        // i.e. it really is independent of CertificateChainStatus in both directions.
         Assert.Equal(DocumentSignatureStatus.Passed, signature.CryptographicStatus);
         Assert.Equal(DocumentSignatureStatus.Failed, signature.CertificateChainStatus);
         // The untrusted root correctly fails the overall policy verdict even though the content
@@ -134,6 +138,18 @@ public class OfficeSignatureTests
         Assert.True(untamperedReport.IsCryptographicallyValid);
         Assert.False(tamperedReport.IsCryptographicallyValid);
         Assert.False(tamperedReport.IsValidUnderPolicy);
+
+        // PINS A MEASURED, DOCUMENTED LIMITATION - see DocumentSignatureValidationResult's own
+        // remarks. The per-signature CryptographicStatus does NOT detect this tamper: it verifies
+        // only that the signature block's own SignatureValue is well-formed against SignedInfo,
+        // which a post-signing content edit does not touch. Confirmed unchanged on BOTH copies -
+        // report.IsCryptographicallyValid above is the field that actually discriminates. If a
+        // future OfficeIMO version starts reflecting the digest mismatch here, this assertion
+        // fails and is the signal to revisit the doc comments rather than a silent behavior change.
+        var untamperedSignature = Assert.Single(untamperedReport.Signatures);
+        var tamperedSignature = Assert.Single(tamperedReport.Signatures);
+        Assert.Equal(DocumentSignatureStatus.Passed, untamperedSignature.CryptographicStatus);
+        Assert.Equal(DocumentSignatureStatus.Passed, tamperedSignature.CryptographicStatus);
     }
 
     [Fact]

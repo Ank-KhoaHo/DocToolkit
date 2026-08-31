@@ -916,10 +916,17 @@ DocumentSignatureValidationReport report = WorkbookEditor.ValidateSignatures(xls
 //                                                certificate this machine trusts?
 ```
 
-`report.Signatures[0]` is a `DocumentSignatureValidationResult`, whose `CryptographicStatus` —
-a `DocumentSignatureStatus` — carries that one signature's own tamper-detection outcome,
-alongside `CertificateChainStatus` for its chain trust. `IsCryptographicallyValid` above is a
-separate, report-level verdict rather than something computed from either.
+`report.Signatures` is a list of `DocumentSignatureValidationResult`, one per signature, each
+carrying its own `CryptographicStatus`, `CertificateChainStatus` and `RevocationStatus` — every
+one a `DocumentSignatureStatus`.
+
+**`report.IsCryptographicallyValid` is the tamper-detection verdict — the per-signature
+`Signatures[0].CryptographicStatus`, despite the similar name, is not.** Measured directly: a
+document altered after signing, without re-signing, still reports `CryptographicStatus = Passed`
+on the affected signature — that field only confirms the signature block itself is well-formed,
+not that the content it covers is unchanged. `IsCryptographicallyValid` is the field that
+correctly goes `false` on a tampered document. For a document carrying more than one signature it
+is an aggregate across all of them ("was anything altered"), not a per-signature answer.
 
 **`InspectSignatures` reports a claimed identity, not a proven one.** `Signers` is read from each
 signing certificate's own subject name, without validating the signature at all — anyone can put
@@ -930,9 +937,11 @@ real.
 Measured directly against a real self-signed certificate: an untampered signature reports
 `IsCryptographicallyValid = true` even when the certificate never chains to a trusted root
 (`CertificateChainStatus = Failed`, the ordinary and expected outcome for an internal/enterprise
-signer). Pass `AdditionalTrustedCertificates` on `DocumentSignatureValidationOptions` to trust an
-internal certificate authority explicitly, or set `ValidateCertificateTrust = false` to skip chain
-checking entirely and only ask "was this tampered with."
+signer). Set `ValidateCertificateTrust = false` on `DocumentSignatureValidationOptions` to skip
+chain checking entirely and only ask "was this tampered with." **There is no option to trust an
+internal certificate authority without installing it in this machine's own trust store** — an
+earlier draft of this feature had one and it was removed before release, measured not to actually
+confer trust (see `DocumentSignatureValidationOptions`'s own remarks for what was measured).
 
 **No revocation checking, ever, and no network access of any kind.** Not configurable. Chain
 validation checks only this machine's local trust store.

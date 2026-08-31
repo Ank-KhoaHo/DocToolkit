@@ -55,12 +55,14 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 --- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---
 - AngleSharp 1.7.2 - MIT (direct) - https://github.com/AngleSharp/AngleSharp
 - AngleSharp.Css 1.0.1 - MIT (transitive) - https://github.com/AngleSharp/AngleSharp.Css
+- BouncyCastle.Cryptography 2.7.0 - MIT (transitive) - https://github.com/bcgit/bc-csharp
 - ClosedXML 0.105.1 - MIT (direct) - https://github.com/ClosedXML/ClosedXML
 - ClosedXML.Parser 2.0.0 - MIT (transitive) - https://github.com/ClosedXML/ClosedXML.Parser
 - DocumentFormat.OpenXml 3.5.1 - MIT (direct) - https://github.com/dotnet/Open-XML-SDK
 - DocumentFormat.OpenXml.Framework 3.5.1 - MIT (transitive) - https://github.com/dotnet/Open-XML-SDK
 - ExcelNumberFormat 1.1.0 - MIT (transitive) - https://github.com/andersnm/ExcelNumberFormat
 - HtmlToOpenXml.dll 3.5.0 - MIT (direct) - https://github.com/onizet/html2openxml
+- Microsoft.Bcl.Cryptography 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
 - Microsoft.Extensions.DependencyInjection.Abstractions 8.0.2 - MIT (transitive) - https://github.com/dotnet/runtime
 - Microsoft.Extensions.Logging.Abstractions 8.0.3 - MIT (transitive) - https://github.com/dotnet/runtime
 - OfficeIMO.Core 3.2.6 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
@@ -72,6 +74,7 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - OfficeIMO.Pdf 3.2.6 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.PowerPoint 3.2.6 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.PowerPoint.Pdf 3.2.6 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
+- OfficeIMO.Security 3.2.6 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word 3.2.6 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Html 3.2.6 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
 - OfficeIMO.Word.Markdown 3.2.6 - MIT (direct) - https://github.com/EvotecIT/OfficeIMO
@@ -80,11 +83,13 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - PDFsharp 6.2.4 - MIT (direct) - https://github.com/empira/PDFsharp
 - RBush.Signed 4.0.0 - MIT (transitive) - https://github.com/viceroypenguin/RBush
 - SixLabors.Fonts 1.0.1 - Apache-2.0 (direct) - https://github.com/SixLabors/Fonts
+- System.Formats.Asn1 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 10.0.2 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
-- System.Security.Cryptography.Pkcs 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
+- System.Security.Cryptography.Pkcs 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
+- System.Security.Cryptography.Xml 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
 
-Totals: 30 packages (15 direct, 15 transitive) - 2 Apache-2.0, 28 MIT.
+Totals: 35 packages (16 direct, 19 transitive) - 2 Apache-2.0, 33 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---

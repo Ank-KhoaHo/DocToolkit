@@ -12,9 +12,11 @@ namespace DocToolkit;
 /// <b>OfficeIMO's signature API takes a file PATH, not bytes or a Stream — no such overload
 /// exists.</b> XML digital-signature verification is byte-sensitive, so re-serializing through an
 /// in-memory object model risks validating bytes that differ from what was actually signed. This
-/// writes the caller's bytes to a uniquely named temporary file, runs the given OfficeIMO call
-/// against it, and deletes it in a <c>finally</c> block — the one place this package needs that
-/// pattern; every other OfficeIMO interaction goes through a <c>Stream</c>-based <c>Load</c>.
+/// writes the caller's bytes to a uniquely named temporary file (created user-only via
+/// <see cref="UnixFileMode"/> — this is the only place this package writes caller document
+/// content into a shared, non-per-user directory), runs the given OfficeIMO call against it, and
+/// deletes it in a <c>finally</c> block — the one place this package needs that pattern; every
+/// other OfficeIMO interaction goes through a <c>Stream</c>-based <c>Load</c>.
 ///
 /// <b>No revocation check and no certificate download ever happen, on any call.</b> Both are
 /// forced off before every validation, regardless of what a caller might want — see
@@ -28,9 +30,10 @@ internal static class OfficeSignature
         Func<string, OfficePackageSignatureInspectionOptions, OfficePackageSignatureInfo> inspectPackageSignatures,
         string format)
     {
-        var tempPath = WriteToTempFile(document, fileExtension);
+        var tempPath = TempFilePath(fileExtension);
         try
         {
+            WriteToTempFile(tempPath, document);
             var info = inspectPackageSignatures(tempPath, new OfficePackageSignatureInspectionOptions());
             var signers = info.SignatureParts.SelectMany(p => p.X509SubjectNames).ToList();
             return new DocumentSignatureInfo(info.HasSignatures, info.SignatureParts.Count, signers);
@@ -52,9 +55,10 @@ internal static class OfficeSignature
         DocumentSignatureValidationOptions? options, string format)
     {
         var resolvedOptions = options ?? new DocumentSignatureValidationOptions();
-        var tempPath = WriteToTempFile(document, fileExtension);
+        var tempPath = TempFilePath(fileExtension);
         try
         {
+            WriteToTempFile(tempPath, document);
             var officeOptions = new OfficeIMO.Security.OfficePackageSignatureValidationOptions
             {
                 ValidateCertificateTrust = resolvedOptions.ValidateCertificateTrust,
@@ -63,11 +67,6 @@ internal static class OfficeSignature
             // DocumentSignatureValidationOptions' remarks for why this is not a caller choice.
             officeOptions.CertificateValidation.RevocationMode = System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck;
             officeOptions.CertificateValidation.DisableCertificateDownloads = true;
-            if (resolvedOptions.AdditionalTrustedCertificates.Count > 0)
-            {
-                officeOptions.CertificateValidation.ExtraCertificates.AddRange(
-                    resolvedOptions.AdditionalTrustedCertificates.ToArray());
-            }
 
             var report = validatePackageSignatures(tempPath, OfficeSecurityProvider.Default, officeOptions);
             var signatures = report.Signatures.Select(ToValidationResult).ToList();
@@ -106,11 +105,37 @@ internal static class OfficeSignature
         _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unrecognized OfficeIMO signature validation state."),
     };
 
-    private static string WriteToTempFile(byte[] document, string fileExtension)
+    private static string TempFilePath(string fileExtension) =>
+        Path.Combine(Path.GetTempPath(), $"doctoolkit-signature-{Guid.NewGuid():N}{fileExtension}");
+
+    /// <summary>
+    /// Writes <paramref name="document"/> to <paramref name="path"/> with the file created
+    /// user-only on Unix-like systems (<see cref="UnixFileMode.UserRead"/> |
+    /// <see cref="UnixFileMode.UserWrite"/>), rather than the shared temp directory's default
+    /// permissions. This is the only place this package writes caller document content to disk
+    /// under a shared, non-per-user directory (<c>/tmp</c> on Linux/macOS is world-readable).
+    /// </summary>
+    /// <remarks>
+    /// <b>Setting <see cref="FileStreamOptions.UnixCreateMode"/> is not a harmless no-op on
+    /// Windows — it throws <see cref="PlatformNotSupportedException"/> there, measured directly.</b>
+    /// <c>%TEMP%</c> is already per-user on Windows, so the guard below is not merely satisfying
+    /// the platform-compatibility analyzer; setting it unconditionally would have broken every
+    /// signature operation on the platform this was built and tested on.
+    /// </remarks>
+    private static void WriteToTempFile(string path, byte[] document)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"doctoolkit-signature-{Guid.NewGuid():N}{fileExtension}");
-        File.WriteAllBytes(path, document);
-        return path;
+        var options = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+        };
+        if (!OperatingSystem.IsWindows())
+        {
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+        using var stream = new FileStream(path, options);
+        stream.Write(document);
     }
 
     private static void DeleteTempFile(string path)

@@ -78,7 +78,6 @@ namespace DocToolkit
     public sealed class DocumentSignatureValidationOptions
     {
         public DocumentSignatureValidationOptions() { }
-        public System.Collections.Generic.IReadOnlyList<System.Security.Cryptography.X509Certificates.X509Certificate2> AdditionalTrustedCertificates { get; set; }
         public bool ValidateCertificateTrust { get; set; }
     }
     public sealed class DocumentSignatureValidationReport

@@ -11,6 +11,13 @@ namespace DocToolkit;
 /// "a signature that failed" are different findings a caller must not conflate; measured directly
 /// against a genuinely unsigned fixture, which reports <c>HasSignatures = false</c> with a single
 /// finding, no exception.
+///
+/// <b><see cref="IsCryptographicallyValid"/> is the tamper-detection verdict — the per-signature
+/// <see cref="DocumentSignatureValidationResult.CryptographicStatus"/> is not</b>, despite the
+/// similar name; see that type's own remarks for why. For a document carrying exactly one
+/// signature, the two questions coincide in practice. For one carrying more than one,
+/// <see cref="IsCryptographicallyValid"/> is an aggregate across all of them: it answers "was
+/// anything covered by any signature altered since signing," not "which signature."
 /// </remarks>
 public sealed class DocumentSignatureValidationReport
 {
