@@ -1683,4 +1683,124 @@ public class PresentationEditorTests
         var ex = Assert.Throws<ArgumentException>(() => PresentationEditor.InspectSignatures(Array.Empty<byte>()));
         Assert.Equal("pptx", ex.ParamName);
     }
+
+    // =========================================================================================
+    // Metadata
+    // =========================================================================================
+
+    private static byte[] FreshDeck() => PresentationEditor.Create(new[] { PptxSlide.Titled("SLIDE-MARKER") });
+
+    [Fact]
+    public void MetadataSurvivesARoundTrip()
+    {
+        var pptx = FreshDeck();
+
+        var stamped = PresentationEditor.WithMetadata(pptx, new DocumentMetadata
+        {
+            Title = "Quarterly report",
+            Creator = "Contoso Ltd",
+            Subject = "Revenue",
+            Keywords = "revenue, quarterly",
+        });
+
+        var read = PresentationEditor.ReadMetadata(stamped);
+
+        Assert.Equal("Quarterly report", read.Title);
+        Assert.Equal("Contoso Ltd", read.Creator);
+        Assert.Equal("Revenue", read.Subject);
+        Assert.Equal("revenue, quarterly", read.Keywords);
+    }
+
+    [Fact]
+    public void MetadataNotSetReadsBackAsNullRatherThanEmpty()
+    {
+        // ReadMetadata never saves, so all four properties are null here - identically to DOCX and
+        // XLSX. WithMetadata is a different story: see
+        // WithMetadata_LeavingCreatorNull_StillEndsUpStampedByOfficeIMO below for why saving loses
+        // that distinction for Creator specifically.
+        var read = PresentationEditor.ReadMetadata(FreshDeck());
+
+        Assert.Null(read.Title);
+        Assert.Null(read.Creator);
+        Assert.Null(read.Subject);
+        Assert.Null(read.Keywords);
+    }
+
+    [Fact]
+    public void WithMetadata_LeavingCreatorNull_StillEndsUpStampedByOfficeIMO()
+    {
+        // Pinned so a future OfficeIMO upgrade that changes this is caught by a red test rather
+        // than a silent behaviour drift. See WithMetadata's own remarks for the full mechanism:
+        // OfficeIMO.PowerPoint's Save() unconditionally stamps Creator when it is empty, on every
+        // save, whether or not this method ever touches Creator.
+        var stamped = PresentationEditor.WithMetadata(FreshDeck(), new DocumentMetadata { Title = "T" });
+
+        Assert.Equal("OfficeIMO", PresentationEditor.ReadMetadata(stamped).Creator);
+    }
+
+    [Fact]
+    public void WithMetadata_ANullPropertyLeavesTheExistingValueInPlace()
+    {
+        var withTitle = PresentationEditor.WithMetadata(FreshDeck(), new DocumentMetadata { Title = "Original title" });
+
+        var stamped = PresentationEditor.WithMetadata(withTitle, new DocumentMetadata { Creator = "Later author" });
+
+        var read = PresentationEditor.ReadMetadata(stamped);
+        Assert.Equal("Original title", read.Title);
+        Assert.Equal("Later author", read.Creator);
+    }
+
+    [Fact]
+    public void WithMetadata_AnEmptyStringClearsAnExistingValue()
+    {
+        var withTitle = PresentationEditor.WithMetadata(FreshDeck(), new DocumentMetadata { Title = "Original title" });
+
+        var cleared = PresentationEditor.WithMetadata(withTitle, new DocumentMetadata { Title = "" });
+
+        Assert.Equal("", PresentationEditor.ReadMetadata(cleared).Title);
+    }
+
+    [Fact]
+    public void WithMetadata_DoesNotDisturbTheSlideText()
+    {
+        var pptx = FreshDeck();
+
+        var stamped = PresentationEditor.WithMetadata(pptx, new DocumentMetadata { Title = "T" });
+
+        Assert.Contains(PresentationEditor.ExtractText(stamped), t => t.Contains("SLIDE-MARKER"));
+    }
+
+    [Fact]
+    public void ReadMetadata_NullPptx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => PresentationEditor.ReadMetadata(null!));
+    }
+
+    [Fact]
+    public void ReadMetadata_EmptyPptx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => PresentationEditor.ReadMetadata(Array.Empty<byte>()));
+        Assert.Equal("pptx", ex.ParamName);
+    }
+
+    [Fact]
+    public void WithMetadata_NullPptx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => PresentationEditor.WithMetadata(null!, new DocumentMetadata()));
+    }
+
+    [Fact]
+    public void WithMetadata_NullMetadata_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => PresentationEditor.WithMetadata(FreshDeck(), null!));
+    }
+
+    [Fact]
+    public void WithMetadata_EmptyPptx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => PresentationEditor.WithMetadata(Array.Empty<byte>(), new DocumentMetadata()));
+        Assert.Equal("pptx", ex.ParamName);
+    }
 }

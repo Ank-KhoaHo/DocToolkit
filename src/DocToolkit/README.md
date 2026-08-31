@@ -579,6 +579,31 @@ silently erase the author.
 `Stream` overloads exist for `PageCount`, `Merge`, `ExtractPages`, `RemovePages`, `RotatePages`, `ReorderPages`, `InsertPages` and `ExtractText` — that is, for every operation here. Unreadable input raises
 `DocumentConversionException`, like everything else here.
 
+DOCX, XLSX and PPTX carry the identical document-properties concept — one shared `DocumentMetadata`,
+read and written by `DocxEditor.ReadMetadata`/`WithMetadata`, `WorkbookEditor.ReadMetadata`/`WithMetadata`
+and `PresentationEditor.ReadMetadata`/`WithMetadata`:
+
+<!-- BEGIN SNIPPET: readme-document-metadata -->
+
+```csharp
+byte[] stamped = DocxEditor.WithMetadata(docx, new DocumentMetadata
+{
+    Title = "Q3 board report",
+    Creator = "Contoso Ltd",
+});
+
+DocumentMetadata info = DocxEditor.ReadMetadata(stamped);
+```
+
+<!-- END SNIPPET -->
+
+Same `null`-means-absent rule as `PdfMetadata` above. **`Creator` is not `PdfMetadata.Author` under
+another name** — OOXML's `Creator` names the person who wrote the document, PDF's own `Creator`
+names the application that produced the file, and the two ecosystems just happen to share the word.
+One PPTX-specific caveat: `PresentationEditor.WithMetadata` can never leave `Creator` as `null` -
+OfficeIMO's own save path stamps a default there whenever it is empty, even on a call that never
+touches `Creator` at all. `ReadMetadata` alone, with no save involved, is unaffected.
+
 ## Word mail merge
 
 Fill a template authored in Word — the kind carrying real `MERGEFIELD`s, showing as `«FirstName»` —

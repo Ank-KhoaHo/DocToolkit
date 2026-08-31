@@ -47,6 +47,7 @@ namespace DocToolkit
         public static string ReadCell(byte[] xlsx, string sheetName, string cellRef) { }
         public static System.Threading.Tasks.Task<string> ReadCellAsync(System.IO.Stream source, string sheetName, string cellRef, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<string> ReadCellAsync(string path, string sheetName, string cellRef, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.DocumentMetadata ReadMetadata(byte[] xlsx) { }
         public static System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>> ReadSheet(byte[] xlsx, string sheetName) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>>> ReadSheetAsync(System.IO.Stream source, string sheetName, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>>> ReadSheetAsync(string path, string sheetName, System.Threading.CancellationToken ct = default) { }
@@ -60,6 +61,7 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
         public static DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] xlsx, DocToolkit.DocumentSignatureValidationOptions? options = null) { }
         public static System.Threading.Tasks.Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(System.IO.Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, System.Threading.CancellationToken ct = default) { }
+        public static byte[] WithMetadata(byte[] xlsx, DocToolkit.DocumentMetadata metadata) { }
     }
     public sealed class XlsxFormat
     {

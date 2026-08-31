@@ -60,6 +60,14 @@ namespace DocToolkit
         public DocumentConversionException(string message) { }
         public DocumentConversionException(string message, System.Exception inner) { }
     }
+    public sealed class DocumentMetadata
+    {
+        public DocumentMetadata() { }
+        public string? Creator { get; init; }
+        public string? Keywords { get; init; }
+        public string? Subject { get; init; }
+        public string? Title { get; init; }
+    }
     public sealed class DocumentSignatureInfo
     {
         public DocumentSignatureInfo(bool hasSignatures, int signatureCount, System.Collections.Generic.IEnumerable<string> signers) { }
