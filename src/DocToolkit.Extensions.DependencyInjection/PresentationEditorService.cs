@@ -77,4 +77,40 @@ internal sealed class PresentationEditorService : IPresentationEditor
         Stream source, int atIndex, IEnumerable<DocToolkit.PptxSlide> slides, Stream destination,
         CancellationToken ct = default)
         => DocToolkit.PresentationEditor.InsertSlidesAsync(source, atIndex, slides, destination, ct);
+
+    public DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] pptx)
+        => DocToolkit.PresentationEditor.InspectSignatures(pptx);
+
+    public Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.InspectSignaturesAsync(source, ct);
+
+    public DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] pptx, DocToolkit.DocumentSignatureValidationOptions? options = null)
+        => DocToolkit.PresentationEditor.ValidateSignatures(pptx, options);
+
+    public Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ValidateSignaturesAsync(source, options, ct);
+
+    public DocToolkit.DocumentMetadata ReadMetadata(byte[] pptx)
+        => DocToolkit.PresentationEditor.ReadMetadata(pptx);
+
+    public byte[] WithMetadata(byte[] pptx, DocToolkit.DocumentMetadata metadata)
+        => DocToolkit.PresentationEditor.WithMetadata(pptx, metadata);
+
+    public IReadOnlyList<string> ReadSmartArt(byte[] pptx, int index)
+        => DocToolkit.PresentationEditor.ReadSmartArt(pptx, index);
+
+    public Task<IReadOnlyList<string>> ReadSmartArtAsync(Stream source, int index, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ReadSmartArtAsync(source, index, ct);
+
+    public byte[] AddChart(
+        byte[] pptx, int slideIndex, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "",
+        double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252)
+        => DocToolkit.PresentationEditor.AddChart(pptx, slideIndex, type, data, title, leftPoints, topPoints, widthPoints, heightPoints);
+
+    public Task<byte[]> AddChartAsync(
+        Stream source, int slideIndex, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "",
+        double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252,
+        CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.AddChartAsync(source, slideIndex, type, data, title, leftPoints, topPoints, widthPoints, heightPoints, ct);
 }

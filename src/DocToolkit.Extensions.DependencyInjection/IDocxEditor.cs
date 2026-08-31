@@ -367,4 +367,67 @@ public interface IDocxEditor
     Task AddTableOfContentsAsync(
         Stream source, string placeholder, Stream destination,
         int minLevel = 1, int maxLevel = 3, CancellationToken ct = default);
+
+    /// <summary>
+    /// Inspects <paramref name="docx"/> for digital signatures — whether it carries one, how
+    /// many, and who claims to have signed it. Does not validate anything cryptographically; see
+    /// <see cref="ValidateSignatures"/>.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be inspected.</exception>
+    DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] docx);
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and inspects it for digital signatures — see
+    /// <see cref="InspectSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be inspected.</exception>
+    Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default);
+
+    /// <summary>
+    /// Validates every digital signature <paramref name="docx"/> carries, returning the
+    /// report-level tamper-detection verdict alongside each signature's own certificate chain
+    /// trust and revocation status. Never performs revocation checking or certificate downloads
+    /// over the network, regardless of <paramref name="options"/> — see
+    /// <see cref="DocToolkit.DocumentSignatureValidationOptions"/>'s own remarks.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be validated.</exception>
+    DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] docx, DocToolkit.DocumentSignatureValidationOptions? options = null);
+
+    /// <summary>
+    /// Reads a .docx from <paramref name="source"/> and validates its digital signatures — see
+    /// <see cref="ValidateSignatures"/>. <paramref name="source"/> is read to its end and is
+    /// neither disposed, closed nor sought.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be validated.</exception>
+    Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, CancellationToken ct = default);
+
+    /// <summary>The document properties <paramref name="docx"/> carries.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be read.</exception>
+    DocToolkit.DocumentMetadata ReadMetadata(byte[] docx);
+
+    /// <summary>
+    /// A copy of <paramref name="docx"/> carrying <paramref name="metadata"/>.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> property leaves what the document already had in place, so
+    /// stamping a title does not silently erase an author. Pass an empty string to clear one.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="metadata"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be read or written.</exception>
+    byte[] WithMetadata(byte[] docx, DocToolkit.DocumentMetadata metadata);
 }

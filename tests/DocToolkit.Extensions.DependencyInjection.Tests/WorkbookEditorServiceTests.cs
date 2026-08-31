@@ -286,4 +286,221 @@ public class WorkbookEditorServiceTests
             WorkbookEditor.ReadSheet(expected, "Log"),
             WorkbookEditor.ReadSheet(destination.ToArray(), "Log"));
     }
+
+    // ---------------------------------------------------------------------------------------
+    // InspectSignatures/ValidateSignatures and their Async forms, mirrored from core 0.45.0
+    // (A99-DI). Exercised against a genuinely unsigned workbook - see the identical reasoning in
+    // DocxEditorServiceTests.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InspectSignatures_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][] { new object?[] { "unsigned" } });
+
+        var info = sut.InspectSignatures(xlsx);
+
+        Assert.Equal(WorkbookEditor.InspectSignatures(xlsx).HasSignatures, info.HasSignatures);
+        Assert.False(info.HasSignatures);
+    }
+
+    [Fact]
+    public async Task InspectSignaturesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][] { new object?[] { "unsigned" } });
+
+        using var source = new MemoryStream(xlsx);
+        var info = await sut.InspectSignaturesAsync(source);
+
+        Assert.False(info.HasSignatures);
+    }
+
+    [Fact]
+    public void ValidateSignatures_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][] { new object?[] { "unsigned" } });
+
+        var report = sut.ValidateSignatures(xlsx);
+
+        Assert.Equal(WorkbookEditor.ValidateSignatures(xlsx).HasSignatures, report.HasSignatures);
+        Assert.False(report.HasSignatures);
+    }
+
+    [Fact]
+    public async Task ValidateSignaturesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][] { new object?[] { "unsigned" } });
+
+        using var source = new MemoryStream(xlsx);
+        var report = await sut.ValidateSignaturesAsync(source);
+
+        Assert.False(report.HasSignatures);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // ReadMetadata/WithMetadata, mirrored from core 0.46.0 (A102-DI).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void WithMetadata_ReadMetadata_RoundTripCorrectly()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][] { new object?[] { "a" } });
+        var metadata = new DocumentMetadata { Title = "Q1 Revenue", Creator = "Finance" };
+
+        var stamped = sut.WithMetadata(xlsx, metadata);
+        var read = sut.ReadMetadata(stamped);
+
+        Assert.Equal("Q1 Revenue", read.Title);
+        Assert.Equal("Finance", read.Creator);
+        Assert.Equal(
+            WorkbookEditor.ReadMetadata(WorkbookEditor.WithMetadata(xlsx, metadata)).Title,
+            read.Title);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // InspectFormulas/EvaluateFormulas, mirrored from core 0.46.0 (A103-DI).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InspectFormulas_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Sales", new[]
+            {
+                new object?[] { "Total", XlsxFormula.From("SUM(1,2)") },
+            }),
+        });
+
+        var inspection = sut.InspectFormulas(xlsx);
+
+        Assert.Equal(1, inspection.TotalFormulas);
+        Assert.Equal(WorkbookEditor.InspectFormulas(xlsx).SupportedFormulas, inspection.SupportedFormulas);
+    }
+
+    [Fact]
+    public void EvaluateFormulas_WritesTheComputedValueIntoTheFile()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create(new[]
+        {
+            XlsxSheet.Named("Sales", new[]
+            {
+                new object?[] { "Total", XlsxFormula.From("SUM(1,2)") },
+            }),
+        });
+
+        var evaluated = sut.EvaluateFormulas(xlsx);
+
+        // Not byte-length parity against a second static call - ClosedXML re-stamps ZIP entry
+        // timestamps on every save, so two otherwise-identical writes can legitimately differ by
+        // a byte (see the identical trap CLAUDE.md documents for SetCellAsync). Content is the
+        // discriminator: reads correctly through this package's own recompute-on-read path
+        // either way, so this proves the wrapper reaches the real EvaluateFormulas rather than
+        // merely returning its input unchanged.
+        Assert.NotEqual(xlsx.Length, evaluated.Length);
+        Assert.Equal("3", sut.ReadCell(evaluated, "Sales", "B1"));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // AddChart/AddChartAsync and AddPivotTable/AddPivotTableAsync, mirrored from core 0.45.0
+    // (A95-DI/A96-DI) - found missing by the derived mirror test, not filed ahead of time.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AddChart_MatchesTheStaticMethodAndAddsAChart()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "North", 1200 },
+        });
+        var data = new ChartData(new[] { "North" }, new[] { new ChartSeries("Total", new double[] { 1200 }) });
+
+        var withChart = sut.AddChart(xlsx, "Sales", "D1", ChartType.ColumnClustered, data, title: "Regional Totals");
+
+        // A workbook with no chart has none here at all - a real structural discriminator, not a
+        // byte-count guess.
+        using var source = new MemoryStream(withChart, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        var sheet = doc.Sheets.First(s => s.Name == "Sales");
+        Assert.Single(sheet.Charts);
+        Assert.Equal("Regional Totals", sheet.Charts.Single().Title);
+    }
+
+    [Fact]
+    public async Task AddChartAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Total" },
+            new object?[] { "North", 1200 },
+        });
+        var data = new ChartData(new[] { "North" }, new[] { new ChartSeries("Total", new double[] { 1200 }) });
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        await sut.AddChartAsync(source, "Sales", "D1", ChartType.ColumnClustered, data, destination, title: "Regional Totals");
+
+        using var readBack = new MemoryStream(destination.ToArray(), writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(readBack);
+        var sheet = doc.Sheets.First(s => s.Name == "Sales");
+        Assert.Single(sheet.Charts);
+        Assert.Equal("Regional Totals", sheet.Charts.Single().Title);
+    }
+
+    [Fact]
+    public void AddPivotTable_MatchesTheStaticMethodAndThreadsTheFieldsThrough()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Amount" },
+            new object?[] { "North", 1200 },
+            new object?[] { "South", 950 },
+        });
+
+        var withPivot = sut.AddPivotTable(
+            xlsx, "Sales", "A1:B3", "D1", "RegionSummary",
+            rowFields: new[] { "Region" },
+            dataFields: new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+
+        // A workbook with no pivot table has none here at all - a swapped-argument or
+        // wrong-static-method wrapper that produced a plain copy would fail this.
+        using var source = new MemoryStream(withPivot, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        Assert.Single(doc.GetPivotTables());
+    }
+
+    [Fact]
+    public async Task AddPivotTableAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.Create("Sales", new object?[][]
+        {
+            new object?[] { "Region", "Amount" },
+            new object?[] { "North", 1200 },
+            new object?[] { "South", 950 },
+        });
+
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+        await sut.AddPivotTableAsync(
+            source, "Sales", "A1:B3", "D1", "RegionSummary",
+            rowFields: new[] { "Region" },
+            dataFields: new[] { new PivotDataField("Amount", PivotFunction.Sum) },
+            destination: destination);
+
+        using var readBack = new MemoryStream(destination.ToArray(), writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(readBack);
+        Assert.Single(doc.GetPivotTables());
+    }
 }

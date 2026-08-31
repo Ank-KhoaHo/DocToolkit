@@ -4,9 +4,9 @@
     "net10.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.43.0, )",
-        "resolved": "0.43.0",
-        "contentHash": "qyCNg3kXj2NmnkjumfmUjJ+wOQyyf8LAlmUekIl+9dJTcvOLLnQx33NsOBKrmUOsJo5X3Ph1Y4WONyDrGPAGOA==",
+        "requested": "[0.46.0, )",
+        "resolved": "0.46.0",
+        "contentHash": "iGERlTOb0WEjohGfrcBwVuk8USNF90+rJZs9AsrQTc3LtGNaQrbki4cL7Q36Z1ZB7k2zQ0nXsCasIy2heLFplA==",
         "dependencies": {
           "AngleSharp": "1.7.2",
           "ClosedXML": "0.105.1",
@@ -16,6 +16,7 @@
           "OfficeIMO.Excel.Pdf": "3.2.6",
           "OfficeIMO.PowerPoint": "3.2.6",
           "OfficeIMO.PowerPoint.Pdf": "3.2.6",
+          "OfficeIMO.Security": "3.2.6",
           "OfficeIMO.Word": "3.2.6",
           "OfficeIMO.Word.Html": "3.2.6",
           "OfficeIMO.Word.Markdown": "3.2.6",
@@ -53,6 +54,11 @@
         "dependencies": {
           "AngleSharp": "[1.5.0, 2.0.0)"
         }
+      },
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
       },
       "ClosedXML": {
         "type": "Transitive",
@@ -193,6 +199,16 @@
           "OfficeIMO.PowerPoint": "3.2.6"
         }
       },
+      "OfficeIMO.Security": {
+        "type": "Transitive",
+        "resolved": "3.2.6",
+        "contentHash": "9wwh3Tfg7p14AZ91E/cyY9uoQBMR5pTP6iqh3751Izn5ahZC1Gv1ft9t5VHmcam3qIsu1UtsIOACprqlqULOwQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "[2.7.0, 3.0.0)",
+          "OfficeIMO.Core": "3.2.6",
+          "System.Security.Cryptography.Xml": "10.0.10"
+        }
+      },
       "OfficeIMO.Word": {
         "type": "Transitive",
         "resolved": "3.2.6",
@@ -266,16 +282,24 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "8.0.1",
-        "contentHash": "CoCRHFym33aUSf/NtWSVSZa99dkd0Hm7OCZUxORBjRB16LNhIEOf8THPqzIYlvKM0nNDAPTRBa1FxEECrgaxxA=="
+        "resolved": "10.0.10",
+        "contentHash": "KG8t5RHczdgB3IWvRndpI0nE1DSo7ikDYSDbITxfgRFyIvnYiKzuPjaZOsPnwFQ1aOGUl9sEulJul9wlHLEUoA=="
+      },
+      "System.Security.Cryptography.Xml": {
+        "type": "Transitive",
+        "resolved": "10.0.10",
+        "contentHash": "Mz6Y+s+uMQKj1H2BUF0OhlmaOQkLgSG34/IrUaBDirYBQ6bgwcFvO/XtXWcoDlBLFoFB0uKqDNhybHOd+fQK1A==",
+        "dependencies": {
+          "System.Security.Cryptography.Pkcs": "10.0.10"
+        }
       }
     },
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.43.0, )",
-        "resolved": "0.43.0",
-        "contentHash": "qyCNg3kXj2NmnkjumfmUjJ+wOQyyf8LAlmUekIl+9dJTcvOLLnQx33NsOBKrmUOsJo5X3Ph1Y4WONyDrGPAGOA==",
+        "requested": "[0.46.0, )",
+        "resolved": "0.46.0",
+        "contentHash": "iGERlTOb0WEjohGfrcBwVuk8USNF90+rJZs9AsrQTc3LtGNaQrbki4cL7Q36Z1ZB7k2zQ0nXsCasIy2heLFplA==",
         "dependencies": {
           "AngleSharp": "1.7.2",
           "ClosedXML": "0.105.1",
@@ -285,6 +309,7 @@
           "OfficeIMO.Excel.Pdf": "3.2.6",
           "OfficeIMO.PowerPoint": "3.2.6",
           "OfficeIMO.PowerPoint.Pdf": "3.2.6",
+          "OfficeIMO.Security": "3.2.6",
           "OfficeIMO.Word": "3.2.6",
           "OfficeIMO.Word.Html": "3.2.6",
           "OfficeIMO.Word.Markdown": "3.2.6",
@@ -322,6 +347,11 @@
         "dependencies": {
           "AngleSharp": "[1.5.0, 2.0.0)"
         }
+      },
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
       },
       "ClosedXML": {
         "type": "Transitive",
@@ -369,6 +399,14 @@
           "AngleSharp": "1.5.0",
           "DocumentFormat.OpenXml": "3.5.1",
           "Microsoft.Extensions.Logging.Abstractions": "6.0.0"
+        }
+      },
+      "Microsoft.Bcl.Cryptography": {
+        "type": "Transitive",
+        "resolved": "10.0.10",
+        "contentHash": "Qdx/MB+kxJoPIWZ0PpKpGSj8C02oaGXgue59HixUX/vinLsBIDYTX3RNW8mj9fBCeCmCp5+28KojlvI1N9hQPw==",
+        "dependencies": {
+          "System.Formats.Asn1": "10.0.10"
         }
       },
       "Microsoft.Extensions.Logging.Abstractions": {
@@ -462,6 +500,16 @@
           "OfficeIMO.PowerPoint": "3.2.6"
         }
       },
+      "OfficeIMO.Security": {
+        "type": "Transitive",
+        "resolved": "3.2.6",
+        "contentHash": "9wwh3Tfg7p14AZ91E/cyY9uoQBMR5pTP6iqh3751Izn5ahZC1Gv1ft9t5VHmcam3qIsu1UtsIOACprqlqULOwQ==",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "[2.7.0, 3.0.0)",
+          "OfficeIMO.Core": "3.2.6",
+          "System.Security.Cryptography.Xml": "10.0.10"
+        }
+      },
       "OfficeIMO.Word": {
         "type": "Transitive",
         "resolved": "3.2.6",
@@ -528,6 +576,11 @@
         "resolved": "1.0.1",
         "contentHash": "ljezRHWc7N0azdQViib7Aa5v+DagRVkKI2/93kEbtjVczLs+yTkSq6gtGmvOcx4IqyNbO3GjLt7SAQTpLkySNw=="
       },
+      "System.Formats.Asn1": {
+        "type": "Transitive",
+        "resolved": "10.0.10",
+        "contentHash": "Lt7KTFei7vmp/+JtTCLB3D3MNDFIfyFl9zETGtKFuoeaThNeHCyE7sJTZ10wfwHbd2z0rW72fjIpNXPkxEObaA=="
+      },
       "System.IO.Packaging": {
         "type": "Transitive",
         "resolved": "8.0.1",
@@ -535,8 +588,21 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "8.0.1",
-        "contentHash": "CoCRHFym33aUSf/NtWSVSZa99dkd0Hm7OCZUxORBjRB16LNhIEOf8THPqzIYlvKM0nNDAPTRBa1FxEECrgaxxA=="
+        "resolved": "10.0.10",
+        "contentHash": "KG8t5RHczdgB3IWvRndpI0nE1DSo7ikDYSDbITxfgRFyIvnYiKzuPjaZOsPnwFQ1aOGUl9sEulJul9wlHLEUoA==",
+        "dependencies": {
+          "Microsoft.Bcl.Cryptography": "10.0.10",
+          "System.Formats.Asn1": "10.0.10"
+        }
+      },
+      "System.Security.Cryptography.Xml": {
+        "type": "Transitive",
+        "resolved": "10.0.10",
+        "contentHash": "Mz6Y+s+uMQKj1H2BUF0OhlmaOQkLgSG34/IrUaBDirYBQ6bgwcFvO/XtXWcoDlBLFoFB0uKqDNhybHOd+fQK1A==",
+        "dependencies": {
+          "Microsoft.Bcl.Cryptography": "10.0.10",
+          "System.Security.Cryptography.Pkcs": "10.0.10"
+        }
       }
     }
   }

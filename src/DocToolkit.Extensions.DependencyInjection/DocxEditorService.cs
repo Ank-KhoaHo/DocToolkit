@@ -118,4 +118,23 @@ internal sealed class DocxEditorService : IDocxEditor
         Stream source, string placeholder, Stream destination,
         int minLevel = 1, int maxLevel = 3, CancellationToken ct = default)
         => DocToolkit.DocxEditor.AddTableOfContentsAsync(source, placeholder, destination, minLevel, maxLevel, ct);
+
+    public DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] docx)
+        => DocToolkit.DocxEditor.InspectSignatures(docx);
+
+    public Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.InspectSignaturesAsync(source, ct);
+
+    public DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] docx, DocToolkit.DocumentSignatureValidationOptions? options = null)
+        => DocToolkit.DocxEditor.ValidateSignatures(docx, options);
+
+    public Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(
+        Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.ValidateSignaturesAsync(source, options, ct);
+
+    public DocToolkit.DocumentMetadata ReadMetadata(byte[] docx)
+        => DocToolkit.DocxEditor.ReadMetadata(docx);
+
+    public byte[] WithMetadata(byte[] docx, DocToolkit.DocumentMetadata metadata)
+        => DocToolkit.DocxEditor.WithMetadata(docx, metadata);
 }
