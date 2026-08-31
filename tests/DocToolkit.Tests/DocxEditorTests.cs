@@ -366,4 +366,44 @@ public class DocxEditorTests
         await Assert.ThrowsAsync<FileNotFoundException>(
             () => DocxEditor.ExtractTextAsync(missing));
     }
+
+    [Fact]
+    public void ReplaceText_PreservesAnEmbeddedObject()
+    {
+        // A real OLE package embed, authored through OfficeIMO's own API - not hand-built markup.
+        // AddEmbeddedObject needs real files on disk for both the embedded content and the icon.
+        using var embeddedFile = new TempFile();
+        using var iconFile = new TempFile();
+        File.WriteAllBytes(embeddedFile.Path,
+            WorkbookEditor.Create("Data", new object[][] { new object[] { "X" } }));
+        File.WriteAllBytes(iconFile.Path, Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
+
+        byte[] docx;
+        using (var word = OfficeIMO.Word.WordDocument.Create())
+        {
+            word.AddParagraph("Hello {{name}}, see the attachment below.");
+            word.AddEmbeddedObject(embeddedFile.Path, iconFile.Path, null, null);
+            using var ms = new MemoryStream();
+            word.Save(ms);
+            docx = ms.ToArray();
+        }
+
+        var edited = DocxEditor.ReplaceText(docx, Map("{{name}}", "Alice"));
+
+        // GetEmbeddedPayloads is unchanged in kind/content-type/length - not merely "still
+        // present", since a defect that replaced the payload with something else, or duplicated
+        // it, would still pass a bare Assert.Single.
+        using var before = new MemoryStream(docx, writable: false);
+        using var beforeDoc = OfficeIMO.Word.WordDocument.Load(before);
+        var beforePayload = Assert.Single(beforeDoc.GetEmbeddedPayloads(false));
+
+        using var after = new MemoryStream(edited, writable: false);
+        using var afterDoc = OfficeIMO.Word.WordDocument.Load(after);
+        var afterPayload = Assert.Single(afterDoc.GetEmbeddedPayloads(false));
+
+        Assert.Equal(beforePayload.Kind, afterPayload.Kind);
+        Assert.Equal(beforePayload.ContentType, afterPayload.ContentType);
+        Assert.Equal(beforePayload.Length, afterPayload.Length);
+    }
 }

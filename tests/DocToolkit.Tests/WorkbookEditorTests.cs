@@ -3,7 +3,10 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
+using ClosedXML.Excel.Drawings;
 using DocToolkit;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Xunit;
 
 namespace DocToolkit.Tests;
@@ -1679,5 +1682,186 @@ public class WorkbookEditorTests
         masked = Regex.Replace(masked, "<c:axId val=\"[0-9]+\"\\s*/>", "<c:axId val=\"MASKED\"/>");
         masked = Regex.Replace(masked, "<c:crossAx val=\"[0-9]+\"\\s*/>", "<c:crossAx val=\"MASKED\"/>");
         return masked;
+    }
+
+    /// <summary>
+    /// A worksheet-level embedded package, anchored the way Excel anchors one: a
+    /// &lt;drawing r:id="..."/&gt; element in the worksheet XML pointing at a
+    /// <see cref="DrawingsPart"/>, plus a separate <see cref="EmbeddedPackagePart"/> carrying the
+    /// payload, added directly to the <see cref="WorksheetPart"/> rather than nested under the
+    /// <see cref="DrawingsPart"/>. OfficeIMO 3.2.6 has no XLSX-side embedding API at all (confirmed
+    /// by reflection), so this is built directly through DocumentFormat.OpenXml.Packaging's own
+    /// typed part API - the SDK-level equivalent of "authored the way the library under test
+    /// authors one", since there is no higher-level typed API to prefer.
+    ///
+    /// Note: DrawingsPart does NOT support EmbeddedPackagePart as a direct child via this SDK's
+    /// typed relationship API (attempting it is a compile error, CS0311 - only WorksheetPart,
+    /// ChartPart and a few others do). The embedded package is therefore its own
+    /// WorksheetPart-level relationship, independent of the DrawingsPart's own relationship - both
+    /// are real, valid worksheet-part-level relationships either way.
+    /// </summary>
+    private static byte[] WorkbookWithEmbeddedPackage()
+    {
+        var xlsx = WorkbookEditor.Create("Data", new object[][]
+        {
+            new object[] { "A", "B" },
+            new object[] { 1, 2 },
+        });
+
+        using var ms = new MemoryStream();
+        ms.Write(xlsx, 0, xlsx.Length);
+        ms.Position = 0;
+        using (var doc = SpreadsheetDocument.Open(ms, true))
+        {
+            var wsPart = doc.WorkbookPart?.WorksheetParts.FirstOrDefault();
+            if (wsPart == null)
+                throw new InvalidOperationException("WorkbookPart or worksheets not found");
+
+            var drawingsPart = wsPart!.AddNewPart<DrawingsPart>();
+            var relId = wsPart!.GetIdOfPart(drawingsPart);
+
+            var embedPart = wsPart!.AddEmbeddedPackagePart("application/octet-stream");
+            var payload = Encoding.UTF8.GetBytes("PRETEND EMBEDDED PACKAGE PAYLOAD");
+            using (var partStream = embedPart.GetStream(FileMode.Create, FileAccess.Write))
+                partStream.Write(payload, 0, payload.Length);
+
+            using (var drawingStream = drawingsPart.GetStream(FileMode.Create, FileAccess.Write))
+            {
+                var drawingXml = "<xdr:wsDr xmlns:xdr=\"http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing\" " +
+                                  "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"/>";
+                var drawingBytes = Encoding.UTF8.GetBytes(drawingXml);
+                drawingStream.Write(drawingBytes, 0, drawingBytes.Length);
+            }
+
+            wsPart!.Worksheet!.Append(new Drawing { Id = relId });
+            wsPart!.Worksheet!.Save();
+            doc.Save();
+        }
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// True if <paramref name="xlsx"/>'s first worksheet still carries the &lt;drawing&gt;
+    /// element, its <see cref="DrawingsPart"/>, and that part's <see cref="EmbeddedPackagePart"/> -
+    /// i.e. whether <see cref="WorkbookWithEmbeddedPackage"/>'s fixture is still fully intact and
+    /// reachable, not merely whether some bytes happen to survive somewhere in the package.
+    /// </summary>
+    private static bool EmbeddedPackageIsFullyIntact(byte[] xlsx)
+    {
+        using var ms = new MemoryStream(xlsx, writable: false);
+        using var doc = SpreadsheetDocument.Open(ms, false);
+        var wsPart = doc.WorkbookPart?.WorksheetParts.FirstOrDefault();
+        if (wsPart == null)
+            return false;
+        var worksheet = wsPart.Worksheet;
+        if (worksheet == null)
+            return false;
+        var hasDrawingElement = worksheet.Elements<Drawing>().Any();
+        var drawingsParts = wsPart.GetPartsOfType<DrawingsPart>().ToList();
+        return hasDrawingElement
+            && drawingsParts.Count == 1
+            && wsPart.EmbeddedPackageParts.Any();
+    }
+
+    [Fact]
+    public void AddChart_PreservesAnEmbeddedPackage()
+    {
+        var xlsx = WorkbookWithEmbeddedPackage();
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = WorkbookEditor.AddChart(xlsx, "Data", "D1", ChartType.ColumnClustered, data);
+
+        Assert.True(EmbeddedPackageIsFullyIntact(result));
+    }
+
+    [Fact]
+    public void AddPivotTable_PreservesAnEmbeddedPackage()
+    {
+        var xlsx = WorkbookWithEmbeddedPackage();
+
+        var result = WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:B3", "D1", "P",
+            new[] { "A" }, new[] { new PivotDataField("B", PivotFunction.Sum) });
+
+        Assert.True(EmbeddedPackageIsFullyIntact(result));
+    }
+
+    [Fact]
+    public void ProtectThenUnprotect_PreservesAnEmbeddedPackage()
+    {
+        var xlsx = WorkbookWithEmbeddedPackage();
+
+        var protectedXlsx = WorkbookEditor.Protect(xlsx, "pw123");
+        var unprotected = WorkbookEditor.Unprotect(protectedXlsx, "pw123");
+
+        Assert.True(EmbeddedPackageIsFullyIntact(unprotected));
+    }
+
+    /// <summary>
+    /// PINS A KNOWN, MEASURED LIMITATION - see src/DocToolkit/README.md's "Known limitations"
+    /// table, the row about ClosedXML-backed WorkbookEditor operations and embedded objects. This
+    /// is not an oversight: SetCell (like Create, AppendRows, and every other ClosedXML-backed
+    /// method) opens the package through ClosedXML's XLWorkbook, which reconstructs the package
+    /// from its own object model on save and does not know about a &lt;drawing&gt; reference it
+    /// did not create - so it silently drops the reference and its DrawingsPart, while the
+    /// EmbeddedPackagePart itself survives as dead, unreachable weight in the file.
+    ///
+    /// If a future ClosedXML/OfficeIMO version fixes this, THIS TEST FAILS - which is the point:
+    /// the fix has to be a deliberate change to this assertion (and the README row), not a
+    /// silently-noticed behaviour change either way.
+    /// </summary>
+    [Fact]
+    public void SetCell_DropsTheEmbeddedPackagesDrawingAnchor_KnownLimitation()
+    {
+        var xlsx = WorkbookWithEmbeddedPackage();
+        Assert.True(EmbeddedPackageIsFullyIntact(xlsx), "premise: the fixture starts intact");
+
+        var afterSetCell = WorkbookEditor.SetCell(xlsx, "Data", "C1", "new value");
+
+        Assert.False(EmbeddedPackageIsFullyIntact(afterSetCell));
+
+        // Precisely what survives and what does not - the finding is not merely "something is
+        // gone", it is "the anchor is gone but the orphaned bytes remain".
+        using var ms = new MemoryStream(afterSetCell, writable: false);
+        using var doc = SpreadsheetDocument.Open(ms, false);
+        var wsPart = doc.WorkbookPart?.WorksheetParts.FirstOrDefault();
+        Assert.NotNull(wsPart);
+        Assert.Empty(wsPart!.Worksheet!.Elements<Drawing>());
+        Assert.Empty(wsPart.GetPartsOfType<DrawingsPart>());
+        Assert.Single(wsPart.EmbeddedPackageParts);
+    }
+
+    /// <summary>
+    /// The discriminating control for <see cref="SetCell_DropsTheEmbeddedPackagesDrawingAnchor_KnownLimitation"/>:
+    /// proves the loss above is specific to drawing content ClosedXML did not create, not a
+    /// general "any drawing is lost on SetCell" defect. A picture ClosedXML inserted itself,
+    /// through its own AddPicture API, survives the identical SetCell round-trip.
+    /// </summary>
+    [Fact]
+    public void SetCell_PreservesAPictureClosedXmlInsertedItself()
+    {
+        byte[] withPicture;
+        using (var workbook = new XLWorkbook())
+        {
+            var worksheet = workbook.Worksheets.Add("Data");
+            worksheet.Cell(1, 1).Value = "A";
+            var png = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+            using var imageStream = new MemoryStream(png);
+            worksheet.AddPicture(imageStream, XLPictureFormat.Png, "TestPic")
+                .MoveTo(worksheet.Cell(2, 1));
+            using var ms = new MemoryStream();
+            workbook.SaveAs(ms);
+            withPicture = ms.ToArray();
+        }
+
+        var afterSetCell = WorkbookEditor.SetCell(withPicture, "Data", "C1", "x");
+
+        using var reopened = new XLWorkbook(new MemoryStream(afterSetCell, writable: false));
+        var reopenedWorksheet = reopened.Worksheet("Data");
+        Assert.NotNull(reopenedWorksheet);
+        Assert.Single(reopenedWorksheet.Pictures);
     }
 }
