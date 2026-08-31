@@ -449,6 +449,83 @@ public class DocxEditorServiceTests
         Assert.Single(doc.MainDocumentPart!.Document!.Body!.Descendants<SimpleField>());
     }
 
+    // ---------------------------------------------------------------------------------------
+    // InspectSignatures/ValidateSignatures and their Async forms, mirrored from core 0.45.0
+    // (A99-DI). Exercised against a genuinely unsigned DOCX built by this format's own Create -
+    // each format's InspectPackageSignatures/ValidatePackageSignatures opens the package through
+    // that format's own typed loader first, so a wrapper wired to the wrong format's static
+    // method would very likely throw here rather than silently returning a plausible answer.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InspectSignatures_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("Unsigned.")]);
+
+        var info = sut.InspectSignatures(docx);
+
+        Assert.Equal(DocxEditor.InspectSignatures(docx).HasSignatures, info.HasSignatures);
+        Assert.False(info.HasSignatures);
+    }
+
+    [Fact]
+    public async Task InspectSignaturesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("Unsigned.")]);
+
+        using var source = new MemoryStream(docx);
+        var info = await sut.InspectSignaturesAsync(source);
+
+        Assert.False(info.HasSignatures);
+    }
+
+    [Fact]
+    public void ValidateSignatures_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("Unsigned.")]);
+
+        var report = sut.ValidateSignatures(docx);
+
+        Assert.Equal(DocxEditor.ValidateSignatures(docx).HasSignatures, report.HasSignatures);
+        Assert.False(report.HasSignatures);
+    }
+
+    [Fact]
+    public async Task ValidateSignaturesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("Unsigned.")]);
+
+        using var source = new MemoryStream(docx);
+        var report = await sut.ValidateSignaturesAsync(source);
+
+        Assert.False(report.HasSignatures);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // ReadMetadata/WithMetadata, mirrored from core 0.46.0 (A102-DI).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void WithMetadata_ReadMetadata_RoundTripCorrectly()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("Body.")]);
+        var metadata = new DocumentMetadata { Title = "Quarterly Report", Creator = "Finance" };
+
+        var stamped = sut.WithMetadata(docx, metadata);
+        var read = sut.ReadMetadata(stamped);
+
+        Assert.Equal("Quarterly Report", read.Title);
+        Assert.Equal("Finance", read.Creator);
+        Assert.Equal(
+            DocxEditor.ReadMetadata(DocxEditor.WithMetadata(docx, metadata)).Title,
+            read.Title);
+    }
+
     private static byte[] DocxWithHeaderAndFooter(string bodyText, string headerText, string footerText)
     {
         using var ms = new MemoryStream();

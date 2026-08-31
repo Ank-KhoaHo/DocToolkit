@@ -356,4 +356,159 @@ public class PresentationEditorServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => sut.SlideCountAsync(source, cts.Token));
     }
+
+    // ---------------------------------------------------------------------------------------
+    // InspectSignatures/ValidateSignatures and their Async forms, mirrored from core 0.45.0
+    // (A99-DI). Exercised against a genuinely unsigned deck - see the identical reasoning in
+    // DocxEditorServiceTests.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void InspectSignatures_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Unsigned") });
+
+        var info = sut.InspectSignatures(pptx);
+
+        Assert.Equal(PresentationEditor.InspectSignatures(pptx).HasSignatures, info.HasSignatures);
+        Assert.False(info.HasSignatures);
+    }
+
+    [Fact]
+    public async Task InspectSignaturesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Unsigned") });
+
+        using var source = new MemoryStream(pptx);
+        var info = await sut.InspectSignaturesAsync(source);
+
+        Assert.False(info.HasSignatures);
+    }
+
+    [Fact]
+    public void ValidateSignatures_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Unsigned") });
+
+        var report = sut.ValidateSignatures(pptx);
+
+        Assert.Equal(PresentationEditor.ValidateSignatures(pptx).HasSignatures, report.HasSignatures);
+        Assert.False(report.HasSignatures);
+    }
+
+    [Fact]
+    public async Task ValidateSignaturesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Unsigned") });
+
+        using var source = new MemoryStream(pptx);
+        var report = await sut.ValidateSignaturesAsync(source);
+
+        Assert.False(report.HasSignatures);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // ReadMetadata/WithMetadata, mirrored from core 0.46.0 (A102-DI).
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void WithMetadata_ReadMetadata_RoundTripCorrectly()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var metadata = new DocumentMetadata { Title = "Q1 Review", Creator = "Finance" };
+
+        var stamped = sut.WithMetadata(pptx, metadata);
+        var read = sut.ReadMetadata(stamped);
+
+        Assert.Equal("Q1 Review", read.Title);
+        Assert.Equal("Finance", read.Creator);
+        Assert.Equal(
+            PresentationEditor.ReadMetadata(PresentationEditor.WithMetadata(pptx, metadata)).Title,
+            read.Title);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // AddChart/AddChartAsync and ReadSmartArt/ReadSmartArtAsync, mirrored from core 0.45.0
+    // (A95-DI/A98-DI) - found missing by the derived mirror test, not filed ahead of time.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AddChart_MatchesTheStaticMethodAndAddsAChart()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(new[] { "North" }, new[] { new ChartSeries("Total", new double[] { 1200 }) });
+
+        var withChart = sut.AddChart(pptx, 1, ChartType.ColumnClustered, data, title: "Regional Totals");
+
+        using var source = new MemoryStream(withChart, writable: false);
+        using var doc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(source);
+        var slide = doc.Slides[0];
+        Assert.Single(slide.Charts);
+        Assert.Equal("Regional Totals", slide.Charts.Single().Title);
+    }
+
+    [Fact]
+    public async Task AddChartAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(new[] { "North" }, new[] { new ChartSeries("Total", new double[] { 1200 }) });
+
+        using var source = new MemoryStream(pptx);
+        var withChart = await sut.AddChartAsync(source, 1, ChartType.ColumnClustered, data, title: "Regional Totals");
+
+        using var readBack = new MemoryStream(withChart, writable: false);
+        using var doc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(readBack);
+        var slide = doc.Slides[0];
+        Assert.Single(slide.Charts);
+        Assert.Equal("Regional Totals", slide.Charts.Single().Title);
+    }
+
+    private static byte[] DeckWithSmartArt(params string[] nodeTexts)
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+
+        using var source = new MemoryStream(pptx, writable: false);
+        using var doc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(source);
+
+        var slide = doc.Slides[0];
+        var box = OfficeIMO.PowerPoint.PowerPointLayoutBox.FromInches(1, 3, 6, 2);
+        slide.AddSmartArt(OfficeIMO.PowerPoint.PowerPointSmartArtType.BasicProcess, nodeTexts, box);
+
+        using var output = new MemoryStream();
+        doc.Save(output);
+        return output.ToArray();
+    }
+
+    [Fact]
+    public void ReadSmartArt_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = DeckWithSmartArt("Plan", "Build", "Ship");
+
+        var diagrams = sut.ReadSmartArt(pptx, 1);
+
+        Assert.Single(diagrams);
+        Assert.Equal("Plan\nBuild\nShip", diagrams[0]);
+        Assert.Equal(PresentationEditor.ReadSmartArt(pptx, 1), diagrams);
+    }
+
+    [Fact]
+    public async Task ReadSmartArtAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = DeckWithSmartArt("Plan", "Build", "Ship");
+
+        using var source = new MemoryStream(pptx);
+        var diagrams = await sut.ReadSmartArtAsync(source, 1);
+
+        Assert.Single(diagrams);
+        Assert.Equal("Plan\nBuild\nShip", diagrams[0]);
+    }
 }
