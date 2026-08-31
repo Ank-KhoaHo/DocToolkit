@@ -130,11 +130,10 @@ page they already have. Every cell is escaped.
 
 `WorkbookEditor.AddPivotTable` creates a pivot table from existing sheet data:
 
-```csharp
-var withPivot = WorkbookEditor.AddPivotTable(
-    workbook, "Sales", "A1:C10", "E1", "RegionSummary",
-    rowFields: new[] { "Region" },
-    dataFields: new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#pivot)]
+
+```text
+Pivot cell D1 right after creation: ""
 ```
 
 **The result grid is empty until Excel opens and recalculates it.** That is a harder version of
@@ -171,12 +170,36 @@ byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, stri
 });
 ```
 
+### Charts
+
+`WorkbookEditor.AddChart` (see *Pivot tables* above for the `Spreadsheets` sample this is drawn
+from) and `PresentationEditor.AddChart` create charts, sharing one `ChartType`/`ChartData` model:
+
+[!code-csharp[](../../../samples/Presentations/Program.cs#chart)]
+
+```text
+With chart   : <varies> bytes (reaches PptxToPdfConverter's output)
+```
+
+DOCX chart creation is not included in this version — `OfficeIMO.Word`'s chart API has a
+structurally different shape from the one Excel and PowerPoint share, and forcing it into the same
+model would under- or over-serve one side. Word charts may get their own API in a future version.
+
+This **does** reach the render: `PptxToPdfConverter` and `XlsxToPdfConverter` both carry the chart
+through, title and category labels included — see *Rendering either one to PDF* below for what is
+measured and what is not.
+
 ### SmartArt is read, not (yet) written
 
-`ReadSmartArt` returns the text of every SmartArt diagram on a slide, one entry per diagram:
+`ReadSmartArt` returns each diagram's node texts on a slide, one entry per diagram, each entry
+already newline-joined:
 
-```csharp
-IReadOnlyList<IReadOnlyList<string>> diagrams = PresentationEditor.ReadSmartArt(pptx, index: 1);
+[!code-csharp[](../../../samples/Presentations/Program.cs#smartart)]
+
+```text
+SmartArt     : 1 diagram(s) on slide 1
+Diagram text : "Plan / Build / Ship"
+In ExtractText too: True
 ```
 
 **A SmartArt diagram's text lives in a different OOXML construct entirely** — a diagram data
@@ -184,35 +207,12 @@ part, not a text-bearing shape body — which is why it needs its own method rat
 in `ReadSlide`. `ExtractText` includes it too, appended after that slide's ordinary text, for the
 same reason.
 
-There is no `AddSmartArt` here yet: creating one through this package's usual `byte[]`-in/`byte[]`-out
-shape is measured to have a rendering gap — content added that way does not currently reach
-`PptxToPdfConverter`'s output, so it is left out rather than shipped with a silent surprise. A deck
-authored in PowerPoint itself, or built with `OfficeIMO.PowerPoint` directly, reads back correctly.
-
-### Charts
-
-`WorkbookEditor.AddChart` and `PresentationEditor.AddChart` create charts in an existing workbook
-or presentation, sharing one `ChartType`/`ChartData` model:
-
-```csharp
-var data = new ChartData(
-    new[] { "North", "South" },
-    new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
-
-var xlsx = WorkbookEditor.AddChart(
-    workbook, "Sheet1", "B2", ChartType.ColumnClustered, data, title: "Regional Totals");
-
-var pptx = PresentationEditor.AddChart(
-    presentation, 1, ChartType.ColumnClustered, data, title: "Regional Totals");
-```
-
-DOCX chart creation is not included in this version — `OfficeIMO.Word`'s chart API has a
-structurally different shape from the one Excel and PowerPoint share, and forcing it into the same
-model would under- or over-serve one side. Word charts may get their own API in a future version.
-
-Unlike the SmartArt case above, this one **does** reach the render: `PptxToPdfConverter` and
-`XlsxToPdfConverter` both carry the chart through, title and category labels included — see
-*Rendering either one to PDF* below for what is measured and what is not.
+There is no `AddSmartArt` on this package's own API yet: creating one through the usual
+`byte[]`-in/`byte[]`-out shape is measured to have a rendering gap — content added that way does
+not currently reach `PptxToPdfConverter`'s output, so it is left out rather than shipped with a
+silent surprise. The sample above builds its demonstration deck with `OfficeIMO.PowerPoint`
+directly for exactly that reason — it is the same escape hatch a caller reaches for, not a shortcut
+unique to this guide. A deck authored in PowerPoint itself reads back correctly either way.
 
 ## Rendering either one to PDF
 

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ank.DocToolkit" Version="*" />
+  </ItemGroup>
+
+  <!--
+    This library inspects and validates signatures but does not sign a document itself - see the
+    guide for why. Signing here goes through OfficeIMO.Word directly, the same library
+    InspectSignatures/ValidateSignatures are built on, so this needs no extra PackageReference:
+    OfficeIMO.Word already flows transitively from Ank.DocToolkit.
+  -->
+
+</Project>

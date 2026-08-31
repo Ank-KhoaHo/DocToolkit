@@ -146,6 +146,28 @@ BLOCKS = [
         "lines": [line("As CSV"), line("As HTML")],
     },
     {
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
+        "occurrence": 3,
+        "sample": "Spreadsheets",
+        "lines": [line("Pivot cell D1 right after creation")],
+    },
+    {
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
+        "occurrence": 4,
+        "sample": "Presentations",
+        # DocumentFormat.OpenXml assigns each saved part a fresh random relationship id, which
+        # shifts a compressed ZIP's size independent of content - the same non-determinism
+        # DocxImages' pair is masked for above, measured directly here too (three consecutive
+        # runs: 12,034 / 12,041 / 12,045 bytes).
+        "lines": [line("With chart", MASK)],
+    },
+    {
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
+        "occurrence": 5,
+        "sample": "Presentations",
+        "lines": [line("SmartArt"), line("Diagram text"), line("In ExtractText too")],
+    },
+    {
         "guide": "docfx/guides/editing/word-documents.md",
         "occurrence": 1,
         "sample": "DocxTemplating",
