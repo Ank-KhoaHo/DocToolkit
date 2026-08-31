@@ -1155,6 +1155,25 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
+### 0.46.0 - `XlsxToPdfConverter` now renders a formula's computed value, not its source text
+
+Before this release, a cell written with `XlsxFormula` had no cached value at all — by design, see
+*Formulas carry no cached value* below — and `XlsxToPdfConverter` read the raw cell rather than
+evaluating it the way `ReadCell`/`ReadSheet` already did. `=SUM(A1:B1)` rendered as the literal
+text `SUM(A1:B1)`, not `42`.
+
+From this release, `XlsxToPdfConverter` calls `Calculate()` before rendering, so a formula cell
+shows its value. `ReadCell`/`ReadSheet` are unaffected — they already evaluated correctly.
+
+**If you were relying on seeing a formula's source text in a rendered PDF**, that is very unlikely
+but stated for completeness: nobody could reasonably have depended on this as a feature, since it
+looked exactly like a defect. The output for any workbook with no formulas is unchanged.
+
+Two new operations exist alongside the fix: `WorkbookEditor.EvaluateFormulas` writes a computed
+value into the file itself, for a third-party reader that will not recalculate on its own, and
+`WorkbookEditor.InspectFormulas` reports which formulas the engine actually understands before you
+trust a value.
+
 ### 0.45.0 - Pivot tables in XLSX
 
 `WorkbookEditor.AddPivotTable` creates a pivot table from existing sheet data. **Its result grid
