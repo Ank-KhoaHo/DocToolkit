@@ -1065,8 +1065,8 @@ That is asserted, not assumed; see above.
 
 `WorkbookEditor.AddPivotTable` creates a pivot table from existing sheet data. **Its result grid
 is empty until Excel opens and recalculates it** — nothing that writes the file, this method
-included, computes a pivot aggregation. That is a harder version of the caveat this section
-already documents for `XlsxFormula` (see *Known limitations* below): a formula's value **is**
+included, computes a pivot aggregation. That is a harder version of the caveat `XlsxFormula`
+already carries (see *Known limitations* below): a formula's value **is**
 computed by `ReadCell`/`ReadSheet` on read, because this library's own engine evaluates it, while a
 pivot table's is not. Reading the pivot's own cells back with `ReadCell`/`ReadSheet` immediately
 after this call returns empty strings, and `XlsxToPdfConverter` renders nothing where the pivot's
