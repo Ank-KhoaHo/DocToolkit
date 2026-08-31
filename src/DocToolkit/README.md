@@ -266,6 +266,14 @@ var chart = WorkbookEditor.AddChart(
     new ChartData(new[] { "North", "South" }, new[] { new ChartSeries("Total", new double[] { 1200, 980 }) }),
     title: "Regional Totals");
 
+// A pivot table, aggregating existing sheet data. Its result grid is populated only when
+// Excel opens the file - see Known limitations below for what that means for ReadCell and
+// XlsxToPdfConverter.
+var withPivot = WorkbookEditor.AddPivotTable(
+    xlsx, "Sales", "A1:C10", "E1", "RegionSummary",
+    rowFields: new[] { "Region" },
+    dataFields: new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+
 // Presentations
 byte[] pptx = File.ReadAllBytes("deck.pptx");
 int slides = PresentationEditor.SlideCount(pptx);
@@ -1053,6 +1061,20 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
+### 0.45.0 - Pivot tables in XLSX
+
+`WorkbookEditor.AddPivotTable` creates a pivot table from existing sheet data. **Its result grid
+is empty until Excel opens and recalculates it** — nothing that writes the file, this method
+included, computes a pivot aggregation. That is a harder version of the caveat `XlsxFormula`
+already carries (see *Known limitations* below): a formula's value **is**
+computed by `ReadCell`/`ReadSheet` on read, because this library's own engine evaluates it, while a
+pivot table's is not. Reading the pivot's own cells back with `ReadCell`/`ReadSheet` immediately
+after this call returns empty strings, and `XlsxToPdfConverter` renders nothing where the pivot's
+results would be, for the identical reason it renders a formula's literal text rather than its
+computed value. See the [spreadsheets and presentations
+guide](https://ank-khoaho.github.io/DocToolkit/guides/editing/spreadsheets-and-presentations.html#pivot-tables)
+for a worked example.
+
 ### 0.45.0 - Chart creation in XLSX and PPTX
 
 `WorkbookEditor.AddChart` and `PresentationEditor.AddChart` create charts, sharing one
@@ -1291,6 +1313,7 @@ is that you find out by reading the source.
 | **One page setup per document** | `PageSetup` applies to the whole document; multiple sections with different paper is not supported. |
 | **DOCX → HTML returns a full document, not a fragment** | Extract the body with a parser if you are embedding it. |
 | **Formulas carry no cached value** | Excel recalculates on open and `ReadCell`/`ReadSheet` evaluate on read, but a reader that only reads cached values sees an empty cell until Excel has opened and saved the file. |
+| **Pivot table results carry no cached value either, and not even `ReadCell` computes them** | `WorkbookEditor.AddPivotTable`'s result grid is populated only when Excel opens and recalculates the file — a harder version of the row above: a formula's value *is* computed by `ReadCell`/`ReadSheet` on read, while a pivot table's is not, because nothing in this library evaluates a pivot aggregation. `XlsxToPdfConverter` renders nothing where the results would be, for the same reason it renders a formula's literal text rather than its computed value. See the [spreadsheets and presentations guide](https://ank-khoaho.github.io/DocToolkit/guides/editing/spreadsheets-and-presentations.html#pivot-tables). |
 | **Memory scales with the document, not the file** | Peak is dominated by the OOXML object model — measured ~120 MB for `ReadSheet` and ~233 MB for `SetCell` on a 1.9 MB, 40,000-row workbook. See above; the `Stream` overloads are not cheaper. |
 | **Below 1.0.0, permanently** | Anything may change in a minor version. |
 

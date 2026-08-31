@@ -239,6 +239,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
+        "WorkbookEditor.AddPivotTableAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
@@ -308,6 +309,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
+        "WorkbookEditor.AddPivotTableAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ReadSmartArtAsync",
@@ -400,6 +402,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AppendRowsAsync",
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
+        "WorkbookEditor.AddPivotTableAsync",
         "PresentationEditor.ReplaceTextAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
@@ -1275,6 +1278,13 @@ public class StreamOverloadTests
                     source!, "Sales", "B2", ChartType.Line,
                     new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) }),
                     destination!, ct: ct),
+            // Field names match the "Sales" fixture's actual headers (Rows: "Region"/"Total"),
+            // not placeholder single letters - AddPivotTable resolves rowFields/dataFields by
+            // header text against sourceRange, so a name the source data does not carry throws.
+            "WorkbookEditor.AddPivotTableAsync" =>
+                WorkbookEditor.AddPivotTableAsync(
+                    source!, "Sales", "A1:B2", "D1", "P", new[] { "Region" },
+                    new[] { new PivotDataField("Total", PivotFunction.Sum) }, destination!, ct: ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ReadSlideAsync" =>

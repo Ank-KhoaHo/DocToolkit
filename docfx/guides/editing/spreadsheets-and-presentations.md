@@ -126,6 +126,26 @@ newline — so the common case stays diffable. The HTML is a `<table>` fragment 
 a document: there is no `<html>` or `<body>` around it, because the caller is embedding it in a
 page they already have. Every cell is escaped.
 
+## Pivot tables
+
+`WorkbookEditor.AddPivotTable` creates a pivot table from existing sheet data:
+
+```csharp
+var withPivot = WorkbookEditor.AddPivotTable(
+    workbook, "Sales", "A1:C10", "E1", "RegionSummary",
+    rowFields: new[] { "Region" },
+    dataFields: new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+```
+
+**The result grid is empty until Excel opens and recalculates it.** That is a harder version of
+the formula caveat above (*Several sheets, and formulas between them*): a formula's value **is**
+computed by `ReadCell`/`ReadSheet` on read, because this library's own engine evaluates it — a
+pivot table's is not, because nothing that writes a workbook, this method included, computes a
+pivot aggregation. Reading the pivot's own cells back with `ReadCell`/`ReadSheet` immediately after
+this call returns empty strings, and `XlsxToPdfConverter` renders nothing where the pivot's results
+would be, for the identical reason it renders a formula's literal text rather than its computed
+value. Open the result in Excel (or an equivalent) to see it populated.
+
 ## Presentations
 
 `PresentationEditor.Create` builds a deck from a typed model — no template file involved.
