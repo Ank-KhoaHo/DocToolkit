@@ -113,4 +113,45 @@ string html = XlsxToHtmlConverter.Convert(presented, "Q1");
 Console.WriteLine($"\nAs CSV       : {csv.Replace("\r\n", " / ").Replace("\n", " / ")}");
 Console.WriteLine($"As HTML      : {html.Length:N0} chars, starts \"{html[..Math.Min(40, html.Length)]}\"");
 
+// --- Pivoting existing sheet data -----------------------------------------------------------
+// AddPivotTable reads a source range and writes a pivot definition elsewhere in the same sheet.
+// Nothing that WRITES a workbook computes the aggregation - Excel does that the first time it
+// opens the file - so the pivot's own cells read back empty until then.
+
+#region pivot
+byte[] sales = WorkbookEditor.Create("Sales", new object?[][]
+{
+    new object?[] { "Region", "Amount" },
+    new object?[] { "North",  1200 },
+    new object?[] { "South",  950 },
+    new object?[] { "North",  300 },
+    new object?[] { "South",  600 },
+});
+
+byte[] withPivot = WorkbookEditor.AddPivotTable(
+    sales, "Sales", "A1:B5", "D1", "RegionSummary",
+    rowFields: new[] { "Region" },
+    dataFields: new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+#endregion
+
+Console.WriteLine($"\nWith pivot   : {withPivot.Length:N0} bytes (was {sales.Length:N0})");
+Console.WriteLine($"Pivot cell D1 right after creation: \"{WorkbookEditor.ReadCell(withPivot, "Sales", "D1")}\"");
+Console.WriteLine("^ empty on purpose - open the file in Excel to see it recalculate.");
+
+// --- A chart from the same data --------------------------------------------------------------
+// WorkbookEditor.AddChart and PresentationEditor.AddChart (see the Presentations sample) share
+// one ChartType/ChartData model, so the same data shape works for both formats.
+
+#region chart
+var chartData = new ChartData(
+    new[] { "North", "South" },
+    new[] { new ChartSeries("Total", new double[] { 1500, 1550 }) });
+
+byte[] withChart = WorkbookEditor.AddChart(
+    sales, "Sales", "D8", ChartType.ColumnClustered, chartData, title: "Regional Totals");
+#endregion
+
+Console.WriteLine($"\nWith chart   : {withChart.Length:N0} bytes (was {sales.Length:N0})");
+Console.WriteLine("^ unlike the pivot above, this DOES reach XlsxToPdfConverter's output - see the guide.");
+
 Console.WriteLine("\nDone.");
