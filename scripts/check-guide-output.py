@@ -157,9 +157,12 @@ BLOCKS = [
         "sample": "Spreadsheets",
         # AddChart writes chart XML parts through DocumentFormat.OpenXml directly, unlike the
         # Format line above - which stays on ClosedXML's deterministic path. Measured non-
-        # deterministic here too, same cause as the Presentations block below (three consecutive
-        # runs: 8,812 / 8,816 / 8,815 bytes). "(was 6,352)" is NOT masked: sales itself comes from
-        # WorkbookEditor.Create, which stayed identical across all three runs.
+        # deterministic here too, same cause as the Presentations block below. This block first
+        # shipped comparing a second "(was N)" number literally, reasoning it was stable because
+        # three consecutive LOCAL runs agreed (6,352 all three times) - the same mistake the
+        # Format line's own history already warns about. It was not stable: CI measured 6,331 on
+        # the very next push. Fixed by dropping the second number from the sample's own print
+        # line instead of trying to mask two numbers in one string.
         "lines": [line("With chart", MASK)],
     },
     {

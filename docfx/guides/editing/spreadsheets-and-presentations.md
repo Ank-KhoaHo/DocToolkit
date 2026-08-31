@@ -178,7 +178,7 @@ byte[] edited = PresentationEditor.ReplaceText(pptx, new Dictionary<string, stri
 [!code-csharp[](../../../samples/Spreadsheets/Program.cs#chart)]
 
 ```text
-With chart   : <varies> bytes (was 6,352)
+With chart   : <varies> bytes (does not touch the sheet's cell data)
 ```
 
 [!code-csharp[](../../../samples/Presentations/Program.cs#chart)]
