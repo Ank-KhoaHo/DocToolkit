@@ -20,7 +20,9 @@ repo-wide tooling (CI, release pipeline).
 
 ### Fixed
 
-* evaluate XLSX formulas before rendering to PDF, and expose the mechanism ([#452](https://github.com/Ank-KhoaHo/DocToolkit/issues/452)) ([721af55](https://github.com/Ank-KhoaHo/DocToolkit/commit/721af55f6256d8c88c9e9a064d57d1f451b41c65))
+* **xlsx:** `XlsxToPdfConverter` now renders a formula's computed value instead of its source
+  text - see the Migrating notes in the package README. Also adds `EvaluateFormulas` and
+  `InspectFormulas` to `WorkbookEditor`. ([#452](https://github.com/Ank-KhoaHo/DocToolkit/issues/452)) ([721af55](https://github.com/Ank-KhoaHo/DocToolkit/commit/721af55f6256d8c88c9e9a064d57d1f451b41c65))
 
 
 ### Changed
