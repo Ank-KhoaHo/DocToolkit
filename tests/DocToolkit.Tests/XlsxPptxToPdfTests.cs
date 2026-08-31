@@ -55,6 +55,25 @@ public class XlsxPptxToPdfTests
     }
 
     [Fact]
+    public void XlsxConvert_RendersTheEvaluatedFormulaValueRatherThanItsSourceText()
+    {
+        // A formula cell this package writes carries no cached value at all - see XlsxFormula's
+        // own remarks - so a renderer that reads the raw file rather than going through
+        // ClosedXML's lazy in-memory evaluation (the way ReadCell/ReadSheet do) shows the
+        // formula's SOURCE TEXT where a value belongs. Measured 2026-08-31: this converter did
+        // exactly that before the fix.
+        var xlsx = WorkbookEditor.Create("S", new object?[][]
+        {
+            new object?[] { 2, 40, XlsxFormula.From("=SUM(A1:B1)") },
+        });
+
+        string text = PdfProbe.ExtractText(XlsxToPdfConverter.Convert(xlsx));
+
+        Assert.Contains("42", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("SUM", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void XlsxConvert_RejectsNullAndEmptyUnwrapped()
     {
         Assert.Throws<ArgumentNullException>(() => XlsxToPdfConverter.Convert(null!));
@@ -78,6 +97,25 @@ public class XlsxPptxToPdfTests
 
         Assert.True(PdfProbe.IsPdf(destination.ToArray()));
         Assert.NotEmpty(PdfProbe.MediaBoxes(destination.ToArray()));
+    }
+
+    [Fact]
+    public async Task XlsxConvertAsync_AlsoRendersTheEvaluatedFormulaValue()
+    {
+        // The Stream overload has its own Calculate() call, a separate line from Convert(byte[])'s
+        // - this proves that call specifically, rather than trusting the two overloads agree.
+        var xlsx = WorkbookEditor.Create("S", new object?[][]
+        {
+            new object?[] { 2, 40, XlsxFormula.From("=SUM(A1:B1)") },
+        });
+        using var source = new MemoryStream(xlsx);
+        using var destination = new MemoryStream();
+
+        await XlsxToPdfConverter.ConvertAsync(source, destination);
+
+        string text = PdfProbe.ExtractText(destination.ToArray());
+        Assert.Contains("42", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("SUM", text, StringComparison.Ordinal);
     }
 
     [Fact]

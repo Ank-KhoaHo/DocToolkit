@@ -37,8 +37,10 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task CreateAsync(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task CreateToFileAsync(System.Collections.Generic.IEnumerable<DocToolkit.XlsxSheet> sheets, string outputPath, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task CreateToFileAsync(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows, string outputPath, System.Threading.CancellationToken ct = default) { }
+        public static byte[] EvaluateFormulas(byte[] xlsx) { }
         public static byte[] Format(byte[] xlsx, string sheetName, DocToolkit.XlsxFormat format) { }
         public static System.Threading.Tasks.Task FormatAsync(System.IO.Stream source, string sheetName, DocToolkit.XlsxFormat format, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static DocToolkit.XlsxFormulaInspection InspectFormulas(byte[] xlsx) { }
         public static DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] xlsx) { }
         public static System.Threading.Tasks.Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static bool IsProtected(byte[] xlsx) { }
@@ -90,6 +92,22 @@ namespace DocToolkit
     {
         public string Formula { get; }
         public static DocToolkit.XlsxFormula From(string formula) { }
+    }
+    public sealed class XlsxFormulaCell
+    {
+        public string CellReference { get; }
+        public string Formula { get; }
+        public bool IsSupported { get; }
+        public string SheetName { get; }
+        public string? UnsupportedReason { get; }
+    }
+    public sealed class XlsxFormulaInspection
+    {
+        public bool AllSupported { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxFormulaCell> Formulas { get; }
+        public int SupportedFormulas { get; }
+        public int TotalFormulas { get; }
+        public int UnsupportedFormulas { get; }
     }
     public readonly struct XlsxFreeze : System.IEquatable<DocToolkit.XlsxFreeze>
     {
