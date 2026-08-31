@@ -39,7 +39,8 @@ Two related limits follow from the same design:
 - `<link rel="stylesheet">` is never fetched. Inline `<style>` blocks and `style=` attributes are
   honoured. Nothing here opens a socket you did not ask it to.
 - Unsupported features are dropped **silently**. There is no warning channel on the public API, so
-  a chart or a conditional format simply will not be in the output. The PDF is valid either way.
+  a chart or a conditional format simply will not be in the output — this library authors charts
+  in XLSX and PPTX only, so HTML has no path to one regardless. The PDF is valid either way.
 
 If you need pixel-accurate HTML rendering, you need a browser, and you should reach for one
 directly rather than expect this library to be one.

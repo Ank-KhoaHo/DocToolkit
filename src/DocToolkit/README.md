@@ -1053,10 +1053,13 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
-### 0.46.0 - Chart creation in XLSX and PPTX
+### 0.45.0 - Chart creation in XLSX and PPTX
 
 `WorkbookEditor.AddChart` and `PresentationEditor.AddChart` create charts, sharing one
-`ChartType`/`ChartData` model. DOCX chart creation is not included — see the guide.
+`ChartType`/`ChartData` model. DOCX chart creation is not included — see the guide. `ChartType`
+has 15 values, not the full 17 OfficeIMO's own chart-kind enum offers — Scatter and Bubble are
+excluded because both reject the shared categories-and-series `ChartData` shape on both Excel and
+PowerPoint, measured directly rather than assumed.
 
 ### 0.45.0 - `PresentationEditor.ExtractText` now includes SmartArt
 

@@ -1620,11 +1620,9 @@ public static class PresentationEditor
         ChartType.Area => OfficeIMO.Drawing.OfficeChartKind.Area,
         ChartType.AreaStacked => OfficeIMO.Drawing.OfficeChartKind.AreaStacked,
         ChartType.AreaStacked100 => OfficeIMO.Drawing.OfficeChartKind.AreaStacked100,
-        ChartType.Scatter => OfficeIMO.Drawing.OfficeChartKind.Scatter,
         ChartType.Radar => OfficeIMO.Drawing.OfficeChartKind.Radar,
         ChartType.Pie => OfficeIMO.Drawing.OfficeChartKind.Pie,
         ChartType.Doughnut => OfficeIMO.Drawing.OfficeChartKind.Doughnut,
-        ChartType.Bubble => OfficeIMO.Drawing.OfficeChartKind.Bubble,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
     };
 

@@ -190,7 +190,7 @@ DOCX chart creation is not included in this version — `OfficeIMO.Word`'s chart
 structurally different shape from the one Excel and PowerPoint share, and forcing it into the same
 model would under- or over-serve one side. Word charts may get their own API in a future version.
 
-Unlike `AddSmartArt` above, this one **does** reach the render: `PptxToPdfConverter` and
+Unlike the SmartArt case above, this one **does** reach the render: `PptxToPdfConverter` and
 `XlsxToPdfConverter` both carry the chart through, title and category labels included — see
 *Rendering either one to PDF* below for what is measured and what is not.
 

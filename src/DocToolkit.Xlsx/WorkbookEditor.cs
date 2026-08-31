@@ -1460,10 +1460,19 @@ public static class WorkbookEditor
         {
             if (!XLHelper.IsValidA1Address(cellRef))
                 throw new DocumentConversionException($"\"{cellRef}\" is not a valid A1-style cell reference.");
-            var column = XLHelper.GetColumnNumberFromAddress(cellRef);
+            // IsValidA1Address accepts absolute references ("$B$2"), but GetColumnNumberFromAddress
+            // throws on the literal "$" - measured directly. SetCell/ReadCell accept "$"-prefixed
+            // refs fine (ClosedXML's own Cell(cellRef) handles them), so AddChart strips "$" before
+            // parsing to match that same convention rather than rejecting a reference those methods
+            // already accept.
+            var cleanedRef = cellRef.Replace("$", string.Empty);
+            var column = XLHelper.GetColumnNumberFromAddress(cleanedRef);
             var row = int.Parse(
-                new string(cellRef.SkipWhile(char.IsLetter).ToArray()), CultureInfo.InvariantCulture);
+                new string(cleanedRef.SkipWhile(char.IsLetter).ToArray()), CultureInfo.InvariantCulture);
 
+            // xlsx is typically a non-writable MemoryStream (new MemoryStream(bytes, writable:
+            // false)) and OfficeIMO's ExcelDocument.Load needs an editable package, so this copy -
+            // unlike the one CLAUDE.md records removing elsewhere - is load-bearing, not incidental.
             using var source = new MemoryStream();
             xlsx.CopyTo(source);
             source.Position = 0;
@@ -1499,11 +1508,9 @@ public static class WorkbookEditor
         ChartType.Area => OfficeIMO.Drawing.OfficeChartKind.Area,
         ChartType.AreaStacked => OfficeIMO.Drawing.OfficeChartKind.AreaStacked,
         ChartType.AreaStacked100 => OfficeIMO.Drawing.OfficeChartKind.AreaStacked100,
-        ChartType.Scatter => OfficeIMO.Drawing.OfficeChartKind.Scatter,
         ChartType.Radar => OfficeIMO.Drawing.OfficeChartKind.Radar,
         ChartType.Pie => OfficeIMO.Drawing.OfficeChartKind.Pie,
         ChartType.Doughnut => OfficeIMO.Drawing.OfficeChartKind.Doughnut,
-        ChartType.Bubble => OfficeIMO.Drawing.OfficeChartKind.Bubble,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
     };
 

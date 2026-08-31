@@ -26,11 +26,9 @@ namespace DocToolkit
         Area = 9,
         AreaStacked = 10,
         AreaStacked100 = 11,
-        Scatter = 12,
-        Radar = 13,
-        Pie = 14,
-        Doughnut = 15,
-        Bubble = 16,
+        Radar = 12,
+        Pie = 13,
+        Doughnut = 14,
     }
     public enum ConversionLossKind
     {

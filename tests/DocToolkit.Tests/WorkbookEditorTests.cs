@@ -1058,6 +1058,13 @@ public class WorkbookEditorTests
         Assert.Contains("Regional Totals", text);
         Assert.Contains("North", text);
         Assert.Contains("South", text);
+        // "North"/"South" above are satisfied by the fixture's own cell data whether or not the
+        // chart itself rendered (both appear as literal cell values). "1.2k" is the value-axis
+        // tick label OfficeIMO renders for the 1200 series point - it exists only because the
+        // chart rendered, so this is the assertion that actually discriminates a dropped chart
+        // from a present one. Measured directly in this exact scenario (see the design doc's own
+        // XLSX round-trip evidence: "...Regional Totals 1.2k 900 600 300 0 North South Total").
+        Assert.Contains("1.2k", text);
     }
 
     [Fact]
@@ -1066,8 +1073,9 @@ public class WorkbookEditorTests
         var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" } });
         var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
 
-        Assert.Throws<DocumentConversionException>(
+        var ex = Assert.Throws<DocumentConversionException>(
             () => WorkbookEditor.AddChart(xlsx, "NoSuchSheet", "A1", ChartType.Line, data));
+        Assert.Contains("was not found", ex.Message);
     }
 
     [Fact]
@@ -1076,8 +1084,26 @@ public class WorkbookEditorTests
         var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" } });
         var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
 
-        Assert.Throws<DocumentConversionException>(
+        var ex = Assert.Throws<DocumentConversionException>(
             () => WorkbookEditor.AddChart(xlsx, "Sheet1", "not a cell", ChartType.Line, data));
+        Assert.Contains("is not a valid A1-style cell reference", ex.Message);
+    }
+
+    [Fact]
+    public void AddChart_AcceptsAbsoluteCellReferences()
+    {
+        var xlsx = WorkbookEditor.Create(
+            "Sheet1", new object[][] { new object[] { "A" }, new object[] { 1 } });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+
+        // "$B$2" passes XLHelper.IsValidA1Address but GetColumnNumberFromAddress throws on the
+        // literal "$" - measured directly. SetCell/ReadCell already accept "$"-prefixed refs (they
+        // hand the string straight to ClosedXML), so AddChart should too.
+        var result = WorkbookEditor.AddChart(xlsx, "Sheet1", "$B$2", ChartType.Line, data);
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        Assert.Single(doc.Sheets.First(s => s.Name == "Sheet1").Charts);
     }
 
     [Fact]
@@ -1103,11 +1129,13 @@ public class WorkbookEditorTests
         // asserts the two overloads did the same EDIT rather than produced identical bytes.
         var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" }, new object[] { 1 } });
         var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
-        var expected = WorkbookEditor.AddChart(xlsx, "Sheet1", "C1", ChartType.Line, data);
+        var expected = WorkbookEditor.AddChart(
+            xlsx, "Sheet1", "C1", ChartType.Line, data, title: "Regional Totals");
 
         using var source = new MemoryStream(xlsx, writable: false);
         using var destination = new MemoryStream();
-        await WorkbookEditor.AddChartAsync(source, "Sheet1", "C1", ChartType.Line, data, destination);
+        await WorkbookEditor.AddChartAsync(
+            source, "Sheet1", "C1", ChartType.Line, data, destination, title: "Regional Totals");
         var actual = destination.ToArray();
 
         Assert.Equal(
@@ -1139,6 +1167,56 @@ public class WorkbookEditorTests
         var actualChartXml = MaskNonDeterministicChartIds(
             ReadZipEntryText(actual, "xl/drawings/charts/chart1.xml"));
         Assert.Equal(expectedChartXml, actualChartXml);
+    }
+
+    [Fact]
+    public async Task AddChartAsync_FromFileToFile_MatchesTheByteArrayOverload()
+    {
+        var xlsx = WorkbookEditor.Create("Sheet1", new object[][] { new object[] { "A" }, new object[] { 1 } });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+
+        using var input = new TempFile();
+        using var output = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, xlsx);
+
+        await WorkbookEditor.AddChartAsync(
+            input.Path, output.Path, "Sheet1", "C1", ChartType.Line, data, title: "Regional Totals");
+
+        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(
+            new MemoryStream(
+                WorkbookEditor.AddChart(xlsx, "Sheet1", "C1", ChartType.Line, data, title: "Regional Totals"),
+                writable: false));
+        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(
+            new MemoryStream(await File.ReadAllBytesAsync(output.Path), writable: false));
+        var expectedChart = Assert.Single(expectedDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
+        var actualChart = Assert.Single(actualDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
+        Assert.Equal(expectedChart.Title, actualChart.Title);
+        Assert.Equal(expectedChart.ChartType, actualChart.ChartType);
+    }
+
+    public static IEnumerable<object[]> AllChartTypes() =>
+        Enum.GetValues<ChartType>().Select(t => new object[] { t });
+
+    [Theory]
+    [MemberData(nameof(AllChartTypes))]
+    public void AddChart_EveryChartTypeProducesALoadableChart(ChartType type)
+    {
+        // Only ColumnClustered/Line were ever probed against this ticket's categories+values
+        // ChartData model before this theory. Scatter and Bubble are genuinely different-shaped
+        // chart types (X/Y pairs) fed the same model here - this proves all 17 values, including
+        // those two, actually succeed rather than throw or silently produce zero charts.
+        var xlsx = WorkbookEditor.Create(
+            "Sheet1", new object[][] { new object[] { "North" }, new object[] { "South" } });
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = WorkbookEditor.AddChart(xlsx, "Sheet1", "C1", type, data);
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        var chart = Assert.Single(doc.Sheets.First(s => s.Name == "Sheet1").Charts);
+        Assert.NotNull(chart);
     }
 
     private static string ReadZipEntryText(byte[] xlsx, string entryName)

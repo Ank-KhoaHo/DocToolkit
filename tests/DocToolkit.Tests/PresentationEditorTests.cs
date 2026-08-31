@@ -1450,10 +1450,12 @@ public class PresentationEditorTests
     {
         var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
         var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
-        var expected = PresentationEditor.AddChart(pptx, 1, ChartType.Line, data);
+        var expected = PresentationEditor.AddChart(
+            pptx, 1, ChartType.Line, data, title: "Regional Totals");
 
         using var source = new MemoryStream(pptx, writable: false);
-        var actual = await PresentationEditor.AddChartAsync(source, 1, ChartType.Line, data);
+        var actual = await PresentationEditor.AddChartAsync(
+            source, 1, ChartType.Line, data, title: "Regional Totals");
 
         // NOT Assert.Equal(expected, actual) on the raw bytes. OfficeIMO.PowerPoint's Save() mints
         // fresh internal ids on every independent call -- the same nondeterminism PresentationEditor
@@ -1485,5 +1487,51 @@ public class PresentationEditorTests
             Assert.Equal(expectedSnapshot.Data.Series[i].Name, actualSnapshot.Data.Series[i].Name);
             Assert.Equal(expectedSnapshot.Data.Series[i].Values, actualSnapshot.Data.Series[i].Values);
         }
+    }
+
+    [Fact]
+    public async Task AddChartAsync_FromFile_MatchesTheByteArrayOverload()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(new[] { "A" }, new[] { new ChartSeries("S", new double[] { 1 }) });
+
+        using var input = new TempFile();
+        await File.WriteAllBytesAsync(input.Path, pptx);
+
+        var expected = PresentationEditor.AddChart(
+            pptx, 1, ChartType.Line, data, title: "Regional Totals");
+        var actual = await PresentationEditor.AddChartAsync(
+            input.Path, 1, ChartType.Line, data, title: "Regional Totals");
+
+        using var expectedDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(
+            new MemoryStream(expected, writable: false));
+        using var actualDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(
+            new MemoryStream(actual, writable: false));
+        var expectedChart = Assert.Single(expectedDoc.Slides[0].Charts);
+        var actualChart = Assert.Single(actualDoc.Slides[0].Charts);
+        Assert.True(expectedChart.TryGetOfficeSnapshot(out var expectedSnapshot));
+        Assert.True(actualChart.TryGetOfficeSnapshot(out var actualSnapshot));
+        Assert.Equal(expectedSnapshot.ChartKind, actualSnapshot.ChartKind);
+        Assert.Equal(expectedSnapshot.Title, actualSnapshot.Title);
+    }
+
+    public static IEnumerable<object[]> AllChartTypes() =>
+        Enum.GetValues<ChartType>().Select(t => new object[] { t });
+
+    [Theory]
+    [MemberData(nameof(AllChartTypes))]
+    public void AddChart_EveryChartTypeProducesALoadableChart(ChartType type)
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+        var data = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+
+        var result = PresentationEditor.AddChart(pptx, 1, type, data);
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(source);
+        var chart = Assert.Single(doc.Slides[0].Charts);
+        Assert.NotNull(chart);
     }
 }
