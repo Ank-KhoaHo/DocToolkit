@@ -10,6 +10,16 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.45.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.44.1...v0.45.0) (2026-08-31)
+
+
+### Added
+
+* add chart creation in XLSX and PPTX ([#442](https://github.com/Ank-KhoaHo/DocToolkit/issues/442)) ([0b99f81](https://github.com/Ank-KhoaHo/DocToolkit/commit/0b99f81fdd59cf9e6cd6ac0202d9974f8ac6af64))
+* add digital-signature inspection and validation to DOCX, XLSX and PPTX ([#445](https://github.com/Ank-KhoaHo/DocToolkit/issues/445)) ([3436465](https://github.com/Ank-KhoaHo/DocToolkit/commit/34364657aa2aee01af7aa87ea50417ded03b736b))
+* **pptx:** read SmartArt diagram text, and include it in ExtractText ([#439](https://github.com/Ank-KhoaHo/DocToolkit/issues/439)) ([94b385d](https://github.com/Ank-KhoaHo/DocToolkit/commit/94b385d2254934e257b2291ae20eb10c83e12b68))
+* **xlsx:** add Excel pivot table creation ([#443](https://github.com/Ank-KhoaHo/DocToolkit/issues/443)) ([c253ce4](https://github.com/Ank-KhoaHo/DocToolkit/commit/c253ce42e0dd8116e03dc1372af7494f8a14f277))
+
 ## [0.44.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.44.0...v0.44.1) (2026-08-30)
 
 
