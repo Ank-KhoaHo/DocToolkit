@@ -1378,6 +1378,34 @@ public class WorkbookEditorTests
     }
 
     [Fact]
+    public void AddPivotTable_AcceptsAbsoluteCellReferences()
+    {
+        // OfficeIMO's own AddPivotTable rejects a "$"-prefixed destinationCell outright
+        // ("Invalid destination cell '$D$1'") - measured directly. AddPivotTableCore strips "$"
+        // before passing the string through, matching AddChart's identical fix for the same
+        // reason. Nothing else in this file exercised that stripping until this test - a
+        // regression that passed the ORIGINAL destinationCell through instead of the cleaned one
+        // would otherwise pass the whole suite silently.
+        var xlsx = WorkbookEditor.Create(
+            "Data",
+            new object[][]
+            {
+                new object[] { "Region", "Amount" },
+                new object[] { "North", 100 },
+                new object[] { "South", 200 },
+            });
+
+        var result = WorkbookEditor.AddPivotTable(
+            xlsx, "Data", "A1:B3", "$D$1", "MyPivot",
+            new[] { "Region" },
+            new[] { new PivotDataField("Amount", PivotFunction.Sum) });
+
+        using var source = new MemoryStream(result, writable: false);
+        using var doc = OfficeIMO.Excel.ExcelDocument.Load(source);
+        Assert.Single(doc.GetPivotTables());
+    }
+
+    [Fact]
     public async Task AddPivotTableAsync_FromStream_MatchesTheByteArrayOverload()
     {
         var xlsx = WorkbookEditor.Create(
