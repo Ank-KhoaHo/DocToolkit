@@ -1534,4 +1534,81 @@ public class PresentationEditorTests
         var chart = Assert.Single(doc.Slides[0].Charts);
         Assert.NotNull(chart);
     }
+
+    [Fact]
+    public void EveryOperation_PreservesALinkedOleObject()
+    {
+        var basePptx = PresentationEditor.Create(new[]
+        {
+            PptxSlide.Titled("Slide 1", "{{name}}"),
+            PptxSlide.Titled("Slide 2", "bullet"),
+        });
+
+        byte[] withOle;
+        using (var ms = new MemoryStream())
+        {
+            ms.Write(basePptx, 0, basePptx.Length);
+            ms.Position = 0;
+            using (var doc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(ms))
+            {
+                // AddOleObject requires a real OLE compound-document blob, validated by magic
+                // bytes - a LINKED object exercises the identical PowerPointOleObject and
+                // relationship machinery without needing to hand-author a CFBF file.
+                doc.Slides[0].AddLinkedOleObject(
+                    new Uri("file:///C:/does-not-need-to-exist/workbook.xlsx"),
+                    "Excel.Sheet.12", false, 100, 100, 500000, 500000);
+                doc.Save();
+            }
+            withOle = ms.ToArray();
+        }
+
+        static void AssertOleSurvivesOnExactlyOneSlide(byte[] pptx, int expectedSlideIndex)
+        {
+            using var ms = new MemoryStream(pptx, writable: false);
+            using var doc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(ms);
+            for (var i = 0; i < doc.Slides.Count; i++)
+            {
+                var oleObjects = doc.Slides[i].OleObjects.ToList();
+                if (i == expectedSlideIndex)
+                {
+                    var ole = Assert.Single(oleObjects);
+                    Assert.Equal("Excel.Sheet.12", ole.ProgId);
+                    Assert.True(ole.IsLinked);
+                    Assert.Equal(new Uri("file:///C:/does-not-need-to-exist/workbook.xlsx"), ole.LinkUri);
+                }
+                else
+                {
+                    Assert.Empty(oleObjects);
+                }
+            }
+        }
+
+        AssertOleSurvivesOnExactlyOneSlide(withOle, expectedSlideIndex: 0);
+
+        var afterReplaceText = PresentationEditor.ReplaceText(
+            withOle, new Dictionary<string, string> { ["{{name}}"] = "Alice" });
+        AssertOleSurvivesOnExactlyOneSlide(afterReplaceText, expectedSlideIndex: 0);
+
+        var afterReplaceImage = PresentationEditor.ReplaceImage(withOle, "{{name}}", Png());
+        AssertOleSurvivesOnExactlyOneSlide(afterReplaceImage, expectedSlideIndex: 0);
+
+        // 1-based: removes "Slide 2", the UNRELATED slide - slide 0's OLE object must survive.
+        var afterRemoveSlides = PresentationEditor.RemoveSlides(withOle, new[] { 2 });
+        AssertOleSurvivesOnExactlyOneSlide(afterRemoveSlides, expectedSlideIndex: 0);
+
+        // 1-based [2, 1]: swaps the two slides, so the OLE object (originally on slide 1) is now
+        // on slide 2 - proving it moves WITH its slide rather than being lost or left behind.
+        var afterReorder = PresentationEditor.ReorderSlides(withOle, new[] { 2, 1 });
+        AssertOleSurvivesOnExactlyOneSlide(afterReorder, expectedSlideIndex: 1);
+
+        // 1-based atIndex 1: inserts a new first slide, so the original slide 1 (with the OLE
+        // object) shifts to position 2 (0-based index 1).
+        var afterInsert = PresentationEditor.InsertSlides(
+            withOle, 1, new[] { PptxSlide.Titled("New first slide") });
+        AssertOleSurvivesOnExactlyOneSlide(afterInsert, expectedSlideIndex: 1);
+
+        var afterProtect = PresentationEditor.Protect(withOle, "pw123");
+        var afterUnprotect = PresentationEditor.Unprotect(afterProtect, "pw123");
+        AssertOleSurvivesOnExactlyOneSlide(afterUnprotect, expectedSlideIndex: 0);
+    }
 }

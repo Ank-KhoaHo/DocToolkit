@@ -392,4 +392,39 @@ public class DocxEditorReplaceImageTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => DocxEditor.ReplaceImage(docx, "{{logo}}", png, widthPoints: 150_000));
     }
+
+    [Fact]
+    public void ReplaceImage_PreservesAnEmbeddedObject()
+    {
+        using var embeddedFile = new TempFile();
+        using var iconFile = new TempFile();
+        File.WriteAllBytes(embeddedFile.Path,
+            WorkbookEditor.Create("Data", new object[][] { new object[] { "X" } }));
+        File.WriteAllBytes(iconFile.Path, Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
+
+        byte[] docx;
+        using (var word = OfficeIMO.Word.WordDocument.Create())
+        {
+            word.AddParagraph("Logo: {{logo}} end");
+            word.AddEmbeddedObject(embeddedFile.Path, iconFile.Path, null, null);
+            using var ms = new MemoryStream();
+            word.Save(ms);
+            docx = ms.ToArray();
+        }
+
+        var filled = DocxEditor.ReplaceImage(docx, "{{logo}}", ImageFixtures.Png());
+
+        using var before = new MemoryStream(docx, writable: false);
+        using var beforeDoc = OfficeIMO.Word.WordDocument.Load(before);
+        var beforePayload = Assert.Single(beforeDoc.GetEmbeddedPayloads(false));
+
+        using var after = new MemoryStream(filled, writable: false);
+        using var afterDoc = OfficeIMO.Word.WordDocument.Load(after);
+        var afterPayload = Assert.Single(afterDoc.GetEmbeddedPayloads(false));
+
+        Assert.Equal(beforePayload.Kind, afterPayload.Kind);
+        Assert.Equal(beforePayload.ContentType, afterPayload.ContentType);
+        Assert.Equal(beforePayload.Length, afterPayload.Length);
+    }
 }
