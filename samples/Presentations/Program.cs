@@ -48,6 +48,29 @@ pptx = PresentationEditor.AddChart(
 // fresh random relationship id, which shifts a compressed ZIP's size independent of content.
 Console.WriteLine($"\nWith chart   : {pptx.Length:N0} bytes (reaches PptxToPdfConverter's output)");
 
+// --- Metadata ------------------------------------------------------------------------------
+// What a file manager shows in its properties panel, and what a search indexer reads - the same
+// DocumentMetadata type as the Spreadsheets and DocxTemplating samples, since DOCX, XLSX and
+// PPTX share the same property bag shape.
+
+#region metadata
+byte[] withMetadata = PresentationEditor.WithMetadata(pptx, new DocumentMetadata
+{
+    Title = "Q1 Regional Review",
+    Creator = "Contoso Finance",
+});
+
+DocumentMetadata readBack = PresentationEditor.ReadMetadata(withMetadata);
+#endregion
+
+Console.WriteLine($"\nTitle          : {readBack.Title}");
+Console.WriteLine($"Creator        : {readBack.Creator}");
+
+byte[] retitled = PresentationEditor.WithMetadata(withMetadata, new DocumentMetadata { Title = "Superseded" });
+
+Console.WriteLine($"After retitling: title \"{PresentationEditor.ReadMetadata(retitled).Title}\", "
+    + $"creator still \"{PresentationEditor.ReadMetadata(retitled).Creator}\"");
+
 // --- Reading SmartArt --------------------------------------------------------------------------
 // This library cannot AUTHOR a SmartArt diagram yet (see the guide for why), so the deck below is
 // built with OfficeIMO.PowerPoint directly - the same way the real diagrams ReadSmartArt is meant

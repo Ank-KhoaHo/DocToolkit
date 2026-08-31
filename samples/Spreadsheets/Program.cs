@@ -68,6 +68,22 @@ Console.WriteLine($"Appended row : {string.Join(" | ", WorkbookEditor.ReadSheet(
 // has opened and saved the file.
 Console.WriteLine($"Grand total  : {WorkbookEditor.ReadCell(workbook, "Summary", "B1")}");
 
+// --- Trusting the computed value outside this package --------------------------------------
+// ReadCell above already returns the right number because it recomputes in memory on every
+// read - which does nothing for a reader that is NOT this package and NOT Excel, and only
+// trusts whatever value the FILE already carries. InspectFormulas reports what the underlying
+// engine actually understands; EvaluateFormulas writes a computed value into the file itself,
+// for exactly that reader.
+
+#region formula-evaluate
+XlsxFormulaInspection inspection = WorkbookEditor.InspectFormulas(workbook);
+byte[] withCachedValues = WorkbookEditor.EvaluateFormulas(workbook);
+#endregion
+
+Console.WriteLine($"\nFormulas found : {inspection.TotalFormulas} total, {inspection.SupportedFormulas} supported");
+Console.WriteLine($"All supported  : {inspection.AllSupported}");
+Console.WriteLine($"With cached values: {withCachedValues.Length:N0} bytes (was {workbook.Length:N0})");
+
 // --- Making a generated sheet look like a report ------------------------------------------
 // Format applies presentation to a sheet that already exists, so it composes with Create,
 // AppendRows and SetCell rather than being an argument to any of them. XlsxFormat is immutable
@@ -156,5 +172,30 @@ byte[] withChart = WorkbookEditor.AddChart(
 // relationship id (the same non-determinism the Presentations sample's own chart line has).
 Console.WriteLine($"\nWith chart   : {withChart.Length:N0} bytes (does not touch the sheet's cell data)");
 Console.WriteLine("^ unlike the pivot above, this DOES reach XlsxToPdfConverter's output - see the guide.");
+
+// --- Metadata ---------------------------------------------------------------------------------
+// What a file manager shows in its properties panel, and what a search indexer reads - the same
+// concept as PdfMetadata (see the PdfUtilities sample), on XLSX's own property bag.
+
+#region metadata
+byte[] withMetadata = WorkbookEditor.WithMetadata(workbook, new DocumentMetadata
+{
+    Title = "Q1 Regional Revenue",
+    Creator = "Contoso Finance",
+});
+
+DocumentMetadata readBack = WorkbookEditor.ReadMetadata(withMetadata);
+#endregion
+
+Console.WriteLine($"\nTitle          : {readBack.Title}");
+Console.WriteLine($"Creator        : {readBack.Creator}");
+Console.WriteLine($"Subject        : {readBack.Subject?.ToString() ?? "(null - never set)"}");
+
+// null means ABSENT, not blank - and a null property leaves what the document already had
+// alone, so retitling below cannot silently erase the creator.
+byte[] retitled = WorkbookEditor.WithMetadata(withMetadata, new DocumentMetadata { Title = "Superseded" });
+
+Console.WriteLine($"After retitling: title \"{WorkbookEditor.ReadMetadata(retitled).Title}\", "
+    + $"creator still \"{WorkbookEditor.ReadMetadata(retitled).Creator}\"");
 
 Console.WriteLine("\nDone.");

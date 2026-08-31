@@ -182,10 +182,28 @@ BLOCKS = [
         "lines": [line("SmartArt"), line("Diagram text"), line("In ExtractText too")],
     },
     {
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
+        "occurrence": 7,
+        "sample": "Spreadsheets",
+        "lines": [line("After retitling")],
+    },
+    {
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
+        "occurrence": 8,
+        "sample": "Presentations",
+        "lines": [line("After retitling")],
+    },
+    {
         "guide": "docfx/guides/editing/word-documents.md",
         "occurrence": 1,
         "sample": "DocxTemplating",
         "lines": [line("As HTML"), line("As Markdown")],
+    },
+    {
+        "guide": "docfx/guides/editing/word-documents.md",
+        "occurrence": 2,
+        "sample": "DocxTemplating",
+        "lines": [line("After retitling")],
     },
 ]
 
