@@ -312,6 +312,8 @@ public class StreamOverloadTests
         "WorkbookEditor.FormatAsync",
         "WorkbookEditor.AddChartAsync",
         "WorkbookEditor.AddPivotTableAsync",
+        "WorkbookEditor.InspectSignaturesAsync",
+        "WorkbookEditor.ValidateSignaturesAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
         "PresentationEditor.ReadSmartArtAsync",
@@ -1291,6 +1293,10 @@ public class StreamOverloadTests
                 WorkbookEditor.AddPivotTableAsync(
                     source!, "Sales", "A1:B2", "D1", "P", new[] { "Region" },
                     new[] { new PivotDataField("Total", PivotFunction.Sum) }, destination!, ct: ct),
+            "WorkbookEditor.InspectSignaturesAsync" =>
+                WorkbookEditor.InspectSignaturesAsync(source!, ct),
+            "WorkbookEditor.ValidateSignaturesAsync" =>
+                WorkbookEditor.ValidateSignaturesAsync(source!, ct: ct),
             "PresentationEditor.SlideCountAsync" =>
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ReadSlideAsync" =>
