@@ -115,6 +115,8 @@ internal static class OfficeSignature
 
     private static void DeleteTempFile(string path)
     {
-        try { File.Delete(path); } catch (IOException) { /* best effort */ }
+        try { File.Delete(path); }
+        catch (IOException) { /* best effort */ }
+        catch (UnauthorizedAccessException) { /* best effort - e.g. a locked handle from an AV scanner */ }
     }
 }
