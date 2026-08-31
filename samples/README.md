@@ -14,8 +14,9 @@ two claims that drift apart. `ls -d samples/*/` is the answer, and the table bel
 | [MarkdownConversion](MarkdownConversion/) | How do I turn Markdown into a DOCX or a PDF — and how do I find out what the conversion could not carry across? |
 | [DocxTemplating](DocxTemplating/) | How do I fill a Word template, including one row per record — or build a document with no template at all? |
 | [DocxImages](DocxImages/) | How do I drop a logo or signature into a placeholder, and what happens to an image the HTML only points at? |
-| [Spreadsheets](Spreadsheets/) | How do I create, edit and read an XLSX — make it look like a report, and hand one sheet to something that is not Excel? |
-| [Presentations](Presentations/) | How do I read text out of a PowerPoint file? |
+| [Spreadsheets](Spreadsheets/) | How do I create, edit and read an XLSX — make it look like a report, add a chart or a pivot table, and hand one sheet to something that is not Excel? |
+| [Presentations](Presentations/) | How do I read text out of a PowerPoint file, add a chart to a slide, or read a SmartArt diagram's text? |
+| [Signatures](Signatures/) | How do I tell whether a document is signed, and what does a self-signed certificate or a tampered document actually look like when I validate it? |
 | [MinimalApi](MinimalApi/) | How do I wire this into ASP.NET Core dependency injection? |
 | [RazorPdf](RazorPdf/) | How do I turn a Razor view I already maintain into a PDF or a Word document? |
 | [WorkerService](WorkerService/) | How do I generate documents from a background job? |

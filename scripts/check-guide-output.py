@@ -154,6 +154,17 @@ BLOCKS = [
     {
         "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
         "occurrence": 4,
+        "sample": "Spreadsheets",
+        # AddChart writes chart XML parts through DocumentFormat.OpenXml directly, unlike the
+        # Format line above - which stays on ClosedXML's deterministic path. Measured non-
+        # deterministic here too, same cause as the Presentations block below (three consecutive
+        # runs: 8,812 / 8,816 / 8,815 bytes). "(was 6,352)" is NOT masked: sales itself comes from
+        # WorkbookEditor.Create, which stayed identical across all three runs.
+        "lines": [line("With chart", MASK)],
+    },
+    {
+        "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
+        "occurrence": 5,
         "sample": "Presentations",
         # DocumentFormat.OpenXml assigns each saved part a fresh random relationship id, which
         # shifts a compressed ZIP's size independent of content - the same non-determinism
@@ -163,7 +174,7 @@ BLOCKS = [
     },
     {
         "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
-        "occurrence": 5,
+        "occurrence": 6,
         "sample": "Presentations",
         "lines": [line("SmartArt"), line("Diagram text"), line("In ExtractText too")],
     },

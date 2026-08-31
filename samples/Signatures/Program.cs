@@ -8,11 +8,11 @@ Console.WriteLine("==========");
 
 // This library reads and validates digital signatures but does not create one itself - signing
 // goes through OfficeIMO.Word.WordDocument.SignPackage directly, the library
-// InspectSignatures/ValidateSignatures are themselves built on. It needs a real file path (XML
-// digital-signature verification is byte-sensitive, so there is no byte[]/Stream overload), so
-// this sample writes to a temp file the same way the library's own internals do.
+// InspectSignatures/ValidateSignatures are themselves built on. SignPackage needs a real file
+// path - XML digital-signature verification is byte-sensitive, so OfficeIMO offers no byte[]/
+// Stream form of it - so this sample writes to a temp file the same way the library's own
+// internals do (see OfficeSignature.cs's own remarks on why).
 
-#region sign
 using var rsa = RSA.Create(2048);
 var request = new CertificateRequest(
     "CN=Sample Signer", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -34,17 +34,16 @@ try
 }
 finally
 {
-    File.Delete(tempPath);
+    // Best effort: a delete failure (e.g. a locked handle from an AV scanner) must not mask
+    // whatever exception the try block itself raised.
+    try { File.Delete(tempPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
 }
-#endregion
 
 // ---------------------------------------------------------------------------------------------
 Console.WriteLine("\n1. Inspecting - who claims to have signed it, unvalidated");
 
-#region inspect
 DocumentSignatureInfo unsignedInfo = DocxEditor.InspectSignatures(unsigned);
 DocumentSignatureInfo signedInfo = DocxEditor.InspectSignatures(signed);
-#endregion
 
 Console.WriteLine($"   unsigned doc : HasSignatures={unsignedInfo.HasSignatures}");
 Console.WriteLine($"   signed doc   : HasSignatures={signedInfo.HasSignatures}, "
@@ -55,10 +54,8 @@ Console.WriteLine("   ^ InspectSignatures reports a CLAIMED identity - it does n
 // ---------------------------------------------------------------------------------------------
 Console.WriteLine("\n2. The trap: a self-signed certificate is not a broken signature");
 
-#region validate
 DocumentSignatureValidationReport report = DocxEditor.ValidateSignatures(signed);
 DocumentSignatureValidationResult signature = report.Signatures[0];
-#endregion
 
 Console.WriteLine($"   report.IsCryptographicallyValid : {report.IsCryptographicallyValid}  (content matches what was signed)");
 Console.WriteLine($"   signature.CertificateChainStatus: {signature.CertificateChainStatus}  (nobody told this machine to trust \"Sample Signer\")");
@@ -75,7 +72,6 @@ Console.WriteLine($"   report.IsValidUnderPolicy       : {withTrustOff.IsValidUn
 // ---------------------------------------------------------------------------------------------
 Console.WriteLine("\n3. What tampering actually looks like");
 
-#region tamper
 string tamperedPath = Path.Join(Path.GetTempPath(), $"doctoolkit-sample-{Guid.NewGuid():N}.docx");
 byte[] tampered;
 try
@@ -92,22 +88,24 @@ try
 }
 finally
 {
-    File.Delete(tamperedPath);
+    try { File.Delete(tamperedPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
 }
 
 DocumentSignatureValidationReport tamperedReport = DocxEditor.ValidateSignatures(
     tampered, new DocumentSignatureValidationOptions { ValidateCertificateTrust = false });
-#endregion
+DocumentSignatureValidationResult tamperedSignature = tamperedReport.Signatures[0];
 
 Console.WriteLine($"   report.IsCryptographicallyValid : {tamperedReport.IsCryptographicallyValid}  (this is the field that catches it)");
-Console.WriteLine($"   signature.CryptographicStatus   : {tamperedReport.Signatures[0].CryptographicStatus}  (unchanged - see below)");
+Console.WriteLine($"   signature.CryptographicStatus   : {tamperedSignature.CryptographicStatus}  (unchanged - see below)");
 Console.WriteLine("   ^ the per-signature CryptographicStatus only checks that the signature block");
 Console.WriteLine("     itself is well-formed against its own SignedInfo - it does NOT re-check the");
 Console.WriteLine("     content, so it reads Passed on the tampered copy too. Read");
 Console.WriteLine("     report.IsCryptographicallyValid for tamper detection, not the per-signature field.");
 
 Console.WriteLine("\n4. The same four members exist on WorkbookEditor and PresentationEditor");
-Console.WriteLine($"   WorkbookEditor.InspectSignatures(xlsx).HasSignatures    : "
-                  + $"{WorkbookEditor.InspectSignatures(WorkbookEditor.Create("Sheet1", new object?[][] { new object?[] { "x" } })).HasSignatures}");
+byte[] xlsx = WorkbookEditor.Create("Sheet1", new object?[][] { new object?[] { "x" } });
+byte[] pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Untitled") });
+Console.WriteLine($"   WorkbookEditor.InspectSignatures(xlsx).HasSignatures     : {WorkbookEditor.InspectSignatures(xlsx).HasSignatures}");
+Console.WriteLine($"   PresentationEditor.InspectSignatures(pptx).HasSignatures : {PresentationEditor.InspectSignatures(pptx).HasSignatures}");
 
 Console.WriteLine("\nDone.");
