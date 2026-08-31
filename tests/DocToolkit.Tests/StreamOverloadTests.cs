@@ -324,6 +324,8 @@ public class StreamOverloadTests
         "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
         "PresentationEditor.ReplaceImageAsync",
+        "PresentationEditor.InspectSignaturesAsync",
+        "PresentationEditor.ValidateSignaturesAsync",
         "PdfEditor.PageCountAsync",
         "PdfEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
@@ -1320,6 +1322,10 @@ public class StreamOverloadTests
                 PresentationEditor.RemoveSlidesAsync(source!, new[] { 1 }, destination!, ct),
             "PresentationEditor.ReplaceImageAsync" =>
                 PresentationEditor.ReplaceImageAsync(source!, "{{chart}}", ImageFixtures.Png(), destination!, ct),
+            "PresentationEditor.InspectSignaturesAsync" =>
+                PresentationEditor.InspectSignaturesAsync(source!, ct),
+            "PresentationEditor.ValidateSignaturesAsync" =>
+                PresentationEditor.ValidateSignaturesAsync(source!, ct: ct),
             "PresentationEditor.CreateAsync" =>
                 PresentationEditor.CreateAsync(Slides, destination!, ct),
             "MarkdownToDocxConverter.ConvertAsync" =>

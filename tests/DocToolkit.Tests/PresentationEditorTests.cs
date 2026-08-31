@@ -1621,4 +1621,66 @@ public class PresentationEditorTests
         var afterAddChart = PresentationEditor.AddChart(withOle, 1, ChartType.ColumnClustered, chartData);
         AssertOleSurvivesOnExactlyOneSlide(afterAddChart, expectedSlideIndex: 0);
     }
+
+    [Fact]
+    public void InspectSignatures_ReportsAnUnsignedDeckCleanly()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+
+        var info = PresentationEditor.InspectSignatures(pptx);
+
+        Assert.False(info.HasSignatures);
+        Assert.Equal(0, info.SignatureCount);
+    }
+
+    [Fact]
+    public async Task InspectSignaturesAsync_MatchesTheByteArrayOverload()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+
+        var expected = PresentationEditor.InspectSignatures(pptx);
+        using var source = new MemoryStream(pptx, writable: false);
+        var actual = await PresentationEditor.InspectSignaturesAsync(source);
+
+        Assert.Equal(expected.HasSignatures, actual.HasSignatures);
+        Assert.Equal(expected.SignatureCount, actual.SignatureCount);
+    }
+
+    [Fact]
+    public void ValidateSignatures_ReportsAnUnsignedDeckCleanly()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+
+        var report = PresentationEditor.ValidateSignatures(pptx);
+
+        Assert.False(report.HasSignatures);
+        Assert.False(report.IsCryptographicallyValid);
+        Assert.Empty(report.Signatures);
+    }
+
+    [Fact]
+    public async Task ValidateSignaturesAsync_MatchesTheByteArrayOverload()
+    {
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Slide 1") });
+
+        var expected = PresentationEditor.ValidateSignatures(pptx);
+        using var source = new MemoryStream(pptx, writable: false);
+        var actual = await PresentationEditor.ValidateSignaturesAsync(source);
+
+        Assert.Equal(expected.HasSignatures, actual.HasSignatures);
+        Assert.Equal(expected.IsCryptographicallyValid, actual.IsCryptographicallyValid);
+    }
+
+    [Fact]
+    public void InspectSignatures_NullPptx_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => PresentationEditor.InspectSignatures(null!));
+    }
+
+    [Fact]
+    public void InspectSignatures_EmptyPptx_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => PresentationEditor.InspectSignatures(Array.Empty<byte>()));
+        Assert.Equal("pptx", ex.ParamName);
+    }
 }
