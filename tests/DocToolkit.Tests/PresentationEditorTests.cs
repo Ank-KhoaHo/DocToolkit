@@ -1610,5 +1610,15 @@ public class PresentationEditorTests
         var afterProtect = PresentationEditor.Protect(withOle, "pw123");
         var afterUnprotect = PresentationEditor.Unprotect(afterProtect, "pw123");
         AssertOleSurvivesOnExactlyOneSlide(afterUnprotect, expectedSlideIndex: 0);
+
+        // AddChart is OfficeIMO-backed like Protect/Unprotect above, but was never actually
+        // exercised against an embedded object until now - closing the same shape of gap the
+        // task review already caught once on the XLSX side (WorkbookEditor.AddChart).
+        // 1-based slideIndex 1 targets the slide carrying the OLE object.
+        var chartData = new ChartData(
+            new[] { "North", "South" },
+            new[] { new ChartSeries("Total", new double[] { 1200, 980 }) });
+        var afterAddChart = PresentationEditor.AddChart(withOle, 1, ChartType.ColumnClustered, chartData);
+        AssertOleSurvivesOnExactlyOneSlide(afterAddChart, expectedSlideIndex: 0);
     }
 }
