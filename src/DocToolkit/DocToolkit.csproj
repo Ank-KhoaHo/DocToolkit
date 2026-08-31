@@ -99,8 +99,69 @@
       Tags are necessary and not sufficient: this package already carried `html-to-docx` and still
       does not reach the top 20 for `html to docx`, because download count weighs heavily. If the
       re-measurement shows no movement, the honest response is to cut back, not to add more.
+
+      FIFTEEN MORE ADDED 2026-08-31 (F12, F13) - the same rule, tested against new evidence rather
+      than skipped.
+
+      F12: a hyphenated tag is stored and matched as ONE token, by PREFIX only. Measured by pairing
+      each candidate word with an anchor this package already owns (`browserless`, 6 hits;
+      `doctoolkit`, 4 hits - same result from both, which is what makes it a property of the index
+      rather than of one anchor): `merge` does not match `mail-merge`, only `mail` does;
+      `conversion` does not match `document-conversion`, only `document` does; and so on for every
+      hyphenated tag tried. A positive control rules out "hyphenated queries are just broken":
+      `serilog structured-logging` finds Serilog, because ITS second word lives in prose, not
+      welded into one tag. So the fix is additive - keep the whole compound for an exact-phrase
+      searcher, add the second half as its OWN tag:
+
+        - conversion, generation, merge   second halves of document-conversion, pdf-generation,
+                                           mail-merge - concepts already committed to, now
+                                           reachable by either word.
+        - platform, chromium, binaries    second halves of cross-platform, no-chromium,
+                                           no-native-binaries - the constraint vocabulary, same
+                                           reasoning.
+
+      Measured and DELIBERATELY NOT added: `browser`, `managed`, `pure`, `injection` all already
+      match individually via the DESCRIPTION (which tokenises on hyphens, unlike the tags field),
+      and none has a specific query gap tied to it - `browser` is F7's own `html to pdf without
+      browser` case, which that ticket already traced to how nuget.org conjoins `html` with
+      `browser` and said explicitly not to chase with more tags.
+
+      F13: a second, different failure - a query naming a real shipped capability, returning a
+      HANDFUL of results, matching none of them. Ranking cannot be the obstacle when the total hit
+      count is 2-30; this is a case where the word is simply ABSENT from what nuget.org indexes for
+      this package, or - the more surprising half, confirmed by testing `markdown`, `csv`,
+      `protect` and `digital` individually - present only in prose and too weakly weighted to
+      survive an AND across two or three terms. Nine words, one per measured miss-query rather than
+      a sweep of every capability this package has:
+
+        - template            `fill word template`, 3 hits            -> DocxMailMerge.Merge
+        - footnotes            `footnotes word`, 8 hits                -> DocxEditor.AddFootnote
+        - revisions            `track changes word`, 2 hits            -> DocxReview.AcceptRevisions
+        - formatting           `excel conditional formatting`, 17 hits -> XlsxRule
+        - validation           `excel data validation`, 59 hits        -> XlsxValidation
+        - markdown, csv, protect, digital-signature
+                               already matched via prose alone (measured individually) and the
+                               combined query STILL missed - `docx to markdown` (27), `xlsx to csv`
+                               (20), `password protect docx` (4), `digital signature docx` (12) -
+                               so these move from implied-by-prose to an explicit tag, the same
+                               move F7 made for `browserless`.
+
+      NOT chased with the whole no-match list - `editor`, `chart`, `pivot`, `table`, `form`,
+      `comment`, `image`, `slide`, `spreadsheet`, `presentation` and others all measured absent too,
+      but none is tied to a specific miss-query in the 92-query file, and F13 says explicitly not to
+      sweep them in on spec.
+
+      `pptx to pdf` (30 hits) is a genuine open miss with NO good candidate tag: `pptx` and `pdf`
+      are both already present as strong tags, so the failure is unexplained rather than fixed here.
+
+      Both F12 and F13 are folded into ONE release rather than two, because publishing is the
+      maintainer's call and re-measuring needs a real release either way - splitting them would
+      spend two release cycles on two diagnoses from the same research pass. THIS WHOLE BLOCK IS
+      UNVERIFIED UNTIL RE-MEASURED, same as the block above: re-run
+      artifacts/discoverability/nuget-rank.py once the next release indexes, and cut back rather
+      than add more if the F13 words show no movement.
     -->
-    <PackageTags>docx;pdf;xlsx;pptx;word;excel;powerpoint;openxml;html-to-docx;html-to-pdf;html2pdf;docx-to-pdf;pdf-generation;document-conversion;mail-merge;browserless;no-chromium;no-native-binaries;air-gapped;linux;cross-platform;offline;csharp;dotnet</PackageTags>
+    <PackageTags>docx;pdf;xlsx;pptx;word;excel;powerpoint;openxml;html-to-docx;html-to-pdf;html2pdf;docx-to-pdf;pdf-generation;document-conversion;mail-merge;browserless;no-chromium;no-native-binaries;air-gapped;linux;cross-platform;offline;csharp;dotnet;conversion;generation;merge;platform;chromium;binaries;template;footnotes;revisions;formatting;validation;markdown;csv;protect;digital-signature</PackageTags>
   </PropertyGroup>
 
 

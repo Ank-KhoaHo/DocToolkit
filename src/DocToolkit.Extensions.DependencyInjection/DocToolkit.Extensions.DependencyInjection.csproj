@@ -36,8 +36,17 @@
          Held to the capabilities plus the two constraints that matter most, rather than mirroring
          the core package's full list: this package's own differentiator IS the DI registration,
          and the core package is what a capability search should land on. See the core csproj for
-         the dilution argument and for why this is unverified until F7 step 4 re-measures. -->
-    <PackageTags>dependency-injection;aspnetcore;docx;pdf;xlsx;pptx;word;excel;openxml;html-to-docx;html-to-pdf;docx-to-pdf;browserless;no-native-binaries;linux;cross-platform;offline;csharp;dotnet</PackageTags>
+         the dilution argument and for why this is unverified until F7 step 4 re-measures.
+
+         FOUR MORE ADDED 2026-08-31 (F12, F13), held to the same short-list discipline rather than
+         mirroring the core package's fifteen. `platform` and `binaries` are the F12 hyphen-fragment
+         fix for the two constraint tags this package already carries (`cross-platform`,
+         `no-native-binaries`) - the core csproj has the full measurement. `injection` and `protect`
+         are added as explicit tags for concepts this package already implies in prose
+         (`Dependency-injection registration`, and IDocxEditor/IWorkbookEditor/... mirroring
+         Protect) - not chasing the core package's wider F13 list, since footnotes, mail-merge
+         templates and conditional formatting are not this package's differentiator. -->
+    <PackageTags>dependency-injection;aspnetcore;docx;pdf;xlsx;pptx;word;excel;openxml;html-to-docx;html-to-pdf;docx-to-pdf;browserless;no-native-binaries;linux;cross-platform;offline;csharp;dotnet;platform;binaries;injection;protect</PackageTags>
   </PropertyGroup>
 
   <!-- README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by src/Directory.Build.props. -->
