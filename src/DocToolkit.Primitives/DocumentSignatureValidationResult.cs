@@ -23,6 +23,7 @@ namespace DocToolkit;
 /// </remarks>
 public sealed class DocumentSignatureValidationResult
 {
+    /// <summary>Creates one signature's independently validated state.</summary>
     /// <param name="cryptographicStatus">
     /// Whether this signature's own cryptographic signature value verifies — not tamper detection,
     /// see the remarks on this type.

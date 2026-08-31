@@ -21,6 +21,7 @@ namespace DocToolkit;
 /// </remarks>
 public sealed class DocumentSignatureValidationReport
 {
+    /// <summary>Creates the result of validating every signature a document carries.</summary>
     /// <param name="hasSignatures">Whether the document carries at least one signature.</param>
     /// <param name="isCryptographicallyValid">
     /// Whether every signature's covered content matches what was signed — the aggregate tamper-detection verdict.

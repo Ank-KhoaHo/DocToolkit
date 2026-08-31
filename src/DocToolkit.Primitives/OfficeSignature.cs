@@ -105,7 +105,7 @@ internal static class OfficeSignature
     };
 
     private static string TempFilePath(string fileExtension) =>
-        Path.Combine(Path.GetTempPath(), $"doctoolkit-signature-{Guid.NewGuid():N}{fileExtension}");
+        Path.Join(Path.GetTempPath(), $"doctoolkit-signature-{Guid.NewGuid():N}{fileExtension}");
 
     /// <summary>
     /// Writes <paramref name="document"/> to <paramref name="path"/> with the file created

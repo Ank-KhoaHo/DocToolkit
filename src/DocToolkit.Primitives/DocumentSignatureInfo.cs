@@ -13,6 +13,7 @@ namespace DocToolkit;
 /// </remarks>
 public sealed class DocumentSignatureInfo
 {
+    /// <summary>Creates the result of a structural signature inspection.</summary>
     /// <param name="hasSignatures">Whether the document carries at least one signature.</param>
     /// <param name="signatureCount">How many signatures the document carries.</param>
     /// <param name="signers">The claimed signer subject names, one entry per signing certificate found.</param>
