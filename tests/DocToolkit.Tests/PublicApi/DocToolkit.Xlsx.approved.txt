@@ -1,5 +1,25 @@
 namespace DocToolkit
 {
+    public sealed class PivotDataField
+    {
+        public PivotDataField(string fieldName, DocToolkit.PivotFunction function) { }
+        public string FieldName { get; }
+        public DocToolkit.PivotFunction Function { get; }
+    }
+    public enum PivotFunction
+    {
+        Sum = 0,
+        Average = 1,
+        Count = 2,
+        CountNumbers = 3,
+        Maximum = 4,
+        Minimum = 5,
+        Product = 6,
+        StandardDeviation = 7,
+        StandardDeviationP = 8,
+        Variance = 9,
+        VarianceP = 10,
+    }
     public static class WorkbookEditor
     {
         public static byte[] AddChart(byte[] xlsx, string sheetName, string cellRef, DocToolkit.ChartType type, DocToolkit.ChartData data, string title = "", int widthPixels = 640, int heightPixels = 360) { }
