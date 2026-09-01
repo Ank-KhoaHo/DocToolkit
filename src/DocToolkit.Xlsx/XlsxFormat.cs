@@ -59,7 +59,8 @@ public sealed class XlsxFormat
         XlsxPageSetup? pageSetup,
         IReadOnlyList<string> mergedRanges,
         IReadOnlyList<XlsxHyperlink> hyperlinks,
-        IReadOnlyList<XlsxComment> comments)
+        IReadOnlyList<XlsxComment> comments,
+        IReadOnlyList<XlsxSparkline> sparklines)
     {
         BoldHeaderRow = boldHeaderRow;
         AutoFitColumns = autoFitColumns;
@@ -92,6 +93,7 @@ public sealed class XlsxFormat
         MergedRanges = new ReadOnlyCollection<string>([.. mergedRanges]);
         Hyperlinks = new ReadOnlyCollection<XlsxHyperlink>([.. hyperlinks]);
         Comments = new ReadOnlyCollection<XlsxComment>([.. comments]);
+        Sparklines = new ReadOnlyCollection<XlsxSparkline>([.. sparklines]);
     }
 
     /// <summary>Applies nothing. The starting point for building a format up.</summary>
@@ -99,7 +101,7 @@ public sealed class XlsxFormat
         false, false,
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-        null, false, [], [], [], null, [], [], []);
+        null, false, [], [], [], null, [], [], [], []);
 
     /// <summary>
     /// The three settings that make a generated sheet readable: a bold header row, that row frozen
@@ -114,7 +116,7 @@ public sealed class XlsxFormat
         true, true,
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-        new XlsxFreeze(1, 0), false, [], [], [], null, [], [], []);
+        new XlsxFreeze(1, 0), false, [], [], [], null, [], [], [], []);
 
     /// <summary>Whether the first row is bold.</summary>
     public bool BoldHeaderRow { get; }
@@ -191,6 +193,9 @@ public sealed class XlsxFormat
 
     /// <summary>The comments to add, in the order given. Empty unless set.</summary>
     public IReadOnlyList<XlsxComment> Comments { get; }
+
+    /// <summary>The sparklines to draw. Empty unless <see cref="WithSparkline"/> was called.</summary>
+    public IReadOnlyList<XlsxSparkline> Sparklines { get; }
 
     /// <summary>Returns a copy with <see cref="BoldHeaderRow"/> set.</summary>
     /// <param name="bold">Whether the first row is bold.</param>
@@ -363,6 +368,15 @@ public sealed class XlsxFormat
         return With(comments: [.. Comments, comment]);
     }
 
+    /// <summary>Returns a copy carrying one more sparkline.</summary>
+    /// <param name="sparkline">The sparkline to draw.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="sparkline"/> is null.</exception>
+    public XlsxFormat WithSparkline(XlsxSparkline sparkline)
+    {
+        ArgumentNullException.ThrowIfNull(sparkline);
+        return With(sparklines: [.. Sparklines, sparkline]);
+    }
+
     /// <summary>
     /// The one place a modified copy is made. Every <c>With…</c> method goes through it, so adding a
     /// field means changing one call site rather than nine.
@@ -386,7 +400,8 @@ public sealed class XlsxFormat
         XlsxPageSetup? pageSetup = null,
         IReadOnlyList<string>? mergedRanges = null,
         IReadOnlyList<XlsxHyperlink>? hyperlinks = null,
-        IReadOnlyList<XlsxComment>? comments = null)
+        IReadOnlyList<XlsxComment>? comments = null,
+        IReadOnlyList<XlsxSparkline>? sparklines = null)
         => new(boldHeaderRow ?? BoldHeaderRow,
                autoFitColumns ?? AutoFitColumns,
                columnNumberFormats ?? ColumnNumberFormats,
@@ -399,7 +414,8 @@ public sealed class XlsxFormat
                pageSetup ?? PageSetup,
                mergedRanges ?? MergedRanges,
                hyperlinks ?? Hyperlinks,
-               comments ?? Comments);
+               comments ?? Comments,
+               sparklines ?? Sparklines);
 
     /// <summary>
     /// A cheap SHAPE check, run here rather than at apply time so a typo fails where it was

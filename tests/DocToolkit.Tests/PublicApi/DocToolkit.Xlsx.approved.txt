@@ -96,6 +96,7 @@ namespace DocToolkit
         public System.Collections.Generic.IReadOnlyList<string> MergedRanges { get; }
         public DocToolkit.XlsxPageSetup? PageSetup { get; }
         public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxRule> Rules { get; }
+        public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxSparkline> Sparklines { get; }
         public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxTable> Tables { get; }
         public System.Collections.Generic.IReadOnlyList<DocToolkit.XlsxValidation> Validations { get; }
         public static DocToolkit.XlsxFormat None { get; }
@@ -112,6 +113,7 @@ namespace DocToolkit
         public DocToolkit.XlsxFormat WithNumberFormat(string column, string numberFormat) { }
         public DocToolkit.XlsxFormat WithPageSetup(DocToolkit.XlsxPageSetup pageSetup) { }
         public DocToolkit.XlsxFormat WithRule(DocToolkit.XlsxRule rule) { }
+        public DocToolkit.XlsxFormat WithSparkline(DocToolkit.XlsxSparkline sparkline) { }
         public DocToolkit.XlsxFormat WithTable(DocToolkit.XlsxTable table) { }
         public DocToolkit.XlsxFormat WithValidation(DocToolkit.XlsxValidation validation) { }
     }
@@ -196,6 +198,19 @@ namespace DocToolkit
         public string Name { get; }
         public System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<object?>> Rows { get; }
         public static DocToolkit.XlsxSheet Named(string name, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows) { }
+    }
+    public sealed class XlsxSparkline
+    {
+        public string Cell { get; }
+        public DocToolkit.XlsxSparklineKind Kind { get; }
+        public string SourceRange { get; }
+        public static DocToolkit.XlsxSparkline At(string cell, string sourceRange, DocToolkit.XlsxSparklineKind kind = 0) { }
+    }
+    public enum XlsxSparklineKind
+    {
+        Line = 0,
+        Column = 1,
+        Stacked = 2,
     }
     public sealed class XlsxTable
     {

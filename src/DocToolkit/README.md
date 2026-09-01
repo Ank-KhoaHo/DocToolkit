@@ -184,6 +184,11 @@ byte[] withFurniture = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.None
     .WithHyperlink(XlsxHyperlink.To("D1", "https://example.com/policy"))
     .WithComment(XlsxComment.On("B2", "Confirmed with finance.")));
 
+// A sparkline: a chart inside one cell, summarising a range on the same sheet. XlsxSparklineKind
+// is Line, Column or Stacked - the whole of ClosedXML's own vocabulary, not a curated subset.
+byte[] withSparkline = WorkbookEditor.Format(xlsx, "Sales", XlsxFormat.None
+    .WithSparkline(XlsxSparkline.At("D2", "A2:C2", XlsxSparklineKind.Column)));
+
 // A defined name and an embedded image are workbook edits rather than a presentation, so
 // they are their own WorkbookEditor methods, not part of XlsxFormat.
 byte[] withDefinedName = WorkbookEditor.AddDefinedName(xlsx, "SalesTotal", "Sales", "C2:C10");
