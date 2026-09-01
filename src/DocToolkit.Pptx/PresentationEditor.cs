@@ -2303,4 +2303,172 @@ public static class PresentationEditor
 
         await StreamPipeline.EmitAsync(buffer, destination, failure, ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// The speaker notes on slide <paramref name="slideIndex"/>, or an empty string when it has
+    /// none. <paramref name="slideIndex"/> is 1-based, like <see cref="ReadSlide(byte[], int)"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>A slide with no notes returns <see cref="string.Empty"/>, never <see langword="null"/>.</b>
+    /// Measured rather than assumed: every slide carries a notes object whose text is empty until
+    /// something writes to it, so there is no "has notes" state to distinguish from "notes are
+    /// blank" and the API does not invent one.
+    ///
+    /// Notes are not returned by <see cref="ExtractText(byte[])"/>, which reads the slide bodies.
+    /// They are a separate surface a reader has to ask for.
+    /// </remarks>
+    /// <param name="pptx">The presentation to read.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static string ReadNotes(byte[] pptx, int slideIndex)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        if (pptx.Length == 0) throw new ArgumentException("Presentation content was empty.", nameof(pptx));
+        ArgumentOutOfRangeException.ThrowIfLessThan(slideIndex, 1);
+
+        return ReadNotesCore(pptx, slideIndex);
+    }
+
+    /// <inheritdoc cref="ReadNotes(byte[], int)" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the presentation is read from.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or read.</exception>
+    public static async Task<string> ReadNotesAsync(
+        Stream source, int slideIndex, CancellationToken ct = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(slideIndex, 1);
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return ReadNotesCore(
+            await ReadStreamAsync(source, nameof(source), "Failed to read PPTX. See the inner exception for details.", ct)
+                .ConfigureAwait(false),
+            slideIndex);
+    }
+
+    /// <summary>
+    /// Sets the speaker notes on slide <paramref name="slideIndex"/> and returns the updated deck.
+    /// <paramref name="slideIndex"/> is 1-based, like <see cref="ReadSlide(byte[], int)"/>.
+    /// </summary>
+    /// <remarks>
+    /// Replaces whatever the slide's notes said; pass an empty string to clear them. Every other
+    /// slide is left exactly as it was — measured, because editing one slide's notes and silently
+    /// disturbing another's is the kind of loss no text-reading test would notice.
+    /// </remarks>
+    /// <param name="pptx">The presentation to edit. It is not modified.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <param name="notes">The notes text. Empty clears them.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="notes"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or written.</exception>
+    public static byte[] SetNotes(byte[] pptx, int slideIndex, string notes)
+    {
+        ArgumentNullException.ThrowIfNull(pptx);
+        ArgumentNullException.ThrowIfNull(notes);
+        if (pptx.Length == 0) throw new ArgumentException("Presentation content was empty.", nameof(pptx));
+        ArgumentOutOfRangeException.ThrowIfLessThan(slideIndex, 1);
+
+        return SetNotesCore(pptx, slideIndex, notes);
+    }
+
+    /// <inheritdoc cref="SetNotes(byte[], int, string)" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </remarks>
+    /// <param name="source">The stream the presentation is read from.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <param name="notes">The notes text. Empty clears them.</param>
+    /// <param name="destination">The stream the updated deck is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or written.</exception>
+    public static async Task SetNotesAsync(
+        Stream source, int slideIndex, string notes, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(notes);
+        ArgumentOutOfRangeException.ThrowIfLessThan(slideIndex, 1);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        const string failure = "Failed to write PPTX speaker notes. See the inner exception for details.";
+        var pptx = await ReadStreamAsync(source, nameof(source), failure, ct).ConfigureAwait(false);
+        await WriteStreamAsync(SetNotesCore(pptx, slideIndex, notes), destination, failure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The one place notes are read, so both overloads cannot disagree.</summary>
+    private static string ReadNotesCore(byte[] pptx, int slideIndex)
+    {
+        try
+        {
+            using var source = new MemoryStream(pptx, writable: false);
+            using var document = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+
+            RequireSlideExists(document.Slides.Count, slideIndex);
+
+            return document.Slides[slideIndex - 1].Notes?.Text ?? string.Empty;
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
+        {
+            throw new DocumentConversionException("Failed to read PPTX. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>The one place notes are written, so both overloads cannot disagree.</summary>
+    private static byte[] SetNotesCore(byte[] pptx, int slideIndex, string notes)
+    {
+        try
+        {
+            using var source = new MemoryStream(pptx, writable: false);
+            using var document = OfficeIMOPowerPointPowerPointPresentation.Load(source);
+
+            RequireSlideExists(document.Slides.Count, slideIndex);
+
+            document.Slides[slideIndex - 1].Notes.Text = notes;
+
+            using var output = new MemoryStream();
+            document.Save(output);
+            return output.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
+        {
+            throw new DocumentConversionException(
+                "Failed to write PPTX speaker notes. See the inner exception for details.", ex);
+        }
+    }
+
+    private static void RequireSlideExists(int slideCount, int slideIndex)
+    {
+        if (slideIndex > slideCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(slideIndex), slideIndex,
+                $"Slide {slideIndex} was requested from a deck with {slideCount} slide(s).");
+        }
+    }
 }
