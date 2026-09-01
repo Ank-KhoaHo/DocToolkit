@@ -770,9 +770,25 @@ public static class WorkbookEditor
         foreach (XlsxComment comment in format.Comments)
             sheet.Cell(comment.Cell).CreateComment().AddText(comment.Text);
 
+        foreach (XlsxSparkline sparkline in format.Sparklines)
+            sheet.SparklineGroups.Add(sparkline.Cell, sparkline.SourceRange).Type = SparklineType(sparkline.Kind);
+
         if (format.PageSetup is { } pageSetup)
             ApplyPageSetup(sheet, pageSetup);
     }
+
+    /// <summary>Three kinds to ClosedXML's three - see <see cref="XlsxSparklineKind"/>.</summary>
+    private static XLSparklineType SparklineType(XlsxSparklineKind kind) => kind switch
+    {
+        XlsxSparklineKind.Line => XLSparklineType.Line,
+        XlsxSparklineKind.Column => XLSparklineType.Column,
+        XlsxSparklineKind.Stacked => XLSparklineType.Stacked,
+
+        // NOT a fall-through arm - see ApplyRule's identical comment on the same trap.
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(kind), kind,
+            "Not a defined XlsxSparklineKind. The vocabulary is closed; see XlsxSparkline's factory."),
+    };
 
     /// <summary>The one place an <see cref="XlsxPageSetup"/> becomes a ClosedXML print setup.</summary>
     private static void ApplyPageSetup(IXLWorksheet sheet, XlsxPageSetup pageSetup)
