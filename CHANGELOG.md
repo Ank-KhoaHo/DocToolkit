@@ -10,6 +10,15 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.47.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.46.0...v0.47.0) (2026-08-31)
+
+
+### Added
+
+* **core:** add worksheet furniture - page setup, merged cells, hyperlinks, comments, defined names, images (A105) ([#459](https://github.com/Ank-KhoaHo/DocToolkit/issues/459)) ([1ec8879](https://github.com/Ank-KhoaHo/DocToolkit/commit/1ec88795794a68e4234d084cd3183d9fb6e31156))
+* **extensions:** mirror signatures, metadata, formulas, charts, pivot tables, SmartArt ([#456](https://github.com/Ank-KhoaHo/DocToolkit/issues/456)) ([28766be](https://github.com/Ank-KhoaHo/DocToolkit/commit/28766be7940c0eac990697dfb9481faa19770c48))
+* **xlsx:** create Excel tables (ListObjects) via XlsxFormat.WithTable ([#458](https://github.com/Ank-KhoaHo/DocToolkit/issues/458)) ([0b46f4c](https://github.com/Ank-KhoaHo/DocToolkit/commit/0b46f4cf8d871efcc8b2b46358996c04a539185d))
+
 ## [0.46.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.45.1...v0.46.0) (2026-08-31)
 
 
