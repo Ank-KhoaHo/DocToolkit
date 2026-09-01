@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.49.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.48.0...v0.49.0) (2026-09-01)
+
+
+### Added
+
+* **core:** join DOCX documents with DocxEditor.Merge (A107) ([#467](https://github.com/Ank-KhoaHo/DocToolkit/issues/467)) ([95a2618](https://github.com/Ank-KhoaHo/DocToolkit/commit/95a26183dcefd07ba41d553c6e56a858babdd5bc))
+* **extensions:** mirror the metadata, protection and formula Stream overloads (A113-DI) ([#465](https://github.com/Ank-KhoaHo/DocToolkit/issues/465)) ([44ace93](https://github.com/Ank-KhoaHo/DocToolkit/commit/44ace93fea6268876f960a71473333cf44a12d1c))
+
 ## [0.48.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.47.0...v0.48.0) (2026-09-01)
 
 
