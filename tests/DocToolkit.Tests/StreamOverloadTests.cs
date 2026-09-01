@@ -355,6 +355,7 @@ public class StreamOverloadTests
         "PdfEditor.ReorderPagesAsync",
         "PdfEditor.InsertPagesAsync",
         "DocToDocxConverter.ConvertAsync",
+        "DocToDocxConverter.ConvertWithReportAsync",
         "DocToDocxConverter.ConvertAsync(LegacyDocOptions)",
         "DocToDocxConverter.ExtractTextAsync",
         "PdfEditor.ProtectAsync",
@@ -1231,6 +1232,8 @@ public class StreamOverloadTests
                 PdfEditor.ProtectAsync(source!, destination!, new PdfProtection { UserPassword = "pw" }, ct),
             "PdfEditor.UnprotectAsync" =>
                 PdfEditor.UnprotectAsync(source!, destination!, "pw", ct),
+            "DocToDocxConverter.ConvertWithReportAsync" =>
+                DocToDocxConverter.ConvertWithReportAsync(source!, null, ct),
             "DocToDocxConverter.ConvertAsync" =>
                 DocToDocxConverter.ConvertAsync(source!, destination!, ct),
             "DocToDocxConverter.ConvertAsync(LegacyDocOptions)" =>
