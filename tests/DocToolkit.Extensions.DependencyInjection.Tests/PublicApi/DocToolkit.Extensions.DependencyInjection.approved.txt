@@ -40,6 +40,8 @@ namespace DocToolkit.Extensions.DependencyInjection
         System.Threading.Tasks.Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         bool IsProtected(byte[] docx);
         System.Threading.Tasks.Task<bool> IsProtectedAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
+        byte[] Merge(System.Collections.Generic.IEnumerable<byte[]> docx);
+        System.Threading.Tasks.Task MergeAsync(System.Collections.Generic.IEnumerable<System.IO.Stream> sources, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         byte[] Protect(byte[] docx, string password);
         System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default);
         DocToolkit.DocumentMetadata ReadMetadata(byte[] docx);

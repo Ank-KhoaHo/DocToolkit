@@ -475,4 +475,41 @@ public interface IDocxEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The document could not be read or written.</exception>
     Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// Joins <paramref name="docx"/> end to end, in order, into one document — the DOCX
+    /// counterpart of <see cref="IPdfEditor.Merge"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Each document keeps its own page setup, as its own section</b>, so merging an A4
+    /// document with a Letter one produces a two-section file.
+    ///
+    /// <b>Where two documents define the same style id differently, the FIRST definition wins and
+    /// the later content adopts it</b>, silently — no error is raised and no text is lost, only the
+    /// appearance changes. Give the documents distinct style ids, or merge documents that share a
+    /// template. Both behaviours were measured; see the package README's Known Limitations.
+    /// </remarks>
+    /// <param name="docx">The documents to join, in order. At least one.</param>
+    /// <returns>A new document; none of the inputs is modified.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/>, or an element of it, is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or an element holds no bytes.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">A document could not be opened or the result could not be written.</exception>
+    byte[] Merge(IEnumerable<byte[]> docx);
+
+    /// <inheritdoc cref="Merge(IEnumerable{byte[]})" path="/summary|/remarks"/>
+    /// <remarks>
+    /// Every stream in <paramref name="sources"/> is <b>read</b> to its end and
+    /// <paramref name="destination"/> is <b>written</b>; none is disposed, closed or sought.
+    /// </remarks>
+    /// <param name="sources">The streams the documents are read from, in order. At least one.</param>
+    /// <param name="destination">The stream the joined document is written to.</param>
+    /// <param name="ct">Cancels the reads, the merge and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="sources"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sources"/> is empty, one of them is not readable or held no bytes, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">A document could not be opened or the result could not be written.</exception>
+    Task MergeAsync(IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default);
 }
