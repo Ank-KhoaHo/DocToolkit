@@ -113,4 +113,13 @@ internal sealed class PresentationEditorService : IPresentationEditor
         double leftPoints = 0, double topPoints = 0, double widthPoints = 432, double heightPoints = 252,
         CancellationToken ct = default)
         => DocToolkit.PresentationEditor.AddChartAsync(source, slideIndex, type, data, title, leftPoints, topPoints, widthPoints, heightPoints, ct);
+
+    public Task<bool> IsProtectedAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.IsProtectedAsync(source, ct);
+
+    public Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ReadMetadataAsync(source, ct);
+
+    public Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.WithMetadataAsync(source, metadata, destination, ct);
 }

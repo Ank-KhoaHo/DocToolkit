@@ -39,9 +39,11 @@ namespace DocToolkit.Extensions.DependencyInjection
         DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] docx);
         System.Threading.Tasks.Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         bool IsProtected(byte[] docx);
+        System.Threading.Tasks.Task<bool> IsProtectedAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         byte[] Protect(byte[] docx, string password);
         System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default);
         DocToolkit.DocumentMetadata ReadMetadata(byte[] docx);
+        System.Threading.Tasks.Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>> ReadTable(byte[] docx, int index);
         System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>>> ReadTableAsync(System.IO.Stream source, int index, System.Threading.CancellationToken ct = default);
         byte[] ReplaceImage(byte[] docx, string placeholder, byte[] image, double? widthPoints = default, double? heightPoints = default);
@@ -55,6 +57,7 @@ namespace DocToolkit.Extensions.DependencyInjection
         DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] docx, DocToolkit.DocumentSignatureValidationOptions? options = null);
         System.Threading.Tasks.Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(System.IO.Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, System.Threading.CancellationToken ct = default);
         byte[] WithMetadata(byte[] docx, DocToolkit.DocumentMetadata metadata);
+        System.Threading.Tasks.Task WithMetadataAsync(System.IO.Stream source, DocToolkit.DocumentMetadata metadata, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
     public interface IDocxForm
     {
@@ -178,6 +181,7 @@ namespace DocToolkit.Extensions.DependencyInjection
         byte[] Protect(byte[] pdf, DocToolkit.PdfProtection protection);
         System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, DocToolkit.PdfProtection protection, System.Threading.CancellationToken ct = default);
         DocToolkit.PdfMetadata ReadMetadata(byte[] pdf);
+        System.Threading.Tasks.Task<DocToolkit.PdfMetadata> ReadMetadataAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         byte[] RemovePages(byte[] pdf, int firstPage, int count);
         System.Threading.Tasks.Task RemovePagesAsync(System.IO.Stream source, int firstPage, int count, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         byte[] ReorderPages(byte[] pdf, System.Collections.Generic.IEnumerable<int> order);
@@ -187,6 +191,7 @@ namespace DocToolkit.Extensions.DependencyInjection
         byte[] Unprotect(byte[] pdf, string password);
         System.Threading.Tasks.Task UnprotectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default);
         byte[] WithMetadata(byte[] pdf, DocToolkit.PdfMetadata metadata);
+        System.Threading.Tasks.Task WithMetadataAsync(System.IO.Stream source, DocToolkit.PdfMetadata metadata, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
     public interface IPptxToPdfConverter
     {
@@ -206,9 +211,11 @@ namespace DocToolkit.Extensions.DependencyInjection
         DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] pptx);
         System.Threading.Tasks.Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         bool IsProtected(byte[] pptx);
+        System.Threading.Tasks.Task<bool> IsProtectedAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         byte[] Protect(byte[] pptx, string password);
         System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default);
         DocToolkit.DocumentMetadata ReadMetadata(byte[] pptx);
+        System.Threading.Tasks.Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         System.Collections.Generic.IReadOnlyList<string> ReadSlide(byte[] pptx, int index);
         System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> ReadSlideAsync(System.IO.Stream source, int index, System.Threading.CancellationToken ct = default);
         System.Collections.Generic.IReadOnlyList<string> ReadSmartArt(byte[] pptx, int index);
@@ -228,6 +235,7 @@ namespace DocToolkit.Extensions.DependencyInjection
         DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] pptx, DocToolkit.DocumentSignatureValidationOptions? options = null);
         System.Threading.Tasks.Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(System.IO.Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, System.Threading.CancellationToken ct = default);
         byte[] WithMetadata(byte[] pptx, DocToolkit.DocumentMetadata metadata);
+        System.Threading.Tasks.Task WithMetadataAsync(System.IO.Stream source, DocToolkit.DocumentMetadata metadata, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
     public interface IWorkbookEditor
     {
@@ -246,17 +254,21 @@ namespace DocToolkit.Extensions.DependencyInjection
         System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.XlsxSheet> sheets, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         System.Threading.Tasks.Task CreateAsync(string sheetName, System.Collections.Generic.IEnumerable<System.Collections.Generic.IEnumerable<object?>> rows, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         byte[] EvaluateFormulas(byte[] xlsx);
+        System.Threading.Tasks.Task EvaluateFormulasAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         byte[] Format(byte[] xlsx, string sheetName, DocToolkit.XlsxFormat format);
         System.Threading.Tasks.Task FormatAsync(System.IO.Stream source, string sheetName, DocToolkit.XlsxFormat format, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         DocToolkit.XlsxFormulaInspection InspectFormulas(byte[] xlsx);
+        System.Threading.Tasks.Task<DocToolkit.XlsxFormulaInspection> InspectFormulasAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         DocToolkit.DocumentSignatureInfo InspectSignatures(byte[] xlsx);
         System.Threading.Tasks.Task<DocToolkit.DocumentSignatureInfo> InspectSignaturesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         bool IsProtected(byte[] xlsx);
+        System.Threading.Tasks.Task<bool> IsProtectedAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         byte[] Protect(byte[] xlsx, string password);
         System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default);
         string ReadCell(byte[] xlsx, string sheetName, string cellRef);
         System.Threading.Tasks.Task<string> ReadCellAsync(System.IO.Stream source, string sheetName, string cellRef, System.Threading.CancellationToken ct = default);
         DocToolkit.DocumentMetadata ReadMetadata(byte[] xlsx);
+        System.Threading.Tasks.Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>> ReadSheet(byte[] xlsx, string sheetName);
         System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>>> ReadSheetAsync(System.IO.Stream source, string sheetName, System.Threading.CancellationToken ct = default);
         byte[] SetCell(byte[] xlsx, string sheetName, string cellRef, object? value);
@@ -268,6 +280,7 @@ namespace DocToolkit.Extensions.DependencyInjection
         DocToolkit.DocumentSignatureValidationReport ValidateSignatures(byte[] xlsx, DocToolkit.DocumentSignatureValidationOptions? options = null);
         System.Threading.Tasks.Task<DocToolkit.DocumentSignatureValidationReport> ValidateSignaturesAsync(System.IO.Stream source, DocToolkit.DocumentSignatureValidationOptions? options = null, System.Threading.CancellationToken ct = default);
         byte[] WithMetadata(byte[] xlsx, DocToolkit.DocumentMetadata metadata);
+        System.Threading.Tasks.Task WithMetadataAsync(System.IO.Stream source, DocToolkit.DocumentMetadata metadata, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
     }
     public interface IXlsxToCsvConverter
     {

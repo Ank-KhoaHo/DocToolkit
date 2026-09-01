@@ -665,4 +665,78 @@ public interface IWorkbookEditor
     Task AddImageAsync(
         Stream source, string sheetName, string cellRef, byte[] image, Stream destination,
         int? widthPixels = null, int? heightPixels = null, CancellationToken ct = default);
+
+    /// <inheritdoc cref="IsProtected(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought. Unlike <see cref="IsProtected(byte[])"/>, which answers <see langword="false"/>
+    /// for an empty array, an empty <paramref name="source"/> is rejected - every <c>Stream</c>
+    /// overload in this package treats a source that held no bytes as a caller error rather
+    /// than as content.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task<bool> IsProtectedAsync(Stream source, CancellationToken ct = default);
+
+    /// <inheritdoc cref="ReadMetadata(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read.</exception>
+    Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(Stream source, CancellationToken ct = default);
+
+    /// <inheritdoc cref="InspectFormulas(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read.</exception>
+    Task<DocToolkit.XlsxFormulaInspection> InspectFormulasAsync(Stream source, CancellationToken ct = default);
+
+    /// <inheritdoc cref="WithMetadata(byte[], DocToolkit.DocumentMetadata)" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="metadata">The properties to stamp.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read or written.</exception>
+    Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default);
+
+    /// <inheritdoc cref="EvaluateFormulas(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="destination">The stream the evaluated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The workbook could not be read or written.</exception>
+    Task EvaluateFormulasAsync(Stream source, Stream destination, CancellationToken ct = default);
 }

@@ -73,4 +73,10 @@ internal sealed class PdfEditorService : IPdfEditor
     public Task UnprotectAsync(
         Stream source, Stream destination, string password, CancellationToken ct = default)
         => DocToolkit.PdfEditor.UnprotectAsync(source, destination, password, ct);
+
+    public Task<DocToolkit.PdfMetadata> ReadMetadataAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.ReadMetadataAsync(source, ct);
+
+    public Task WithMetadataAsync(Stream source, DocToolkit.PdfMetadata metadata, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.WithMetadataAsync(source, metadata, destination, ct);
 }

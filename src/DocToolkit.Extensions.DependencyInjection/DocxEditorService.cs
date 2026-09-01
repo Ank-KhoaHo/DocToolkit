@@ -137,4 +137,13 @@ internal sealed class DocxEditorService : IDocxEditor
 
     public byte[] WithMetadata(byte[] docx, DocToolkit.DocumentMetadata metadata)
         => DocToolkit.DocxEditor.WithMetadata(docx, metadata);
+
+    public Task<bool> IsProtectedAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.IsProtectedAsync(source, ct);
+
+    public Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.ReadMetadataAsync(source, ct);
+
+    public Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.WithMetadataAsync(source, metadata, destination, ct);
 }

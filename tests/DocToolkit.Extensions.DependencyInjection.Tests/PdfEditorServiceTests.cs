@@ -210,4 +210,34 @@ public class PdfEditorServiceTests
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => sut.ExtractTextAsync(empty));
         Assert.Equal("source", ex.ParamName);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // A113-DI: the Stream overloads core added in 0.48.0 for metadata, protection.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ReadMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PdfEditorService();
+        var pdf = PdfEditor.WithMetadata(
+            await PageAsync("One"), new PdfMetadata { Title = "T", Author = "A" });
+
+        using var source = new MemoryStream(pdf, writable: false);
+        var metadata = await sut.ReadMetadataAsync(source);
+
+        Assert.Equal("T", metadata.Title);
+        Assert.Equal("A", metadata.Author);
+    }
+
+    [Fact]
+    public async Task WithMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PdfEditorService();
+
+        using var source = new MemoryStream(await PageAsync("One"), writable: false);
+        using var destination = new MemoryStream();
+        await sut.WithMetadataAsync(source, new PdfMetadata { Title = "Stamped" }, destination);
+
+        Assert.Equal("Stamped", PdfEditor.ReadMetadata(destination.ToArray()).Title);
+    }
 }

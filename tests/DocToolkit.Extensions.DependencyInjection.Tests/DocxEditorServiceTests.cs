@@ -551,4 +551,50 @@ public class DocxEditorServiceTests
         }
         return ms.ToArray();
     }
+
+    // ---------------------------------------------------------------------------------------
+    // A113-DI: the Stream overloads core added in 0.48.0 for metadata, protection.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task IsProtectedAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var plain = DocxEditor.Create(new[] { DocxBlock.Paragraph("body") });
+        var locked = DocxEditor.Protect(plain, "pw");
+
+        using var plainSource = new MemoryStream(plain, writable: false);
+        Assert.False(await sut.IsProtectedAsync(plainSource));
+
+        using var lockedSource = new MemoryStream(locked, writable: false);
+        Assert.True(await sut.IsProtectedAsync(lockedSource));
+    }
+
+    [Fact]
+    public async Task ReadMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.WithMetadata(
+            DocxEditor.Create(new[] { DocxBlock.Paragraph("body") }),
+            new DocumentMetadata { Title = "T", Creator = "C" });
+
+        using var source = new MemoryStream(docx, writable: false);
+        var metadata = await sut.ReadMetadataAsync(source);
+
+        Assert.Equal("T", metadata.Title);
+        Assert.Equal("C", metadata.Creator);
+    }
+
+    [Fact]
+    public async Task WithMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("body") });
+
+        using var source = new MemoryStream(docx, writable: false);
+        using var destination = new MemoryStream();
+        await sut.WithMetadataAsync(source, new DocumentMetadata { Title = "Stamped" }, destination);
+
+        Assert.Equal("Stamped", DocxEditor.ReadMetadata(destination.ToArray()).Title);
+    }
 }
