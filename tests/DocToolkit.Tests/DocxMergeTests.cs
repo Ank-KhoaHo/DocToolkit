@@ -173,18 +173,11 @@ public class DocxMergeTests
     [Fact]
     public async Task MergeAsync_MatchesTheByteArrayOverload()
     {
-        var inputs = new[] { Doc("FIRST"), Doc("SECOND") };
-
+        using var first = new MemoryStream(Doc("FIRST"), writable: false);
+        using var second = new MemoryStream(Doc("SECOND"), writable: false);
         using var destination = new MemoryStream();
-        var sources = inputs.Select(b => (Stream)new MemoryStream(b, writable: false)).ToList();
-        try
-        {
-            await DocxEditor.MergeAsync(sources, destination);
-        }
-        finally
-        {
-            foreach (var s in sources) s.Dispose();
-        }
+
+        await DocxEditor.MergeAsync(new Stream[] { first, second }, destination);
 
         var text = DocxEditor.ExtractText(destination.ToArray());
         Assert.Contains("FIRST", text, StringComparison.Ordinal);
