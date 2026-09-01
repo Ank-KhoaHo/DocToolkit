@@ -287,4 +287,42 @@ public class DocToDocxConverterTests
         await Assert.ThrowsAsync<ArgumentException>(
             () => DocToDocxConverter.ConvertAsync(empty, writable));   // empty source
     }
+
+    [Fact]
+    public async Task ConvertWithReportAsync_MatchesTheByteArrayOverload()
+    {
+        // A114. Both the BYTES and the WARNINGS: the whole point of this overload is that the
+        // report and the document arrive together, so an async path that produced the right
+        // document with an empty report would be wrong in the way that matters.
+        var expected = DocToDocxConverter.ConvertWithReport(Blocking(), Allow);
+
+        using var source = new MemoryStream(Blocking(), writable: false);
+        var actual = await DocToDocxConverter.ConvertWithReportAsync(source, Allow);
+
+        Assert.Equal(DocxEditor.ExtractText(expected.Value), DocxEditor.ExtractText(actual.Value));
+        Assert.Equal(
+            expected.Warnings.Select(w => w.Code).OrderBy(c => c, StringComparer.Ordinal),
+            actual.Warnings.Select(w => w.Code).OrderBy(c => c, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task ConvertWithReportAsync_RefusesContentLossWithoutTheOptIn()
+    {
+        // The options argument is threaded through rather than dropped - passing none must still
+        // refuse the document that Convert refuses.
+        using var source = new MemoryStream(Blocking(), writable: false);
+
+        await Assert.ThrowsAsync<DocumentConversionException>(
+            () => DocToDocxConverter.ConvertWithReportAsync(source));
+    }
+
+    [Fact]
+    public async Task ConvertWithReportAsync_ReportsNoOmission_ForADocumentThatLosesNothing()
+    {
+        using var source = new MemoryStream(Lossless(), writable: false);
+
+        var result = await DocToDocxConverter.ConvertWithReportAsync(source);
+
+        Assert.DoesNotContain(result.Warnings, w => w.Kind == ConversionLossKind.Omission);
+    }
 }

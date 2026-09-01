@@ -93,6 +93,40 @@ public static class DocToDocxConverter
     public static ConversionResult<byte[]> ConvertWithReport(byte[] doc, LegacyDocOptions? options = null) =>
         ConvertCore(doc, options);
 
+    /// <inheritdoc cref="ConvertWithReport(byte[], LegacyDocOptions?)" path="/summary|/remarks|/exception"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought.
+    ///
+    /// <b>The converted bytes come back in the result rather than through a <c>destination</c>
+    /// stream</b>, unlike <see cref="ConvertAsync(Stream, Stream, CancellationToken)"/>. That is
+    /// the only shape that mirrors the synchronous member it is named after: the report and the
+    /// document are one value, and splitting them across a return value and an out-parameter stream
+    /// would make this the odd member of its own family. <c>PresentationEditor.AddChartAsync</c>
+    /// already returns bytes from a <see cref="Stream"/> source the same way.
+    /// </remarks>
+    /// <param name="source">The stream the .doc is read from.</param>
+    /// <param name="options">
+    /// How to treat content the .docx cannot carry. <see langword="null"/> means the default:
+    /// refuse.
+    /// </param>
+    /// <param name="ct">Cancels the read and the conversion.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    public static async Task<ConversionResult<byte[]>> ConvertWithReportAsync(
+        Stream source, LegacyDocOptions? options = null, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        ct.ThrowIfCancellationRequested();
+
+        using var input = await StreamPipeline
+            .DrainAsync(source, "DOC content was empty.", nameof(source), FailureMessage, ct)
+            .ConfigureAwait(false);
+
+        return ConvertCore(input.ToArray(), options);
+    }
+
     private static ConversionResult<byte[]> ConvertCore(byte[] doc, LegacyDocOptions? options)
     {
         ArgumentNullException.ThrowIfNull(doc);
