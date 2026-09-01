@@ -117,6 +117,69 @@ byte[] presented = WorkbookEditor.Format(workbook, "Q1", XlsxFormat.Report
 Console.WriteLine($"\nFormatted    : {presented.Length:N0} bytes (was {workbook.Length:N0})");
 Console.WriteLine($"B2 reads back: {WorkbookEditor.ReadCell(presented, "Q1", "B2")}");
 
+// --- A real Excel table, rather than a range that looks like one ---------------------------
+// A table (a ListObject) is what Excel's own "Format as Table" produces: a named object with
+// banded rows and its own filter, which structured references like Revenue[Revenue] can point at.
+
+#region table
+// Its own Format call, not another line on the one above: a table brings its OWN autofilter, so
+// WithTable and WithAutoFilter over overlapping ranges throw rather than silently picking one.
+byte[] tabled = WorkbookEditor.Format(workbook, "Q1", XlsxFormat.None
+    .WithTable(XlsxTable.Named("A1:B4", "Revenue", XlsxTableStyle.Medium)));
+#endregion
+
+// AppendRows has no awareness of a table on the sheet, and ClosedXML does not absorb an adjacent
+// write into a table's range - measured. Recreate the table if you need it to cover new rows.
+Console.WriteLine($"\nWith a table : {tabled.Length:N0} bytes (was {workbook.Length:N0})");
+
+// --- The furniture that makes a sheet printable and annotated ------------------------------
+// Page setup here is a WORKSHEET concern and a separate type from the DOCX PageSetup: the two
+// formats do not agree on what a page is, so they do not share a type.
+
+byte[] titled = WorkbookEditor.SetCell(tabled, "Q1", "D1", "Quarterly revenue");
+
+#region worksheet-furniture
+byte[] furnished = WorkbookEditor.Format(titled, "Q1", XlsxFormat.None
+    // A banner cell across two columns.
+    .WithMergedCells("D1:E1")
+
+    // The URL must be absolute - a relative one is refused rather than written and silently
+    // broken for whoever opens the file.
+    .WithHyperlink(XlsxHyperlink.To("D2", "https://example.com/methodology"))
+
+    // A note attached to the cell, not a value in it.
+    .WithComment(XlsxComment.On("B2", "Restated after the FX correction."))
+
+    // Landscape, a print area, and the header row repeated at the top of every printed page.
+    .WithPageSetup(XlsxPageSetup.Of(XlsxPageOrientation.Landscape, printArea: "A1:E4", repeatRowCount: 1)));
+#endregion
+
+Console.WriteLine($"With furniture: {furnished.Length:N0} bytes");
+
+// --- A named range and an embedded image ----------------------------------------------------
+// Both are workbook EDITS rather than presentation, so they are their own WorkbookEditor methods
+// rather than XlsxFormat members.
+
+// Inline base64, so this sample carries no binary asset and borrows no test fixture. A real
+// caller passes File.ReadAllBytes("logo.png"). PNG and JPEG only, decided by magic bytes rather
+// than by a filename - a file named .png holding JPEG bytes is read as the JPEG it is.
+const string LogoBase64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAUElEQVR42u3PQQkAAAgEsOtlFCsZ2gi+hcEKLNXzWgQEBA" +
+    "QEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQErsACwGghD5ay/wAAAAAASUVORK5CYII=";
+
+#region defined-name-and-image
+// The sheet name is always quoted in the reference this writes. Measured: an unquoted sheet name
+// containing a space does not error - the defined name is simply gone when the file reopens.
+byte[] named = WorkbookEditor.AddDefinedName(furnished, "RevenueCells", "Q1", "B2:B4");
+
+// Sizes are PIXELS here, matching AddChart - not the points the DOCX/PPTX drawing model uses.
+// Give neither and the image's own intrinsic size is used; give one and the other scales.
+byte[] withLogo = WorkbookEditor.AddImage(
+    named, "Q1", "G1", Convert.FromBase64String(LogoBase64), widthPixels: 64, heightPixels: 64);
+#endregion
+
+Console.WriteLine($"Named + image : {withLogo.Length:N0} bytes");
+
 // --- Handing a sheet to something that is not Excel ---------------------------------------
 // One sheet at a time, by name - a workbook is not one table and neither format has a way to
 // say "and now a different sheet".

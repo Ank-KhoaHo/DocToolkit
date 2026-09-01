@@ -87,7 +87,7 @@ every other column is still sized to its contents.
 [!code-csharp[](../../../samples/Spreadsheets/Program.cs#format)]
 
 ```text
-Formatted    : 7,880 bytes (was 7,351)
+Formatted    : 7,907 bytes (was 7,370)
 ```
 
 @DocToolkit.XlsxFormat is **immutable**, like @DocToolkit.PageSetup — every `With…` returns a new
@@ -108,6 +108,79 @@ which is correct and is not what "auto-fit" makes most people picture.
 The number-format string is Excel's own (`"#,##0.00"`, `"0%"`, `"yyyy-mm-dd"`), keyed by column
 letter. It changes how Excel *displays* the cell and not what is stored in it — so `ReadCell` and
 the exporters below still see `1200`, per the note further up.
+
+## A real Excel table, rather than a range that looks like one
+
+Banding a range and putting a filter on it makes something that *looks* like Excel's "Format as
+Table". A table (a **ListObject**) is the real thing: a named object Excel treats as a unit, which
+structured references like `Revenue[Revenue]` can point at.
+
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#table)]
+
+**Two limitations, both measured rather than assumed.**
+
+`WithTable` and `WithAutoFilter` cannot target overlapping ranges. A table carries its own
+autofilter, so applying the sheet-wide one on top throws
+@DocToolkit.DocumentConversionException rather than silently picking one. Use one or the other over
+the same cells — which is why the snippet above is its own `Format` call rather than another line
+on the previous one.
+
+**`WithTable` does not make `AppendRows` keep the table current**, and this is worth stating plainly
+because the opposite is the intuitive guess. `AppendRows` writes a raw cell value at the sheet's
+last used row; it has no awareness of any table, and ClosedXML does not retroactively absorb an
+adjacent write into a table's range. Measured directly: appending after a table leaves the table's
+own range and row count unchanged, with the new row sitting *next to* it rather than inside it.
+Recreate the table over the new range if you need it to cover the new rows.
+
+[XlsxTableStyle](xref:DocToolkit.XlsxTableStyle) is four tiers — `None`, `Light`, `Medium`, `Dark` —
+for the same closed-vocabulary reason `XlsxHighlight` names an intent instead of a colour.
+
+## Print setup, merged cells, hyperlinks and comments
+
+The rest of a worksheet's own furniture, all through the same immutable `XlsxFormat`.
+
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#worksheet-furniture)]
+
+@DocToolkit.XlsxPageSetup is a **different type** from @DocToolkit.PageSetup, and that is deliberate
+rather than duplication: the DOCX one describes paper for a document, while a worksheet's print
+setup is about which cells print and which rows repeat at the top of each printed page. The two
+formats do not agree on what a page is, so they do not share a type — the same reasoning that keeps
+`PdfMetadata` separate from `DocumentMetadata`.
+
+That matters most for PDF. A workbook this package writes carried no page setup at all before this
+existed, so `XlsxToPdfConverter` inherited whatever the reader defaulted to — the same class of
+defect as the missing `w:sectPr` that 0.13.0 fixed for DOCX.
+
+Two rules the factories enforce rather than document:
+
+- A hyperlink's URL must be **absolute**. A relative one is refused at
+  [XlsxHyperlink.To](xref:DocToolkit.XlsxHyperlink.To(System.String,System.String)) rather than written and left silently broken for
+  whoever opens the file.
+- A range or cell must **not** name a sheet. `"Other!A1"` is refused rather than quietly retargeted,
+  because `Format`'s own `sheetName` argument already chose the sheet, and honouring both would mean
+  deciding which of two contradictory instructions wins.
+
+## Named ranges and images
+
+Both are workbook *edits* rather than presentation, so they are their own
+@DocToolkit.WorkbookEditor methods rather than `XlsxFormat` members.
+
+[!code-csharp[](../../../samples/Spreadsheets/Program.cs#defined-name-and-image)]
+
+**The sheet name is always single-quoted in the reference `AddDefinedName` writes**, whether or not
+it needs to be. Measured: a sheet name containing a space, left unquoted, raises no error at write
+time — the defined name is simply *absent* when the file is reopened, with nothing telling the
+caller why. Quoting a name that does not need it is harmless, so there is no conditional here to get
+wrong.
+
+**Image sizes are pixels**, matching `AddChart` rather than the points the DOCX and PPTX drawing
+model uses, because pixels are what ClosedXML's own picture sizing takes. Give neither dimension and
+the image's intrinsic size is used; give one and the other scales to preserve the aspect ratio; give
+both and you get exactly those, distortion accepted as your choice.
+
+Format is decided by **magic bytes, never a filename** — PNG and JPEG only. A file named `.png` that
+holds JPEG bytes is read as the JPEG it actually is, which is the opposite of the silent blank frame
+a filename-trusting reader produces.
 
 ## Handing a sheet to something that is not Excel
 
