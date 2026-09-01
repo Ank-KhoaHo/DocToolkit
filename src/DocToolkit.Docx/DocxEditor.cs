@@ -2931,4 +2931,293 @@ public static class DocxEditor
                 "Failed to merge the DOCX documents. See the inner exception for details.", ex);
         }
     }
+
+    /// <summary>
+    /// Stamps <paramref name="text"/> across the page as a watermark, and returns the updated
+    /// document.
+    /// </summary>
+    /// <remarks>
+    /// <b>Applied to every section the document reports</b>, which is not always one per
+    /// <c>w:sectPr</c> in the body. Measured: a document produced by
+    /// <see cref="Merge(IEnumerable{byte[]})"/> carries <b>two</b> <c>w:sectPr</c> elements but
+    /// reports a <b>single</b> section, so it receives one watermark rather than one per merged
+    /// document. Pages belonging to the later part may therefore be unmarked — see the package
+    /// README's Known Limitations.
+    ///
+    /// This is <b>not</b> the PDF watermarking the backlog declined. That would have put a third
+    /// PDF library inside <c>PdfEditor</c>; this is <c>OfficeIMO.Word</c>, already the package
+    /// behind every other <see cref="DocxEditor"/> operation.
+    /// </remarks>
+    /// <param name="docx">The document to stamp. It is not modified.</param>
+    /// <param name="text">The watermark text.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="text"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="text"/> is blank.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or written.</exception>
+    public static byte[] AddWatermark(byte[] docx, string text)
+    {
+        ValidateDocument(docx);
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        return AddWatermarkCore(docx, text);
+    }
+
+    /// <inheritdoc cref="AddWatermark(byte[], string)" path="/summary"/>
+    /// <remarks>
+    /// Applied to every section, for the reason <see cref="AddWatermark(byte[], string)"/> records.
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="text">The watermark text.</param>
+    /// <param name="destination">The stream the stamped document is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="text"/> is blank,
+    /// or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or written.</exception>
+    public static async Task AddWatermarkAsync(
+        Stream source, string text, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        const string failure = "Failed to add a DOCX watermark. See the inner exception for details.";
+        var docx = await ReadStreamAsync(source, nameof(source), failure, ct).ConfigureAwait(false);
+        await WriteStreamAsync(AddWatermarkCore(docx, text), destination, failure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Removes every watermark from every section, and returns the updated document. A document
+    /// with none comes back unchanged rather than refused.
+    /// </summary>
+    /// <param name="docx">The document to clear. It is not modified.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or written.</exception>
+    public static byte[] RemoveWatermarks(byte[] docx)
+    {
+        ValidateDocument(docx);
+
+        return RemoveWatermarksCore(docx);
+    }
+
+    /// <inheritdoc cref="RemoveWatermarks(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="destination">The stream the cleared document is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or written.</exception>
+    public static async Task RemoveWatermarksAsync(
+        Stream source, Stream destination, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        const string failure = "Failed to remove DOCX watermarks. See the inner exception for details.";
+        var docx = await ReadStreamAsync(source, nameof(source), failure, ct).ConfigureAwait(false);
+        await WriteStreamAsync(RemoveWatermarksCore(docx), destination, failure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Every bookmark name in the document, in the order the document declares them.</summary>
+    /// <remarks>
+    /// Names only. A bookmark's position matters to Word and to
+    /// <c>AddTableOfContents</c>, but there is no public position type here to
+    /// return one against, and inventing one is a larger decision than reading the names.
+    /// </remarks>
+    /// <param name="docx">The document to read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or read.</exception>
+    public static IReadOnlyList<string> ReadBookmarks(byte[] docx)
+    {
+        ValidateDocument(docx);
+
+        return ReadBookmarksCore(docx);
+    }
+
+    /// <inheritdoc cref="ReadBookmarks(byte[])" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or read.</exception>
+    public static async Task<IReadOnlyList<string>> ReadBookmarksAsync(
+        Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return ReadBookmarksCore(await ReadStreamAsync(
+            source, nameof(source), "Failed to read DOCX bookmarks. See the inner exception for details.", ct)
+            .ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Adds a bookmark named <paramref name="name"/> to the paragraph at
+    /// <paramref name="paragraphIndex"/>, and returns the updated document.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="paragraphIndex"/> is <b>0-based</b>, matching
+    /// <see cref="ReadTable(byte[], int)"/> and everything else this class indexes.
+    /// </remarks>
+    /// <param name="docx">The document to edit. It is not modified.</param>
+    /// <param name="paragraphIndex">The 0-based paragraph to mark.</param>
+    /// <param name="name">The bookmark name.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="name"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="name"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="paragraphIndex"/> is negative, or at or beyond the paragraph count.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or written.</exception>
+    public static byte[] AddBookmark(byte[] docx, int paragraphIndex, string name)
+    {
+        ValidateDocument(docx);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentOutOfRangeException.ThrowIfNegative(paragraphIndex);
+
+        return AddBookmarkCore(docx, paragraphIndex, name);
+    }
+
+    /// <inheritdoc cref="AddBookmark(byte[], int, string)" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="paragraphIndex">The 0-based paragraph to mark.</param>
+    /// <param name="name">The bookmark name.</param>
+    /// <param name="destination">The stream the updated document is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="name"/> is blank,
+    /// or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="paragraphIndex"/> is negative, or at or beyond the paragraph count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The document could not be opened or written.</exception>
+    public static async Task AddBookmarkAsync(
+        Stream source, int paragraphIndex, string name, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentOutOfRangeException.ThrowIfNegative(paragraphIndex);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        const string failure = "Failed to add a DOCX bookmark. See the inner exception for details.";
+        var docx = await ReadStreamAsync(source, nameof(source), failure, ct).ConfigureAwait(false);
+        await WriteStreamAsync(AddBookmarkCore(docx, paragraphIndex, name), destination, failure, ct)
+            .ConfigureAwait(false);
+    }
+
+    private static void ValidateDocument(byte[] docx)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        if (docx.Length == 0) throw new ArgumentException("DOCX content was empty.", nameof(docx));
+    }
+
+    private static byte[] AddWatermarkCore(byte[] docx, string text) =>
+        EditThroughOfficeIMO(docx, "Failed to add a DOCX watermark. See the inner exception for details.", document =>
+        {
+            foreach (var section in document.Sections)
+            {
+                section.AddWatermark(OfficeIMO.Word.WordWatermarkStyle.Text, text);
+            }
+        });
+
+    private static byte[] RemoveWatermarksCore(byte[] docx) =>
+        EditThroughOfficeIMO(docx, "Failed to remove DOCX watermarks. See the inner exception for details.", document =>
+        {
+            foreach (var section in document.Sections)
+            {
+                foreach (var watermark in section.Watermarks.ToList())
+                {
+                    watermark.Remove();
+                }
+            }
+        });
+
+    private static byte[] AddBookmarkCore(byte[] docx, int paragraphIndex, string name) =>
+        EditThroughOfficeIMO(docx, "Failed to add a DOCX bookmark. See the inner exception for details.", document =>
+        {
+            if (paragraphIndex >= document.Paragraphs.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(paragraphIndex), paragraphIndex,
+                    $"Paragraph {paragraphIndex} was requested from a document with {document.Paragraphs.Count} paragraph(s).");
+            }
+
+            document.Paragraphs[paragraphIndex].AddBookmark(name);
+        });
+
+    private static IReadOnlyList<string> ReadBookmarksCore(byte[] docx)
+    {
+        try
+        {
+            using var source = new MemoryStream(docx, writable: false);
+            using var document = OfficeIMOWordWordDocument.Load(source);
+
+            // Name is string? on OfficeIMO's type. A bookmark without one is not a name this can
+            // return, so it is skipped rather than surfaced as an empty string - which would read
+            // as "a bookmark named nothing" and be indistinguishable from a real blank name.
+            return document.Bookmarks
+                .Select(b => b.Name)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Select(name => name!)
+                .ToList();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException(
+                "Failed to read DOCX bookmarks. See the inner exception for details.", ex);
+        }
+    }
+
+    /// <summary>
+    /// The one place these three edits load, mutate and save, so they cannot disagree about how a
+    /// document is opened or written.
+    /// </summary>
+    /// <remarks>
+    /// The bytes are copied into a writable stream first: OfficeIMO needs an editable package, and
+    /// the caller's array is theirs. Same reasoning as <c>MergeCore</c>'s copy.
+    /// </remarks>
+    private static byte[] EditThroughOfficeIMO(
+        byte[] docx, string failure, Action<OfficeIMOWordWordDocument> edit)
+    {
+        try
+        {
+            using var work = new MemoryStream();
+            work.Write(docx, 0, docx.Length);
+            work.Position = 0;
+
+            using var document = OfficeIMOWordWordDocument.Load(work);
+            edit(document);
+
+            using var output = new MemoryStream();
+            document.Save(output);
+            return output.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException and not ArgumentOutOfRangeException)
+        {
+            throw new DocumentConversionException(failure, ex);
+        }
+    }
 }

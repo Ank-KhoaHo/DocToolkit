@@ -33,7 +33,7 @@ A **✅** is a converter that ships; **·** is a pair with no converter, not a p
 
 | Format | Operations |
 |---|---|
-| **DOCX** (`DocxEditor`) | `AddEndnote`, `AddFootnote`, `AddTableOfContents`, `Create`, `ExtractText`, `FillRows`, `InspectSignatures`, `IsProtected`, `Merge`, `Protect`, `ReadMetadata`, `ReadTable`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect`, `ValidateSignatures`, `WithMetadata` |
+| **DOCX** (`DocxEditor`) | `AddBookmark`, `AddEndnote`, `AddFootnote`, `AddTableOfContents`, `AddWatermark`, `Create`, `ExtractText`, `FillRows`, `InspectSignatures`, `IsProtected`, `Merge`, `Protect`, `ReadBookmarks`, `ReadMetadata`, `ReadTable`, `RemoveWatermarks`, `ReplaceImage`, `ReplaceText`, `TableCount`, `Unprotect`, `ValidateSignatures`, `WithMetadata` |
 | **DOCX** (`DocxMailMerge`) | `InspectTemplate`, `Merge`, `MergeBatch`, `MergeBatchToFiles`, `MergeBatchToFilesWithReport`, `MergeBatchWithReport`, `MergeConditional`, `MergeConditionalWithReport`, `MergeRepeating`, `MergeRepeatingRegions`, `MergeRepeatingRegionsWithReport`, `MergeRepeatingWithReport`, `MergeTableRowGroups`, `MergeTableRows`, `MergeWithReport` |
 | **Markdown** (`MarkdownEditor`) | `FindHeading`, `ReadFrontMatter`, `ReadTable`, `ReplaceSection`, `TableCount` |
 | **PDF** (`PdfEditor`) | `ExtractPages`, `ExtractText`, `InsertPages`, `Merge`, `PageCount`, `Protect`, `ReadMetadata`, `RemovePages`, `ReorderPages`, `RotatePages`, `Unprotect`, `WithMetadata` |

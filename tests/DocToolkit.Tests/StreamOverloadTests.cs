@@ -226,6 +226,9 @@ public class StreamOverloadTests
         "XlsxToPdfConverter.ConvertAsync",
         "PptxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.AddWatermarkAsync",
+        "DocxEditor.RemoveWatermarksAsync",
+        "DocxEditor.AddBookmarkAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.AddFootnoteAsync",
@@ -294,12 +297,16 @@ public class StreamOverloadTests
         "DocxToPdfConverter.ConvertAsync",
         "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.AddWatermarkAsync",
+        "DocxEditor.RemoveWatermarksAsync",
+        "DocxEditor.AddBookmarkAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.AddFootnoteAsync",
         "DocxEditor.AddEndnoteAsync",
         "DocxEditor.AddTableOfContentsAsync",
         "DocxEditor.ExtractTextAsync",
+        "DocxEditor.ReadBookmarksAsync",
         "PdfEditor.ExtractTextAsync",
         "DocxToHtmlConverter.ConvertAsync",
         "DocxToMarkdownConverter.ConvertAsync",
@@ -420,6 +427,9 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync(PageSetup)",
         "HtmlToDocxConverter.ConvertAsync(PageSetup, RemoteImageOptions)",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.AddWatermarkAsync",
+        "DocxEditor.RemoveWatermarksAsync",
+        "DocxEditor.AddBookmarkAsync",
         "DocxEditor.FillRowsAsync",
         "DocxEditor.ReplaceImageAsync",
         "DocxEditor.AddFootnoteAsync",
@@ -1268,6 +1278,14 @@ public class StreamOverloadTests
                 DocxEditor.AddEndnoteAsync(source!, "{{logo}}", "An endnote.", destination!, ct),
             "DocxEditor.AddTableOfContentsAsync" =>
                 DocxEditor.AddTableOfContentsAsync(source!, "{{toc}}", destination!, ct: ct),
+            "DocxEditor.AddWatermarkAsync" =>
+                DocxEditor.AddWatermarkAsync(source!, "DRAFT", destination!, ct),
+            "DocxEditor.RemoveWatermarksAsync" =>
+                DocxEditor.RemoveWatermarksAsync(source!, destination!, ct),
+            "DocxEditor.ReadBookmarksAsync" =>
+                DocxEditor.ReadBookmarksAsync(source!, ct),
+            "DocxEditor.AddBookmarkAsync" =>
+                DocxEditor.AddBookmarkAsync(source!, 0, "B", destination!, ct),
             "DocxEditor.ExtractTextAsync" =>
                 DocxEditor.ExtractTextAsync(source!, ct),
             "DocxEditor.InspectSignaturesAsync" =>
