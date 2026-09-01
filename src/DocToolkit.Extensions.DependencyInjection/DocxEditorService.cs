@@ -146,4 +146,10 @@ internal sealed class DocxEditorService : IDocxEditor
 
     public Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default)
         => DocToolkit.DocxEditor.WithMetadataAsync(source, metadata, destination, ct);
+
+    public byte[] Merge(IEnumerable<byte[]> docx)
+        => DocToolkit.DocxEditor.Merge(docx);
+
+    public Task MergeAsync(IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.MergeAsync(sources, destination, ct);
 }

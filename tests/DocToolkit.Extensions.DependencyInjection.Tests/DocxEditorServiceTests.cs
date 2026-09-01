@@ -597,4 +597,44 @@ public class DocxEditorServiceTests
 
         Assert.Equal("Stamped", DocxEditor.ReadMetadata(destination.ToArray()).Title);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // A107-DI: Merge/MergeAsync, mirrored from core 0.49.0.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Merge_MatchesTheStaticMethodAndKeepsTheOrder()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+        var first = DocxEditor.Create(new[] { DocxBlock.Paragraph("FIRST") });
+        var second = DocxEditor.Create(new[] { DocxBlock.Paragraph("SECOND") });
+
+        var merged = sut.Merge(new[] { first, second });
+
+        // The ORDER, not just that both survived: a delegation that reversed the sequence would
+        // still produce a document containing every marker.
+        var text = DocxEditor.ExtractText(merged);
+        Assert.True(
+            text.IndexOf("FIRST", System.StringComparison.Ordinal)
+                < text.IndexOf("SECOND", System.StringComparison.Ordinal),
+            $"FIRST should precede SECOND, got: {text}");
+    }
+
+    [Fact]
+    public async Task MergeAsync_MatchesTheStaticMethod()
+    {
+        var sut = new DocxEditorService(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+
+        using var first = new MemoryStream(DocxEditor.Create(new[] { DocxBlock.Paragraph("FIRST") }), writable: false);
+        using var second = new MemoryStream(DocxEditor.Create(new[] { DocxBlock.Paragraph("SECOND") }), writable: false);
+        using var destination = new MemoryStream();
+
+        await sut.MergeAsync(new Stream[] { first, second }, destination);
+
+        var text = DocxEditor.ExtractText(destination.ToArray());
+        Assert.True(
+            text.IndexOf("FIRST", System.StringComparison.Ordinal)
+                < text.IndexOf("SECOND", System.StringComparison.Ordinal),
+            $"FIRST should precede SECOND, got: {text}");
+    }
 }
