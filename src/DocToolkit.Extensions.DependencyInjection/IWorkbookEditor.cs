@@ -539,4 +539,130 @@ public interface IWorkbookEditor
         IEnumerable<string> rowFields, IEnumerable<DocToolkit.PivotDataField> dataFields, Stream destination,
         IEnumerable<string>? columnFields = null, IEnumerable<string>? pageFields = null,
         bool showRowGrandTotals = true, bool showColumnGrandTotals = true, CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds a workbook-scoped defined name pointing at <paramref name="range"/> on
+    /// <paramref name="sheetName"/>, and returns the updated workbook.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="sheetName"/> is always single-quoted in the reference this writes (e.g.
+    /// <c>'Sales'!A1:B2</c>), whether or not it needs to be. Measured directly: a sheet name
+    /// containing a space and left unquoted does not raise an error at write time — the defined
+    /// name simply is not present when the file is reopened, with nothing telling the caller why.
+    /// </remarks>
+    /// <param name="xlsx">The workbook to add the defined name to. It is not modified.</param>
+    /// <param name="name">The defined name.</param>
+    /// <param name="sheetName">The sheet <paramref name="range"/> is on.</param>
+    /// <param name="range">The cells the name refers to, such as <c>A1:B2</c>.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> is empty, a name argument is blank, or <paramref name="range"/>
+    /// names a sheet.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or <paramref name="name"/> is
+    /// already in use.
+    /// </exception>
+    byte[] AddDefinedName(byte[] xlsx, string name, string sheetName, string range);
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds a defined name, and writes the result
+    /// to <paramref name="destination"/> — see <see cref="AddDefinedName"/> for the parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="name">The defined name.</param>
+    /// <param name="sheetName">The sheet <paramref name="range"/> is on.</param>
+    /// <param name="range">The cells the name refers to, such as <c>A1:B2</c>.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/> or <paramref name="destination"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, a name argument is blank,
+    /// <paramref name="range"/> names a sheet, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, or <paramref name="name"/> is
+    /// already in use.
+    /// </exception>
+    Task AddDefinedNameAsync(
+        Stream source, string name, string sheetName, string range, Stream destination,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds an image to <paramref name="sheetName"/>, anchored at <paramref name="cellRef"/>, and
+    /// returns the updated workbook.
+    /// </summary>
+    /// <remarks>
+    /// Sizes are in <b>pixels</b>, matching <see cref="AddChart"/> rather than the points/EMU the
+    /// DOCX and PPTX drawing model uses. The format is decided by magic bytes, never a filename.
+    /// </remarks>
+    /// <param name="xlsx">The workbook to add the image to. It is not modified.</param>
+    /// <param name="sheetName">The sheet to add the image to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the image's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="image">The image bytes. PNG and JPEG only, decided by magic bytes.</param>
+    /// <param name="widthPixels">
+    /// The image's width, in pixels. <see langword="null"/> uses the image's own intrinsic width,
+    /// scaled to match <paramref name="heightPixels"/> if that is given.
+    /// </param>
+    /// <param name="heightPixels">
+    /// The image's height, in pixels. <see langword="null"/> uses the image's own intrinsic
+    /// height, scaled to match <paramref name="widthPixels"/> if that is given.
+    /// </param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="xlsx"/>, <paramref name="image"/> or another required argument is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="xlsx"/> or <paramref name="image"/> is empty, or
+    /// <paramref name="sheetName"/>/<paramref name="cellRef"/> is blank.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, the reference is not valid, or
+    /// the image is neither PNG nor JPEG.
+    /// </exception>
+    byte[] AddImage(
+        byte[] xlsx, string sheetName, string cellRef, byte[] image,
+        int? widthPixels = null, int? heightPixels = null);
+
+    /// <summary>
+    /// Reads a workbook from <paramref name="source"/>, adds an image, and writes the result to
+    /// <paramref name="destination"/> — see <see cref="AddImage"/> for the parameters.
+    ///
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </summary>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="sheetName">The sheet to add the image to.</param>
+    /// <param name="cellRef">
+    /// An A1-style cell reference for the image's top-left corner, e.g. <c>"B2"</c>.
+    /// </param>
+    /// <param name="image">The image bytes. PNG and JPEG only, decided by magic bytes.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="widthPixels">The image's width, in pixels. See <see cref="AddImage"/>.</param>
+    /// <param name="heightPixels">The image's height, in pixels. See <see cref="AddImage"/>.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="destination"/> or <paramref name="image"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="image"/> is
+    /// empty, a name is blank, or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A supplied size is zero or negative.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The workbook could not be opened, the sheet does not exist, the reference is not valid, or
+    /// the image is neither PNG nor JPEG.
+    /// </exception>
+    Task AddImageAsync(
+        Stream source, string sheetName, string cellRef, byte[] image, Stream destination,
+        int? widthPixels = null, int? heightPixels = null, CancellationToken ct = default);
 }
