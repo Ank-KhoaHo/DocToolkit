@@ -243,6 +243,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AddDefinedNameAsync",
         "WorkbookEditor.AddImageAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.SetNotesAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
@@ -326,6 +327,8 @@ public class StreamOverloadTests
         "WorkbookEditor.ValidateSignaturesAsync",
         "PresentationEditor.SlideCountAsync",
         "PresentationEditor.ReadSlideAsync",
+        "PresentationEditor.ReadNotesAsync",
+        "PresentationEditor.SetNotesAsync",
         "PresentationEditor.ReadSmartArtAsync",
         "PresentationEditor.AddChartAsync",
         "PresentationEditor.ExtractTextAsync",
@@ -437,6 +440,7 @@ public class StreamOverloadTests
         "WorkbookEditor.AddDefinedNameAsync",
         "WorkbookEditor.AddImageAsync",
         "PresentationEditor.ReplaceTextAsync",
+        "PresentationEditor.SetNotesAsync",
         "PresentationEditor.InsertSlidesAsync",
         "PresentationEditor.ReorderSlidesAsync",
         "PresentationEditor.RemoveSlidesAsync",
@@ -1361,6 +1365,10 @@ public class StreamOverloadTests
                 PresentationEditor.SlideCountAsync(source!, ct),
             "PresentationEditor.ReadSlideAsync" =>
                 PresentationEditor.ReadSlideAsync(source!, 1, ct),
+            "PresentationEditor.ReadNotesAsync" =>
+                PresentationEditor.ReadNotesAsync(source!, 1, ct),
+            "PresentationEditor.SetNotesAsync" =>
+                PresentationEditor.SetNotesAsync(source!, 1, "n", destination!, ct),
             "PresentationEditor.ReadSmartArtAsync" =>
                 PresentationEditor.ReadSmartArtAsync(source!, 1, ct),
             "PresentationEditor.AddChartAsync" =>
