@@ -503,4 +503,81 @@ public class WorkbookEditorServiceTests
         using var doc = OfficeIMO.Excel.ExcelDocument.Load(readBack);
         Assert.Single(doc.GetPivotTables());
     }
+
+    // ---------------------------------------------------------------------------------------
+    // AddDefinedName/AddDefinedNameAsync and AddImage/AddImageAsync, mirrored from core 0.47.0
+    // (A105-DI). A105's other five capabilities need no mirror: page setup, merged cells,
+    // hyperlinks and comments are reached through XlsxFormat.With..., and Format is already
+    // mirrored - the DI layer fronts capability CLASSES, not every shipped type.
+    // ---------------------------------------------------------------------------------------
+
+    private static byte[] OnePixelPng() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+    private static byte[] OneRowWorkbook() => WorkbookEditor.Create("Sales", new object?[][]
+    {
+        new object?[] { "Region", "Total" },
+        new object?[] { "North", 1200 },
+    });
+
+    [Fact]
+    public void AddDefinedName_MatchesTheStaticMethodAndAddsANameThatSurvivesTheRoundTrip()
+    {
+        var sut = new WorkbookEditorService();
+
+        var named = sut.AddDefinedName(OneRowWorkbook(), "Totals", "Sales", "B1:B2");
+
+        // Asserted by NAME against DefinedNames, not by count: a count passes against a wrapper
+        // that added the wrong name, which is exactly what a delegation bug would produce.
+        using var ms = new MemoryStream(named, writable: false);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        Assert.Contains(workbook.DefinedNames, d => d.Name == "Totals");
+    }
+
+    [Fact]
+    public async Task AddDefinedNameAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+
+        using var source = new MemoryStream(OneRowWorkbook());
+        using var destination = new MemoryStream();
+        await sut.AddDefinedNameAsync(source, "Totals", "Sales", "B1:B2", destination);
+
+        using var readBack = new MemoryStream(destination.ToArray(), writable: false);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(readBack);
+        Assert.Contains(workbook.DefinedNames, d => d.Name == "Totals");
+    }
+
+    [Fact]
+    public void AddImage_MatchesTheStaticMethodAndAddsAPicture()
+    {
+        var sut = new WorkbookEditorService();
+
+        var withImage = sut.AddImage(OneRowWorkbook(), "Sales", "D1", OnePixelPng(), widthPixels: 40, heightPixels: 30);
+
+        using var ms = new MemoryStream(withImage, writable: false);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(ms);
+        var picture = Assert.Single(workbook.Worksheet("Sales").Pictures);
+
+        // The sizes are asserted, not just the picture's presence: widthPixels/heightPixels are
+        // the two arguments a delegation could silently drop or swap.
+        Assert.Equal(40, picture.Width);
+        Assert.Equal(30, picture.Height);
+    }
+
+    [Fact]
+    public async Task AddImageAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+
+        using var source = new MemoryStream(OneRowWorkbook());
+        using var destination = new MemoryStream();
+        await sut.AddImageAsync(source, "Sales", "D1", OnePixelPng(), destination, widthPixels: 40, heightPixels: 30);
+
+        using var readBack = new MemoryStream(destination.ToArray(), writable: false);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(readBack);
+        var picture = Assert.Single(workbook.Worksheet("Sales").Pictures);
+        Assert.Equal(40, picture.Width);
+        Assert.Equal(30, picture.Height);
+    }
 }

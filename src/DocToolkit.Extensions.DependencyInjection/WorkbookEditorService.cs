@@ -127,4 +127,23 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
         => DocToolkit.WorkbookEditor.AddPivotTableAsync(
             source, sheetName, sourceRange, destinationCell, name, rowFields, dataFields, destination,
             columnFields, pageFields, showRowGrandTotals, showColumnGrandTotals, ct);
+
+    public byte[] AddDefinedName(byte[] xlsx, string name, string sheetName, string range)
+        => DocToolkit.WorkbookEditor.AddDefinedName(xlsx, name, sheetName, range);
+
+    public Task AddDefinedNameAsync(
+        Stream source, string name, string sheetName, string range, Stream destination,
+        CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.AddDefinedNameAsync(source, name, sheetName, range, destination, ct);
+
+    public byte[] AddImage(
+        byte[] xlsx, string sheetName, string cellRef, byte[] image,
+        int? widthPixels = null, int? heightPixels = null)
+        => DocToolkit.WorkbookEditor.AddImage(xlsx, sheetName, cellRef, image, widthPixels, heightPixels);
+
+    public Task AddImageAsync(
+        Stream source, string sheetName, string cellRef, byte[] image, Stream destination,
+        int? widthPixels = null, int? heightPixels = null, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.AddImageAsync(
+            source, sheetName, cellRef, image, destination, widthPixels, heightPixels, ct);
 }
