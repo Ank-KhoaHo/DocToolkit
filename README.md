@@ -69,11 +69,14 @@ them, and the numbers below are how that gets verified rather than asserted.
 
 ```mermaid
 xychart-beta
-    title "Native .so/.dylib payload in a plain build (MB)"
-    x-axis [Ank.DocToolkit, EPPlus, QuestPDF, NPOI, ShapeCrawler]
+    title "runtimes/ folder in a plain build (MB)"
+    x-axis ["Ank.DocToolkit", "EPPlus", "QuestPDF", "NPOI", "ShapeCrawler"]
     y-axis "MB in build output" 0 --> 700
     bar [0, 1, 83, 416, 664]
 ```
+
+Those bars are the `runtimes/` column below, which is **not** the same measurement as the native-file
+count beside it: EPPlus's 1 MB contains **zero** `.so`/`.dylib` files. Both are in the table.
 
 | package | native `.so`/`.dylib` in build output | `runtimes/` | licence in NuGet metadata |
 |---|---|---|---|
