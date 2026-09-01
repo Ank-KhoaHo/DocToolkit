@@ -170,12 +170,31 @@ public class StreamOverloadParityTests
     {
         var xlsx = Xlsx();
 
+        // RAW XML, not ReadCell. ClosedXML re-evaluates every formula in memory on each read, so
+        // ReadCell answers "3" whether or not a cached value was ever written back - an earlier
+        // version of this test asserted on it and PASSED against a sabotage that copied the source
+        // straight through. WorkbookEditorTests.EvaluateFormulas_WritesTheComputedValueIntoTheFile
+        // Itself carries the same warning for the byte[] overload.
+        Assert.DoesNotContain(">3<", RawSheetXml(xlsx), System.StringComparison.Ordinal);
+
         var written = await WriteThrough(xlsx, (s, d) => WorkbookEditor.EvaluateFormulasAsync(s, d));
 
-        // The cached value is the point of EvaluateFormulas, so assert the VALUE rather than that
-        // bytes came out: a delegation that copied the source through would still produce a
-        // readable workbook, and would still be wrong.
-        Assert.Equal("3", WorkbookEditor.ReadCell(written, "Sales", "B2"));
+        var after = RawSheetXml(written);
+        Assert.Contains(">3<", after, System.StringComparison.Ordinal);
+        // The formula survives - this adds a cached value rather than replacing the formula.
+        Assert.Contains("1+2", after, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>The first worksheet part's XML, read without going through any evaluating reader.</summary>
+    private static string RawSheetXml(byte[] xlsx)
+    {
+        using var ms = new MemoryStream(xlsx, writable: false);
+        using var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Read);
+        var entry = System.Linq.Enumerable.First(
+            zip.Entries, e => e.FullName.Contains("sheet1.xml", System.StringComparison.Ordinal));
+        using var stream = entry.Open();
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     [Fact]
