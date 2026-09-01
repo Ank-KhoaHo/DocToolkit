@@ -511,4 +511,50 @@ public class PresentationEditorServiceTests
         Assert.Single(diagrams);
         Assert.Equal("Plan\nBuild\nShip", diagrams[0]);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // A113-DI: the Stream overloads core added in 0.48.0 for metadata, protection.
+    // ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task IsProtectedAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var plain = PresentationEditor.Create(new[] { PptxSlide.Titled("Deck") });
+        var locked = PresentationEditor.Protect(plain, "pw");
+
+        using var plainSource = new MemoryStream(plain, writable: false);
+        Assert.False(await sut.IsProtectedAsync(plainSource));
+
+        using var lockedSource = new MemoryStream(locked, writable: false);
+        Assert.True(await sut.IsProtectedAsync(lockedSource));
+    }
+
+    [Fact]
+    public async Task ReadMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.WithMetadata(
+            PresentationEditor.Create(new[] { PptxSlide.Titled("Deck") }),
+            new DocumentMetadata { Title = "T", Creator = "C" });
+
+        using var source = new MemoryStream(pptx, writable: false);
+        var metadata = await sut.ReadMetadataAsync(source);
+
+        Assert.Equal("T", metadata.Title);
+        Assert.Equal("C", metadata.Creator);
+    }
+
+    [Fact]
+    public async Task WithMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var pptx = PresentationEditor.Create(new[] { PptxSlide.Titled("Deck") });
+
+        using var source = new MemoryStream(pptx, writable: false);
+        using var destination = new MemoryStream();
+        await sut.WithMetadataAsync(source, new DocumentMetadata { Title = "Stamped" }, destination);
+
+        Assert.Equal("Stamped", PresentationEditor.ReadMetadata(destination.ToArray()).Title);
+    }
 }

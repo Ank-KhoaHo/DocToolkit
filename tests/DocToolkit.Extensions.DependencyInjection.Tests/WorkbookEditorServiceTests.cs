@@ -580,4 +580,98 @@ public class WorkbookEditorServiceTests
         Assert.Equal(40, picture.Width);
         Assert.Equal(30, picture.Height);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // A113-DI: the Stream overloads core added in 0.48.0 for metadata, protection and formulas.
+    // ---------------------------------------------------------------------------------------
+
+    private static byte[] WorkbookWithAFormula() => WorkbookEditor.Create("Sales", new object?[][]
+    {
+        new object?[] { "Region", "Total" },
+        new object?[] { "North", XlsxFormula.From("1+2") },
+    });
+
+    /// <summary>The first sheet part, read without a reader that re-evaluates formulas.</summary>
+    private static string RawSheetXml(byte[] xlsx)
+    {
+        using var ms = new MemoryStream(xlsx, writable: false);
+        using var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Read);
+        var entry = zip.Entries.First(e => e.FullName.Contains("sheet1.xml", System.StringComparison.Ordinal));
+        using var reader = new StreamReader(entry.Open());
+        return reader.ReadToEnd();
+    }
+
+    [Fact]
+    public async Task IsProtectedAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var plain = WorkbookWithAFormula();
+        var locked = WorkbookEditor.Protect(plain, "pw");
+
+        using var plainSource = new MemoryStream(plain, writable: false);
+        Assert.False(await sut.IsProtectedAsync(plainSource));
+
+        using var lockedSource = new MemoryStream(locked, writable: false);
+        Assert.True(await sut.IsProtectedAsync(lockedSource));
+    }
+
+    [Fact]
+    public async Task ReadMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookEditor.WithMetadata(
+            WorkbookWithAFormula(), new DocumentMetadata { Title = "T", Creator = "C" });
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        var metadata = await sut.ReadMetadataAsync(source);
+
+        Assert.Equal("T", metadata.Title);
+        Assert.Equal("C", metadata.Creator);
+    }
+
+    [Fact]
+    public async Task InspectFormulasAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookWithAFormula();
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        var inspection = await sut.InspectFormulasAsync(source);
+
+        // The fixture carries a formula on purpose: a delegation that inspected something else
+        // would report 0 and fail here rather than pass on "it returned an object".
+        Assert.Equal(WorkbookEditor.InspectFormulas(xlsx).TotalFormulas, inspection.TotalFormulas);
+        Assert.True(inspection.TotalFormulas > 0);
+    }
+
+    [Fact]
+    public async Task WithMetadataAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+
+        using var source = new MemoryStream(WorkbookWithAFormula(), writable: false);
+        using var destination = new MemoryStream();
+        await sut.WithMetadataAsync(source, new DocumentMetadata { Title = "Stamped" }, destination);
+
+        Assert.Equal("Stamped", WorkbookEditor.ReadMetadata(destination.ToArray()).Title);
+    }
+
+    [Fact]
+    public async Task EvaluateFormulasAsync_MatchesTheStaticMethod()
+    {
+        var sut = new WorkbookEditorService();
+        var xlsx = WorkbookWithAFormula();
+
+        // RAW XML, never ReadCell: ClosedXML re-evaluates in memory on every read, so ReadCell
+        // answers "3" whether or not a cached value was written. The core suite's own version of
+        // this test passed against a sabotage that copied the source through before it was fixed
+        // the same way - see StreamOverloadParityTests.
+        Assert.DoesNotContain(">3<", RawSheetXml(xlsx), System.StringComparison.Ordinal);
+
+        using var source = new MemoryStream(xlsx, writable: false);
+        using var destination = new MemoryStream();
+        await sut.EvaluateFormulasAsync(source, destination);
+
+        Assert.Contains(">3<", RawSheetXml(destination.ToArray()), System.StringComparison.Ordinal);
+    }
 }

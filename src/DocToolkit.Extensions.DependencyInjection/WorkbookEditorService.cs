@@ -146,4 +146,19 @@ internal sealed class WorkbookEditorService : IWorkbookEditor
         int? widthPixels = null, int? heightPixels = null, CancellationToken ct = default)
         => DocToolkit.WorkbookEditor.AddImageAsync(
             source, sheetName, cellRef, image, destination, widthPixels, heightPixels, ct);
+
+    public Task<bool> IsProtectedAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.IsProtectedAsync(source, ct);
+
+    public Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.ReadMetadataAsync(source, ct);
+
+    public Task<DocToolkit.XlsxFormulaInspection> InspectFormulasAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.InspectFormulasAsync(source, ct);
+
+    public Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.WithMetadataAsync(source, metadata, destination, ct);
+
+    public Task EvaluateFormulasAsync(Stream source, Stream destination, CancellationToken ct = default)
+        => DocToolkit.WorkbookEditor.EvaluateFormulasAsync(source, destination, ct);
 }
