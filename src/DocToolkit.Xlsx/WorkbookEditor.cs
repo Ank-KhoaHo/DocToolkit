@@ -2582,4 +2582,153 @@ public static class WorkbookEditor
             throw new DocumentConversionException("Failed to evaluate XLSX formulas. See the inner exception for details.", ex);
         }
     }
+
+    /// <inheritdoc cref="IsProtected(byte[])" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought. Unlike <see cref="IsProtected(byte[])"/>, which answers <see langword="false"/> for
+    /// an empty array, an empty <paramref name="source"/> is rejected — every <c>Stream</c> overload
+    /// in this package treats a source that held no bytes as a caller error rather than as content.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    public static async Task<bool> IsProtectedAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return IsProtected(await ReadStreamAsync(
+            source, nameof(source), "Failed to read the XLSX. See the inner exception for details.", ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="ReadMetadata(byte[])" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read.</exception>
+    public static async Task<DocumentMetadata> ReadMetadataAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return ReadMetadata(await ReadStreamAsync(
+            source, nameof(source), "Failed to read XLSX metadata. See the inner exception for details.", ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="InspectFormulas(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read.</exception>
+    public static async Task<XlsxFormulaInspection> InspectFormulasAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return InspectFormulas(await ReadStreamAsync(
+            source, nameof(source), "Failed to inspect XLSX formulas. See the inner exception for details.", ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="WithMetadata(byte[], DocumentMetadata)" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="metadata">The properties to stamp.</param>
+    /// <param name="destination">The stream the updated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="metadata"/> or <paramref name="destination"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read or written.</exception>
+    public static async Task WithMetadataAsync(
+        Stream source, DocumentMetadata metadata, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        const string failure = "Failed to write XLSX metadata. See the inner exception for details.";
+        var xlsx = await ReadStreamAsync(source, nameof(source), failure, ct).ConfigureAwait(false);
+        await WriteStreamAsync(WithMetadata(xlsx, metadata), destination, failure, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc cref="EvaluateFormulas(byte[])" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </remarks>
+    /// <param name="source">The stream the workbook is read from.</param>
+    /// <param name="destination">The stream the evaluated workbook is written to.</param>
+    /// <param name="ct">Cancels the read, the evaluation and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/> or <paramref name="destination"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be read or written.</exception>
+    public static async Task EvaluateFormulasAsync(
+        Stream source, Stream destination, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        const string failure = "Failed to evaluate XLSX formulas. See the inner exception for details.";
+        var xlsx = await ReadStreamAsync(source, nameof(source), failure, ct).ConfigureAwait(false);
+        await WriteStreamAsync(EvaluateFormulas(xlsx), destination, failure, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The one place the <see cref="Stream"/> overloads whose <c>byte[]</c> sibling IS the
+    /// implementation drain their source — the same route <c>PdfEditor</c> takes, rather than a
+    /// <c>*Core</c> split, because there is no shared body to extract.
+    /// </summary>
+    private static async Task<byte[]> ReadStreamAsync(
+        Stream source, string paramName, string failure, CancellationToken ct)
+    {
+        // Before the drain, not after: these overloads have no later write for an unobserved token
+        // to surface at, which is how seven PdfEditor methods once passed the cancellation suite
+        // for the wrong reason.
+        ct.ThrowIfCancellationRequested();
+
+        using var buffer = await StreamPipeline
+            .DrainAsync(source, "Workbook content was empty.", paramName, failure, ct)
+            .ConfigureAwait(false);
+
+        return buffer.ToArray();
+    }
+
+    /// <summary>The matching one place those overloads write their result.</summary>
+    private static async Task WriteStreamAsync(
+        byte[] xlsx, Stream destination, string failure, CancellationToken ct)
+    {
+        using var buffer = new MemoryStream(xlsx, writable: false);
+
+        await StreamPipeline.EmitAsync(buffer, destination, failure, ct).ConfigureAwait(false);
+    }
 }
