@@ -18,6 +18,8 @@ namespace DocToolkit
     }
     public static class DocxEditor
     {
+        public static byte[] AddBookmark(byte[] docx, int paragraphIndex, string name) { }
+        public static System.Threading.Tasks.Task AddBookmarkAsync(System.IO.Stream source, int paragraphIndex, string name, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static byte[] AddEndnote(byte[] docx, string placeholder, string endnoteText) { }
         public static System.Threading.Tasks.Task AddEndnoteAsync(System.IO.Stream source, string placeholder, string endnoteText, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task AddEndnoteAsync(string inputPath, string outputPath, string placeholder, string endnoteText, System.Threading.CancellationToken ct = default) { }
@@ -27,6 +29,8 @@ namespace DocToolkit
         public static byte[] AddTableOfContents(byte[] docx, string placeholder, int minLevel = 1, int maxLevel = 3) { }
         public static System.Threading.Tasks.Task AddTableOfContentsAsync(System.IO.Stream source, string placeholder, System.IO.Stream destination, int minLevel = 1, int maxLevel = 3, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task AddTableOfContentsAsync(string inputPath, string outputPath, string placeholder, int minLevel = 1, int maxLevel = 3, System.Threading.CancellationToken ct = default) { }
+        public static byte[] AddWatermark(byte[] docx, string text) { }
+        public static System.Threading.Tasks.Task AddWatermarkAsync(System.IO.Stream source, string text, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks) { }
         public static byte[] Create(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, DocToolkit.PageSetup page) { }
         public static System.Threading.Tasks.Task CreateAsync(System.Collections.Generic.IEnumerable<DocToolkit.DocxBlock> blocks, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
@@ -50,11 +54,15 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task MergeAsync(System.Collections.Generic.IEnumerable<System.IO.Stream> sources, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static byte[] Protect(byte[] docx, string password) { }
         public static System.Threading.Tasks.Task ProtectAsync(System.IO.Stream source, System.IO.Stream destination, string password, System.Threading.CancellationToken ct = default) { }
+        public static System.Collections.Generic.IReadOnlyList<string> ReadBookmarks(byte[] docx) { }
+        public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> ReadBookmarksAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static DocToolkit.DocumentMetadata ReadMetadata(byte[] docx) { }
         public static System.Threading.Tasks.Task<DocToolkit.DocumentMetadata> ReadMetadataAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>> ReadTable(byte[] docx, int index) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>>> ReadTableAsync(System.IO.Stream source, int index, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string>>> ReadTableAsync(string path, int index, System.Threading.CancellationToken ct = default) { }
+        public static byte[] RemoveWatermarks(byte[] docx) { }
+        public static System.Threading.Tasks.Task RemoveWatermarksAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static byte[] ReplaceImage(byte[] docx, string placeholder, byte[] image, double? widthPoints = default, double? heightPoints = default) { }
         public static System.Threading.Tasks.Task ReplaceImageAsync(System.IO.Stream source, string placeholder, byte[] image, System.IO.Stream destination, double? widthPoints = default, double? heightPoints = default, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ReplaceImageAsync(string inputPath, string outputPath, string placeholder, byte[] image, double? widthPoints = default, double? heightPoints = default, System.Threading.CancellationToken ct = default) { }
