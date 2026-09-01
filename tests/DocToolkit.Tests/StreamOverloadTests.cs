@@ -280,6 +280,11 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeTableRowsAsync",
         "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.FillAsync",
+        "DocxEditor.WithMetadataAsync",
+        "WorkbookEditor.WithMetadataAsync",
+        "WorkbookEditor.EvaluateFormulasAsync",
+        "PresentationEditor.WithMetadataAsync",
+        "PdfEditor.WithMetadataAsync",
     };
 
     /// <summary>Overloads that take a <c>Stream source</c>.</summary>
@@ -367,6 +372,19 @@ public class StreamOverloadTests
         "DocxForm.InspectAsync",
         "DocxForm.ValidateAsync",
         "DocxForm.FillAsync",
+        "DocxEditor.IsProtectedAsync",
+        "DocxEditor.ReadMetadataAsync",
+        "WorkbookEditor.IsProtectedAsync",
+        "WorkbookEditor.ReadMetadataAsync",
+        "WorkbookEditor.InspectFormulasAsync",
+        "PresentationEditor.IsProtectedAsync",
+        "PresentationEditor.ReadMetadataAsync",
+        "PdfEditor.ReadMetadataAsync",
+        "DocxEditor.WithMetadataAsync",
+        "WorkbookEditor.WithMetadataAsync",
+        "WorkbookEditor.EvaluateFormulasAsync",
+        "PresentationEditor.WithMetadataAsync",
+        "PdfEditor.WithMetadataAsync",
     };
 
     /// <summary>
@@ -452,6 +470,11 @@ public class StreamOverloadTests
         "DocxMailMerge.MergeTableRowsAsync",
         "DocxMailMerge.MergeTableRowGroupsAsync",
         "DocxForm.FillAsync",
+        "DocxEditor.WithMetadataAsync",
+        "WorkbookEditor.WithMetadataAsync",
+        "WorkbookEditor.EvaluateFormulasAsync",
+        "PresentationEditor.WithMetadataAsync",
+        "PdfEditor.WithMetadataAsync",
     };
 
     public static TheoryData<string> DestinationWriters => Cases(DestinationWriterNames);
@@ -1305,6 +1328,27 @@ public class StreamOverloadTests
                 WorkbookEditor.AddDefinedNameAsync(source!, "N", "Sales", "A1", destination!, ct),
             "WorkbookEditor.AddImageAsync" =>
                 WorkbookEditor.AddImageAsync(source!, "Sales", "B2", ImageFixtures.Png(), destination!, ct: ct),
+            // A113: the byte[]-only members that gained Stream overloads. The read-only ones take
+            // a source and no destination, exactly like ExtractTextAsync above.
+            "DocxEditor.IsProtectedAsync" => DocxEditor.IsProtectedAsync(source!, ct),
+            "DocxEditor.ReadMetadataAsync" => DocxEditor.ReadMetadataAsync(source!, ct),
+            "DocxEditor.WithMetadataAsync" =>
+                DocxEditor.WithMetadataAsync(source!, new DocumentMetadata { Title = "T" }, destination!, ct),
+            "WorkbookEditor.IsProtectedAsync" => WorkbookEditor.IsProtectedAsync(source!, ct),
+            "WorkbookEditor.ReadMetadataAsync" => WorkbookEditor.ReadMetadataAsync(source!, ct),
+            "WorkbookEditor.InspectFormulasAsync" => WorkbookEditor.InspectFormulasAsync(source!, ct),
+            "WorkbookEditor.WithMetadataAsync" =>
+                WorkbookEditor.WithMetadataAsync(source!, new DocumentMetadata { Title = "T" }, destination!, ct),
+            "WorkbookEditor.EvaluateFormulasAsync" =>
+                WorkbookEditor.EvaluateFormulasAsync(source!, destination!, ct),
+            "PresentationEditor.IsProtectedAsync" => PresentationEditor.IsProtectedAsync(source!, ct),
+            "PresentationEditor.ReadMetadataAsync" => PresentationEditor.ReadMetadataAsync(source!, ct),
+            "PresentationEditor.WithMetadataAsync" =>
+                PresentationEditor.WithMetadataAsync(source!, new DocumentMetadata { Title = "T" }, destination!, ct),
+            "PdfEditor.ReadMetadataAsync" => PdfEditor.ReadMetadataAsync(source!, ct),
+            "PdfEditor.WithMetadataAsync" =>
+                PdfEditor.WithMetadataAsync(source!, new PdfMetadata { Title = "T" }, destination!, ct),
+
             "WorkbookEditor.InspectSignaturesAsync" =>
                 WorkbookEditor.InspectSignaturesAsync(source!, ct),
             "WorkbookEditor.ValidateSignaturesAsync" =>

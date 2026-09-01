@@ -527,6 +527,59 @@ public static class PdfEditor
         return Save(document);
     }
 
+    /// <inheritdoc cref="ReadMetadata(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought.
+    /// </remarks>
+    /// <param name="source">The stream the PDF is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The PDF could not be opened.</exception>
+    public static async Task<PdfMetadata> ReadMetadataAsync(Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return ReadMetadata(await ReadAsync(source, nameof(source), ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="WithMetadata(byte[], PdfMetadata)" path="/summary"/>
+    /// <remarks>
+    /// A <see langword="null"/> property leaves what the document already had in place, so stamping
+    /// a title does not silently erase an author. Pass an empty string to clear one.
+    ///
+    /// <para><paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/>
+    /// is <b>written</b>; neither is disposed, closed or sought, and neither has to be
+    /// seekable.</para>
+    /// </remarks>
+    /// <param name="source">The stream the PDF is read from.</param>
+    /// <param name="metadata">The properties to stamp.</param>
+    /// <param name="destination">The stream the updated PDF is written to.</param>
+    /// <param name="ct">Cancels the read and the write.</param>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="source"/>, <paramref name="metadata"/> or <paramref name="destination"/> is null.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The PDF could not be opened.</exception>
+    public static async Task WithMetadataAsync(
+        Stream source, PdfMetadata metadata, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        var pdf = await ReadAsync(source, nameof(source), ct).ConfigureAwait(false);
+        await WriteAsync(WithMetadata(pdf, metadata), destination, ct).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// A copy of <paramref name="pdf"/> encrypted with the passwords and permissions in
     /// <paramref name="protection"/>.
