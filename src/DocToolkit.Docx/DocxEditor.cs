@@ -2808,4 +2808,127 @@ public static class DocxEditor
 
         await StreamPipeline.EmitAsync(buffer, destination, failure, ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Joins <paramref name="docx"/> end to end, in order, into one document — the DOCX counterpart
+    /// of <c>PdfEditor.Merge</c>, and the way to put a <c>DocxMailMerge.MergeBatch</c> result back
+    /// into a single file.
+    /// </summary>
+    /// <remarks>
+    /// <b>Each document keeps its own page setup, as its own section.</b> Measured: merging a
+    /// portrait document with a landscape one produces a body carrying two <c>w:sectPr</c> elements,
+    /// each with its own orientation and page size, and the last child of the body is still a
+    /// <c>w:sectPr</c> — so Word does not report the file as damaged.
+    ///
+    /// <b>Where two documents define the SAME style id differently, the FIRST definition wins and
+    /// the later content adopts it.</b> Also measured, and it is silent: merging a document whose
+    /// <c>Heading1</c> is red with one whose <c>Heading1</c> is blue produces a single
+    /// <c>Heading1</c> — the red one — and the second document's headings render red. No error is
+    /// raised and no text is lost; only the appearance changes. If that matters, give the documents
+    /// distinct style ids before merging, or merge documents that share a template.
+    /// </remarks>
+    /// <param name="docx">The documents to join, in order. At least one.</param>
+    /// <returns>A new document; none of the inputs is modified.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/>, or an element of it, is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or an element holds no bytes.</exception>
+    /// <exception cref="DocumentConversionException">A document could not be opened or the result could not be written.</exception>
+    public static byte[] Merge(IEnumerable<byte[]> docx)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+
+        var documents = docx.ToArray();
+        if (documents.Length == 0)
+        {
+            throw new ArgumentException(
+                "At least one document is required; merging nothing would produce an empty document.",
+                nameof(docx));
+        }
+
+        return MergeCore(documents, nameof(docx));
+    }
+
+    /// <inheritdoc cref="Merge(IEnumerable{byte[]})" path="/summary|/remarks"/>
+    /// <remarks>
+    /// Every stream in <paramref name="sources"/> is <b>read</b> to its end and
+    /// <paramref name="destination"/> is <b>written</b>; none is disposed, closed or sought, and
+    /// none has to be seekable.
+    /// </remarks>
+    /// <param name="sources">The streams the documents are read from, in order. At least one.</param>
+    /// <param name="destination">The stream the joined document is written to.</param>
+    /// <param name="ct">Cancels the reads, the merge and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="sources"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="sources"/> is empty, one of them is not readable or held no bytes, or
+    /// <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">A document could not be opened or the result could not be written.</exception>
+    public static async Task MergeAsync(
+        IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(sources);
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+
+        var documents = new List<byte[]>();
+        foreach (var source in sources)
+        {
+            StreamPipeline.RequireReadable(source, nameof(sources));
+            documents.Add(await ReadStreamAsync(
+                source, nameof(sources), "Failed to merge the DOCX documents. See the inner exception for details.", ct)
+                .ConfigureAwait(false));
+        }
+
+        // Checked here rather than left to Merge, which would name its own `docx` parameter - one
+        // this caller never passed and cannot see. Same reasoning as PdfEditor.MergeAsync's.
+        if (documents.Count == 0)
+        {
+            throw new ArgumentException(
+                "At least one document is required; merging nothing would produce an empty document.",
+                nameof(sources));
+        }
+
+        await WriteStreamAsync(
+            MergeCore(documents, nameof(sources)), destination,
+            "Failed to merge the DOCX documents. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The one place documents are joined, so both overloads cannot disagree.</summary>
+    private static byte[] MergeCore(IReadOnlyList<byte[]> documents, string paramName)
+    {
+        for (var i = 0; i < documents.Count; i++)
+        {
+            ArgumentNullException.ThrowIfNull(documents[i], paramName);
+            if (documents[i].Length == 0)
+            {
+                throw new ArgumentException("DOCX content was empty.", paramName);
+            }
+        }
+
+        try
+        {
+            // The first document is the target and is COPIED, never edited in place - the inputs
+            // belong to the caller. OfficeIMO loads from a seekable, writable stream, so the copy
+            // is load-bearing rather than defensive.
+            using var work = new MemoryStream();
+            work.Write(documents[0], 0, documents[0].Length);
+            work.Position = 0;
+
+            using var merged = OfficeIMOWordWordDocument.Load(work);
+            for (var i = 1; i < documents.Count; i++)
+            {
+                using var incoming = new MemoryStream(documents[i], writable: false);
+                using var next = OfficeIMOWordWordDocument.Load(incoming);
+                merged.AppendDocument(next);
+            }
+
+            using var result = new MemoryStream();
+            merged.Save(result);
+            return result.ToArray();
+        }
+        catch (Exception ex) when (ex is not DocumentConversionException)
+        {
+            throw new DocumentConversionException(
+                "Failed to merge the DOCX documents. See the inner exception for details.", ex);
+        }
+    }
 }

@@ -251,6 +251,7 @@ public class StreamOverloadTests
         "MarkdownToDocxConverter.ConvertAsync",
         "MarkdownToPdfConverter.ConvertAsync",
         "PdfEditor.MergeAsync",
+        "DocxEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
         "PdfEditor.RemovePagesAsync",
         "PdfEditor.RotatePagesAsync",
@@ -337,6 +338,7 @@ public class StreamOverloadTests
         "PresentationEditor.ValidateSignaturesAsync",
         "PdfEditor.PageCountAsync",
         "PdfEditor.MergeAsync",
+        "DocxEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
         "PdfEditor.RemovePagesAsync",
         "PdfEditor.RotatePagesAsync",
@@ -399,6 +401,7 @@ public class StreamOverloadTests
     private static string SourceParamName(string api) => api switch
     {
         "PdfEditor.MergeAsync" => "sources",
+        "DocxEditor.MergeAsync" => "sources",
         "PdfEditor.InsertPagesAsync" => "target",
         _ => "source",
     };
@@ -441,6 +444,7 @@ public class StreamOverloadTests
         "PresentationEditor.CreateAsync",
         "MarkdownToDocxConverter.ConvertAsync",
         "PdfEditor.MergeAsync",
+        "DocxEditor.MergeAsync",
         "PdfEditor.ExtractPagesAsync",
         "PdfEditor.RemovePagesAsync",
         "PdfEditor.RotatePagesAsync",
@@ -1396,6 +1400,8 @@ public class StreamOverloadTests
             // one. Merging a single document is a real call, not a degenerate case.
             "PdfEditor.MergeAsync" =>
                 PdfEditor.MergeAsync(new[] { source! }, destination!, ct),
+            "DocxEditor.MergeAsync" =>
+                DocxEditor.MergeAsync(new[] { source! }, destination!, ct),
             "PdfEditor.ExtractPagesAsync" =>
                 PdfEditor.ExtractPagesAsync(source!, 1, 1, destination!, ct),
             // Against TwoPagePdf: RemovePages refuses to remove every page.
