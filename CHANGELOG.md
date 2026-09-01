@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.48.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.47.0...v0.48.0) (2026-09-01)
+
+
+### Added
+
+* **core:** add Stream overloads for metadata, protection and formula members (A113) ([#463](https://github.com/Ank-KhoaHo/DocToolkit/issues/463)) ([ae2be58](https://github.com/Ank-KhoaHo/DocToolkit/commit/ae2be581d3ce62ea3d3750a182b5c3b6b638f678))
+* **extensions:** mirror AddDefinedName and AddImage on IWorkbookEditor (A105-DI) ([#460](https://github.com/Ank-KhoaHo/DocToolkit/issues/460)) ([702cb97](https://github.com/Ank-KhoaHo/DocToolkit/commit/702cb978e64a1d977352faaa0b4480faed25811b))
+
 ## [0.47.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.46.0...v0.47.0) (2026-08-31)
 
 
