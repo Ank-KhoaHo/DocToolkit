@@ -111,6 +111,120 @@ public static class PdfEditor
     }
 
     /// <summary>
+    /// Each page's words with their positions, in document order. <c>[0]</c> is page 1.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ExtractText(byte[])"/> answers what a page says; this answers <b>where</b> it
+    /// says it. The shape is deliberately the same — one entry per page, index 0 being page 1 —
+    /// so the two can be used interchangeably by anything that already walks pages.
+    ///
+    /// <b>A page with no text layer returns an empty list.</b> A scanned document is images, so
+    /// this returns one empty list per page for one — that is what the file contains, not a
+    /// failure, and OCR is out of scope. This is the same caveat
+    /// <see cref="ExtractText(byte[])"/> carries, restated rather than assumed to carry over.
+    ///
+    /// Coordinates are PDF user-space points with the origin at the page's <b>bottom</b>-left; see
+    /// <see cref="PdfBounds"/>, because a word near the top of A4 has a
+    /// <see cref="PdfBounds.Bottom"/> near 842 rather than near 0.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The bytes are not a readable PDF, or it requires a password to open.
+    /// </exception>
+    public static IReadOnlyList<IReadOnlyList<PdfWord>> ExtractWords(byte[] pdf)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        if (pdf.Length == 0)
+            throw new ArgumentException("PDF content was empty.", nameof(pdf));
+
+        return PdfTextExtractor.Words(pdf);
+    }
+
+    /// <inheritdoc cref="ExtractWords(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    ///
+    /// This <c>remarks</c> replaces the one on <see cref="ExtractWords(byte[])"/> rather than adding
+    /// to it, so its warning is restated rather than assumed to carry over: <b>a page with no text
+    /// layer returns an empty list</b>, and coordinates start at the page's bottom-left.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable.</exception>
+    public static async Task<IReadOnlyList<IReadOnlyList<PdfWord>>> ExtractWordsAsync(
+        Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return PdfTextExtractor.Words(await ReadAsync(source, nameof(source), ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="ExtractWords(byte[])"/>
+    public static async Task<IReadOnlyList<IReadOnlyList<PdfWord>>> ExtractWordsAsync(
+        string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        return ExtractWords(await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Each page's images, in document order. <c>[0]</c> is page 1.
+    /// </summary>
+    /// <remarks>
+    /// <b>A page with no images returns an empty list</b>, which is the ordinary case for a text
+    /// document and not a failure.
+    ///
+    /// <b>An image whose pixels could not be re-encoded arrives with a null
+    /// <see cref="PdfImage.Png"/> rather than throwing</b>, so one exotic image does not cost the
+    /// caller every other image in the document. Check that property before using it.
+    ///
+    /// <b>The bytes are a re-encoding, not the embedded file.</b> They will not be byte-identical
+    /// to an original PNG or JPEG, and the byte count usually differs — see <see cref="PdfImage"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">
+    /// The bytes are not a readable PDF, or it requires a password to open.
+    /// </exception>
+    public static IReadOnlyList<IReadOnlyList<PdfImage>> ExtractImages(byte[] pdf)
+    {
+        ArgumentNullException.ThrowIfNull(pdf);
+        if (pdf.Length == 0)
+            throw new ArgumentException("PDF content was empty.", nameof(pdf));
+
+        return PdfTextExtractor.Images(pdf);
+    }
+
+    /// <inheritdoc cref="ExtractImages(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    ///
+    /// This <c>remarks</c> replaces the one on <see cref="ExtractImages(byte[])"/> rather than
+    /// adding to it, so its warnings are restated rather than assumed to carry over: <b>a page with
+    /// no images returns an empty list</b>, an undecodable image arrives with a null
+    /// <see cref="PdfImage.Png"/>, and the bytes are a re-encoding rather than the embedded file.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable.</exception>
+    public static async Task<IReadOnlyList<IReadOnlyList<PdfImage>>> ExtractImagesAsync(
+        Stream source, CancellationToken ct = default)
+    {
+        StreamPipeline.RequireReadable(source, nameof(source));
+
+        return PdfTextExtractor.Images(await ReadAsync(source, nameof(source), ct).ConfigureAwait(false));
+    }
+
+    /// <inheritdoc cref="ExtractImages(byte[])"/>
+    public static async Task<IReadOnlyList<IReadOnlyList<PdfImage>>> ExtractImagesAsync(
+        string path, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        return ExtractImages(await FilePipeline.ReadAsync(path, nameof(path), ct).ConfigureAwait(false));
+    }
+
+    /// <summary>
     /// Joins <paramref name="pdfs"/> into one document, keeping the order given.
     /// </summary>
     /// <exception cref="ArgumentException">

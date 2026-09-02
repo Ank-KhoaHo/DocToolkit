@@ -542,6 +542,16 @@ byte[] withAppendix = PdfEditor.InsertPages(bundle, appendix, atPage: 2);
 
 // Read a PDF's text back out, one string per page — pageText[0] is page 1.
 IReadOnlyList<string> pageText = PdfEditor.ExtractText(bundle);
+
+// Or read WHERE each word sits, for locating a value rather than just reading it.
+// Coordinates are points from the page's BOTTOM-left, so Bottom grows upwards.
+IReadOnlyList<IReadOnlyList<PdfWord>> words = PdfEditor.ExtractWords(bundle);
+PdfWord first = words[0][0];
+PdfBounds where = first.Bounds;   // Left, Bottom, Width, Height, plus Right and Top
+
+// And the images a page draws. Png is null when the pixels could not be re-encoded,
+// and PixelWidth is the stored size — Bounds.Width is how large the page draws it.
+IReadOnlyList<IReadOnlyList<PdfImage>> images = PdfEditor.ExtractImages(bundle);
 ```
 
 <!-- END SNIPPET -->
