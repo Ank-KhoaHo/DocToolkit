@@ -10,6 +10,18 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.54.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.53.0...v0.54.0) (2026-09-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** classify A119's locked-control refusal as breaking ([#488](https://github.com/Ank-KhoaHo/DocToolkit/issues/488))
+
+### Fixed
+
+* **core:** classify A119's locked-control refusal as breaking ([#488](https://github.com/Ank-KhoaHo/DocToolkit/issues/488)) ([a579d6a](https://github.com/Ank-KhoaHo/DocToolkit/commit/a579d6a90c955dd335839d81c545b9493e328d0b))
+* **core:** refuse to fill a content control the document locks (A119) ([#486](https://github.com/Ank-KhoaHo/DocToolkit/issues/486)) ([8511b34](https://github.com/Ank-KhoaHo/DocToolkit/commit/8511b34ed2086122119c54fffa61d9f253fa1306))
+
 ## [0.53.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.52.0...v0.53.0) (2026-09-02)
 
 ### Added
