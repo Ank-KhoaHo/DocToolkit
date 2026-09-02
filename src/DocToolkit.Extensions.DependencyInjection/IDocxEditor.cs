@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 namespace DocToolkit.Extensions.DependencyInjection;
 
 /// <summary>Creates, reads and edits Word (.docx) documents. Registered by <see cref="ServiceCollectionExtensions.AddDocToolkit"/>.</summary>
@@ -56,7 +57,7 @@ public interface IDocxEditor
 
     /// <summary>
     /// Reads a .docx from <paramref name="source"/>, replaces every key with its value, and writes
-    /// the result to <paramref name="destination"/>. See <see cref="ReplaceText"/> for exactly what
+    /// the result to <paramref name="destination"/>. See <see cref="ReplaceText(byte[], IReadOnlyDictionary{string, string})"/> for exactly what
     /// counts as a match. <paramref name="source"/> is <b>read</b> to its end and
     /// <paramref name="destination"/> is <b>written</b>; neither is disposed, closed or sought.
     /// </summary>
@@ -69,6 +70,58 @@ public interface IDocxEditor
     /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
     Task ReplaceTextAsync(
         Stream source, IReadOnlyDictionary<string, string> replacements, Stream destination,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Replaces every match of <paramref name="pattern"/> with <paramref name="replacement"/>,
+    /// across the body, headers, footers, footnotes and endnotes (A116).
+    /// </summary>
+    /// <remarks>
+    /// The dictionary overload above matches literal keys; this one matches a pattern. Everything
+    /// else is identical - the same walk, the same splice, the same run-boundary handling.
+    ///
+    /// <b><paramref name="replacement"/> is a substitution TEMPLATE, not a literal.</b> <c>$1</c>
+    /// and friends expand to captured groups the way <c>Regex.Replace</c> expands them, so a
+    /// literal <c>$</c> must be written <c>$$</c>.
+    ///
+    /// <b>Zero-width matches are skipped</b>, because one consumes no characters and inserting a
+    /// replacement for it would not advance through the text.
+    ///
+    /// <b><paramref name="pattern"/> must carry a match timeout, and an unbounded one is refused.</b>
+    /// A pattern that can backtrack catastrophically has no upper bound on its running time, and a
+    /// hang is worse than a failure because the caller cannot catch it. Construct it as
+    /// <c>new Regex(text, RegexOptions.None, TimeSpan.FromSeconds(1))</c>.
+    /// </remarks>
+    /// <param name="docx">The .docx package to edit.</param>
+    /// <param name="pattern">The pattern to find. Must have a finite <c>MatchTimeout</c>.</param>
+    /// <param name="replacement">The substitution template applied to each match.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="pattern"/> was built without a match
+    /// timeout.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or edited.</exception>
+    byte[] ReplaceText(byte[] docx, Regex pattern, string replacement);
+
+    /// <inheritdoc cref="ReplaceText(byte[], Regex, string)" path="/summary|/exception"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end and <paramref name="destination"/> is written;
+    /// neither is disposed, closed or sought.
+    ///
+    /// This <c>remarks</c> replaces the one on
+    /// <see cref="ReplaceText(byte[], Regex, string)"/> rather than adding to it, so its warnings
+    /// are restated: <paramref name="replacement"/> is a <b>template</b> in which <c>$1</c> expands
+    /// to a captured group, zero-width matches are skipped, and an <b>unbounded pattern is
+    /// refused</b>.
+    /// </remarks>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="pattern">The pattern to find. Must have a finite <c>MatchTimeout</c>.</param>
+    /// <param name="replacement">The substitution template applied to each match.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task ReplaceTextAsync(
+        Stream source, Regex pattern, string replacement, Stream destination,
         CancellationToken ct = default);
 
     /// <summary>

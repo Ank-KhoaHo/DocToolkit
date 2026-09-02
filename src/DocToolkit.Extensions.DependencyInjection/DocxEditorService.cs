@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 
 namespace DocToolkit.Extensions.DependencyInjection;
@@ -40,6 +41,13 @@ internal sealed class DocxEditorService : IDocxEditor
         Stream source, IReadOnlyDictionary<string, string> replacements, Stream destination,
         CancellationToken ct = default)
         => DocToolkit.DocxEditor.ReplaceTextAsync(source, replacements, destination, ct);
+
+    public byte[] ReplaceText(byte[] docx, Regex pattern, string replacement)
+        => DocToolkit.DocxEditor.ReplaceText(docx, pattern, replacement);
+
+    public Task ReplaceTextAsync(
+        Stream source, Regex pattern, string replacement, Stream destination, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.ReplaceTextAsync(source, pattern, replacement, destination, ct);
 
     public Task<string> ExtractTextAsync(Stream source, CancellationToken ct = default)
         => DocToolkit.DocxEditor.ExtractTextAsync(source, ct);
