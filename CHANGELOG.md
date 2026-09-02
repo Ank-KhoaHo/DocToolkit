@@ -10,6 +10,35 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.55.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.54.0...v0.55.0) (2026-09-02)
+
+### Added
+
+* **Core: `DocxFormField` now reports a content control's alias.**
+  `Alias` is the display name Word itself shows a human (`w:alias`). It is **not** `Key`, which is
+  whichever name `DocxFormKey` resolved for matching and is usually the tag - an identifier the
+  template's author chose for code. An application rendering a form wants the alias.
+
+  **Empty when the control has no alias, and also when the key is ambiguous.** Word does not require
+  either name to be unique; where one key reaches two controls with different aliases this reports
+  nothing rather than picking one and being silently wrong half the time. `DocxForm.Validate`
+  already reports that case as `DuplicateKey`. Two controls sharing a key *and* an alias are not
+  ambiguous about the alias, and it is still reported.
+
+  **Whether a control is LOCKED is still not reported**, and that is a deliberate limit rather than
+  an oversight - the underlying library exposes the alias but neither the lock nor the element to
+  read one from. Since 0.54.0 `DocxForm.Fill` refuses to write a locked control, so a lock is at
+  least safe to discover by attempting the fill.
+
+* **Extensions: `IDocxEditor` mirrors the `Regex` overloads of `ReplaceText`** added to the core in
+  0.54.0 - the `byte[]` form and its `Stream` form - so pattern-based find-and-replace is reachable
+  through dependency injection rather than only through the static class.
+
+  Three things a caller gets wrong without being told, now stated on the interface: the replacement
+  is a **template** in which `$1` expands to a captured group and a literal `$` is `$$`, zero-width
+  matches are **skipped**, and a `Regex` built without a **match timeout** is **refused** rather
+  than accepted.
+
 ## [0.54.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.53.0...v0.54.0) (2026-09-02)
 
 ### ⚠ BREAKING CHANGES
