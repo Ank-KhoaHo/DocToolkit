@@ -53,6 +53,81 @@ public interface IPdfEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     Task<IReadOnlyList<string>> ExtractTextAsync(Stream source, CancellationToken ct = default);
 
+    /// <summary>
+    /// Each page's words with their positions, in document order. <c>[0]</c> is page 1.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ExtractText(byte[])"/> answers what a page says; this answers <b>where</b> it
+    /// says it — for locating a total on an invoice, or checking a stamp landed inside the margin.
+    ///
+    /// <b>Coordinates are PDF user-space points measured from the page's BOTTOM-left</b>, so a word
+    /// near the top of A4 has a <c>Bounds.Bottom</c> near 842 rather than near 0. That is the PDF
+    /// convention rather than a screen one, and it is the commonest surprise when these values are
+    /// first plotted.
+    ///
+    /// <b>A page with no text layer returns an empty list.</b> A scanned document is images, so
+    /// this returns one empty list per page for one — that is what the file contains, not a
+    /// failure, and OCR is out of scope.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The bytes are not a readable PDF, or it requires a password to open.
+    /// </exception>
+    IReadOnlyList<IReadOnlyList<DocToolkit.PdfWord>> ExtractWords(byte[] pdf);
+
+    /// <inheritdoc cref="ExtractWords(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    ///
+    /// This <c>remarks</c> replaces the one on <see cref="ExtractWords(byte[])"/> rather than adding
+    /// to it, so its warnings are restated rather than assumed to carry over: <b>coordinates are
+    /// measured from the page's BOTTOM-left</b>, and <b>a page with no text layer returns an empty
+    /// list.</b>
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or was empty.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task<IReadOnlyList<IReadOnlyList<DocToolkit.PdfWord>>> ExtractWordsAsync(
+        Stream source, CancellationToken ct = default);
+
+    /// <summary>
+    /// Each page's images, in document order. <c>[0]</c> is page 1.
+    /// </summary>
+    /// <remarks>
+    /// <b>A page with no images returns an empty list</b>, which is the ordinary case for a text
+    /// document rather than a failure.
+    ///
+    /// <b>An image whose pixels could not be re-encoded arrives with a null
+    /// <c>PdfImage.Png</c> rather than throwing</b>, so one image in an unusual colour space does
+    /// not cost the caller every other image in the document. Check that property before using it.
+    ///
+    /// <b>The bytes are a re-encoding, not the embedded file.</b> They will not be byte-identical
+    /// to an original PNG or JPEG, and the byte count usually differs. <c>PdfImage.PixelWidth</c> is
+    /// the stored pixel size; <c>Bounds.Width</c> is how large the page draws it, in points.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="pdf"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pdf"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">
+    /// The bytes are not a readable PDF, or it requires a password to open.
+    /// </exception>
+    IReadOnlyList<IReadOnlyList<DocToolkit.PdfImage>> ExtractImages(byte[] pdf);
+
+    /// <inheritdoc cref="ExtractImages(byte[])"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end; it is not disposed, closed or sought, and does
+    /// not have to be seekable.
+    ///
+    /// This <c>remarks</c> replaces the one on <see cref="ExtractImages(byte[])"/> rather than
+    /// adding to it, so its warnings are restated rather than assumed to carry over: <b>a page with
+    /// no images returns an empty list</b>, an undecodable image arrives with a null
+    /// <c>PdfImage.Png</c>, and the bytes are a re-encoding rather than the embedded file.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or was empty.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    Task<IReadOnlyList<IReadOnlyList<DocToolkit.PdfImage>>> ExtractImagesAsync(
+        Stream source, CancellationToken ct = default);
+
     /// <summary>Joins <paramref name="pdfs"/> into one document, keeping the order given.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="pdfs"/> is null.</exception>
     /// <exception cref="ArgumentException">

@@ -240,4 +240,87 @@ public class PdfEditorServiceTests
 
         Assert.Equal("Stamped", PdfEditor.ReadMetadata(destination.ToArray()).Title);
     }
+
+    // ---------- A110-DI: word positions and embedded images ----------
+    //
+    // The image fixture cannot come from HTML: HtmlToPdfConverter has no <img> path at all, which
+    // A110 measured. The route that works uses the published package's own machinery -
+    // DocxBlock.Image -> DocxEditor.Create -> DocxToPdfConverter.Convert - and is available here
+    // because the extensions package references core 0.52.0, where all three ship.
+
+    /// <summary>
+    /// 8x8 truecolour PNG, every pixel rgb(222,17,99), hand-built from IHDR/IDAT/IEND. Its
+    /// dimensions are asserted rather than trusted, so the literal 8 is the oracle.
+    /// </summary>
+    private static byte[] KnownPng() => Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEUlEQVR4nGO4J5iMFTEMLQkAI3dUgf4kDHQAAAAASUVORK5CYII=");
+
+    private static byte[] PdfWithKnownImage() =>
+        DocxToPdfConverter.Convert(DocxEditor.Create(
+            [DocxBlock.Paragraph("Acme Corporation"), DocxBlock.Image(KnownPng(), widthPoints: 48)]));
+
+    [Fact]
+    public async Task ExtractWords_ReturnsWordsWithRealPositions_NotAConstantRectangle()
+    {
+        var pdf = await HtmlToPdfConverter.ConvertAsync("<h1>Acme Corporation</h1><p>Invoice 42</p>");
+        var sut = new PdfEditorService();
+
+        var words = Assert.Single(sut.ExtractWords(pdf));
+
+        // Literals first, per this class's rule. A wrapper returning one constant rectangle for
+        // every word passes any count assertion; only a comparison between two words that are
+        // genuinely on different lines fails against it. PDF's origin is the page's BOTTOM-left,
+        // so the heading's Bottom must be the LARGER of the two.
+        var heading = Assert.Single(words, w => w.Text == "Acme");
+        var body = Assert.Single(words, w => w.Text == "Invoice");
+        Assert.True(
+            heading.Bounds.Bottom > body.Bounds.Bottom,
+            $"heading Bottom {heading.Bounds.Bottom} should exceed body Bottom {body.Bounds.Bottom}");
+
+        Assert.Equal(PdfEditor.ExtractWords(pdf)[0].Select(w => w.Text), words.Select(w => w.Text));
+    }
+
+    [Fact]
+    public async Task ExtractWordsAsync_MatchesTheByteArrayForm_AndLeavesTheSourceOpen()
+    {
+        var pdf = await HtmlToPdfConverter.ConvertAsync("<p>Acme Corporation</p>");
+        var sut = new PdfEditorService();
+
+        using var source = new MemoryStream(pdf, writable: false);
+        var pages = await sut.ExtractWordsAsync(source);
+
+        Assert.Contains(Assert.Single(pages), w => w.Text == "Acme");
+        Assert.True(source.CanRead, "ExtractWordsAsync disposed a source stream it does not own.");
+    }
+
+    [Fact]
+    public async Task ExtractImages_FindsAnEmbeddedImage_AndReportsNoneWhenThereAreNone()
+    {
+        var sut = new PdfEditorService();
+
+        var image = Assert.Single(sut.ExtractImages(PdfWithKnownImage())[0]);
+        Assert.Equal(8, image.PixelWidth);
+        Assert.Equal(8, image.PixelHeight);
+        Assert.NotNull(image.Png);
+        // Placed at 48pt, which is NOT the 8px stored size - the two are different measurements.
+        Assert.Equal(48d, image.Bounds.Width, 1);
+
+        // THE control. Without it a wrapper that always reported one image looks identical, which
+        // is the A38 "the API is reachable" shape this repository has been caught by before.
+        var textOnly = await HtmlToPdfConverter.ConvertAsync("<p>No pictures here</p>");
+        Assert.Empty(Assert.Single(sut.ExtractImages(textOnly)));
+    }
+
+    [Fact]
+    public async Task ExtractImagesAsync_MatchesTheByteArrayForm_AndLeavesTheSourceOpen()
+    {
+        var pdf = PdfWithKnownImage();
+        var sut = new PdfEditorService();
+
+        using var source = new MemoryStream(pdf, writable: false);
+        var pages = await sut.ExtractImagesAsync(source);
+
+        Assert.Equal(8, Assert.Single(pages[0]).PixelHeight);
+        Assert.True(source.CanRead, "ExtractImagesAsync disposed a source stream it does not own.");
+    }
 }
