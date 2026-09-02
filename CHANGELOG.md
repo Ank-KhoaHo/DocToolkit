@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.56.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.55.0...v0.56.0) (2026-09-02)
+
+
+### Added
+
+* **core:** compare two versions of a document as tracked changes (A118) ([#492](https://github.com/Ank-KhoaHo/DocToolkit/issues/492)) ([3a94b5e](https://github.com/Ank-KhoaHo/DocToolkit/commit/3a94b5eeb98fb287f8c95e0d178a2a20b56349b8))
+
 ## [0.55.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.54.0...v0.55.0) (2026-09-02)
 
 ### Added
