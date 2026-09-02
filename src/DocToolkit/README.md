@@ -1193,6 +1193,11 @@ That is asserted, not assumed; see above.
 
 ### 0.54.0 - `DocxForm.Fill` refuses a locked content control instead of writing through it
 
+**This is a breaking change**, and it is the reason 0.54.0 is a minor bump rather than a patch: a
+call that succeeded in 0.53.0 now throws. It was very nearly published as `0.53.1`, because the
+commit was typed `fix(core):` without a breaking marker and release-please reads the type — which
+would have told everyone upgrading that this was routine.
+
 Before this release, filling a control the document locks against editing **succeeded**, and the
 `w:lock` was left in place. The result was a document that still declared the control protected
 while its content had been replaced — self-contradictory, invisible to any reader, and impossible
