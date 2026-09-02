@@ -892,6 +892,36 @@ headers, so if your form lives in one, that is the API to use.
 
 `Stream` overloads: `InspectAsync`, `ValidateAsync`, `FillAsync`.
 
+## Comparing two versions of a document
+
+`DocxCompare` produces the later document with its differences from the earlier one marked as
+tracked changes, so Word shows it exactly as it shows any reviewed document — and `DocxReview`
+reads it back without knowing where it came from.
+
+```csharp
+ConversionResult<byte[]> result = DocxCompare.CompareWithReport(original, revised, "Reviewer");
+
+// HasLoss is true whenever the comparison covered less than the document.
+foreach (ConversionWarning skipped in result.Warnings)
+    Console.WriteLine($"{skipped.Code}: {skipped.Message}");
+
+byte[] marked = result.Value;
+DocxReviewReport review = DocxReview.Inspect(marked);   // the revisions it just produced
+```
+
+**Only paragraph text is compared, and everything else is reported rather than silently skipped.**
+Tables are named in the warnings, not diffed — a row inserted mid-table is not the same edit as its
+text appearing elsewhere, and marking it as one would be a wrong answer rather than a coarse one.
+**Formatting changes are never detected**, so a paragraph whose text is unchanged but whose styling
+differs produces no revision at all.
+
+Paragraphs are paired **by position**, so inserting one in the middle shifts every pair after it and
+its neighbours read as heavily rewritten. That case raises its own warning rather than being left to
+be discovered.
+
+`Compare` is the same operation without the report. Use it only when you already know the documents
+contain nothing the comparison skips.
+
 ## Comments and tracked changes
 
 `DocxReview` reads what a document carries from having been through review, and resolves it.

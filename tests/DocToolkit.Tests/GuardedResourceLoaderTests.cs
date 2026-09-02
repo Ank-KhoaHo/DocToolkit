@@ -302,7 +302,12 @@ public class GuardedResourceLoaderTests
         const int cap = 16;
         using var probe = new LoopbackProbe(_output, FixedBodyResponder(cap));
         var loader = new GuardedResourceLoader(
-            new RemoteImageOptions { AllowPrivateAddresses = true, MaxBytesPerImage = cap });
+            new RemoteImageOptions
+            {
+                AllowPrivateAddresses = true,
+                MaxBytesPerImage = cap,
+                Timeout = SucceedingFetchTimeout,
+            });
 
         var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/x.bin"));
 
@@ -349,13 +354,44 @@ public class GuardedResourceLoaderTests
         // simply refused every chunked response would pass the rejection test above.
         using var probe = new LoopbackProbe(_output, ChunkedBodyResponder(chunkSize: 8, chunkCount: 2));
         var loader = new GuardedResourceLoader(
-            new RemoteImageOptions { AllowPrivateAddresses = true, MaxBytesPerImage = cap });
+            new RemoteImageOptions
+            {
+                AllowPrivateAddresses = true,
+                MaxBytesPerImage = cap,
+                Timeout = SucceedingFetchTimeout,
+            });
 
         var result = await loader.FetchAsync(new Uri($"{probe.BaseUrl}/x.bin"));
 
         Assert.NotNull(result);
         Assert.Equal(cap, result!.Content.Length);
     }
+
+    /// <summary>
+    /// The timeout given to the two byte-cap tests that assert a fetch SUCCEEDS.
+    /// </summary>
+    /// <remarks>
+    /// <b>Measured 2026-09-02: the default 10 s is not enough on a loaded Windows runner.</b>
+    /// <c>FetchAsync_ByteCap_AcceptsAChunkedBodyWithinTheLimit</c> failed CI with
+    /// <c>Assert.NotNull() Failure</c> after <b>12 s</b> - the loopback fetch exceeded the default
+    /// timeout, the loader correctly skipped the image, and the test read that as a broken byte
+    /// cap. The same commit passed on a second run 24 seconds later, which is the tell.
+    ///
+    /// <b>Only the two SUCCESS tests get this.</b> The sibling tests on either side assert a
+    /// refusal, and lengthening their timeout would make a genuine hang take two minutes to
+    /// surface instead of ten seconds.
+    ///
+    /// <b>It does not weaken the timeout guard.</b> These tests are about
+    /// <c>MaxBytesPerImage</c>; the timeout has its own test in
+    /// <c>RemoteImageGuardTests.SlowResponse_TimesOut_RatherThanHangingTheConversion</c>, already
+    /// best-of-3 for this same reason. Leaving the default here makes a byte-cap test fail for a
+    /// reason that has nothing to do with byte caps.
+    ///
+    /// <b>This is the opposite of raising <c>UnroutableCeiling</c></b>, which CLAUDE.md forbids:
+    /// that number decides whether something dialled out and is the signal itself. This one only
+    /// bounds how long a deliberate, expected loopback fetch may take before the loader gives up.
+    /// </remarks>
+    private static readonly TimeSpan SucceedingFetchTimeout = TimeSpan.FromMinutes(2);
 
     private const int TimingAttempts = 3;
 
