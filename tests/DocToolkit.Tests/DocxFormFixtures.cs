@@ -58,7 +58,7 @@ internal static class DocxFormFixtures
     /// </remarks>
     internal static byte[] WithPictureControl()
     {
-        string path = Path.Combine(Path.GetTempPath(), $"docxform-{Guid.NewGuid():N}.png");
+        string path = Path.Join(Path.GetTempPath(), $"docxform-{Guid.NewGuid():N}.png");
         File.WriteAllBytes(path, ImageFixtures.Png());
         try
         {

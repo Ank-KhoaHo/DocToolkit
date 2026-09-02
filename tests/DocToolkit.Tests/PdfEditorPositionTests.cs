@@ -103,7 +103,7 @@ public class PdfEditorPositionTests
     public async Task ThePathOverloadAgreesWithTheByteArrayOverload()
     {
         var pdf = await PdfAsync("<p>Acme Corporation</p>");
-        var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        var path = Path.Join(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
         await File.WriteAllBytesAsync(path, pdf);
         try
         {
@@ -183,7 +183,7 @@ public class PdfEditorPositionTests
     public async Task TheImagePathOverloadAgreesWithTheByteArrayOverload()
     {
         var pdf = PdfWithKnownImage();
-        var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        var path = Path.Join(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
         await File.WriteAllBytesAsync(path, pdf);
         try
         {

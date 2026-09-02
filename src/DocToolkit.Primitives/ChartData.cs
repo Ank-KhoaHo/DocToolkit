@@ -7,6 +7,15 @@ namespace DocToolkit;
 /// </summary>
 public sealed class ChartData
 {
+    /// <summary>
+    /// Creates the data behind a chart: the labels along the category axis, and one or more named
+    /// series plotted against them.
+    /// </summary>
+    /// <remarks>
+    /// Every series must carry exactly as many values as there are categories. That is checked
+    /// here rather than at render time, so a mismatch is reported against the argument that caused
+    /// it instead of surfacing later as a malformed chart.
+    /// </remarks>
     /// <param name="categories">The category axis labels — one per data point in every series.</param>
     /// <param name="series">One or more named value series, plotted against <paramref name="categories"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="categories"/> or <paramref name="series"/> is null.</exception>

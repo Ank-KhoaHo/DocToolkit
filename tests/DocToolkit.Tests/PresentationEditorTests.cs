@@ -1503,10 +1503,12 @@ public class PresentationEditorTests
         var actual = await PresentationEditor.AddChartAsync(
             input.Path, 1, ChartType.Line, data, title: "Regional Totals");
 
-        using var expectedDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(
-            new MemoryStream(expected, writable: false));
-        using var actualDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(
-            new MemoryStream(actual, writable: false));
+        // Streams hoisted so they are disposed, and declared BEFORE the documents so `using`
+        // disposes them after — a presentation outliving its own source stream would break.
+        using var expectedStream = new MemoryStream(expected, writable: false);
+        using var actualStream = new MemoryStream(actual, writable: false);
+        using var expectedDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(expectedStream);
+        using var actualDoc = OfficeIMO.PowerPoint.PowerPointPresentation.Load(actualStream);
         var expectedChart = Assert.Single(expectedDoc.Slides[0].Charts);
         var actualChart = Assert.Single(actualDoc.Slides[0].Charts);
         Assert.True(expectedChart.TryGetOfficeSnapshot(out var expectedSnapshot));
