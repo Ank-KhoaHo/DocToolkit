@@ -276,15 +276,62 @@ public static class DocxForm
         }
     }
 
+    /// <summary>
+    /// Each control's alias, reachable by whichever name <c>ExtractContentControlValues</c> used
+    /// as its key.
+    /// </summary>
+    /// <remarks>
+    /// <b>A control is matched when EITHER its tag or its alias equals the key</b>, rather than by
+    /// replaying the <see cref="DocxFormKey"/> preference order here. Replaying it would be a
+    /// second implementation of the decision OfficeIMO already made, and two implementations of
+    /// one rule is the drift <c>SetCellValue</c>, <c>SectionPropertiesFactory</c>,
+    /// <c>ValidateSheetName</c> and <c>ContentControls</c> each exist to prevent. Asking "which
+    /// control does this name reach?" needs no preference order at all.
+    ///
+    /// <b>An ambiguous name yields no alias rather than a guess.</b> Word does not require either
+    /// name to be unique, and <see cref="DocxFormValidation"/> already reports that as
+    /// <see cref="DocxFormIssueKind.DuplicateKey"/> - so the honest answer here is to say nothing
+    /// rather than pick one of two controls and be silently wrong half the time.
+    /// </remarks>
+    private static Dictionary<string, string> AliasesByName(OfficeIMOWordDocument document)
+    {
+        var byName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        foreach (var control in document.StructuredDocumentTags)
+        {
+            var alias = control.Alias ?? string.Empty;
+            foreach (var name in new[] { control.Tag, control.Alias })
+            {
+                if (string.IsNullOrEmpty(name)) continue;
+                if (!byName.TryGetValue(name, out var found)) byName[name] = found = [];
+                found.Add(alias);
+            }
+        }
+
+        return byName
+            .Where(pair => pair.Value.Distinct(StringComparer.Ordinal).Count() == 1)
+            .ToDictionary(pair => pair.Key, pair => pair.Value[0], StringComparer.Ordinal);
+    }
+
     private static DocxFormReport InspectCore(Stream source, DocxFormKey key)
     {
         try
         {
             using var document = OfficeIMOWordDocument.Load(source);
 
+            // The alias comes from OfficeIMO's own control collection rather than from a second
+            // walk of the OOXML (A120). Measured 2026-09-03: WordStructuredDocumentTag exposes
+            // Tag and Alias together and nothing else useful - no lock, and no route to the
+            // element underneath. So the alias is reachable without inventing a reader, and
+            // IsLocked is not reachable at all, which is why only half of A120 shipped.
+            var aliases = AliasesByName(document);
+
             DocxFormField[] fields = [.. document
                 .ExtractContentControlValues(Upstream(key))
-                .Select(pair => new DocxFormField(pair.Key, DocxFormValue.FromUpstream(pair.Value)))];
+                .Select(pair => new DocxFormField(
+                    pair.Key,
+                    DocxFormValue.FromUpstream(pair.Value),
+                    aliases.TryGetValue(pair.Key, out var alias) ? alias : string.Empty))];
 
             return new DocxFormReport(fields);
         }
