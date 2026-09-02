@@ -15,7 +15,25 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* **core:** read word positions and embedded images from a PDF (A110) ([#476](https://github.com/Ank-KhoaHo/DocToolkit/issues/476)) ([90eb45b](https://github.com/Ank-KhoaHo/DocToolkit/commit/90eb45be769ef3cb0bc1e4890f7279014a119843))
+* **Core: a PDF's words and images can now be read with their positions.**
+  `PdfEditor.ExtractText` answers what a page says; `ExtractWords` answers where it says it, and
+  `ExtractImages` returns the pictures it draws. Both return one list per page - `[0]` is page 1 -
+  matching `ExtractText`, with `byte[]`, `Stream` and file-path forms. Three new types carry the
+  results: `PdfWord`, `PdfImage` and `PdfBounds`.
+
+  **Coordinates start at the page's BOTTOM-left**, which is the PDF convention rather than a screen
+  one: a word near the top of A4 has a `Bottom` near 842, not near 0. One point is 1/72 inch.
+
+  **`PdfImage.Png` is null when the pixels could not be re-encoded**, and that is a normal outcome
+  rather than an error - one image in an unusual colour space does not cost you the rest of the
+  document. Check it before use. Those bytes are also a **re-encoding, not the embedded file**, so
+  they are not byte-identical to an original PNG or JPEG and the byte count usually differs.
+
+  **A page with no text layer yields an empty list.** A scanned document is images; OCR remains out
+  of scope.
+
+  **Nothing existing changed or was removed.** The dependency-injection mirror follows in the next
+  release: the extensions package builds against the published core.
 
 ## [0.51.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.50.0...v0.51.0) (2026-09-02)
 
