@@ -44,6 +44,29 @@ env:
   PROJECT: src/DocToolkit/DocToolkit.csproj
   EXTENSIONS_PROJECT: src/DocToolkit.Extensions.DependencyInjection/DocToolkit.Extensions.DependencyInjection.csproj
 
+  # `dotnet test` on the solution starts FOUR test runs at once - two projects x two TFMs - and on
+  # a 2-4 core Windows runner one of them can fail to hand-shake with its own test host inside
+  # vstest's 90-second default, aborting a run in which nothing was even executed:
+  #
+  #     vstest.console process failed to connect to testhost process after 90 seconds.
+  #     Test Run Aborted.
+  #
+  # Measured twice on Windows, on #476 and #483, both times with every test that DID run passing -
+  # 2658 + 2658 + 259 green and the fourth run aborted before it started. The message names this
+  # variable itself as the remedy.
+  #
+  # THIS IS NOT THE KIND OF TIMEOUT THIS REPOSITORY REFUSES TO RAISE, and the distinction is worth
+  # stating because it forbids exactly that elsewhere. `UnroutableCeiling` in AirGapGuardTests must
+  # not be raised because it is a SECURITY SIGNAL - it decides whether something dialled out. This
+  # one decides how long a test host may take to accept a socket on localhost before the runner
+  # gives up, so raising it cannot mask a product defect: a genuinely broken build still fails on
+  # its assertions, and a hung test is still caught by that suite's own HangGuard.
+  #
+  # Set for every OS rather than only Windows. A value that changes per platform is one more thing
+  # that can be true on one leg and not another, and Linux has never needed it - so it costs
+  # nothing there and removes the temptation to make the matrix legs differ.
+  VSTEST_CONNECTION_TIMEOUT: 300
+
 jobs:
   build-test:
     # The name deliberately carries the PLATFORM, not the runner image. Branch
