@@ -10,6 +10,19 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.53.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.52.0...v0.53.0) (2026-09-02)
+
+
+### Added
+
+* **core:** match a Regex in DocxEditor.ReplaceText (A116) ([#483](https://github.com/Ank-KhoaHo/DocToolkit/issues/483)) ([9082c16](https://github.com/Ank-KhoaHo/DocToolkit/commit/9082c165f2f5c4ddeff752b997108a02f318f33c))
+* **extensions:** mirror ExtractWords and ExtractImages on IPdfEditor (A110-DI) ([#482](https://github.com/Ank-KhoaHo/DocToolkit/issues/482)) ([376aec5](https://github.com/Ank-KhoaHo/DocToolkit/commit/376aec5ecb391ea57c3ac0393136650f18df4a5e))
+
+
+### Fixed
+
+* **test:** clear 65 CodeQL alerts without suppressing any of them ([#480](https://github.com/Ank-KhoaHo/DocToolkit/issues/480)) ([3c0d735](https://github.com/Ank-KhoaHo/DocToolkit/commit/3c0d735defa95e4f295d23b4f4c30d18858847ad))
+
 ## [0.52.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.51.0...v0.52.0) (2026-09-02)
 
 
