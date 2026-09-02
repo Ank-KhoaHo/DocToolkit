@@ -3,6 +3,10 @@ namespace DocToolkit;
 /// <summary>One named series of numeric values in a <see cref="ChartData"/>.</summary>
 public sealed class ChartSeries
 {
+    /// <summary>
+    /// Creates one named series of a chart — the label its legend shows, and the values plotted
+    /// against <see cref="ChartData.Categories"/>.
+    /// </summary>
     /// <param name="name">The series' label, shown in the chart's legend.</param>
     /// <param name="values">
     /// The series' values, in the same order as <see cref="ChartData.Categories"/>.

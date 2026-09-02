@@ -1145,8 +1145,13 @@ public class WorkbookEditorTests
             WorkbookEditor.ReadSheet(expected, "Sheet1"),
             WorkbookEditor.ReadSheet(actual, "Sheet1"));
 
-        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(expected, writable: false));
-        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(new MemoryStream(actual, writable: false));
+        // The streams are hoisted out of the Load calls so they are disposed. Declared BEFORE the
+        // documents, so `using` disposes them after — a document outliving its own source stream is
+        // the one ordering that would break here.
+        using var expectedStream = new MemoryStream(expected, writable: false);
+        using var actualStream = new MemoryStream(actual, writable: false);
+        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(expectedStream);
+        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(actualStream);
         var expectedChart = Assert.Single(expectedDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
         var actualChart = Assert.Single(actualDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
         Assert.Equal(expectedChart.Title, actualChart.Title);
@@ -1185,12 +1190,12 @@ public class WorkbookEditorTests
         await WorkbookEditor.AddChartAsync(
             input.Path, output.Path, "Sheet1", "C1", ChartType.Line, data, title: "Regional Totals");
 
-        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(
-            new MemoryStream(
-                WorkbookEditor.AddChart(xlsx, "Sheet1", "C1", ChartType.Line, data, title: "Regional Totals"),
-                writable: false));
-        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(
-            new MemoryStream(await File.ReadAllBytesAsync(output.Path), writable: false));
+        using var expectedStream = new MemoryStream(
+            WorkbookEditor.AddChart(xlsx, "Sheet1", "C1", ChartType.Line, data, title: "Regional Totals"),
+            writable: false);
+        using var actualStream = new MemoryStream(await File.ReadAllBytesAsync(output.Path), writable: false);
+        using var expectedDoc = OfficeIMO.Excel.ExcelDocument.Load(expectedStream);
+        using var actualDoc = OfficeIMO.Excel.ExcelDocument.Load(actualStream);
         var expectedChart = Assert.Single(expectedDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
         var actualChart = Assert.Single(actualDoc.Sheets.First(s => s.Name == "Sheet1").Charts);
         Assert.Equal(expectedChart.Title, actualChart.Title);

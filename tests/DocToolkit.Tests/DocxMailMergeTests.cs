@@ -1775,7 +1775,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -1785,7 +1785,7 @@ public class DocxMailMergeTests
 
             var ex = Assert.Throws<ArgumentException>(() =>
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
-                    (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx")));
+                    (i, r) => Path.Join(dir.FullName, $"out-{i}.docx")));
 
             Assert.Equal("records", ex.ParamName);
             // A single-record batch can't tell $"Record {index}" apart from a hard-coded "Record 0"
@@ -1795,7 +1795,7 @@ public class DocxMailMergeTests
             // RequireValues runs in the path-computation loop, before CheckNoPathCollisions and
             // before any write -- a null value anywhere in the batch means no file is written at
             // all, unlike a strict field-miss where records before the bad one are already on disk.
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "out-0.docx")));
         }
         finally
         {
@@ -2076,7 +2076,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2091,7 +2091,7 @@ public class DocxMailMergeTests
             var paths = DocxMailMerge.MergeBatchToFiles(templatePath, records, (i, r) =>
             {
                 seenArgs.Add((i, r));
-                return Path.Combine(dir.FullName, $"out-{i}.docx");
+                return Path.Join(dir.FullName, $"out-{i}.docx");
             });
 
             Assert.Equal(2, paths.Count);
@@ -2114,7 +2114,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2125,15 +2125,15 @@ public class DocxMailMergeTests
 
             var ex = Assert.Throws<DocumentConversionException>(() =>
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
-                    (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx")));
+                    (i, r) => Path.Join(dir.FullName, $"out-{i}.docx")));
 
             // "1" alone would also match the unrelated "1 merge field(s)" substring MergeCore's own
             // message already contains -- "Record 1:" is what actually pins the index.
             Assert.Contains("Record 1:", ex.Message, StringComparison.Ordinal);
             Assert.Contains("Balance", ex.Message, StringComparison.Ordinal);
-            Assert.True(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-1.docx")));
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-2.docx")));
+            Assert.True(File.Exists(Path.Join(dir.FullName, "out-0.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "out-1.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "out-2.docx")));
         }
         finally
         {
@@ -2147,9 +2147,9 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
-            var collidingPath = Path.Combine(dir.FullName, "collide.docx");
+            var collidingPath = Path.Join(dir.FullName, "collide.docx");
             var records = new IReadOnlyDictionary<string, string>[]
             {
                 new Dictionary<string, string> { ["FirstName"] = "Alice" },
@@ -2160,7 +2160,7 @@ public class DocxMailMergeTests
             // Records 0 and 2 collide; record 1 does not.
             var ex = Assert.Throws<ArgumentException>(() =>
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
-                    (i, r) => i == 1 ? Path.Combine(dir.FullName, "unique.docx") : collidingPath));
+                    (i, r) => i == 1 ? Path.Join(dir.FullName, "unique.docx") : collidingPath));
 
             Assert.Equal("outputPathFactory", ex.ParamName);
             // "Records 0 and 2", not bare "0"/"2" -- the temp directory's own generated name can
@@ -2170,7 +2170,7 @@ public class DocxMailMergeTests
             // Nothing was written at all -- not even the record that never collided, and not even
             // the "winning" one an unguarded delegation to the engine would silently have produced.
             Assert.False(File.Exists(collidingPath));
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "unique.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "unique.docx")));
         }
         finally
         {
@@ -2184,7 +2184,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>?[]
             {
@@ -2203,14 +2203,14 @@ public class DocxMailMergeTests
             var calledIndices = new List<int>();
             var ex = Assert.Throws<ArgumentNullException>(() =>
                 DocxMailMerge.MergeBatchToFiles(templatePath, records!,
-                    (i, r) => { calledIndices.Add(i); return Path.Combine(dir.FullName, r["FirstName"] + ".docx"); }));
+                    (i, r) => { calledIndices.Add(i); return Path.Join(dir.FullName, r["FirstName"] + ".docx"); }));
 
             Assert.Equal("records", ex.ParamName);
             Assert.Equal([0], calledIndices);
             // Nothing was written -- not even record 0, whose path was computed successfully
             // before the null record was ever reached.
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "Alice.docx")));
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "Carol.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "Alice.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "Carol.docx")));
         }
         finally
         {
@@ -2224,7 +2224,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2238,19 +2238,19 @@ public class DocxMailMergeTests
             // means neither leak can come back unnoticed.
             var nullEx = Assert.Throws<ArgumentException>(() =>
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
-                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : null!));
+                    (i, r) => i == 0 ? Path.Join(dir.FullName, "out-0.docx") : null!));
             Assert.Equal("outputPathFactory", nullEx.ParamName);
             Assert.Contains("Record 1:", nullEx.Message, StringComparison.Ordinal);
             // Proves the batch is refused before any write, not mid-batch -- record 0's path was
             // already computed (and would have been valid) by the time record 1's bad path is found.
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "out-0.docx")));
 
             var blankEx = Assert.Throws<ArgumentException>(() =>
                 DocxMailMerge.MergeBatchToFiles(templatePath, records,
-                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : "   "));
+                    (i, r) => i == 0 ? Path.Join(dir.FullName, "out-0.docx") : "   "));
             Assert.Equal("outputPathFactory", blankEx.ParamName);
             Assert.Contains("Record 1:", blankEx.Message, StringComparison.Ordinal);
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "out-0.docx")));
         }
         finally
         {
@@ -2264,7 +2264,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
 
             var paths = DocxMailMerge.MergeBatchToFiles(templatePath,
@@ -2305,7 +2305,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2314,9 +2314,9 @@ public class DocxMailMergeTests
             };
 
             var syncPaths = DocxMailMerge.MergeBatchToFiles(templatePath, records,
-                (i, r) => Path.Combine(dir.FullName, $"sync-{i}.docx"));
+                (i, r) => Path.Join(dir.FullName, $"sync-{i}.docx"));
             var asyncPaths = await DocxMailMerge.MergeBatchToFilesAsync(templatePath, records,
-                (i, r) => Path.Combine(dir.FullName, $"async-{i}.docx"));
+                (i, r) => Path.Join(dir.FullName, $"async-{i}.docx"));
 
             Assert.Equal(syncPaths.Count, asyncPaths.Count);
             for (var i = 0; i < syncPaths.Count; i++)
@@ -2334,13 +2334,13 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var paths = new[]
             {
-                Path.Combine(dir.FullName, "out-0.docx"),
-                Path.Combine(dir.FullName, "out-1.docx"),
-                Path.Combine(dir.FullName, "out-2.docx"),
+                Path.Join(dir.FullName, "out-0.docx"),
+                Path.Join(dir.FullName, "out-1.docx"),
+                Path.Join(dir.FullName, "out-2.docx"),
             };
 
             using var started = new ManualResetEventSlim(false);
@@ -2400,7 +2400,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2410,7 +2410,7 @@ public class DocxMailMergeTests
             };
 
             var items = DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
-                (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx"));
+                (i, r) => Path.Join(dir.FullName, $"out-{i}.docx"));
 
             Assert.Equal(3, items.Count);
             Assert.True(items[0].Report.IsComplete);
@@ -2438,7 +2438,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2448,10 +2448,10 @@ public class DocxMailMergeTests
 
             var ex = Assert.Throws<ArgumentException>(() =>
                 DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
-                    (i, r) => Path.Combine(dir.FullName, "collide.docx")));
+                    (i, r) => Path.Join(dir.FullName, "collide.docx")));
 
             Assert.Equal("outputPathFactory", ex.ParamName);
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "collide.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "collide.docx")));
         }
         finally
         {
@@ -2465,7 +2465,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>?[]
             {
@@ -2480,12 +2480,12 @@ public class DocxMailMergeTests
             var calledIndices = new List<int>();
             var ex = Assert.Throws<ArgumentNullException>(() =>
                 DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records!,
-                    (i, r) => { calledIndices.Add(i); return Path.Combine(dir.FullName, r["FirstName"] + ".docx"); }));
+                    (i, r) => { calledIndices.Add(i); return Path.Join(dir.FullName, r["FirstName"] + ".docx"); }));
 
             Assert.Equal("records", ex.ParamName);
             Assert.Equal([0], calledIndices);
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "Alice.docx")));
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "Carol.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "Alice.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "Carol.docx")));
         }
         finally
         {
@@ -2499,7 +2499,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2511,15 +2511,15 @@ public class DocxMailMergeTests
             // refusal is equally unconditional, run from the shared MergeBatchToFilesCore.
             var nullEx = Assert.Throws<ArgumentException>(() =>
                 DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
-                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : null!));
+                    (i, r) => i == 0 ? Path.Join(dir.FullName, "out-0.docx") : null!));
             Assert.Equal("outputPathFactory", nullEx.ParamName);
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "out-0.docx")));
 
             var blankEx = Assert.Throws<ArgumentException>(() =>
                 DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
-                    (i, r) => i == 0 ? Path.Combine(dir.FullName, "out-0.docx") : "   "));
+                    (i, r) => i == 0 ? Path.Join(dir.FullName, "out-0.docx") : "   "));
             Assert.Equal("outputPathFactory", blankEx.ParamName);
-            Assert.False(File.Exists(Path.Combine(dir.FullName, "out-0.docx")));
+            Assert.False(File.Exists(Path.Join(dir.FullName, "out-0.docx")));
         }
         finally
         {
@@ -2536,7 +2536,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName", "Balance"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2545,9 +2545,9 @@ public class DocxMailMergeTests
             };
 
             var syncItems = DocxMailMerge.MergeBatchToFilesWithReport(templatePath, records,
-                (i, r) => Path.Combine(dir.FullName, $"sync-{i}.docx"));
+                (i, r) => Path.Join(dir.FullName, $"sync-{i}.docx"));
             var asyncItems = await DocxMailMerge.MergeBatchToFilesWithReportAsync(templatePath, records,
-                (i, r) => Path.Combine(dir.FullName, $"async-{i}.docx"));
+                (i, r) => Path.Join(dir.FullName, $"async-{i}.docx"));
 
             Assert.Equal(syncItems.Count, asyncItems.Count);
             for (var i = 0; i < syncItems.Count; i++)
@@ -2570,7 +2570,7 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var records = new IReadOnlyDictionary<string, string>[]
             {
@@ -2580,7 +2580,7 @@ public class DocxMailMergeTests
             };
 
             var items = await DocxMailMerge.MergeBatchToFilesWithReportAsync(templatePath, records,
-                (i, r) => Path.Combine(dir.FullName, $"out-{i}.docx"));
+                (i, r) => Path.Join(dir.FullName, $"out-{i}.docx"));
 
             Assert.Equal(3, items.Count);
             Assert.True(items[0].Report.IsComplete);
@@ -2604,13 +2604,13 @@ public class DocxMailMergeTests
         var dir = Directory.CreateTempSubdirectory("DocxMailMergeTests-");
         try
         {
-            var templatePath = Path.Combine(dir.FullName, "template.docx");
+            var templatePath = Path.Join(dir.FullName, "template.docx");
             File.WriteAllBytes(templatePath, Simple("FirstName"));
             var paths = new[]
             {
-                Path.Combine(dir.FullName, "out-0.docx"),
-                Path.Combine(dir.FullName, "out-1.docx"),
-                Path.Combine(dir.FullName, "out-2.docx"),
+                Path.Join(dir.FullName, "out-0.docx"),
+                Path.Join(dir.FullName, "out-1.docx"),
+                Path.Join(dir.FullName, "out-2.docx"),
             };
 
             using var started = new ManualResetEventSlim(false);
