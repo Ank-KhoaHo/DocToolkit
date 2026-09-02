@@ -152,4 +152,28 @@ internal sealed class DocxEditorService : IDocxEditor
 
     public Task MergeAsync(IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default)
         => DocToolkit.DocxEditor.MergeAsync(sources, destination, ct);
+
+    public byte[] AddWatermark(byte[] docx, string text)
+        => DocToolkit.DocxEditor.AddWatermark(docx, text);
+
+    public Task AddWatermarkAsync(Stream source, string text, Stream destination, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.AddWatermarkAsync(source, text, destination, ct);
+
+    public byte[] RemoveWatermarks(byte[] docx)
+        => DocToolkit.DocxEditor.RemoveWatermarks(docx);
+
+    public Task RemoveWatermarksAsync(Stream source, Stream destination, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.RemoveWatermarksAsync(source, destination, ct);
+
+    public IReadOnlyList<string> ReadBookmarks(byte[] docx)
+        => DocToolkit.DocxEditor.ReadBookmarks(docx);
+
+    public Task<IReadOnlyList<string>> ReadBookmarksAsync(Stream source, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.ReadBookmarksAsync(source, ct);
+
+    public byte[] AddBookmark(byte[] docx, int paragraphIndex, string name)
+        => DocToolkit.DocxEditor.AddBookmark(docx, paragraphIndex, name);
+
+    public Task AddBookmarkAsync(Stream source, int paragraphIndex, string name, Stream destination, CancellationToken ct = default)
+        => DocToolkit.DocxEditor.AddBookmarkAsync(source, paragraphIndex, name, destination, ct);
 }

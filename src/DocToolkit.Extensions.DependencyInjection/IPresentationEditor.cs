@@ -519,4 +519,88 @@ public interface IPresentationEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">The presentation could not be read or written.</exception>
     Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// The speaker notes on slide <paramref name="slideIndex"/>, or an empty string when it has
+    /// none. <paramref name="slideIndex"/> is 1-based, like <see cref="ReadSlide(byte[], int)"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>A slide with no notes returns <see cref="string.Empty"/>, never <see langword="null"/>.</b>
+    /// Measured rather than assumed: every slide carries a notes object whose text is empty until
+    /// something writes to it, so there is no "has notes" state to distinguish from "notes are
+    /// blank" and the API does not invent one.
+    ///
+    /// Notes are not returned by <see cref="ExtractText(byte[])"/>, which reads the slide bodies.
+    /// They are a separate surface a reader has to ask for.
+    /// </remarks>
+    /// <param name="pptx">The presentation to read.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <returns>The notes text, or an empty string.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
+    string ReadNotes(byte[] pptx, int slideIndex);
+
+    /// <inheritdoc cref="ReadNotes(byte[], int)" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the presentation is read from.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>The notes text, or an empty string.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or read.</exception>
+    Task<string> ReadNotesAsync(Stream source, int slideIndex, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sets the speaker notes on slide <paramref name="slideIndex"/> and returns the updated deck.
+    /// <paramref name="slideIndex"/> is 1-based, like <see cref="ReadSlide(byte[], int)"/>.
+    /// </summary>
+    /// <remarks>
+    /// Replaces whatever the slide's notes said; pass an empty string to clear them. Every other
+    /// slide is left exactly as it was — measured, because editing one slide's notes and silently
+    /// disturbing another's is the kind of loss no text-reading test would notice.
+    /// </remarks>
+    /// <param name="pptx">The presentation to edit. It is not modified.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <param name="notes">The notes text. Empty clears them.</param>
+    /// <returns>A new presentation; the input is not modified.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> or <paramref name="notes"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or written.</exception>
+    byte[] SetNotes(byte[] pptx, int slideIndex, string notes);
+
+    /// <inheritdoc cref="SetNotes(byte[], int, string)" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought, and neither has to be seekable.
+    /// </remarks>
+    /// <param name="source">The stream the presentation is read from.</param>
+    /// <param name="slideIndex">The 1-based slide number.</param>
+    /// <param name="notes">The notes text. Empty clears them.</param>
+    /// <param name="destination">The stream the updated deck is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="slideIndex"/> is below 1, or above the deck's slide count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The package could not be opened or written.</exception>
+    Task SetNotesAsync(Stream source, int slideIndex, string notes, Stream destination, CancellationToken ct = default);
 }

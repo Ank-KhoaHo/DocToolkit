@@ -76,4 +76,26 @@ public interface IDocToDocxConverter
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">It could not be read.</exception>
     Task<string> ExtractTextAsync(Stream source, CancellationToken ct = default);
+
+    /// <inheritdoc cref="ConvertWithReport(byte[], DocToolkit.LegacyDocOptions?)" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor
+    /// sought.
+    ///
+    /// <b>The converted bytes come back in the result rather than through a <c>destination</c>
+    /// stream</b>, unlike <see cref="ConvertAsync(Stream, Stream, CancellationToken)"/>. That is the
+    /// only shape that mirrors the synchronous member it is named after: the report and the document
+    /// are one value, and splitting them across a return value and an out-parameter stream would
+    /// make this the odd member of its own family.
+    /// </remarks>
+    /// <param name="source">The stream the .doc is read from.</param>
+    /// <param name="options">How to treat content the .docx cannot carry. Null means refuse.</param>
+    /// <param name="ct">Cancels the read and the conversion.</param>
+    /// <returns>The converted package and the report of what the import could not carry across.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">It could not be converted.</exception>
+    Task<DocToolkit.ConversionResult<byte[]>> ConvertWithReportAsync(
+        Stream source, DocToolkit.LegacyDocOptions? options = null, CancellationToken ct = default);
 }

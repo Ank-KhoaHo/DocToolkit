@@ -557,4 +557,69 @@ public class PresentationEditorServiceTests
 
         Assert.Equal("Stamped", PresentationEditor.ReadMetadata(destination.ToArray()).Title);
     }
+
+    // ---------------------------------------------------------------------------------------
+    // A109-DI: ReadNotes/SetNotes and their Stream overloads, mirrored from core 0.50.0.
+    //
+    // NOT asserted through ExtractText: it returns one entry per text BODY, not per slide, and
+    // it does not include notes at all. The parent ticket's own test was wrong on exactly that
+    // point before it was corrected, so the reading here goes through ReadNotes.
+    // ---------------------------------------------------------------------------------------
+
+    private static byte[] TwoSlideDeck() =>
+        PresentationEditor.Create(new[] { PptxSlide.Titled("One"), PptxSlide.Titled("Two") });
+
+    [Fact]
+    public void SetNotes_MatchesTheStaticMethodAndTouchesOnlyThatSlide()
+    {
+        var sut = new PresentationEditorService();
+
+        var updated = sut.SetNotes(TwoSlideDeck(), 2, "SPEAKER-NOTE");
+
+        Assert.Equal("SPEAKER-NOTE", PresentationEditor.ReadNotes(updated, 2));
+
+        // Slide 1, not just slide 2: a wrapper forwarding a constant index would still put the
+        // note somewhere and satisfy the assertion above.
+        Assert.Equal(string.Empty, PresentationEditor.ReadNotes(updated, 1));
+    }
+
+    [Fact]
+    public async Task SetNotesAsync_MatchesTheStaticMethodAndTouchesOnlyThatSlide()
+    {
+        var sut = new PresentationEditorService();
+        using var source = new MemoryStream(TwoSlideDeck(), writable: false);
+        using var destination = new MemoryStream();
+
+        await sut.SetNotesAsync(source, 2, "SPEAKER-NOTE", destination);
+
+        var updated = destination.ToArray();
+        Assert.Equal("SPEAKER-NOTE", PresentationEditor.ReadNotes(updated, 2));
+        Assert.Equal(string.Empty, PresentationEditor.ReadNotes(updated, 1));
+    }
+
+    [Fact]
+    public void ReadNotes_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var updated = PresentationEditor.SetNotes(TwoSlideDeck(), 2, "SPEAKER-NOTE");
+
+        Assert.Equal("SPEAKER-NOTE", sut.ReadNotes(updated, 2));
+
+        // Empty string, never null - the documented contract, and the case a wrapper returning a
+        // fixed value would fail here after passing the assertion above.
+        Assert.Equal(string.Empty, sut.ReadNotes(updated, 1));
+    }
+
+    [Fact]
+    public async Task ReadNotesAsync_MatchesTheStaticMethod()
+    {
+        var sut = new PresentationEditorService();
+        var updated = PresentationEditor.SetNotes(TwoSlideDeck(), 2, "SPEAKER-NOTE");
+
+        using var withNotes = new MemoryStream(updated, writable: false);
+        Assert.Equal("SPEAKER-NOTE", await sut.ReadNotesAsync(withNotes, 2));
+
+        using var withoutNotes = new MemoryStream(updated, writable: false);
+        Assert.Equal(string.Empty, await sut.ReadNotesAsync(withoutNotes, 1));
+    }
 }
