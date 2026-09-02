@@ -92,6 +92,7 @@ namespace DocToolkit
     }
     public sealed class DocxFormField
     {
+        public string Alias { get; }
         public string Key { get; }
         public DocToolkit.DocxFormValue Value { get; }
     }

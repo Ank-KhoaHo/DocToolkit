@@ -52,14 +52,37 @@ public sealed class DocxFormReport
 /// <summary>One content control, and its current content.</summary>
 public sealed class DocxFormField
 {
-    internal DocxFormField(string key, DocxFormValue value)
+    internal DocxFormField(string key, DocxFormValue value, string alias)
     {
         Key = key;
         Value = value;
+        Alias = alias;
     }
 
     /// <summary>The name this control answers to.</summary>
     public string Key { get; }
+
+    /// <summary>
+    /// The control's display name (<c>w:alias</c>) — what Word itself shows a human (A120).
+    /// </summary>
+    /// <remarks>
+    /// <b>This is not <see cref="Key"/>.</b> The key is whichever name
+    /// <see cref="DocxFormKey"/> resolved for matching, and is usually the tag — an identifier the
+    /// template's author chose for code. The alias is the label, and an application rendering a
+    /// form wants this one.
+    ///
+    /// <b>Empty when the control has no alias, and also when the key is ambiguous.</b> Word does
+    /// not require either name to be unique; where one reaches two controls with different
+    /// aliases, this says nothing rather than picking one and being silently wrong half the time.
+    /// <see cref="DocxFormValidation"/> reports that case as
+    /// <see cref="DocxFormIssueKind.DuplicateKey"/>.
+    ///
+    /// <b>Whether the control is LOCKED is still not reported.</b> Measured 2026-09-03: OfficeIMO
+    /// exposes the alias but neither the lock nor the element to read one from. Since 0.54.0
+    /// <c>Fill</c> refuses to write a locked control, so the lock is at least safe to discover by
+    /// attempting the fill.
+    /// </remarks>
+    public string Alias { get; }
 
     /// <summary>
     /// What the control holds now — the same type <c>DocxForm.Fill</c> takes, so a round trip
