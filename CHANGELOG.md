@@ -12,16 +12,37 @@ repo-wide tooling (CI, release pipeline).
 
 ## [0.53.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.52.0...v0.53.0) (2026-09-02)
 
-
 ### Added
 
-* **core:** match a Regex in DocxEditor.ReplaceText (A116) ([#483](https://github.com/Ank-KhoaHo/DocToolkit/issues/483)) ([9082c16](https://github.com/Ank-KhoaHo/DocToolkit/commit/9082c165f2f5c4ddeff752b997108a02f318f33c))
-* **extensions:** mirror ExtractWords and ExtractImages on IPdfEditor (A110-DI) ([#482](https://github.com/Ank-KhoaHo/DocToolkit/issues/482)) ([376aec5](https://github.com/Ank-KhoaHo/DocToolkit/commit/376aec5ecb391ea57c3ac0393136650f18df4a5e))
+* **Core: `DocxEditor.ReplaceText` can match a regular expression, not just literal keys.**
+  A new overload takes a `Regex` and a replacement template, with a `Stream` form beside it, and
+  applies across the body, headers, footers, footnotes and endnotes exactly as the literal overload
+  does. Anything whose shape is known but whose text is not - dates, reference numbers, whitespace -
+  now has an entry point.
 
+  **The replacement is a TEMPLATE, not a literal.** `$1` and friends expand to captured groups the
+  way `Regex.Replace` expands them, so a literal `$` must be written `$$`.
 
-### Fixed
+  **The pattern must carry a match timeout, and one without is refused** with an `ArgumentException`
+  rather than accepted. A catastrophically backtracking expression has no upper bound on its running
+  time, and a hang is worse than a failure because the caller cannot catch it. Construct it as
+  `new Regex(text, RegexOptions.None, TimeSpan.FromSeconds(1))`.
 
-* **test:** clear 65 CodeQL alerts without suppressing any of them ([#480](https://github.com/Ank-KhoaHo/DocToolkit/issues/480)) ([3c0d735](https://github.com/Ank-KhoaHo/DocToolkit/commit/3c0d735defa95e4f295d23b4f4c30d18858847ad))
+  **Formatting behaves exactly as it already did for literal keys**: where a match spans several
+  runs, the replacement is written into the run holding its first character and inherits that run's
+  formatting. Zero-width matches are skipped, because one consumes no characters.
+
+  **Nothing existing changed.** The literal overload is untouched, and both now share one
+  implementation of the run-splicing step rather than two that could drift.
+
+* **Extensions: `IPdfEditor` mirrors `ExtractWords` and `ExtractImages`** from core 0.52.0, with
+  their `Stream` forms - four members, so the PDF word-position and image extraction added last
+  release is now reachable through dependency injection.
+
+  Two things a caller gets wrong without being told, and which the interface documentation now
+  states: **coordinates are measured from the page's bottom-left**, so a word near the top of A4 has
+  a `Bottom` near 842 rather than near 0; and **`PdfImage.Png` is null when the pixels could not be
+  re-encoded**, which is a normal outcome rather than an error.
 
 ## [0.52.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.51.0...v0.52.0) (2026-09-02)
 
