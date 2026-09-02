@@ -10,6 +10,14 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.55.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.54.0...v0.55.0) (2026-09-02)
+
+
+### Added
+
+* **core:** report a content control's alias on DocxFormField (A120) ([#489](https://github.com/Ank-KhoaHo/DocToolkit/issues/489)) ([650eeec](https://github.com/Ank-KhoaHo/DocToolkit/commit/650eeece3f55e7fcfc13482f0e7c29ae20b5933b))
+* **extensions:** mirror the Regex ReplaceText overloads on IDocxEditor (A116-DI) ([#490](https://github.com/Ank-KhoaHo/DocToolkit/issues/490)) ([a434c1c](https://github.com/Ank-KhoaHo/DocToolkit/commit/a434c1c6a60f70b862943efdf180b5be41572144))
+
 ## [0.54.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.53.0...v0.54.0) (2026-09-02)
 
 ### ⚠ BREAKING CHANGES
