@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace DocToolkit;
 
@@ -30,6 +31,34 @@ internal static class RunTextSplicer
         Func<T, string> read,
         Action<T, string> write,
         IReadOnlyDictionary<string, string> replacements)
+        => ApplyCore(nodes, read, write, merged => FindMatches(merged, replacements));
+
+    /// <summary>
+    /// The same splice, driven by a <see cref="Regex"/> rather than literal keys (A116).
+    /// </summary>
+    /// <remarks>
+    /// <b>It shares <c>ApplyCore</c> deliberately.</b> The hard half of find-and-replace here is
+    /// not the matching, it is mapping offsets back onto runs so a run a match does not overlap is
+    /// never touched — and a regex matcher that searched each run in isolation would pass every
+    /// single-run test while failing on exactly the case this class exists for.
+    ///
+    /// <c>Regex.Matches</c> already yields non-overlapping matches left to right, which is the
+    /// invariant the splice needs. <b>Zero-width matches are skipped</b>: one consumes nothing, so
+    /// splicing it would insert the replacement without advancing.
+    /// </remarks>
+    public static bool Apply<T>(
+        IReadOnlyList<T> nodes,
+        Func<T, string> read,
+        Action<T, string> write,
+        Regex pattern,
+        string replacement)
+        => ApplyCore(nodes, read, write, merged => FindRegexMatches(merged, pattern, replacement));
+
+    private static bool ApplyCore<T>(
+        IReadOnlyList<T> nodes,
+        Func<T, string> read,
+        Action<T, string> write,
+        Func<string, List<Match>> find)
     {
         if (nodes.Count == 0) return false;
 
@@ -44,7 +73,7 @@ internal static class RunTextSplicer
         var merged = builder.ToString();
         if (merged.Length == 0) return false;
 
-        var matches = FindMatches(merged, replacements);
+        var matches = find(merged);
         if (matches.Count == 0) return false;
 
         var changed = false;
@@ -91,6 +120,25 @@ internal static class RunTextSplicer
         }
 
         return changed;
+    }
+
+    /// <summary>
+    /// Non-overlapping, left-to-right matches of <paramref name="pattern"/>, with capture groups
+    /// expanded into <paramref name="replacement"/> the way <c>Regex.Replace</c> would.
+    /// </summary>
+    private static List<Match> FindRegexMatches(string merged, Regex pattern, string replacement)
+    {
+        var matches = new List<Match>();
+        foreach (System.Text.RegularExpressions.Match m in pattern.Matches(merged))
+        {
+            // A zero-width match consumes nothing. Splicing one inserts without advancing, so it
+            // is skipped rather than expanded - see this class's Apply(Regex) remarks.
+            if (m.Length == 0) continue;
+
+            matches.Add(new Match(m.Index, m.Index + m.Length, m.Result(replacement)));
+        }
+
+        return matches;
     }
 
     /// <summary>

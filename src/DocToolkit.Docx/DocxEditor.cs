@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -230,13 +231,13 @@ public static class DocxEditor
         ms.Write(docx, 0, docx.Length);
         ms.Position = 0;
 
-        ReplaceTextCore(ms, replacements);
+        ReplaceTextCore(ms, Splice(replacements));
         return ms.ToArray();
     }
 
     /// <summary>
     /// Reads a .docx from <paramref name="source"/>, replaces every key with its value, and writes
-    /// the result to <paramref name="destination"/>. See <see cref="ReplaceText"/> for exactly what
+    /// the result to <paramref name="destination"/>. See <see cref="ReplaceText(byte[], IReadOnlyDictionary{string, string})"/> for exactly what
     /// counts as a match and how formatting survives it — this overload applies the identical logic
     /// via <paramref name="source"/> and <paramref name="destination"/> instead of a byte array.
     ///
@@ -268,12 +269,122 @@ public static class DocxEditor
             .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to edit DOCX. See the inner exception for details.", ct)
             .ConfigureAwait(false);
 
-        ReplaceTextCore(docx, replacements);
+        ReplaceTextCore(docx, Splice(replacements));
 
         await StreamPipeline.EmitAsync(docx, destination, "Failed to edit DOCX. See the inner exception for details.", ct).ConfigureAwait(false);
     }
 
-    private static void ReplaceTextCore(MemoryStream ms, IReadOnlyDictionary<string, string> replacements)
+
+    /// <summary>
+    /// Replaces every match of <paramref name="pattern"/> with <paramref name="replacement"/>,
+    /// across the body, headers, footers, footnotes and endnotes (A116).
+    /// </summary>
+    /// <remarks>
+    /// The literal overload above matches keys; this one matches a pattern, and everything else
+    /// about it is identical — the same walk, the same splice, the same run-boundary handling. A
+    /// match spanning several runs has its replacement written into the run holding its first
+    /// character, so it inherits <b>that</b> run's formatting, exactly as a literal key does.
+    ///
+    /// <b><paramref name="replacement"/> is a substitution template, not a literal.</b>
+    /// <c>$1</c> and friends expand to captured groups the way <c>Regex.Replace</c> expands them,
+    /// so a literal <c>$</c> must be written <c>$$</c>.
+    ///
+    /// <b>Zero-width matches are skipped.</b> One consumes no characters, so inserting a
+    /// replacement for it would not advance through the text.
+    ///
+    /// <b><paramref name="pattern"/> must carry a match timeout.</b> See the exception below — this
+    /// refuses an unbounded one rather than risking a wedged caller.
+    /// </remarks>
+    /// <param name="docx">The .docx package to edit.</param>
+    /// <param name="pattern">The pattern to find. Must have a finite <c>MatchTimeout</c>.</param>
+    /// <param name="replacement">The substitution template applied to each match.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="docx"/> is empty, or <paramref name="pattern"/> was built without a match
+    /// timeout. A pattern that can backtrack catastrophically has no upper bound on its running
+    /// time, and a hang is worse than a failure because the caller cannot catch it — so the
+    /// timeout is required here rather than defaulted to a number this library invented.
+    /// Construct it as <c>new Regex(text, options, TimeSpan.FromSeconds(1))</c>.
+    /// </exception>
+    /// <exception cref="DocumentConversionException">The package could not be opened or edited.</exception>
+    /// <exception cref="RegexMatchTimeoutException">
+    /// <paramref name="pattern"/> exceeded its own <c>MatchTimeout</c> on some paragraph.
+    /// </exception>
+    public static byte[] ReplaceText(byte[] docx, Regex pattern, string replacement)
+    {
+        ArgumentNullException.ThrowIfNull(docx);
+        RequireBoundedPattern(pattern);
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (docx.Length == 0)
+            throw new ArgumentException("DOCX content was empty.", nameof(docx));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        ms.Position = 0;
+
+        ReplaceTextCore(ms, Splice(pattern, replacement));
+        return ms.ToArray();
+    }
+
+    /// <inheritdoc cref="ReplaceText(byte[], Regex, string)" path="/summary|/exception"/>
+    /// <remarks>
+    /// <paramref name="source"/> is read to its end and <paramref name="destination"/> is written;
+    /// neither is disposed, closed or sought, and neither has to be seekable.
+    ///
+    /// This <c>remarks</c> replaces the one on <see cref="ReplaceText(byte[], Regex, string)"/>
+    /// rather than adding to it, so its warnings are restated rather than assumed to carry over:
+    /// <paramref name="replacement"/> is a <b>template</b> in which <c>$1</c> expands to a captured
+    /// group, zero-width matches are skipped, and <paramref name="pattern"/> must carry a match
+    /// timeout.
+    /// </remarks>
+    /// <param name="source">The stream the .docx package is read from.</param>
+    /// <param name="pattern">The pattern to find. Must have a finite <c>MatchTimeout</c>.</param>
+    /// <param name="replacement">The substitution template applied to each match.</param>
+    /// <param name="destination">The stream the edited .docx package is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    public static async Task ReplaceTextAsync(
+        Stream source, Regex pattern, string replacement, Stream destination,
+        CancellationToken ct = default)
+    {
+        RequireBoundedPattern(pattern);
+        ArgumentNullException.ThrowIfNull(replacement);
+        StreamPipeline.RequireReadable(source, nameof(source));
+        StreamPipeline.RequireWritable(destination, nameof(destination));
+        ct.ThrowIfCancellationRequested();
+
+        using var docx = await StreamPipeline
+            .DrainAsync(source, "DOCX content was empty.", nameof(source), "Failed to edit DOCX. See the inner exception for details.", ct)
+            .ConfigureAwait(false);
+
+        ReplaceTextCore(docx, Splice(pattern, replacement));
+
+        await StreamPipeline.EmitAsync(docx, destination, "Failed to edit DOCX. See the inner exception for details.", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Refuses a <see cref="Regex"/> with no match timeout, for both regex overloads.
+    /// </summary>
+    /// <remarks>
+    /// Defaulting one here was the alternative and is worse: the number would be this library's
+    /// invention, applied to a pattern the caller wrote, and silently wrong for a legitimately slow
+    /// one. Refusing states the requirement at the only moment the caller can act on it.
+    /// </remarks>
+    private static void RequireBoundedPattern(Regex pattern)
+    {
+        ArgumentNullException.ThrowIfNull(pattern);
+
+        if (pattern.MatchTimeout == Regex.InfiniteMatchTimeout)
+        {
+            throw new ArgumentException(
+                "The pattern has no match timeout, so a catastrophically backtracking expression "
+                + "would hang this call rather than fail it. Construct it with one - for example "
+                + "new Regex(text, RegexOptions.None, TimeSpan.FromSeconds(1)).",
+                nameof(pattern));
+        }
+    }
+
+    private static void ReplaceTextCore(MemoryStream ms, Action<IReadOnlyList<Text>> splice)
     {
         try
         {
@@ -286,32 +397,32 @@ public static class DocxEditor
                            ?? throw new DocumentConversionException("Document has no body. This usually means the file is not really a .docx (for "
                            + "example it was renamed from another format) or the upload is corrupt.");
 
-                ReplaceIn(body, replacements);
+                ReplaceIn(body, splice);
                 main.Document!.Save();
 
                 // A placeholder in a header or footer used to come back unreplaced with no error
                 // at all, which is a silent wrong answer for the "fill a template" use case.
                 foreach (var part in main.HeaderParts.Where(p => p.Header is not null))
                 {
-                    ReplaceIn(part.Header!, replacements);
+                    ReplaceIn(part.Header!, splice);
                     part.Header!.Save();
                 }
 
                 foreach (var part in main.FooterParts.Where(p => p.Footer is not null))
                 {
-                    ReplaceIn(part.Footer!, replacements);
+                    ReplaceIn(part.Footer!, splice);
                     part.Footer!.Save();
                 }
 
                 if (main.FootnotesPart?.Footnotes is { } footnotes)
                 {
-                    ReplaceIn(footnotes, replacements);
+                    ReplaceIn(footnotes, splice);
                     footnotes.Save();
                 }
 
                 if (main.EndnotesPart?.Endnotes is { } endnotes)
                 {
-                    ReplaceIn(endnotes, replacements);
+                    ReplaceIn(endnotes, splice);
                     endnotes.Save();
                 }
             }
@@ -844,7 +955,7 @@ public static class DocxEditor
 
         // Deliberately the same walk ReplaceText uses, so text boxes inside a cell behave
         // identically in both methods rather than by accident.
-        ReplaceIn(clone, replacements);
+        ReplaceIn(clone, Splice(replacements));
 
         ClearUnmatched(clone, collection);
     }
@@ -872,7 +983,7 @@ public static class DocxEditor
             }
         }
 
-        if (leftovers.Count > 0) ReplaceIn(clone, leftovers);
+        if (leftovers.Count > 0) ReplaceIn(clone, Splice(leftovers));
     }
 
     /// <summary>
@@ -1238,13 +1349,25 @@ public static class DocxEditor
         }
     }
 
-    private static void ReplaceIn(OpenXmlElement root, IReadOnlyDictionary<string, string> replacements)
+    /// <summary>
+    /// The one place a set of literal replacements becomes a splice, and its regex sibling below.
+    /// Both hand <c>RunTextSplicer</c> the same read/write pair, so the two paths cannot disagree
+    /// about which runs get written or whose formatting a replacement inherits.
+    /// </summary>
+    private static Action<IReadOnlyList<Text>> Splice(IReadOnlyDictionary<string, string> replacements)
+        => texts => RunTextSplicer.Apply(texts, static t => t.Text, WriteText, replacements);
+
+    /// <inheritdoc cref="Splice(IReadOnlyDictionary{string, string})"/>
+    private static Action<IReadOnlyList<Text>> Splice(Regex pattern, string replacement)
+        => texts => RunTextSplicer.Apply(texts, static t => t.Text, WriteText, pattern, replacement);
+
+    private static void ReplaceIn(OpenXmlElement root, Action<IReadOnlyList<Text>> splice)
     {
         foreach (var paragraph in root.Descendants<Paragraph>())
-            ReplaceInParagraph(paragraph, replacements);
+            ReplaceInParagraph(paragraph, splice);
     }
 
-    private static void ReplaceInParagraph(Paragraph paragraph, IReadOnlyDictionary<string, string> replacements)
+    private static void ReplaceInParagraph(Paragraph paragraph, Action<IReadOnlyList<Text>> splice)
     {
         // Only the text this paragraph owns directly. A text box nests entire w:p elements inside
         // a run of this paragraph, and Descendants<Text>() walks straight into them; folding that
@@ -1255,7 +1378,7 @@ public static class DocxEditor
                              .ToList();
         if (texts.Count == 0) return;
 
-        RunTextSplicer.Apply(texts, static t => t.Text, WriteText, replacements);
+        splice(texts);
     }
 
     private static void WriteText(Text node, string value)

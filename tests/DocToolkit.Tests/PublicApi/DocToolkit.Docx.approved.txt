@@ -67,8 +67,10 @@ namespace DocToolkit
         public static System.Threading.Tasks.Task ReplaceImageAsync(System.IO.Stream source, string placeholder, byte[] image, System.IO.Stream destination, double? widthPoints = default, double? heightPoints = default, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ReplaceImageAsync(string inputPath, string outputPath, string placeholder, byte[] image, double? widthPoints = default, double? heightPoints = default, System.Threading.CancellationToken ct = default) { }
         public static byte[] ReplaceText(byte[] docx, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements) { }
+        public static byte[] ReplaceText(byte[] docx, System.Text.RegularExpressions.Regex pattern, string replacement) { }
         public static System.Threading.Tasks.Task ReplaceTextAsync(System.IO.Stream source, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task ReplaceTextAsync(string inputPath, string outputPath, System.Collections.Generic.IReadOnlyDictionary<string, string> replacements, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task ReplaceTextAsync(System.IO.Stream source, System.Text.RegularExpressions.Regex pattern, string replacement, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static int TableCount(byte[] docx) { }
         public static System.Threading.Tasks.Task<int> TableCountAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<int> TableCountAsync(string path, System.Threading.CancellationToken ct = default) { }
