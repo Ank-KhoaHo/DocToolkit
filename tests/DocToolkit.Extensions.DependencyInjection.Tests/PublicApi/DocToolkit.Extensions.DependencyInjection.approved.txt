@@ -179,10 +179,14 @@ namespace DocToolkit.Extensions.DependencyInjection
     }
     public interface IPdfEditor
     {
+        System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfImage>> ExtractImages(byte[] pdf);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfImage>>> ExtractImagesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         byte[] ExtractPages(byte[] pdf, int firstPage, int count);
         System.Threading.Tasks.Task ExtractPagesAsync(System.IO.Stream source, int firstPage, int count, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         System.Collections.Generic.IReadOnlyList<string> ExtractText(byte[] pdf);
         System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> ExtractTextAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
+        System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfWord>> ExtractWords(byte[] pdf);
+        System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfWord>>> ExtractWordsAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
         byte[] InsertPages(byte[] target, byte[] source, int atPage);
         System.Threading.Tasks.Task InsertPagesAsync(System.IO.Stream target, System.IO.Stream source, int atPage, System.IO.Stream destination, System.Threading.CancellationToken ct = default);
         byte[] Merge(System.Collections.Generic.IEnumerable<byte[]> pdfs);

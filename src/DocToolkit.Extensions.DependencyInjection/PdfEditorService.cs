@@ -13,6 +13,20 @@ internal sealed class PdfEditorService : IPdfEditor
     public Task<IReadOnlyList<string>> ExtractTextAsync(Stream source, CancellationToken ct = default)
         => DocToolkit.PdfEditor.ExtractTextAsync(source, ct);
 
+    public IReadOnlyList<IReadOnlyList<DocToolkit.PdfWord>> ExtractWords(byte[] pdf)
+        => DocToolkit.PdfEditor.ExtractWords(pdf);
+
+    public Task<IReadOnlyList<IReadOnlyList<DocToolkit.PdfWord>>> ExtractWordsAsync(
+        Stream source, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.ExtractWordsAsync(source, ct);
+
+    public IReadOnlyList<IReadOnlyList<DocToolkit.PdfImage>> ExtractImages(byte[] pdf)
+        => DocToolkit.PdfEditor.ExtractImages(pdf);
+
+    public Task<IReadOnlyList<IReadOnlyList<DocToolkit.PdfImage>>> ExtractImagesAsync(
+        Stream source, CancellationToken ct = default)
+        => DocToolkit.PdfEditor.ExtractImagesAsync(source, ct);
+
     public byte[] Merge(IEnumerable<byte[]> pdfs) => DocToolkit.PdfEditor.Merge(pdfs);
 
     public Task MergeAsync(IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default)
