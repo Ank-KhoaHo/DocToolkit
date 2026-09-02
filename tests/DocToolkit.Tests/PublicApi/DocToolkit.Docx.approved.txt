@@ -16,6 +16,11 @@ namespace DocToolkit
         public System.Collections.Generic.IReadOnlyList<DocToolkit.DocxComment> Replies { get; }
         public string Text { get; }
     }
+    public static class DocxCompare
+    {
+        public static byte[] Compare(byte[] original, byte[] revised, string author) { }
+        public static DocToolkit.ConversionResult<byte[]> CompareWithReport(byte[] original, byte[] revised, string author) { }
+    }
     public static class DocxEditor
     {
         public static byte[] AddBookmark(byte[] docx, int paragraphIndex, string name) { }
