@@ -1,0 +1,106 @@
+name: Release PR automerge guard
+
+# Refuses to let a release-please Release PR carry auto-merge, and TURNS IT OFF when it finds it.
+#
+# WHY THIS EXISTS. Merging a Release PR creates the tag and publishes to nuget.org, which is
+# irreversible - a version can be unlisted but never deleted or replaced. CLAUDE.md states the rule
+# as "Never arm automerge on a release-please Release PR; that one stays a manual merge", and the
+# repository has already paid for breaking it once by shipping eleven versions in one day.
+#
+# MEASURED 2026-09-02, which is why this is a workflow and not another sentence in a document.
+# Auto-merge was armed on the Release PR for 0.52.0. It merged roughly two minutes later, while the
+# question "should this be disarmed?" was still being asked. The release run was cancelled at step 9
+# of 26 - before `Push to nuget.org`, which is step 23 - so nothing published and the tag was moved
+# onto a curated commit afterwards. That recovery worked, and it depended entirely on somebody
+# watching at that minute. Nothing in CI noticed.
+#
+# WHY THIS ONE GATES, WHEN release-curation-state.yml DELIBERATELY DOES NOT.
+# That workflow's own header says "REPORTS, NEVER GATES", and it is right to: shipping a generated
+# changelog entry is a quality loss somebody may legitimately choose, so a block there would be
+# switched off the first time it was inconvenient. This is a different case on both counts. The rule
+# it enforces is absolute rather than a judgement call, and the outcome it prevents cannot be undone
+# by anybody afterwards.
+#
+# WHY IT DISABLES RATHER THAN ONLY FAILING. A failing check blocks auto-merge only if branch
+# protection lists it as REQUIRED - a repository setting, and one this repo does not fully use (see
+# C40: protection requires status checks but not a pull request). A check that merely goes red would
+# therefore be exactly the failure CLAUDE.md already records for 0.27.0: "written, correct, and
+# invisible at the moment somebody presses Merge". Two minutes is not long enough for a red tick to
+# reach a person. So this turns auto-merge off itself, and then fails so the reason is visible.
+#
+# It is not overruling a judgement call. Auto-merge on a Release PR is a state the project has
+# declared invalid; this restores the invariant and says so. Merging by hand is untouched.
+
+on:
+  pull_request:
+    # `auto_merge_enabled` is the whole point and is NOT in the default set. The others are here so
+    # a PR that somehow arrives already carrying auto-merge is caught too, rather than only one that
+    # has it switched on while open.
+    types: [opened, reopened, synchronize, auto_merge_enabled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release-pr-automerge-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: no automerge on a Release PR
+    runs-on: ubuntu-latest
+    # Matched on the BRANCH release-please owns, not on the title. A title is free text that a
+    # maintainer can edit; the branch is created by the action and is the thing that actually
+    # identifies a Release PR.
+    if: github.event.pull_request.head.ref == 'release-please--branches--main'
+    steps:
+      - name: Disable auto-merge if it is armed, and say so
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          # Read from the event payload rather than queried, so this reflects the state that
+          # triggered the run rather than whatever it has become since.
+          AUTO_MERGE: ${{ github.event.pull_request.auto_merge != null }}
+        run: |
+          set -euo pipefail
+
+          if [ "$AUTO_MERGE" != "true" ]; then
+            echo "Release PR #${PR} carries no auto-merge. Nothing to do."
+            echo "This is the expected state: a Release PR is merged by hand." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "::warning::Auto-merge was armed on Release PR #${PR}. Disabling it."
+
+          # `|| true` deliberately: if it has ALREADY merged, this call fails and there is nothing
+          # left to disable. The step must still reach the error below, because that case is the one
+          # worth shouting about - it means a publish is already in flight.
+          gh pr merge "$PR" --disable-auto --repo "$GITHUB_REPOSITORY" || true
+
+          state=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state -q .state)
+
+          {
+            echo "## Auto-merge was armed on a Release PR"
+            echo
+            echo "Merging a Release PR publishes to nuget.org, and that cannot be undone -"
+            echo "a version can be unlisted but never deleted or replaced."
+            echo
+            echo "Auto-merge has been switched off. **Merge this PR by hand**, and curate the"
+            echo "changelog entry immediately before you do - any other merge to \`main\`"
+            echo "regenerates the entry and discards curation silently."
+            echo
+            echo "Pull request state when this ran: \`${state}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$state" = "MERGED" ]; then
+            echo "::error::Release PR #${PR} had ALREADY MERGED before this guard ran. A release run is"
+            echo "::error::probably in flight. Cancel it NOW if the changelog was not curated:"
+            echo "::error::  gh run list --workflow=release.yml --limit 1"
+            echo "::error::  gh run cancel <id>"
+            echo "::error::'Push to nuget.org' is step 23 of 26, so there is usually several minutes of margin."
+            exit 1
+          fi
+
+          echo "::error::Auto-merge was armed on Release PR #${PR} and has been disabled. Merge it by hand."
+          exit 1
