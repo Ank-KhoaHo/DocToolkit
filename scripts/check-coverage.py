@@ -91,10 +91,26 @@ import xml.etree.ElementTree as ET
 # DocToolkit's own number falls to 92.94% only because the well-covered editors and primitives
 # moved out from under it, leaving the converters. That is arithmetic, not a regression - and
 # checking it is the difference between re-deriving a floor and lowering one.
+# RATCHETED 2026-09-02, on the three branch floors this gate's own ::notice:: had been
+# advising on every run - DocToolkit 2.75 points below reality, DocToolkit.Primitives 2.62,
+# and DocToolkit.Docx 5.51. That last one is the one that mattered: the header above says a
+# slack this wide is "comfortably enough to absorb a whole untested public method, which is
+# precisely what the gate exists to refuse", and 5.51 points of Docx branches is exactly that.
+#
+# The new numbers are the ones this script COMPUTES, not ones chosen by hand - taking the
+# recommendation is the whole point of emitting it. Line floors were left alone: every one of
+# the seven is already inside the 2-point cap, the widest being DocToolkit at 1.71.
+#
+# THE RISK IS REAL AND IS RECORDED BELOW RATHER THAN DISCOVERED. The Pptx comment further down
+# is measured evidence that a floor set one slack-width under reality can fail within two
+# commits, because a closed-vocabulary `_ => throw` arm is unreachable by construction and
+# correct to leave uncovered. If one of these three fails that way, the answer is NOT to lower
+# it again - it is to read which branch went uncovered and decide whether it is a missing test
+# or an unreachable arm. Lowering on the first failure is how these got 5 points loose.
 FLOORS = {
-    "DocToolkit": (92.5, 85.0),
-    "DocToolkit.Primitives": (97.9, 91.6),
-    "DocToolkit.Docx": (96.8, 82.6),
+    "DocToolkit": (92.5, 87.4),
+    "DocToolkit.Primitives": (97.9, 93.9),
+    "DocToolkit.Docx": (96.8, 87.8),
     "DocToolkit.Html": (93.5, 94.7),
     "DocToolkit.Pdf": (98.4, 95.6),
     "DocToolkit.Pptx": (96.3, 80.7),
