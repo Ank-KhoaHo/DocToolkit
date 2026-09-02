@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.51.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.50.0...v0.51.0) (2026-09-02)
+
+
+### Added
+
+* **extensions:** mirror the 0.50.0 core additions on the DI interfaces (A108-DI, A109-DI, A114-DI) ([#474](https://github.com/Ank-KhoaHo/DocToolkit/issues/474)) ([12f471d](https://github.com/Ank-KhoaHo/DocToolkit/commit/12f471db8a9bd56c567ff5617cecd903dfbeface))
+
 ## [0.50.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.49.0...v0.50.0) (2026-09-01)
 
 
