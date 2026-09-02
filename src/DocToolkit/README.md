@@ -1191,6 +1191,27 @@ That is asserted, not assumed; see above.
 
 ## Migrating
 
+### 0.54.0 - `DocxForm.Fill` refuses a locked content control instead of writing through it
+
+Before this release, filling a control the document locks against editing **succeeded**, and the
+`w:lock` was left in place. The result was a document that still declared the control protected
+while its content had been replaced — self-contradictory, invisible to any reader, and impossible
+for the caller to detect afterwards. Measured on 2026-09-02 against both `sdtContentLocked` and
+`sdtLocked`.
+
+From this release, a fill that would change a locked control throws `InvalidOperationException` and
+writes nothing. Nothing is partially applied: the document you passed in is untouched, and a
+`Stream` overload writes zero bytes to its destination.
+
+**If you were relying on the old behaviour, you were producing corrupt documents** — but the break
+is real and is stated plainly rather than softened. Two ways forward: remove the lock in Word, or
+leave that control out of the values you pass. Filling other controls in a document that also
+contains a locked one is unaffected and still works, which is the common case for a template that
+locks its headings.
+
+**Locks are not removed, read or reported by this change.** It only refuses to write through one.
+`DocxFormField` still exposes `Key` and `Value` alone.
+
 ### 0.46.0 - `XlsxToPdfConverter` now renders a formula's computed value, not its source text
 
 Before this release, a cell written with `XlsxFormula` had no cached value at all — by design, see
