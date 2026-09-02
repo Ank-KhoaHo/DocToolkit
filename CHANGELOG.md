@@ -10,6 +10,17 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.50.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.49.0...v0.50.0) (2026-09-01)
+
+
+### Added
+
+* **core:** add ConvertWithReportAsync to DocToDocxConverter (A114) ([#473](https://github.com/Ank-KhoaHo/DocToolkit/issues/473)) ([64eb373](https://github.com/Ank-KhoaHo/DocToolkit/commit/64eb373022506119ed0eb73f7f8b3f73932e79ae))
+* **core:** DOCX watermarks and bookmarks (A108) ([#471](https://github.com/Ank-KhoaHo/DocToolkit/issues/471)) ([ced4571](https://github.com/Ank-KhoaHo/DocToolkit/commit/ced45711fa0dda3c169cc00ae1fa962705d6f781))
+* **core:** read and write PPTX speaker notes (A109) ([#470](https://github.com/Ank-KhoaHo/DocToolkit/issues/470)) ([fa5a4e8](https://github.com/Ank-KhoaHo/DocToolkit/commit/fa5a4e8f08b41dc4bf3e3a11e474961067a85731))
+* **extensions:** mirror DocxEditor.Merge on IDocxEditor (A107-DI) ([#468](https://github.com/Ank-KhoaHo/DocToolkit/issues/468)) ([0d3e6c7](https://github.com/Ank-KhoaHo/DocToolkit/commit/0d3e6c7af6164633ff0e95643271ca4cb9125e3f))
+* **xlsx:** draw sparklines via XlsxFormat.WithSparkline (A106) ([#472](https://github.com/Ank-KhoaHo/DocToolkit/issues/472)) ([406abb9](https://github.com/Ank-KhoaHo/DocToolkit/commit/406abb91abb4e43e44428ea519e0fc4c85aa767e))
+
 ## [0.49.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.48.0...v0.49.0) (2026-09-01)
 
 
