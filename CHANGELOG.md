@@ -12,15 +12,27 @@ repo-wide tooling (CI, release pipeline).
 
 ## [0.54.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.53.0...v0.54.0) (2026-09-02)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **core:** classify A119's locked-control refusal as breaking ([#488](https://github.com/Ank-KhoaHo/DocToolkit/issues/488))
+* **Core: `DocxForm.Fill` refuses to fill a content control the document locks.**
+  A fill that would change a locked control now throws `InvalidOperationException` and writes
+  nothing; the document you pass in is untouched, and a `Stream` overload writes zero bytes to its
+  destination.
 
-### Fixed
+  **It previously succeeded** - and left the `w:lock` in place, so the result declared the control
+  protected while its content had been replaced. That file contradicted itself, no reader could see
+  it, and the caller had no way to detect it afterwards. Measured against `sdtContentLocked`,
+  `sdtLocked` and `contentLocked`.
 
-* **core:** classify A119's locked-control refusal as breaking ([#488](https://github.com/Ank-KhoaHo/DocToolkit/issues/488)) ([a579d6a](https://github.com/Ank-KhoaHo/DocToolkit/commit/a579d6a90c955dd335839d81c545b9493e328d0b))
-* **core:** refuse to fill a content control the document locks (A119) ([#486](https://github.com/Ank-KhoaHo/DocToolkit/issues/486)) ([8511b34](https://github.com/Ank-KhoaHo/DocToolkit/commit/8511b34ed2086122119c54fffa61d9f253fa1306))
+  **What to do:** remove the lock in Word, or leave that control out of the values you pass.
+  **Filling other controls in a document that also contains a locked one is unaffected** and still
+  works - which is the ordinary case for a template that locks its headings.
+
+  This is why 0.54.0 is a minor bump rather than a patch. See *Migrating* in the README.
+
+  **Locks are not read, reported or removed by this change.** `DocxFormField` still exposes `Key`
+  and `Value` alone; a caller cannot yet tell a locked control from an editable one without
+  attempting the fill.
 
 ## [0.53.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.52.0...v0.53.0) (2026-09-02)
 
