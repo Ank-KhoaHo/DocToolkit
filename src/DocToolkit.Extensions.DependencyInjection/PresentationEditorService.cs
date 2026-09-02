@@ -122,4 +122,16 @@ internal sealed class PresentationEditorService : IPresentationEditor
 
     public Task WithMetadataAsync(Stream source, DocToolkit.DocumentMetadata metadata, Stream destination, CancellationToken ct = default)
         => DocToolkit.PresentationEditor.WithMetadataAsync(source, metadata, destination, ct);
+
+    public string ReadNotes(byte[] pptx, int slideIndex)
+        => DocToolkit.PresentationEditor.ReadNotes(pptx, slideIndex);
+
+    public Task<string> ReadNotesAsync(Stream source, int slideIndex, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.ReadNotesAsync(source, slideIndex, ct);
+
+    public byte[] SetNotes(byte[] pptx, int slideIndex, string notes)
+        => DocToolkit.PresentationEditor.SetNotes(pptx, slideIndex, notes);
+
+    public Task SetNotesAsync(Stream source, int slideIndex, string notes, Stream destination, CancellationToken ct = default)
+        => DocToolkit.PresentationEditor.SetNotesAsync(source, slideIndex, notes, destination, ct);
 }

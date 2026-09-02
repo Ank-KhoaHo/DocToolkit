@@ -24,4 +24,8 @@ internal sealed class DocToDocxConverterService : IDocToDocxConverter
 
     public Task<string> ExtractTextAsync(Stream source, CancellationToken ct = default)
         => DocToolkit.DocToDocxConverter.ExtractTextAsync(source, ct);
+
+    public Task<DocToolkit.ConversionResult<byte[]>> ConvertWithReportAsync(
+        Stream source, DocToolkit.LegacyDocOptions? options = null, CancellationToken ct = default)
+        => DocToolkit.DocToDocxConverter.ConvertWithReportAsync(source, options, ct);
 }

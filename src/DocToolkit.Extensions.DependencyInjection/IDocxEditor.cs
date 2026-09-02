@@ -512,4 +512,139 @@ public interface IDocxEditor
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocToolkit.DocumentConversionException">A document could not be opened or the result could not be written.</exception>
     Task MergeAsync(IEnumerable<Stream> sources, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stamps <paramref name="text"/> across the page as a watermark, and returns the updated
+    /// document.
+    /// </summary>
+    /// <remarks>
+    /// <b>Applied to every section the document reports</b>, which is not always one per
+    /// <c>w:sectPr</c> in the body. Measured: a document produced by
+    /// <see cref="Merge(IEnumerable{byte[]})"/> carries <b>two</b> <c>w:sectPr</c> elements but
+    /// reports a <b>single</b> section, so it receives one watermark rather than one per merged
+    /// document — pages belonging to the later part may therefore be unmarked. See the package
+    /// README's Known Limitations.
+    /// </remarks>
+    /// <param name="docx">The document to stamp. It is not modified.</param>
+    /// <param name="text">The watermark text.</param>
+    /// <returns>A new document; the input is not modified.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="text"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="text"/> is blank.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or written.</exception>
+    byte[] AddWatermark(byte[] docx, string text);
+
+    /// <inheritdoc cref="AddWatermark(byte[], string)" path="/summary"/>
+    /// <remarks>
+    /// Applied to every section, for the reason <see cref="AddWatermark(byte[], string)"/> records.
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="text">The watermark text.</param>
+    /// <param name="destination">The stream the stamped document is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="text"/> is blank,
+    /// or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or written.</exception>
+    Task AddWatermarkAsync(Stream source, string text, Stream destination, CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes every watermark from every section, and returns the updated document. A document
+    /// with none comes back unchanged rather than refused.
+    /// </summary>
+    /// <param name="docx">The document to clear. It is not modified.</param>
+    /// <returns>A new document; the input is not modified.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or written.</exception>
+    byte[] RemoveWatermarks(byte[] docx);
+
+    /// <inheritdoc cref="RemoveWatermarks(byte[])" path="/summary"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="destination">The stream the cleared document is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="destination"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or written.</exception>
+    Task RemoveWatermarksAsync(Stream source, Stream destination, CancellationToken ct = default);
+
+    /// <summary>Every bookmark name in the document, in the order the document declares them.</summary>
+    /// <remarks>
+    /// Names only. A bookmark's position matters to Word and to <c>AddTableOfContents</c>, but there
+    /// is no public position type here to return one against, and inventing one is a larger decision
+    /// than reading the names.
+    /// </remarks>
+    /// <param name="docx">The document to read.</param>
+    /// <returns>The bookmark names, in declaration order.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or read.</exception>
+    IReadOnlyList<string> ReadBookmarks(byte[] docx);
+
+    /// <inheritdoc cref="ReadBookmarks(byte[])" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and is neither disposed, closed nor sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="ct">Cancels the read.</param>
+    /// <returns>The bookmark names, in declaration order.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="source"/> is not readable or held no bytes.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or read.</exception>
+    Task<IReadOnlyList<string>> ReadBookmarksAsync(Stream source, CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds a bookmark named <paramref name="name"/> to the paragraph at
+    /// <paramref name="paragraphIndex"/>, and returns the updated document.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="paragraphIndex"/> is <b>0-based</b>, matching everything else this interface
+    /// indexes.
+    /// </remarks>
+    /// <param name="docx">The document to edit. It is not modified.</param>
+    /// <param name="paragraphIndex">The 0-based paragraph to mark.</param>
+    /// <param name="name">The bookmark name.</param>
+    /// <returns>A new document; the input is not modified.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="docx"/> or <paramref name="name"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="docx"/> is empty, or <paramref name="name"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="paragraphIndex"/> is negative, or at or beyond the paragraph count.
+    /// </exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or written.</exception>
+    byte[] AddBookmark(byte[] docx, int paragraphIndex, string name);
+
+    /// <inheritdoc cref="AddBookmark(byte[], int, string)" path="/summary|/remarks"/>
+    /// <remarks>
+    /// <paramref name="source"/> is <b>read</b> to its end and <paramref name="destination"/> is
+    /// <b>written</b>; neither is disposed, closed or sought.
+    /// </remarks>
+    /// <param name="source">The stream the document is read from.</param>
+    /// <param name="paragraphIndex">The 0-based paragraph to mark.</param>
+    /// <param name="name">The bookmark name.</param>
+    /// <param name="destination">The stream the updated document is written to.</param>
+    /// <param name="ct">Cancels the read, the edit and the write.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, <paramref name="name"/> is blank,
+    /// or <paramref name="destination"/> is not writable.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="paragraphIndex"/> is negative, or at or beyond the paragraph count.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocToolkit.DocumentConversionException">The document could not be opened or written.</exception>
+    Task AddBookmarkAsync(Stream source, int paragraphIndex, string name, Stream destination, CancellationToken ct = default);
 }

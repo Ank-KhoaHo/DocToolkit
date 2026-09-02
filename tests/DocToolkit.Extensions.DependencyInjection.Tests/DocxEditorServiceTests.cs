@@ -637,4 +637,170 @@ public class DocxEditorServiceTests
                 < text.IndexOf("SECOND", System.StringComparison.Ordinal),
             $"FIRST should precede SECOND, got: {text}");
     }
+
+    // ---------------------------------------------------------------------------------------
+    // A108-DI: the four watermark and bookmark members and their Stream overloads, mirrored
+    // from core 0.50.0. Each asserts the wrapper AGREES with the static method rather than
+    // merely that it returned something - a wrapper that ignored its arguments and handed the
+    // input straight back would pass the weaker check on every one of them.
+    // ---------------------------------------------------------------------------------------
+
+    private static DocxEditorService NewSut() =>
+        new(new TestOptionsMonitor<DocToolkitOptions>(new DocToolkitOptions()));
+
+    private static int WatermarkCount(byte[] docx)
+    {
+        using var ms = new MemoryStream(docx, writable: false);
+        using var doc = OfficeIMO.Word.WordDocument.Load(ms);
+        return doc.Sections.Sum(s => s.Watermarks.Count);
+    }
+
+    /// <summary>
+    /// The 0-based index of the body paragraph carrying <paramref name="name"/>, or -1.
+    /// <c>ReadBookmarks</c> returns names without positions, so this is the only way to prove the
+    /// wrapper forwarded the INDEX rather than always passing 0 - the one delegation bug the
+    /// interface-mirror test cannot see, since it compares method names and not arguments.
+    /// Direct-child <c>Elements</c>, never <c>Descendants</c>: a paragraph inside a text box or a
+    /// nested table would otherwise shift every index.
+    /// </summary>
+    private static int BookmarkParagraphIndex(byte[] docx, string name)
+    {
+        using var ms = new MemoryStream(docx, writable: false);
+        using var doc = WordprocessingDocument.Open(ms, isEditable: false);
+        var paragraphs = doc.MainDocumentPart!.Document!.Body!.Elements<Paragraph>().ToList();
+        for (var i = 0; i < paragraphs.Count; i++)
+        {
+            if (paragraphs[i].Elements<BookmarkStart>().Any(b => b.Name == name)) return i;
+        }
+
+        return -1;
+    }
+
+    [Fact]
+    public void AddWatermark_MatchesTheStaticMethod()
+    {
+        var sut = NewSut();
+        var docx = DocxEditor.Create(new[] { DocxBlock.Paragraph("BODY-MARKER") });
+
+        var stamped = sut.AddWatermark(docx, "DRAFT");
+
+        Assert.Equal(0, WatermarkCount(docx));
+        Assert.Equal(1, WatermarkCount(stamped));
+        Assert.Contains("BODY-MARKER", DocxEditor.ExtractText(stamped), System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddWatermarkAsync_MatchesTheStaticMethod()
+    {
+        var sut = NewSut();
+        using var source = new MemoryStream(
+            DocxEditor.Create(new[] { DocxBlock.Paragraph("BODY-MARKER") }), writable: false);
+        using var destination = new MemoryStream();
+
+        await sut.AddWatermarkAsync(source, "DRAFT", destination);
+
+        Assert.Equal(1, WatermarkCount(destination.ToArray()));
+        Assert.Contains("BODY-MARKER", DocxEditor.ExtractText(destination.ToArray()), System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RemoveWatermarks_MatchesTheStaticMethod()
+    {
+        var sut = NewSut();
+        var stamped = DocxEditor.AddWatermark(
+            DocxEditor.Create(new[] { DocxBlock.Paragraph("body") }), "DRAFT");
+
+        // The precondition is asserted, not assumed: if the fixture arrived with no watermark,
+        // a wrapper that did nothing at all would still leave the count at 0 and pass.
+        Assert.Equal(1, WatermarkCount(stamped));
+
+        var cleared = sut.RemoveWatermarks(stamped);
+
+        Assert.Equal(0, WatermarkCount(cleared));
+        Assert.Contains("body", DocxEditor.ExtractText(cleared), System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RemoveWatermarksAsync_MatchesTheStaticMethod()
+    {
+        var sut = NewSut();
+        var stamped = DocxEditor.AddWatermark(
+            DocxEditor.Create(new[] { DocxBlock.Paragraph("body") }), "DRAFT");
+        Assert.Equal(1, WatermarkCount(stamped));
+
+        using var source = new MemoryStream(stamped, writable: false);
+        using var destination = new MemoryStream();
+
+        await sut.RemoveWatermarksAsync(source, destination);
+
+        Assert.Equal(0, WatermarkCount(destination.ToArray()));
+    }
+
+    [Fact]
+    public void AddBookmark_MatchesTheStaticMethodAndForwardsTheIndex()
+    {
+        var sut = NewSut();
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Paragraph("first"),
+            DocxBlock.Paragraph("second"),
+        });
+
+        var marked = sut.AddBookmark(docx, 1, "Clause7");
+
+        Assert.Contains("Clause7", DocxEditor.ReadBookmarks(marked));
+
+        // 1, not 0: a wrapper that forwarded a constant index would still put a bookmark named
+        // Clause7 in the document and satisfy the assertion above.
+        Assert.Equal(1, BookmarkParagraphIndex(marked, "Clause7"));
+    }
+
+    [Fact]
+    public async Task AddBookmarkAsync_MatchesTheStaticMethodAndForwardsTheIndex()
+    {
+        var sut = NewSut();
+        using var source = new MemoryStream(
+            DocxEditor.Create(new[]
+            {
+                DocxBlock.Paragraph("first"),
+                DocxBlock.Paragraph("second"),
+            }),
+            writable: false);
+        using var destination = new MemoryStream();
+
+        await sut.AddBookmarkAsync(source, 1, "Clause7", destination);
+
+        var marked = destination.ToArray();
+        Assert.Contains("Clause7", DocxEditor.ReadBookmarks(marked));
+        Assert.Equal(1, BookmarkParagraphIndex(marked, "Clause7"));
+    }
+
+    [Fact]
+    public void ReadBookmarks_MatchesTheStaticMethod()
+    {
+        var sut = NewSut();
+        var marked = DocxEditor.AddBookmark(
+            DocxEditor.Create(new[] { DocxBlock.Paragraph("first") }), 0, "Clause7");
+
+        Assert.Equal(DocxEditor.ReadBookmarks(marked), sut.ReadBookmarks(marked));
+        Assert.Contains("Clause7", sut.ReadBookmarks(marked));
+
+        // The empty case is the one a wrapper returning a fixed list would pass above and fail
+        // here, and it is also the documented contract: no bookmarks is an empty list, not null.
+        Assert.Empty(sut.ReadBookmarks(DocxEditor.Create(new[] { DocxBlock.Paragraph("nothing marked") })));
+    }
+
+    [Fact]
+    public async Task ReadBookmarksAsync_MatchesTheStaticMethod()
+    {
+        var sut = NewSut();
+        var marked = DocxEditor.AddBookmark(
+            DocxEditor.Create(new[] { DocxBlock.Paragraph("first") }), 0, "Clause7");
+        using var source = new MemoryStream(marked, writable: false);
+
+        var names = await sut.ReadBookmarksAsync(source);
+
+        Assert.Equal(DocxEditor.ReadBookmarks(marked), names);
+        Assert.Contains("Clause7", names);
+    }
 }

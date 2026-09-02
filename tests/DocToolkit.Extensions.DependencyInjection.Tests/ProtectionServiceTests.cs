@@ -238,4 +238,23 @@ public class ProtectionServiceTests
         Assert.Contains("SENTINEL-TWO", DocxEditor.ExtractText(destination.ToArray()),
             StringComparison.Ordinal);
     }
+
+    // A114-DI: ConvertWithReportAsync, mirrored from core 0.50.0. The bytes come back IN the
+    // result rather than through a destination stream, which is the whole of A114's finding.
+    [Fact]
+    public async Task DocToDocx_ConvertWithReportAsync_ReturnsTheBytesInTheResult()
+    {
+        var sut = new DocToDocxConverterService();
+
+        using var source = new MemoryStream(LegacyDoc(), writable: false);
+        var result = await sut.ConvertWithReportAsync(
+            source, new LegacyDocOptions { AllowContentLoss = true });
+
+        // Both halves of the one value: the report AND the document. Asserting only the warnings
+        // would pass against a wrapper that dropped the bytes, which is the shape this member
+        // exists to avoid.
+        Assert.Contains(result.Warnings, w => w.Code == "DOC-BINARY-DATA-STREAM-PRESENT");
+        Assert.True(IsZip(result.Value));
+        Assert.Contains("SENTINEL-TWO", DocxEditor.ExtractText(result.Value), StringComparison.Ordinal);
+    }
 }
