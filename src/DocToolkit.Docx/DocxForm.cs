@@ -1,3 +1,5 @@
+using DocumentFormat.OpenXml.Wordprocessing;
+using DocumentFormat.OpenXml.Packaging;
 using OfficeIMOFormKey = OfficeIMO.Word.WordContentControlFormKey;
 using OfficeIMOIssue = OfficeIMO.Word.WordContentControlFormIssue;
 using OfficeIMOIssueKind = OfficeIMO.Word.WordContentControlFormIssueKind;
@@ -218,6 +220,12 @@ public static class DocxForm
     /// <exception cref="ArgumentException">A stream is unusable, <paramref name="source"/> held no bytes, or a value is null.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The document could not be read or written.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The fill would change a content control the document locks against editing (A119). Nothing
+    /// is written, and the document passed in is untouched. Before 0.54.0 this succeeded and left
+    /// the lock in place, producing a file that declared the control protected while its content
+    /// had been replaced.
+    /// </exception>
     public static async Task FillAsync(
         Stream source, Stream destination, IReadOnlyDictionary<string, DocxFormValue> values,
         DocxFormKey key = DocxFormKey.TagThenAlias, CancellationToken ct = default)
@@ -331,17 +339,89 @@ public static class DocxForm
         var result = new MemoryStream();
         try
         {
-            using var document = OfficeIMOWordDocument.Load(source);
-            document.FillContentControlValues(Upstream(values), Upstream(key));
-            document.Save(result);
+            // The locked controls are read BEFORE the fill and compared after (A119). Deciding up
+            // front would mean resolving each key to a control here, which is the DocxFormKey
+            // decision OfficeIMO already makes - and a second reader keyed on the same names is
+            // the drift ContentControls, SetCellValue and ValidateSheetName each exist to prevent.
+            // Comparing afterwards asks only "did a locked control change?", which the XML answers
+            // on its own.
+            var before = LockedContent(source);
+
+            source.Position = 0;
+            using (var document = OfficeIMOWordDocument.Load(source))
+            {
+                document.FillContentControlValues(Upstream(values), Upstream(key));
+                document.Save(result);
+            }
+
+            result.Position = 0;
+            RefuseIfALockedControlChanged(before, LockedContent(result));
+
             result.Position = 0;
             return result;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not DocumentConversionException and not InvalidOperationException)
         {
             result.Dispose();
             throw new DocumentConversionException(FillFailure, ex);
         }
+        catch
+        {
+            result.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Each locked control's content, keyed by its position among the locked controls.
+    /// </summary>
+    /// <remarks>
+    /// <b>Position rather than tag, deliberately.</b> A tag is optional and need not be unique, so
+    /// keying on one would silently compare the wrong pair - and this only has to answer whether
+    /// anything changed, which position answers without inventing an identity scheme.
+    ///
+    /// The stream's position is restored, because the caller reads it next.
+    /// </remarks>
+    private static List<string> LockedContent(Stream docx)
+    {
+        var at = docx.Position;
+        docx.Position = 0;
+        try
+        {
+            using var document = WordprocessingDocument.Open(docx, false);
+            var body = document.MainDocumentPart?.Document?.Body;
+            if (body is null) return [];
+
+            return [.. body.Descendants<SdtElement>()
+                .Where(c => c.Descendants<DocumentFormat.OpenXml.Wordprocessing.Lock>().Any())
+                .Select(c => string.Concat(c.Descendants<Text>().Select(t => t.Text)))];
+        }
+        finally
+        {
+            docx.Position = at;
+        }
+    }
+
+    /// <summary>
+    /// Refuses the fill when it changed a control the document declares locked (A119).
+    /// </summary>
+    /// <remarks>
+    /// <b>Measured 2026-09-02: the old behaviour wrote through the lock AND left the lock in
+    /// place</b>, so the document came back declaring a control protected while its content had
+    /// been replaced. Nothing in the file recorded that, and no caller could detect it.
+    ///
+    /// A count change is treated as a change too: a fill that added or removed a locked control is
+    /// not something this method should be doing either.
+    /// </remarks>
+    private static void RefuseIfALockedControlChanged(List<string> before, List<string> after)
+    {
+        if (before.Count == after.Count && before.SequenceEqual(after, StringComparer.Ordinal)) return;
+
+        throw new InvalidOperationException(
+            "The fill would change a content control the document locks against editing, so nothing "
+            + "was written. A w:lock is the author's instruction about their own document, and "
+            + "writing through it produces a file that still declares the control locked while its "
+            + "content has changed. Remove the lock in Word, or leave that control out of the values.");
     }
 
     private static Dictionary<string, object?> Upstream(
