@@ -226,6 +226,7 @@ public class StreamOverloadTests
         "XlsxToPdfConverter.ConvertAsync",
         "PptxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.ReplaceTextAsync(Regex)",
         "DocxEditor.AddWatermarkAsync",
         "DocxEditor.RemoveWatermarksAsync",
         "DocxEditor.AddBookmarkAsync",
@@ -298,6 +299,7 @@ public class StreamOverloadTests
         "DocxToPdfConverter.ConvertAsync",
         "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.ReplaceTextAsync(Regex)",
         "DocxEditor.AddWatermarkAsync",
         "DocxEditor.RemoveWatermarksAsync",
         "DocxEditor.AddBookmarkAsync",
@@ -433,6 +435,7 @@ public class StreamOverloadTests
         "HtmlToDocxConverter.ConvertAsync(PageSetup)",
         "HtmlToDocxConverter.ConvertAsync(PageSetup, RemoteImageOptions)",
         "DocxEditor.ReplaceTextAsync",
+        "DocxEditor.ReplaceTextAsync(Regex)",
         "DocxEditor.AddWatermarkAsync",
         "DocxEditor.RemoveWatermarksAsync",
         "DocxEditor.AddBookmarkAsync",
@@ -1277,6 +1280,19 @@ public class StreamOverloadTests
                 PptxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "DocxEditor.ReplaceTextAsync" =>
                 DocxEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
+            // A116. A bounded pattern deliberately: the overload REFUSES an unbounded one, so an
+            // infinite-timeout Regex here would fail every theory on the guard rather than on the
+            // property each theory is actually testing.
+            "DocxEditor.ReplaceTextAsync(Regex)" =>
+                DocxEditor.ReplaceTextAsync(
+                    source!,
+                    new System.Text.RegularExpressions.Regex(
+                        @"\{\{name\}\}",
+                        System.Text.RegularExpressions.RegexOptions.None,
+                        TimeSpan.FromSeconds(2)),
+                    "Acme",
+                    destination!,
+                    ct),
             "DocxEditor.FillRowsAsync" =>
                 DocxEditor.FillRowsAsync(source!, "item", FillRowsRecords, destination!, ct),
             "DocxEditor.ReplaceImageAsync" =>

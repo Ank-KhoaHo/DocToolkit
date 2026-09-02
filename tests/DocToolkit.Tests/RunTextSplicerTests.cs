@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Text;
 using Xunit;
 using Xunit.Abstractions;
@@ -492,4 +493,89 @@ public class RunTextSplicerTests
     //        `replacements` is `IReadOnlyDictionary<string, string>` - the value type is NOT
     //        nullable, so the coalesce guards a contract violation the compiler already forbids at
     //        every real call site. Same conclusion, same reason not to chase it with a test.
+
+    // =============================================================================================
+    // A116: the same splice, driven by a Regex instead of literal keys.
+    // =============================================================================================
+
+    private static bool ApplyRegex(IReadOnlyList<Node> nodes, string pattern, string replacement)
+        => RunTextSplicer.Apply(
+            nodes, n => n.Text, (n, v) => n.Set(v),
+            new Regex(pattern, RegexOptions.None, TimeSpan.FromSeconds(1)), replacement);
+
+    /// <summary>
+    /// THE test of the feature, and the reason it reuses the splice rather than reimplementing it.
+    /// A regex matcher that searched each run in isolation passes every single-run case; only a
+    /// pattern crossing a run boundary fails against one.
+    /// </summary>
+    [Fact]
+    public void ARegexMatchSplitAcrossRunsIsReplacedExactlyLikeALiteral()
+    {
+        var nodes = Split("Invoice ", "2026", "-0", "4-17 issued");
+
+        Assert.True(ApplyRegex(nodes, @"\d{4}-\d{2}-\d{2}", "REDACTED"));
+
+        Assert.Equal("Invoice REDACTED issued", Merged(nodes));
+    }
+
+    [Fact]
+    public void CaptureGroupsAreAvailableToTheReplacement()
+    {
+        var nodes = Split("due ", "2026-04-17", " sharp");
+
+        Assert.True(ApplyRegex(nodes, @"(\d{4})-(\d{2})-(\d{2})", "$3/$2/$1"));
+
+        Assert.Equal("due 17/04/2026 sharp", Merged(nodes));
+    }
+
+    [Fact]
+    public void APatternThatMatchesNothingLeavesEveryRunUntouched()
+    {
+        var nodes = Split("Acme ", "Corporation");
+
+        // Not merely "did not throw": no run may be WRITTEN to, which is the property that keeps
+        // formatting intact. A splice that rewrote every run with identical text would still be a
+        // regression, and Merged() alone cannot see it.
+        Assert.False(ApplyRegex(nodes, @"\d+", "N"));
+
+        Assert.Equal("Acme Corporation", Merged(nodes));
+        Assert.All(nodes, n => Assert.Equal(0, n.Writes));
+    }
+
+    [Fact]
+    public void OnlyTheRunsAMatchOverlapsAreWritten()
+    {
+        var nodes = Split("keep ", "2026", " keep");
+
+        Assert.True(ApplyRegex(nodes, @"\d{4}", "X"));
+
+        Assert.Equal(0, nodes[0].Writes);
+        Assert.Equal(1, nodes[1].Writes);
+        Assert.Equal(0, nodes[2].Writes);
+    }
+
+    /// <summary>
+    /// A zero-width match consumes nothing, so splicing one would insert the replacement without
+    /// advancing - the shape that turns a substitution into an unbounded loop. Skipped, and the
+    /// assertion is that surrounding text is untouched rather than that nothing threw.
+    /// </summary>
+    [Fact]
+    public void AZeroWidthMatchIsSkippedRatherThanSplicedRepeatedly()
+    {
+        var nodes = Split("ab", "cd");
+
+        Assert.False(ApplyRegex(nodes, "x*", "!"));
+
+        Assert.Equal("abcd", Merged(nodes));
+    }
+
+    [Fact]
+    public void SeveralMatchesInOneParagraphAreAllReplaced()
+    {
+        var nodes = Split("a1", "b22", "c333");
+
+        Assert.True(ApplyRegex(nodes, @"\d+", "#"));
+
+        Assert.Equal("a#b#c#", Merged(nodes));
+    }
 }
