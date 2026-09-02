@@ -1,12 +1,28 @@
 namespace DocToolkit
 {
+    public readonly struct PdfBounds : System.IEquatable<DocToolkit.PdfBounds>
+    {
+        public PdfBounds(double left, double bottom, double width, double height) { }
+        public double Bottom { get; }
+        public double Height { get; }
+        public double Left { get; }
+        public double Right { get; }
+        public double Top { get; }
+        public double Width { get; }
+    }
     public static class PdfEditor
     {
+        public static System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfImage>> ExtractImages(byte[] pdf) { }
+        public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfImage>>> ExtractImagesAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfImage>>> ExtractImagesAsync(string path, System.Threading.CancellationToken ct = default) { }
         public static byte[] ExtractPages(byte[] pdf, int firstPage, int count) { }
         public static System.Threading.Tasks.Task ExtractPagesAsync(System.IO.Stream source, int firstPage, int count, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static System.Collections.Generic.IReadOnlyList<string> ExtractText(byte[] pdf) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> ExtractTextAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
         public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string>> ExtractTextAsync(string path, System.Threading.CancellationToken ct = default) { }
+        public static System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfWord>> ExtractWords(byte[] pdf) { }
+        public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfWord>>> ExtractWordsAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<DocToolkit.PdfWord>>> ExtractWordsAsync(string path, System.Threading.CancellationToken ct = default) { }
         public static byte[] InsertPages(byte[] target, byte[] source, int atPage) { }
         public static System.Threading.Tasks.Task InsertPagesAsync(System.IO.Stream target, System.IO.Stream source, int atPage, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
         public static byte[] Merge(System.Collections.Generic.IEnumerable<byte[]> pdfs) { }
@@ -34,6 +50,14 @@ namespace DocToolkit
         Aes128 = 0,
         Aes256 = 1,
     }
+    public sealed class PdfImage
+    {
+        public DocToolkit.PdfBounds Bounds { get; }
+        public int PixelHeight { get; }
+        public int PixelWidth { get; }
+        public byte[]? Png { get; }
+        public override string ToString() { }
+    }
     public sealed class PdfMetadata
     {
         public PdfMetadata() { }
@@ -56,5 +80,11 @@ namespace DocToolkit
         public string? OwnerPassword { get; init; }
         public DocToolkit.PdfEncryptionStrength Strength { get; init; }
         public string? UserPassword { get; init; }
+    }
+    public sealed class PdfWord
+    {
+        public DocToolkit.PdfBounds Bounds { get; }
+        public string Text { get; }
+        public override string ToString() { }
     }
 }

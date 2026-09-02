@@ -223,9 +223,31 @@ public class ReadmeExamples
 
         // Read a PDF's text back out, one string per page — pageText[0] is page 1.
         IReadOnlyList<string> pageText = PdfEditor.ExtractText(bundle);
+
+        // Or read WHERE each word sits, for locating a value rather than just reading it.
+        // Coordinates are points from the page's BOTTOM-left, so Bottom grows upwards.
+        IReadOnlyList<IReadOnlyList<PdfWord>> words = PdfEditor.ExtractWords(bundle);
+        PdfWord first = words[0][0];
+        PdfBounds where = first.Bounds;   // Left, Bottom, Width, Height, plus Right and Top
+
+        // And the images a page draws. Png is null when the pixels could not be re-encoded,
+        // and PixelWidth is the stored size — Bounds.Width is how large the page draws it.
+        IReadOnlyList<IReadOnlyList<PdfImage>> images = PdfEditor.ExtractImages(bundle);
         #endregion
 
         Assert.Equal(2, pages);
+
+        // The snippet above is only a claim until these run. Coordinates must be REAL, so a
+        // constant rectangle - the way this could plausibly regress - fails here.
+        Assert.Equal(3, words.Count);
+        Assert.NotEmpty(words[0]);
+        Assert.True(where.Bottom > 0, $"Bottom was {where.Bottom}, expected a real coordinate");
+        Assert.Equal(where.Left + where.Width, where.Right, 6);
+        Assert.Equal(first.Text, words[0][0].Text, StringComparer.Ordinal);
+
+        // One list per page, and this bundle's pages carry no images - the empty case is normal.
+        Assert.Equal(3, images.Count);
+        Assert.All(images, page => Assert.Empty(page));
 
         Assert.Equal(3, PdfEditor.PageCount(bundle));
         Assert.Contains("Cover", PdfProbe.ExtractText(PdfEditor.ExtractPages(bundle, 1, 1)), StringComparison.Ordinal);

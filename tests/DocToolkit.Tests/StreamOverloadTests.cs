@@ -309,6 +309,8 @@ public class StreamOverloadTests
         "DocxEditor.ExtractTextAsync",
         "DocxEditor.ReadBookmarksAsync",
         "PdfEditor.ExtractTextAsync",
+        "PdfEditor.ExtractWordsAsync",
+        "PdfEditor.ExtractImagesAsync",
         "DocxToHtmlConverter.ConvertAsync",
         "DocxToMarkdownConverter.ConvertAsync",
         "DocxToHtmlConverter.ConvertWithReportAsync",
@@ -1299,6 +1301,10 @@ public class StreamOverloadTests
                 DocxEditor.InspectSignaturesAsync(source!, ct),
             "PdfEditor.ExtractTextAsync" =>
                 PdfEditor.ExtractTextAsync(source!, ct),
+            "PdfEditor.ExtractWordsAsync" =>
+                PdfEditor.ExtractWordsAsync(source!, ct),
+            "PdfEditor.ExtractImagesAsync" =>
+                PdfEditor.ExtractImagesAsync(source!, ct),
             "DocxToHtmlConverter.ConvertAsync" =>
                 DocxToHtmlConverter.ConvertAsync(source!, ct),
             "DocxToMarkdownConverter.ConvertAsync" =>
