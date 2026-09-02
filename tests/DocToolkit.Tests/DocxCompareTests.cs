@@ -238,7 +238,7 @@ public class DocxCompareTests
     {
         var docx = Doc([.. new[] { "bold plain" }.Concat(extraParagraphs)]);
 
-        var ms = new MemoryStream();
+        using var ms = new MemoryStream();
         ms.Write(docx, 0, docx.Length);
         ms.Position = 0;
 
@@ -335,7 +335,7 @@ public class DocxCompareTests
     /// <summary>A document with a table after its paragraphs.</summary>
     private static byte[] WithATable(byte[] docx)
     {
-        var ms = new MemoryStream();
+        using var ms = new MemoryStream();
         ms.Write(docx, 0, docx.Length);
         ms.Position = 0;
 

@@ -112,16 +112,25 @@ internal static class WordDiff
 
         for (var i = endA; i < original.Count; i++) steps.Add((WordDiffKind.Same, original[i]));
 
+        // The open span is held as its own List rather than reached back through spans[^1].Words,
+        // which would mean casting an IReadOnlyList down to the concrete type it happens to be.
+        // That cast is only sound while every span in this method was built here - a fragility with
+        // no upside, since the span already holds a reference to this same list.
         var spans = new List<WordDiffSpan>();
+        List<string>? open = null;
+        var openKind = default(WordDiffKind);
+
         foreach (var step in steps)
         {
-            if (spans.Count > 0 && spans[^1].Kind == step.Kind)
+            if (open is not null && openKind == step.Kind)
             {
-                ((List<string>)spans[^1].Words).Add(step.Word);
+                open.Add(step.Word);
                 continue;
             }
 
-            spans.Add(new WordDiffSpan(step.Kind, new List<string> { step.Word }));
+            open = [step.Word];
+            openKind = step.Kind;
+            spans.Add(new WordDiffSpan(openKind, open));
         }
 
         return spans;
@@ -159,22 +168,51 @@ internal static class WordDiff
             return;
         }
 
-        // lcs[i, j] is the length of the longest common subsequence of a[aStart+i..] and
-        // b[bStart+j..], filled from the end so the walk below can go forwards and emit in
-        // document order.
-        var lcs = new int[n + 1, m + 1];
+        Walk(a, b, aStart, n, bStart, m, Table(a, b, aStart, n, bStart, m), steps);
+    }
+
+    /// <summary>
+    /// The longest-common-subsequence lengths for the window, filled from the END.
+    /// </summary>
+    /// <remarks>
+    /// <c>table[i, j]</c> is the length of the longest common subsequence of the windows starting
+    /// at <c>i</c> and <c>j</c>. Filling backwards is what lets <see cref="Walk"/> run FORWARDS and
+    /// therefore emit in document order - a table filled from the front has to be walked in reverse
+    /// and the result reversed again, which is one more place to get an off-by-one wrong.
+    /// </remarks>
+    private static int[,] Table(
+        IReadOnlyList<string> a, IReadOnlyList<string> b, int aStart, int n, int bStart, int m)
+    {
+        var table = new int[n + 1, m + 1];
+
         for (var i = n - 1; i >= 0; i--)
         {
             for (var j = m - 1; j >= 0; j--)
             {
-                lcs[i, j] = a[aStart + i] == b[bStart + j]
-                    ? lcs[i + 1, j + 1] + 1
-                    : Math.Max(lcs[i + 1, j], lcs[i, j + 1]);
+                table[i, j] = a[aStart + i] == b[bStart + j]
+                    ? table[i + 1, j + 1] + 1
+                    : Math.Max(table[i + 1, j], table[i, j + 1]);
             }
         }
 
+        return table;
+    }
+
+    /// <summary>
+    /// Reads the table forwards, emitting one step per word.
+    /// </summary>
+    /// <remarks>
+    /// The tie-break is <c>&gt;=</c> rather than <c>&gt;</c>, so a word replaced by another is
+    /// reported deleted-then-inserted rather than the other way round. Either is a correct diff;
+    /// this order is the one <c>DocxCompare</c> relies on to place <c>w:del</c> before <c>w:ins</c>.
+    /// </remarks>
+    private static void Walk(
+        IReadOnlyList<string> a, IReadOnlyList<string> b, int aStart, int n, int bStart, int m,
+        int[,] table, List<(WordDiffKind, string)> steps)
+    {
         var x = 0;
         var y = 0;
+
         while (x < n && y < m)
         {
             if (a[aStart + x] == b[bStart + y])
@@ -183,7 +221,7 @@ internal static class WordDiff
                 x++;
                 y++;
             }
-            else if (lcs[x + 1, y] >= lcs[x, y + 1])
+            else if (table[x + 1, y] >= table[x, y + 1])
             {
                 steps.Add((WordDiffKind.Deleted, a[aStart + x]));
                 x++;
