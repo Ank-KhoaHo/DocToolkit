@@ -10,6 +10,30 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.54.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.53.0...v0.54.0) (2026-09-02)
+
+### ⚠ BREAKING CHANGES
+
+* **Core: `DocxForm.Fill` refuses to fill a content control the document locks.**
+  A fill that would change a locked control now throws `InvalidOperationException` and writes
+  nothing; the document you pass in is untouched, and a `Stream` overload writes zero bytes to its
+  destination.
+
+  **It previously succeeded** - and left the `w:lock` in place, so the result declared the control
+  protected while its content had been replaced. That file contradicted itself, no reader could see
+  it, and the caller had no way to detect it afterwards. Measured against `sdtContentLocked`,
+  `sdtLocked` and `contentLocked`.
+
+  **What to do:** remove the lock in Word, or leave that control out of the values you pass.
+  **Filling other controls in a document that also contains a locked one is unaffected** and still
+  works - which is the ordinary case for a template that locks its headings.
+
+  This is why 0.54.0 is a minor bump rather than a patch. See *Migrating* in the README.
+
+  **Locks are not read, reported or removed by this change.** `DocxFormField` still exposes `Key`
+  and `Value` alone; a caller cannot yet tell a locked control from an editable one without
+  attempting the fill.
+
 ## [0.53.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.52.0...v0.53.0) (2026-09-02)
 
 ### Added
