@@ -17,8 +17,9 @@ repo-wide tooling (CI, release pipeline).
 
 * **Core:** `DocxCompare` compares two versions of a document and returns the later one with the
   differences marked as **tracked changes**. The result is an ordinary `.docx` carrying revisions,
-  not a report, so Word shows it the way it shows any tracked-changes document and
-  `DocxEditor.Revisions`, `AcceptRevisions` and `RejectRevisions` all read and apply it.
+  not a report, so Word shows it the way it shows any tracked-changes document and `DocxReview`
+  reads it back without knowing where it came from — `DocxReview.Inspect` lists the revisions on
+  the report it returns, and `DocxReview.AcceptRevisions` / `RejectRevisions` resolve them.
 * **Core:** `DocxCompare.CompareWithReport` returns the same document plus a warning naming every
   construct that was present but not compared. **Read it** — `HasLoss` is the signal that the
   comparison covers less than the document does.
