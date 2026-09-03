@@ -855,6 +855,20 @@ jobs:
       - name: Assert CONTRIBUTING's guard inventory matches the workflows
         run: python3 scripts/gen-guard-inventory.py --check
 
+      # Same failure as the row above, one section further down the same page. CONTRIBUTING's
+      # Repository layout named TWO projects under src/ while eight were committed - the six
+      # others arrived with the #353 per-concern split on 2026-08-23 and the hand-written block
+      # did not follow. For that whole period the only PUBLIC map of this repository sent a
+      # contributor to src/DocToolkit/, which holds 18 converters and no DocxEditor.cs.
+      #
+      # Nothing could have caught it: a stale paragraph is not wrong in any way a build can see,
+      # and docs/ is gitignored so no local guard reaches this either. Derived now, from the
+      # csproj files themselves - which is also what makes it honest about the split being
+      # internal, since <IsPackable> and the ProjectReference graph are what actually decide
+      # what ships. Filed as D41.
+      - name: Assert CONTRIBUTING's repository layout matches src/
+        run: python3 scripts/gen-repository-layout.py --check
+
       # The DocFX guides have pulled their samples from compiled tests since 2026-08-08,
       # because a snippet retyped into prose is a claim nothing compiles - it caught two
       # private constructors on its first run. The READMEs were exempt: 28 blocks, none
