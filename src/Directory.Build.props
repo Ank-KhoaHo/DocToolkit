@@ -21,7 +21,7 @@
     have always said 0.1.0 regardless of what shipped.
   -->
   <PropertyGroup>
-    <Version>0.56.0</Version> <!-- x-release-please-version -->
+    <Version>0.57.0</Version> <!-- x-release-please-version -->
     <Authors>Khoa Ho</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Ank-KhoaHo/DocToolkit</PackageProjectUrl>
