@@ -161,7 +161,7 @@ API, including both its `byte[]` and its `Stream`-based async overloads:
 |---|---|
 | **Convert** | `IHtmlToDocxConverter`, `IHtmlToPdfConverter`, `IDocxToPdfConverter`, `IXlsxToPdfConverter`, `IPptxToPdfConverter`, `IDocxToHtmlConverter`, `IDocxToMarkdownConverter`, `IMarkdownToDocxConverter`, `IMarkdownToPdfConverter`, `IXlsxToCsvConverter`, `IXlsxToHtmlConverter`, `IDocToDocxConverter` |
 | **Edit** | `IDocxEditor`, `IWorkbookEditor`, `IPresentationEditor`, `IPdfEditor`, `IMarkdownEditor` |
-| **Templates & review** | `IDocxMailMerge`, `IDocxForm`, `IDocxReview` |
+| **Templates & review** | `IDocxMailMerge`, `IDocxForm`, `IDocxReview`, `IDocxCompare` |
 | **Preflight** | `IDocxToPdfPreflight` |
 
 **That mirroring is now enforced rather than asserted.** It had gone stale nine times — most

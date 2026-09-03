@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IDocxForm, DocxFormService>();
         services.TryAddSingleton<IDocxToPdfPreflight, DocxToPdfPreflightService>();
         services.TryAddSingleton<IMarkdownEditor, MarkdownEditorService>();
+        services.TryAddSingleton<IDocxCompare, DocxCompareService>();
 
         return services;
     }

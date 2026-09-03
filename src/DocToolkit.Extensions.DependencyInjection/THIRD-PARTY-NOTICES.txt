@@ -18,7 +18,7 @@ through Microsoft.Extensions.Options rather than through Ank.DocToolkit, so the 
 notices never covered it and the hand-written list had simply left it out.
 
 --- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---
-- Ank.DocToolkit 0.54.0 - MIT (direct) - https://github.com/Ank-KhoaHo/DocToolkit
+- Ank.DocToolkit 0.56.0 - MIT (direct) - https://github.com/Ank-KhoaHo/DocToolkit
 - Microsoft.Extensions.Options 8.0.0 - MIT (direct) - https://github.com/dotnet/runtime
 - Microsoft.Extensions.Primitives 8.0.0 - MIT (transitive) - https://github.com/dotnet/runtime
 
