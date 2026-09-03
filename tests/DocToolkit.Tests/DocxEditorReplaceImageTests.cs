@@ -547,8 +547,16 @@ public class DocxEditorReplaceImageTests
         void Collect(string part, OpenXmlPartRootElement? root)
         {
             if (root is null) return;
-            foreach (var p in root.Descendants<DW.DocProperties>())
-                if (p.Id?.Value is { } v) found.Add((part, v));
+
+            // Filtered with Where rather than an `if` inside the loop, which is the same shape
+            // NextDrawingId itself uses to read these ids - and what CodeQL's cs/linq/missed-where
+            // asked for on the first version of this helper.
+            foreach (var id in root.Descendants<DW.DocProperties>()
+                         .Select(properties => properties.Id?.Value)
+                         .Where(id => id.HasValue))
+            {
+                found.Add((part, id!.Value));
+            }
         }
 
         Collect("document", main.Document);
