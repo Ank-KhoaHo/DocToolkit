@@ -237,10 +237,21 @@ jobs:
       # a lockfile change that someone reviewed.
       #
       # Runs before Build because Build's implicit restore would otherwise
-      # re-resolve first. Restores the two packable projects individually rather
-      # than the solution: tests/ and samples/ deliberately carry no lockfile
-      # (lockfiles are committed for the two packable projects only), and a
-      # solution-wide --locked-mode would be ambiguous about them.
+      # re-resolve first. Restores the two PACKABLE projects individually rather
+      # than the solution: tests/ and samples/ deliberately carry no lockfile,
+      # and a solution-wide --locked-mode would be ambiguous about them.
+      #
+      # Two projects, EIGHT lockfiles, and that is not a gap. src/ holds eight
+      # projects since #353 and src/Directory.Build.props gives every one a
+      # packages.lock.json; restoring a project restores its whole project
+      # graph, so DocToolkit covers itself plus its six ProjectReferences and
+      # the extensions restore covers the eighth. Measured 2026-09-03 (C41) by
+      # truncating src/DocToolkit.Docx/packages.lock.json - this step failed and
+      # named that file, from the DocToolkit restore.
+      #
+      # This comment used to say "lockfiles are committed for the two packable
+      # projects only", which stopped being true at #353 and read as a reason to
+      # look no further. The step above checks all eight from disk.
       - name: Assert the resolved graph matches the committed lockfiles
         run: |
           for project in "$PROJECT" "$EXTENSIONS_PROJECT"; do
