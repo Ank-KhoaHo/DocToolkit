@@ -304,7 +304,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | `a clean consumer installs the packed packages` | `ci.yml` | `check-packed-install.py` |
 | `build & test (…)` | `ci.yml` | `check-coverage.py` |
 | `build docs site` | `ci.yml` | `check-doc-snippets.py` |
-| `formatting` | `ci.yml` | `check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-guide-output.py`<br>`check-no-private-references.py`<br>`check-package-description.py`<br>`check-readme-conversions.py`<br>`check-readme-coverage.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py` |
+| `formatting` | `ci.yml` | `check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-guide-output.py`<br>`check-no-private-references.py`<br>`check-package-description.py`<br>`check-readme-conversions.py`<br>`check-readme-coverage.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py`<br>`gen-repository-layout.py` |
 | `no native binaries / no banned packages` | `ci.yml` | `gen-third-party-notices.py`<br>`repair-lockfiles.py` |
 | `pack & verify .nupkg (…)` | `ci.yml` | `check-package-contents.py` |
 | `arm auto-merge if eligible` | `dependabot-automerge.yml` | `automerge-eligible.py` |
@@ -412,10 +412,41 @@ nothing else publishes.
 
 ## Repository layout
 
+**The library is split into per-concern projects under `src/`, and ships as ONE package.** If you
+are looking for a type, it is probably not in `src/DocToolkit/` — that project holds the format
+*converters*, and the editors live beside it: `DocxEditor` in `src/DocToolkit.Docx/`,
+`WorkbookEditor` in `src/DocToolkit.Xlsx/`, `PresentationEditor` in `src/DocToolkit.Pptx/`,
+`PdfEditor` in `src/DocToolkit.Pdf/`.
+
+A consumer never sees the split. The six non-published projects are built into `Ank.DocToolkit`, so
+`dotnet add package Ank.DocToolkit` gets all of them, and there is nothing extra to install.
+
+The block below is generated from the project files — if you add a project under `src/`, run
+`python scripts/gen-repository-layout.py` and commit the result, or CI's `formatting` job will fail.
+
+<!-- BEGIN GENERATED (scripts/gen-repository-layout.py) - do not edit by hand -->
+
 ```
-src/DocToolkit/                                         the library
-src/DocToolkit.Extensions.DependencyInjection/          DI extensions package
+PUBLISHED to nuget.org
+  src/DocToolkit/                                 Ank.DocToolkit
+  src/DocToolkit.Extensions.DependencyInjection/  Ank.DocToolkit.Extensions.DependencyInjection
+
+PACKED IN - built into a published package, never published alone
+  src/DocToolkit.Docx/                            into Ank.DocToolkit
+  src/DocToolkit.Html/                            into Ank.DocToolkit
+  src/DocToolkit.Pdf/                             into Ank.DocToolkit
+  src/DocToolkit.Pptx/                            into Ank.DocToolkit
+  src/DocToolkit.Primitives/                      into Ank.DocToolkit; referenced by Docx, Html, Pdf, Pptx, Xlsx
+  src/DocToolkit.Xlsx/                            into Ank.DocToolkit
+```
+
+<!-- END GENERATED (scripts/gen-repository-layout.py) -->
+
+The rest of the tree:
+
+```
 tests/                                                  the public-API approval guard, Stream-overload proofs, and the air-gap/dependency guards
 samples/                                                one runnable project per capability, each answering one question, on the published packages
 docfx/                                                  API docs source, published to GitHub Pages on release
+scripts/                                                the derived guards and generators CI runs; see the check table above
 ```
