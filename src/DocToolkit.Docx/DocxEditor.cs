@@ -1163,7 +1163,25 @@ public static class DocxEditor
         }
     }
 
-    /// <summary>One above the highest wp:docPr id anywhere in the package.</summary>
+    /// <summary>
+    /// One above the highest <c>wp:docPr</c> id in any part that can hold a drawing: the main
+    /// document, headers, footers, footnotes, endnotes and comments.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The comments part was missing until 2026-09-03, and it produced a real duplicate.</b>
+    /// Word lets a reviewer paste a picture straight into a comment, so a caller-supplied .docx
+    /// can carry a <c>wp:docPr</c> id in that part. Measured (A121): a body holding id 1 and a
+    /// comment holding id 2 got a new drawing numbered 2 as well — the same id in two parts, which
+    /// is the corruption this method exists to avoid.
+    /// </para>
+    /// <para>
+    /// This says <i>which</i> parts rather than "anywhere in the package", which is what it used to
+    /// claim while enumerating five. <c>GlossaryDocumentPart</c> is still not scanned: nothing has
+    /// measured whether a building block's drawing shares this id space, and an unverified claim is
+    /// worse than a stated limit.
+    /// </para>
+    /// </remarks>
     private static uint NextDrawingId(MainDocumentPart main)
     {
         var highest = AllRoots(main)
@@ -1185,6 +1203,7 @@ public static class DocxEditor
                 yield return footer.Footer!;
             if (part.FootnotesPart?.Footnotes is { } footnotes) yield return footnotes;
             if (part.EndnotesPart?.Endnotes is { } endnotes) yield return endnotes;
+            if (part.WordprocessingCommentsPart?.Comments is { } comments) yield return comments;
         }
     }
 

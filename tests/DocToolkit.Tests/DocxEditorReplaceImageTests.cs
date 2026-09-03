@@ -1,6 +1,9 @@
+using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using A = DocumentFormat.OpenXml.Drawing;
+using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 
 namespace DocToolkit.Tests;
 
@@ -439,5 +442,165 @@ public class DocxEditorReplaceImageTests
         Assert.True(newErrors.Count == 0,
             "ReplaceImage must not introduce new schema validation errors:\n" +
             string.Join("\n", newErrors.Select(e => "  " + e)));
+    }
+
+    /// <summary>
+    /// A .docx carrying the photo placeholder in the body, one drawing already in the body at
+    /// <paramref name="bodyId"/>, and one planted at <paramref name="plantedId"/> inside either
+    /// the comments part or the footnotes part.
+    /// </summary>
+    /// <remarks>
+    /// Authored by hand rather than through the library, deliberately. The question is about a
+    /// document a CALLER supplies — one a reviewer made in Word by pasting a picture into a
+    /// comment — and no DocToolkit API puts a drawing in a comment, so there is no
+    /// library-authored version of this input to compare against. The test asserts the fixture's
+    /// own shape before using it rather than trusting it.
+    /// </remarks>
+    private static byte[] BuildWithPlantedDrawing(string where, uint plantedId, uint bodyId)
+    {
+        var ms = new MemoryStream();
+        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            var placeholder = new Paragraph(new Run(new Text("Before {{photo}} after.")));
+            var body = new Body(placeholder, new SectionProperties());
+            main.Document = new Document(body);
+
+            var bodyImage = main.AddImagePart(ImagePartType.Png);
+            using (var s = new MemoryStream(ImageFixtures.Png())) bodyImage.FeedData(s);
+            body.InsertBefore(
+                new Paragraph(new Run(
+                    PlantedDrawing(bodyId, main.GetIdOfPart(bodyImage), "in-body"))),
+                placeholder);
+
+            if (where == "comments")
+            {
+                var comments = main.AddNewPart<WordprocessingCommentsPart>();
+                var img = comments.AddImagePart(ImagePartType.Png);
+                using (var s = new MemoryStream(ImageFixtures.Png())) img.FeedData(s);
+                comments.Comments = new Comments(
+                    new Comment(new Paragraph(new Run(
+                        PlantedDrawing(plantedId, comments.GetIdOfPart(img), "in-comment"))))
+                    { Id = "1", Author = "Reviewer", Initials = "R" });
+                comments.Comments.Save();
+            }
+            else
+            {
+                var footnotes = main.AddNewPart<FootnotesPart>();
+                var img = footnotes.AddImagePart(ImagePartType.Png);
+                using (var s = new MemoryStream(ImageFixtures.Png())) img.FeedData(s);
+                footnotes.Footnotes = new Footnotes(
+                    new Footnote(new Paragraph(new Run(
+                        PlantedDrawing(plantedId, footnotes.GetIdOfPart(img), "in-footnote"))))
+                    { Id = 2 });
+                footnotes.Footnotes.Save();
+            }
+
+            main.Document.Save();
+        }
+        return ms.ToArray();
+    }
+
+    private static Drawing PlantedDrawing(uint id, string relationshipId, string name)
+    {
+        var picture = new PIC.Picture(
+            new PIC.NonVisualPictureProperties(
+                new PIC.NonVisualDrawingProperties { Id = 0U, Name = name },
+                new PIC.NonVisualPictureDrawingProperties()),
+            new PIC.BlipFill(
+                new A.Blip { Embed = relationshipId },
+                new A.Stretch(new A.FillRectangle())),
+            new PIC.ShapeProperties(
+                new A.Transform2D(
+                    new A.Offset { X = 0L, Y = 0L },
+                    new A.Extents { Cx = 990000L, Cy = 792000L }),
+                new A.PresetGeometry(new A.AdjustValueList())
+                { Preset = A.ShapeTypeValues.Rectangle }));
+
+        var graphicData = new A.GraphicData(picture)
+        {
+            Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture",
+        };
+
+        var inline = new DW.Inline(
+            new DW.Extent { Cx = 990000L, Cy = 792000L },
+            new DW.DocProperties { Id = id, Name = name },
+            new A.Graphic(graphicData))
+        {
+            DistanceFromTop = 0U,
+            DistanceFromBottom = 0U,
+            DistanceFromLeft = 0U,
+            DistanceFromRight = 0U,
+        };
+
+        return new Drawing(inline);
+    }
+
+    /// <summary>Every wp:docPr id in the package, tagged with the part that holds it.</summary>
+    private static List<(string Part, uint Id)> AllDrawingIds(byte[] docx)
+    {
+        var found = new List<(string, uint)>();
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var main = doc.MainDocumentPart!;
+
+        void Collect(string part, OpenXmlPartRootElement? root)
+        {
+            if (root is null) return;
+            foreach (var p in root.Descendants<DW.DocProperties>())
+                if (p.Id?.Value is { } v) found.Add((part, v));
+        }
+
+        Collect("document", main.Document);
+        foreach (var h in main.HeaderParts) Collect("header", h.Header);
+        foreach (var f in main.FooterParts) Collect("footer", f.Footer);
+        Collect("footnotes", main.FootnotesPart?.Footnotes);
+        Collect("endnotes", main.EndnotesPart?.Endnotes);
+        Collect("comments", main.WordprocessingCommentsPart?.Comments);
+        return found;
+    }
+
+    [Theory]
+    [InlineData("comments")]
+    [InlineData("footnotes")]
+    public void ReplaceImage_DoesNotReuseAnIdHeldInAnyPart(string where)
+    {
+        // A drawing can live in a part NextDrawingId has to reach, and a comment is one of them:
+        // Word lets a reviewer paste a picture straight into one, so a caller-supplied .docx really
+        // can carry a wp:docPr id there. AllRoots enumerated five parts and the comments part was
+        // not among them, so the id counter restarted below whatever the comment held.
+        //
+        // Measured 2026-09-03 (A121) before this test existed: body holding id 1, comment holding
+        // id 2, and ReplaceImage handed the NEW drawing id 2 as well - the same id in two parts,
+        // which is what makes Word declare the file corrupt and offer to repair it.
+        //
+        // THE FOOTNOTES CASE IS THE CONTROL, and is why this is a Theory rather than one test. It
+        // is the identical fixture with the planted drawing moved to a part AllRoots already
+        // reached, and it passed throughout. Without it a failure here could be the fixture, the
+        // placeholder or the id arithmetic; with it, the only difference is which part holds the
+        // drawing.
+        var docx = BuildWithPlantedDrawing(where, plantedId: 2U, bodyId: 1U);
+
+        // The fixture asserts its own shape first. A fixture that does not hold what it claims
+        // measures itself - the trap this repository already paid for with hand-built SdtBlocks.
+        var before = AllDrawingIds(docx).OrderBy(x => x.Part).ThenBy(x => x.Id).ToList();
+        Assert.Equal(new List<(string, uint)> { ("document", 1U), (where, 2U) }
+                .OrderBy(x => x.Item1).ThenBy(x => x.Item2).ToList(),
+            before);
+
+        var filled = DocxEditor.ReplaceImage(docx, "{{photo}}", ImageFixtures.Png());
+
+        var after = AllDrawingIds(filled);
+        var shown = string.Join(", ", after.Select(x => $"{x.Id}@{x.Part}"));
+
+        // Named rather than counted, because "expected 3, actual 2" cannot tell you WHICH of the
+        // three went missing - and the two candidates (the insert never happened, or a part was
+        // dropped on the round-trip) call for opposite fixes.
+        Assert.True(after.Count == 3,
+            $"expected the planted drawing, the pre-existing body drawing and the inserted one, got: {shown}");
+        Assert.True(after.Count == after.Select(x => x.Id).Distinct().Count(),
+            $"a wp:docPr id is reused across parts, which makes Word offer to repair the file: {shown}");
+
+        AssertValid(filled);
     }
 }
