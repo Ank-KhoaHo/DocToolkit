@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate both packable projects' lockfiles and THIRD-PARTY-NOTICES.txt.
+"""Regenerate every lockfile under src/ and THIRD-PARTY-NOTICES.txt.
 
 WHY THIS EXISTS. Dependabot's NuGet updater rewrites `packages.lock.json` with
 `net8.0` ONLY, dropping `net10.0`. Measured 2026-08-13 across all three open
@@ -43,8 +43,9 @@ USAGE
     python scripts/repair-lockfiles.py            # repair
     python scripts/repair-lockfiles.py --check    # report, change nothing
 
-`--check` is what CI would run: it exits non-zero if either lockfile is missing a
-target framework the project builds, WITHOUT rewriting anything.
+`--check` is what CI runs: it exits non-zero if ANY lockfile under src/ is missing a
+target framework the project builds, WITHOUT rewriting anything. Which projects those
+are is read from disk - see projects() for why that is not a list.
 """
 from __future__ import annotations
 
@@ -56,11 +57,33 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-PROJECTS = [
-    ROOT / "src" / "DocToolkit" / "DocToolkit.csproj",
-    ROOT / "src" / "DocToolkit.Extensions.DependencyInjection"
-         / "DocToolkit.Extensions.DependencyInjection.csproj",
-]
+
+def projects() -> list[pathlib.Path]:
+    """Every project under src/, read from disk rather than listed here.
+
+    IT WAS A TWO-ENTRY LIST, and it went stale the moment #353 split the library into per-concern
+    projects. src/Directory.Build.props sets <RestorePackagesWithLockFile>, so all EIGHT projects
+    under src/ commit a lockfile - and `--check` was reading two of them while printing
+    "Every lockfile covers every target framework" for the other six.
+
+    Measured 2026-09-03 (C41), not inferred: src/DocToolkit.Docx/packages.lock.json was truncated
+    to net8.0 - the exact Dependabot failure mode this docstring opens with - and this script
+    exited 0. The `--locked-mode` step two lines later in ci.yml then failed instead, with NU1004
+    and its labels the wrong way round (Trap 1). So the truncation could never reach a release;
+    what was lost was the diagnostic that names the project, the framework and the repair.
+
+    Derived for exactly the reason target_frameworks() below is derived, and the sentence there
+    turned out to describe the list twenty lines above it: a list kept in a script goes stale
+    silently, and staleness in THIS direction means the check passes while a framework is missing.
+
+    Globs the CSPROJ rather than the lockfile on purpose - a project whose packages.lock.json is
+    missing entirely is a failure this script has always reported, and globbing lockfiles would
+    make it invisible.
+    """
+    found = sorted((ROOT / "src").glob("*/*.csproj"))
+    if not found:
+        sys.exit("error: no project under src/ - a run over nothing would report success")
+    return found
 
 
 def target_frameworks() -> list[str]:
@@ -94,10 +117,12 @@ def run(*args: str) -> None:
 def main() -> int:
     check_only = "--check" in sys.argv[1:]
     expected = set(target_frameworks())
-    print(f"projects build: {', '.join(sorted(expected))}\n")
+    all_projects = projects()
+    print(f"projects build: {', '.join(sorted(expected))}")
+    print(f"checking {len(all_projects)} projects under src/\n")
 
     broken = []
-    for project in PROJECTS:
+    for project in all_projects:
         found = lockfile_frameworks(project)
         name = project.parent.name
         if found is None:
@@ -125,8 +150,14 @@ def main() -> int:
     if not broken:
         print("\nNothing to repair - regenerating anyway, since you asked.")
 
+    # RESTORING EACH ONE IS REDUNDANT AND DELIBERATE. Restoring a project restores its whole
+    # project graph, so `dotnet restore src/DocToolkit/DocToolkit.csproj` alone already rewrites
+    # seven of the eight lockfiles - measured, and it is why ci.yml's --locked-mode step catches
+    # a truncation `--check` used to miss. Naming the two roots instead would be faster and would
+    # reintroduce exactly the assumption that went stale here: that the graph reaches everything
+    # committed. It does today. The check above is what tells you when it stops.
     print()
-    for project in PROJECTS:
+    for project in all_projects:
         print(f"restoring {project.parent.name} ...")
         run("dotnet", "restore", str(project), "--force-evaluate")
 
@@ -136,12 +167,12 @@ def main() -> int:
     run(sys.executable, str(ROOT / "scripts" / "gen-third-party-notices.py"))
 
     print()
-    for project in PROJECTS:
+    for project in all_projects:
         found = lockfile_frameworks(project) or []
         print(f"  {project.parent.name}: [{', '.join(sorted(found))}]")
 
     still_broken = [
-        p.parent.name for p in PROJECTS
+        p.parent.name for p in all_projects
         if expected - set(lockfile_frameworks(p) or [])
     ]
     if still_broken:
