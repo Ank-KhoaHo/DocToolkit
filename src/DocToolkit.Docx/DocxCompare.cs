@@ -10,9 +10,19 @@ namespace DocToolkit;
 /// </summary>
 /// <remarks>
 /// <b>The result is an ordinary .docx carrying revisions</b>, not a report — so Word shows it the
-/// way it shows any tracked-changes document, and <c>DocxEditor.Revisions</c>,
-/// <c>AcceptRevisions</c> and <c>RejectRevisions</c> all read and apply it without knowing it came
-/// from here.
+/// way it shows any tracked-changes document, and <see cref="DocxReview"/> reads and applies it
+/// without knowing it came from here: <see cref="DocxReview.Inspect(byte[])"/> returns a
+/// <see cref="DocxReviewReport"/> whose <see cref="DocxReviewReport.Revisions"/> lists them, and
+/// <see cref="DocxReview.AcceptRevisions(byte[])"/> /
+/// <see cref="DocxReview.RejectRevisions(byte[])"/> resolve them.
+///
+/// <para>
+/// <b>Every member named above is a <c>cref</c>, not a code span, on purpose.</b> This paragraph
+/// shipped naming <c>DocxEditor.Revisions</c> — a type that has no such member — and nothing
+/// caught it: a wrong name inside <c>&lt;c&gt;</c> is prose, while a wrong <c>cref</c> is CS1574
+/// and this repository builds with <c>TreatWarningsAsErrors</c>. The package README had it right
+/// the whole time, which is the usual shape of the drift.
+/// </para>
 ///
 /// <para>
 /// <b>Paragraph text is what gets compared, and everything else is REPORTED rather than silently
