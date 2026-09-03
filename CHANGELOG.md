@@ -10,6 +10,32 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.56.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.55.0...v0.56.0) (2026-09-02)
+
+
+### Added
+
+* **Core:** `DocxCompare` compares two versions of a document and returns the later one with the
+  differences marked as **tracked changes**. The result is an ordinary `.docx` carrying revisions,
+  not a report, so Word shows it the way it shows any tracked-changes document and
+  `DocxEditor.Revisions`, `AcceptRevisions` and `RejectRevisions` all read and apply it.
+* **Core:** `DocxCompare.CompareWithReport` returns the same document plus a warning naming every
+  construct that was present but not compared. **Read it** — `HasLoss` is the signal that the
+  comparison covers less than the document does.
+
+### Known limits of `DocxCompare`, stated here because the name promises more
+
+* **Paragraph text is what gets compared.** **Tables are reported, never diffed** — a row inserted
+  mid-table is not the same edit as its text appearing elsewhere, and marking it as one would be a
+  wrong answer rather than a coarse one.
+* **A formatting-only change is not detected at all**, and is not reported as a text change either.
+  A paragraph whose text is unchanged but whose styling differs produces no revision.
+* **Paragraphs are paired by position**, so a paragraph inserted or removed in the middle shifts
+  every pair after it and its neighbours read as heavily rewritten. That case is reported.
+* **Per-run formatting inside a REWRITTEN paragraph is not preserved** — the first run's properties
+  are carried onto the rebuilt runs. An unchanged paragraph is left completely alone, so a document
+  compared with itself produces no revisions and keeps every run as it was.
+
 ## [0.55.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.54.0...v0.55.0) (2026-09-02)
 
 ### Added
