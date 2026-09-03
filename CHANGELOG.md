@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.57.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.0...v0.57.1) (2026-09-03)
+
+
+### Fixed
+
+* **core:** count drawing ids in the comments part when inserting an image ([#500](https://github.com/Ank-KhoaHo/DocToolkit/issues/500)) ([00b6593](https://github.com/Ank-KhoaHo/DocToolkit/commit/00b65934fe86873b6e535b5642cde573da65d572))
+
 ## [0.57.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.56.0...v0.57.0) (2026-09-03)
 
 
