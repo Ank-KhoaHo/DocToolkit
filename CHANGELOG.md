@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.57.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.56.0...v0.57.0) (2026-09-03)
+
+
+### Added
+
+* **extensions:** mirror document comparison on IDocxCompare (A118-DI) ([#496](https://github.com/Ank-KhoaHo/DocToolkit/issues/496)) ([f2e123f](https://github.com/Ank-KhoaHo/DocToolkit/commit/f2e123f5974156ee02aa5e2928e8bb625d6172e9))
+
 ## [0.56.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.55.0...v0.56.0) (2026-09-02)
 
 
