@@ -19,6 +19,11 @@ namespace DocToolkit.Extensions.DependencyInjection
         string ExtractText(byte[] doc);
         System.Threading.Tasks.Task<string> ExtractTextAsync(System.IO.Stream source, System.Threading.CancellationToken ct = default);
     }
+    public interface IDocxCompare
+    {
+        byte[] Compare(byte[] original, byte[] revised, string author);
+        DocToolkit.ConversionResult<byte[]> CompareWithReport(byte[] original, byte[] revised, string author);
+    }
     public interface IDocxEditor
     {
         byte[] AddBookmark(byte[] docx, int paragraphIndex, string name);

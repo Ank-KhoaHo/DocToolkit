@@ -60,7 +60,7 @@
       shipped - which is why the mirror lags one release, structurally, and why this bump is the
       first step rather than an afterthought.
     -->
-    <PackageReference Include="Ank.DocToolkit" Version="[0.54.0, )" />
+    <PackageReference Include="Ank.DocToolkit" Version="[0.56.0, )" />
 
     <!--
       8.0.2, not 8.0.0, since 0.15.0. PDFsharp raised Microsoft.Extensions.Logging.Abstractions
