@@ -433,20 +433,18 @@ jobs:
       - name: Run the trimmed application
         run: ./tests/TrimProbe/bin/Release/net8.0/linux-x64/publish/TrimProbe
 
-  # The same shape as trim-guard, one step stronger, and it exists to settle a question this
-  # repository has so far refused to answer dishonestly.
-  #
-  # src/DocToolkit deliberately does NOT set IsAotCompatible. CLAUDE.md records why: the claim was
-  # never verified, because the machine it was attempted on had no platform linker so ILC never
-  # ran - reproduced again on 2026-08-14, where the managed compile and ILC invocation both
-  # succeeded and only the final native link failed for want of MSVC. "An unverified compatibility
-  # claim is worse than an absent one", so the claim stayed absent.
-  #
-  # This job is the venue that machine could not be. AOT is strictly stronger than trimming: it
+  # The same shape as trim-guard, one step stronger. AOT is strictly stronger than trimming: it
   # implies PublishTrimmed and SelfContained AND forbids runtime code generation. ClosedXML,
-  # OpenXML and OfficeIMO are reflection-heavy, so THIS JOB FAILING IS A GENUINELY POSSIBLE AND
-  # USEFUL OUTCOME - it would be measured evidence that IsAotCompatible must stay unset, which is
-  # worth as much as a pass. What it must not do is be quietly deleted if it goes red.
+  # OpenXML and OfficeIMO are reflection-heavy, so this job PUBLISHES AND RUNS a probe over the
+  # real dependency closure rather than trusting a compiler flag.
+  #
+  # This job is what earns the claim, and the claim is now public. src/DocToolkit/DocToolkit.csproj
+  # sets IsAotCompatible as an AssemblyMetadata item, and ROADMAP.md states that the core package
+  # is native-AOT compatible. Both hold only for as long as this job runs and passes.
+  #
+  # So a red run here is a REGRESSION AGAINST A SHIPPED CLAIM, not an interesting finding, and it
+  # must not be quietly deleted to make the build green. If this job is ever removed, the claim
+  # has to come out of ROADMAP.md in the same change.
   #
   # tests/AotProbe compiles TrimProbe's Program.cs rather than copying it, so the stronger guard
   # can never end up exercising less than the weaker one.
