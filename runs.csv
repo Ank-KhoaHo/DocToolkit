@@ -255,3 +255,12 @@ date,workflow,runs
 2026-09-04,release-please,1
 2026-09-05,nuget stats,1
 2026-09-06,nuget stats,1
+2026-09-07,CI,1
+2026-09-07,CodeQL,2
+2026-09-07,Dependabot Updates,5
+2026-09-07,Dependabot auto-merge,1
+2026-09-07,Dependency report,1
+2026-09-07,Install smoke test,1
+2026-09-07,Mutation testing,1
+2026-09-07,Release PR automerge guard,1
+2026-09-07,nuget stats,1
