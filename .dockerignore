@@ -1,0 +1,86 @@
+# What the Docker build context must NOT carry.
+#
+# One file governs BOTH images, because both are built from the repository root - see ci.yml's
+# `linux container build & test` job:
+#
+#   docker build -f Dockerfile.linux-test -t doctoolkit-linux-test .
+#   docker build -f samples/Container/Dockerfile -t doctoolkit-sample .
+#
+# A .dockerignore is named after the Dockerfile only when it sits beside it as
+# `<dockerfile>.dockerignore`; a root-level one applies to every build whose context is the root.
+# Do not add a second copy next to samples/Container/Dockerfile - it would shadow this one for
+# that image and the two would drift.
+#
+# THIS IS A CORRECTNESS RULE FIRST AND A SIZE RULE SECOND.
+#
+# Dockerfile.linux-test exists to prove ONE thing: that a clean image built from only the paths
+# its COPY list names will restore, build and pass. Without this file, `COPY src/ tests/ samples/`
+# swept every local `bin/` and `obj/` directory in alongside the sources - 56 of them, about
+# 1.99 GB - so the container was handed the host's prebuilt assemblies and stale MSBuild assets.
+# A source file, a props file or a whole project missing from the COPY list could still resolve
+# against that output, and the job would report green on a tree that cannot actually build from
+# what it lists. The check was only ever as honest as an empty working tree, and a maintainer's
+# working tree is never empty. This is the same failure the Dockerfile's own comment records
+# twice (PR #107's Directory.Build.props, then the SDK pin) - found by reading the file, which is
+# not a process.
+#
+# The rule that makes the list below decidable: THE CONTEXT SHOULD LOOK LIKE A CLEAN CHECKOUT.
+# Everything named here is either build output or local-only maintainer material - by definition
+# absent from a fresh `git clone`, which is all a CI runner ever has. Nothing here is a source
+# file, so excluding it can only remove what CI would not have had either.
+#
+# It is NOT generated from .gitignore and must not be. They answer different questions - one what
+# may be published, the other what may be built from - and .gitignore withholds files (docs/,
+# CLAUDE.md, BACKLOG.html) for a publication reason that says nothing about a build. Where they
+# overlap, keep both in step by hand.
+
+# ─── .NET build output ───────────────────────────────────────────────
+# The reason this file exists. `**/` matters: these sit one and two levels down, inside the
+# directories that ARE copied.
+**/bin
+**/obj
+
+# ─── Regenerated reports ─────────────────────────────────────────────
+# Test, mutation, benchmark and coverage output. Two TestResults/ directories sit INSIDE
+# tests/*/ , which is copied - the others are at the root and merely bloat the context.
+**/TestResults
+StrykerOutput
+BenchmarkDotNet.Artifacts
+
+# ─── Packed output and the local feed ────────────────────────────────
+# 1.37 GB on this machine, and a stray `.nupkg` in the context is the one artefact that could let
+# a restore resolve THIS package from disk instead of from the project graph under test.
+artifacts
+local-feed
+**/*.nupkg
+**/*.snupkg
+
+# ─── Generated docs site ─────────────────────────────────────────────
+# docfx/_site is rendered output; docfx/api is YAML generated from the assemblies.
+docfx/_site
+docfx/api
+
+# ─── Build-time-only Node packages ───────────────────────────────────
+# Installed by the `commit-format` check (scripts/check-commit-parses.mjs) and reaching neither
+# shipped package nor either image.
+**/node_modules
+
+# ─── Local-only maintainer material ──────────────────────────────────
+# samples/CLAUDE.md is the one that is not merely cosmetic: it lives inside a copied directory,
+# so without this line it ships into the image while being absent from every clean checkout.
+**/CLAUDE.md
+BACKLOG.html
+DEVELOPMENT-CHECKLIST.md
+docs
+spike
+.superpowers
+
+# ─── VCS, worktrees, editor and OS cruft ─────────────────────────────
+# Nothing in either image reads git history, and .worktrees/ can hold a second full checkout.
+.git
+.worktrees
+.vs
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db

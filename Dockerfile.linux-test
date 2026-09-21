@@ -44,6 +44,15 @@ WORKDIR /src
 # ran it. ci.yml's `linux container build & test` job now does, on every push and pull request, so
 # an incomplete COPY list fails a check instead of waiting to be noticed. Keep it that way: this
 # file is only worth having if something runs it.
+#
+# `.dockerignore` IS PART OF THAT CLAIM, and it is a correctness file rather than a size one. A
+# `COPY <dir>/` takes the directory as the build context holds it, so without those exclusions a
+# maintainer's 56 local bin/ and obj/ directories came in alongside the sources: restore read the
+# HOST's project.assets.json and dotnet test loaded the HOST's prebuilt DLLs, and a path missing
+# from the list below still produced a green run. The job that exists to prove the list is complete
+# was the one job that could not detect an incomplete one. Do not weaken that file, and do not add
+# a second copy beside samples/Container/Dockerfile - a <dockerfile>.dockerignore shadows the root
+# one for that image alone, and the two would drift.
 COPY global.json Directory.Build.props DocToolkit.sln ./
 COPY src/ ./src/
 COPY tests/ ./tests/
