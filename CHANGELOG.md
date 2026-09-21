@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.57.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.1...v0.57.2) (2026-09-21)
+
+
+### Fixed
+
+* **ci:** add .dockerignore so the container guard cannot pass on host build output ([d9291ba](https://github.com/Ank-KhoaHo/DocToolkit/commit/d9291ba6321cfbd64433df71b7d511600cfe1d46))
+
 ## [0.57.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.0...v0.57.1) (2026-09-03)
 
 
