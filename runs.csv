@@ -302,3 +302,12 @@ date,workflow,runs
 2026-09-25,nuget stats,1
 2026-09-26,nuget stats,1
 2026-09-27,nuget stats,1
+2026-09-28,CI,8
+2026-09-28,CodeQL,4
+2026-09-28,Dependabot Updates,7
+2026-09-28,Dependabot auto-merge,3
+2026-09-28,Dependency report,1
+2026-09-28,Install smoke test,1
+2026-09-28,Mutation testing,1
+2026-09-28,Release PR automerge guard,3
+2026-09-28,nuget stats,1
