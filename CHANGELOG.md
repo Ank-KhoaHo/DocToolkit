@@ -15,7 +15,11 @@ repo-wide tooling (CI, release pipeline).
 
 ### Fixed
 
-* **ci:** add .dockerignore so the container guard cannot pass on host build output ([d9291ba](https://github.com/Ank-KhoaHo/DocToolkit/commit/d9291ba6321cfbd64433df71b7d511600cfe1d46))
+* **Neither package's code changed since 0.57.1.** This release carries repository tooling only.
+* The Linux container test job now has a `.dockerignore`, so it can no longer pass by reusing
+  build output copied in from the host.
+* Build and test tooling updated: docfx 2.81.0, Stryker 5.0.0, coverlet 10.1.0 and
+  Microsoft.NET.Test.Sdk 18.10.1. None of these ships inside either package.
 
 ## [0.57.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.0...v0.57.1) (2026-09-03)
 
