@@ -274,7 +274,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -296,7 +296,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -318,7 +318,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -340,7 +340,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -383,7 +383,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -692,7 +692,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -714,7 +714,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -736,7 +736,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -758,7 +758,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
@@ -801,7 +801,7 @@
         "dependencies": {
           "AngleSharp": "[1.7.2, )",
           "ClosedXML": "[0.105.1, )",
-          "DocToolkit.Primitives": "[0.44.1, )",
+          "DocToolkit.Primitives": "[0.57.1, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "HtmlToOpenXml.dll": "[3.5.0, )",
           "OfficeIMO.Excel": "[3.2.6, )",
