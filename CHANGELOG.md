@@ -10,6 +10,17 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.57.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.1...v0.57.2) (2026-10-03)
+
+
+### Fixed
+
+* **Neither package's code changed since 0.57.1.** This release carries repository tooling only.
+* The Linux container test job now has a `.dockerignore`, so it can no longer pass by reusing
+  build output copied in from the host.
+* Build and test tooling updated: docfx 2.81.0, Stryker 5.0.0, coverlet 10.1.0 and
+  Microsoft.NET.Test.Sdk 18.10.1. None of these ships inside either package.
+
 ## [0.57.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.0...v0.57.1) (2026-09-03)
 
 
