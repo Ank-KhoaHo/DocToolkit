@@ -317,3 +317,15 @@ date,workflow,runs
 2026-10-01,Real-world corpus,1
 2026-10-01,nuget stats,1
 2026-10-02,nuget stats,1
+2026-10-03,CI,16
+2026-10-03,CodeQL,14
+2026-10-03,Dependabot Updates,2
+2026-10-03,Dependabot auto-merge,7
+2026-10-03,Docs,2
+2026-10-03,Install smoke test,2
+2026-10-03,Mutation testing,1
+2026-10-03,Release,2
+2026-10-03,Release PR automerge guard,7
+2026-10-03,Release curation state,2
+2026-10-03,nuget stats,1
+2026-10-03,release-please,7
