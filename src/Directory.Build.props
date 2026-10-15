@@ -166,7 +166,7 @@
 
     <!--
       Promoted from TRANSITIVE to direct for DocToDocxConverter (legacy .doc import). It arrived
-      transitively through the four packages above, so the resolved closure does not change - this
+      transitively through the four OfficeIMO packages above, so the resolved closure does not change - this
       only makes the dependency this code binds against explicit, the same bookkeeping the PDF
       packages already get. A type used directly should be named directly: a transitive package can
       stop being pulled in by a minor bump of whatever pulled it, and nothing would say why the
