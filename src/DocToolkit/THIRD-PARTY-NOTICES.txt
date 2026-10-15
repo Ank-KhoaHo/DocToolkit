@@ -62,7 +62,7 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - DocumentFormat.OpenXml.Framework 3.5.1 - MIT (transitive) - https://github.com/dotnet/Open-XML-SDK
 - ExcelNumberFormat 1.1.0 - MIT (transitive) - https://github.com/andersnm/ExcelNumberFormat
 - HtmlToOpenXml.dll 3.5.0 - MIT (direct) - https://github.com/onizet/html2openxml
-- Microsoft.Bcl.Cryptography 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
+- Microsoft.Bcl.Cryptography 10.0.13 - MIT (transitive) - https://github.com/dotnet/dotnet
 - Microsoft.Extensions.DependencyInjection.Abstractions 8.0.2 - MIT (transitive) - https://github.com/dotnet/runtime
 - Microsoft.Extensions.Logging.Abstractions 8.0.3 - MIT (transitive) - https://github.com/dotnet/runtime
 - OfficeIMO.Core 3.2.6 - MIT (transitive) - https://github.com/EvotecIT/OfficeIMO
@@ -83,13 +83,13 @@ eighteen. Everything outside the markers is hand-written and stays that way.
 - PDFsharp 6.2.4 - MIT (direct) - https://github.com/empira/PDFsharp
 - RBush.Signed 4.0.0 - MIT (transitive) - https://github.com/viceroypenguin/RBush
 - SixLabors.Fonts 1.0.1 - Apache-2.0 (direct) - https://github.com/SixLabors/Fonts
-- System.Formats.Asn1 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
+- System.Formats.Asn1 10.0.13 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 10.0.2 - MIT (transitive) - https://github.com/dotnet/dotnet
 - System.IO.Packaging 8.0.1 - MIT (transitive) - https://github.com/dotnet/runtime
-- System.Security.Cryptography.Pkcs 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
-- System.Security.Cryptography.Xml 10.0.10 - MIT (transitive) - https://github.com/dotnet/dotnet
+- System.Security.Cryptography.Pkcs 10.0.13 - MIT (transitive) - https://github.com/dotnet/dotnet
+- System.Security.Cryptography.Xml 10.0.13 - MIT (direct) - https://github.com/dotnet/dotnet
 
-Totals: 35 packages (16 direct, 19 transitive) - 2 Apache-2.0, 33 MIT.
+Totals: 35 packages (17 direct, 18 transitive) - 2 Apache-2.0, 33 MIT.
 A package resolving to two versions across the two target frameworks is counted once per version,
 because an air-gapped consumer has to mirror both onto their own feed.
 --- END GENERATED ---

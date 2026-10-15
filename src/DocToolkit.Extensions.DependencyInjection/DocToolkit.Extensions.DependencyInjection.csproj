@@ -75,6 +75,15 @@
     -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="[8.0.2, )" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="[8.0.0, )" />
+
+    <!--
+      The same C43 pin src/Directory.Build.props carries, repeated because this package does not
+      inherit that ItemGroup. Every core version up to 0.57.2 resolves 10.0.10 through
+      OfficeIMO.Security, so without this a consumer of this package gets the vulnerable version
+      whatever core they land on. Remove it with the core's pin, or once the core floor above
+      reaches a release that carries it.
+    -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="[10.0.13, )" />
   </ItemGroup>
 
   <!--
