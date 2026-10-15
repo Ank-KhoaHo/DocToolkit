@@ -1,6 +1,6 @@
 # nuget.org downloads
 
-Generated from 68 day(s) of samples, 2026-08-07 to 2026-10-13.
+Generated from 69 day(s) of samples, 2026-08-07 to 2026-10-14.
 
 | package | version | total | recent Δ | CI runs /6d | trend |
 |---|---|---:|---:|---:|---|
