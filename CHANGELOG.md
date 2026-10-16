@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.57.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.2...v0.57.3) (2026-10-16)
+
+
+### Fixed
+
+* lift System.Security.Cryptography.Xml to 10.0.13 past five advisories (C43) ([#525](https://github.com/Ank-KhoaHo/DocToolkit/issues/525)) ([da7cc6e](https://github.com/Ank-KhoaHo/DocToolkit/commit/da7cc6efed5d8f4f6ad3723110125e1a82860600))
+
 ## [0.57.2](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.1...v0.57.2) (2026-10-03)
 
 
