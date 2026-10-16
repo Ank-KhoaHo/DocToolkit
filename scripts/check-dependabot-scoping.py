@@ -31,14 +31,24 @@ only the dependency name is compared, never the update-types.
 A SECOND invariant is checked here too, added 2026-08-09 after the same failure
 arrived from a different direction: a sample that pins a FIXED version needs an
 ignore in the root block, because the root block sees DocToolkit.sln and a
-solution reaches every project. Both invariants derive their expected set from
-the repository rather than from a list kept in this file.
+solution reaches every project.
+
+A THIRD invariant, added 2026-10-16 (C44): every test-only package and every
+manifest tool has ONE owning block. The tests and root blocks both reached both,
+so each such bump opened as two to four PRs. The root block must ignore the
+packages only tests/ references; the tests block must ignore the tools in
+.config/dotnet-tools.json.
+
+All three invariants derive their expected set from the repository rather than
+from a list kept in this file.
 """
 
 import glob
 import io
+import json
 import pathlib
 import re
+import subprocess
 import sys
 
 CONFIG = ".github/dependabot.yml"
@@ -169,6 +179,49 @@ def shipped_packages():
         sys.exit(f"::error::No PackageReference parsed from {props}. A derivation that finds "
                  "nothing would make this check pass vacuously.")
     return names
+
+
+def test_only_packages(test_directories):
+    """Packages the test projects reference and nothing else in the repository does.
+
+    Read from TRACKED files via git, not a recursive glob: a maintainer's samples/ holds over a
+    gigabyte of bin/ and obj/, and a package that src/, samples/ or benchmarks/ also references
+    is not the tests block's alone to own.
+    """
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-files", "*.csproj", "*.props", "*.targets"],
+            capture_output=True, text=True, check=True).stdout.split()
+    except (OSError, subprocess.CalledProcessError) as error:
+        sys.exit(f"::error::git ls-files failed ({error}), so the test-only package set cannot "
+                 "be derived. Passing without it would be the vacuous green this script "
+                 "already refuses twice.")
+
+    prefixes = tuple(d.strip("/") + "/" for d in test_directories)
+    inside, outside = set(), set()
+    for path in tracked:
+        names = set(PACKAGE_REF_NAME.findall(io.open(path, encoding="utf-8").read()))
+        (inside if path.startswith(prefixes) else outside).update(names)
+
+    owned = inside - outside
+    if not owned:
+        sys.exit("::error::No test-only PackageReference found under "
+                 f"{', '.join(test_directories)}. A derivation that finds nothing would make "
+                 "the ownership check pass vacuously.")
+    return owned
+
+
+def manifest_tools():
+    """The tool names in .config/dotnet-tools.json, which the root block owns."""
+    try:
+        tools = json.load(io.open(".config/dotnet-tools.json", encoding="utf-8"))["tools"]
+    except (FileNotFoundError, KeyError, ValueError) as error:
+        sys.exit(f"::error::.config/dotnet-tools.json could not be read ({error}), so the "
+                 "tool set cannot be derived.")
+    if not tools:
+        sys.exit("::error::.config/dotnet-tools.json lists no tools, so the ownership check "
+                 "would pass vacuously.")
+    return set(tools)
 
 
 def main():
@@ -317,10 +370,58 @@ def main():
                     f"{csproj} pins `{name}` at a fixed version, but the root block does "
                     "not ignore it - the solution puts that project in its view")
 
+    # ---------------------------------------------------------------------------
+    # Third invariant: every package has ONE owning block.
+    #
+    # Added 2026-10-16 as C44, after two bursts in four days opened eleven PRs for six
+    # bumps. The tests block and the root block both reach the test projects (the root
+    # through the solution) and both reach .config/dotnet-tools.json, so each test or
+    # tool bump arrived twice - once grouped under chore:, once per package under ci: -
+    # and every NuGet copy truncated the src/ lockfiles and needed its own repair.
+    #
+    # The split follows what each block is for. The tests block owns the packages ONLY
+    # the test projects reference, which is why it groups them and prefixes chore:. The
+    # root block owns the tool manifest, which is the reason its comment gives for being
+    # rooted at "/". Each must ignore what the other owns.
+    #
+    # Both sets are derived - from the tests block's own csproj files and from the
+    # manifest - so a new test package or tool joins the requirement by being added.
+    # ---------------------------------------------------------------------------
+    tests = [b for b in nuget if b[1] and all(d.startswith("/tests/") for d in b[1])]
+    if len(tests) != 1 or root is None:
+        failures.append(f"expected one /tests/ block and one root block, found {len(tests)} "
+                        f"and {0 if root is None else 1} - the ownership check cannot run")
+    else:
+        test_owned = test_only_packages(tests[0][1])
+        tools = manifest_tools()
+
+        print()
+        print(f"{len(test_owned)} test-only package(s), owned by the tests block - the root "
+              "block must ignore them:")
+        for name in sorted(test_owned):
+            ok = name in root[2]
+            print(f"  {name} - {'OK' if ok else 'NOT IGNORED BY ROOT'}")
+            if not ok:
+                failures.append(
+                    f"the root block does not ignore `{name}`, which only the test projects "
+                    "reference - the tests block already bumps it, so each bump opens twice")
+
+        print()
+        print(f"{len(tools)} manifest tool(s), owned by the root block - the tests block must "
+              "ignore them:")
+        for name in sorted(tools):
+            ok = name in tests[0][2]
+            print(f"  {name} - {'OK' if ok else 'NOT IGNORED BY TESTS'}")
+            if not ok:
+                failures.append(
+                    f"the tests block does not ignore `{name}`, a .config/dotnet-tools.json "
+                    "tool - the root block already bumps it, so each bump opens twice")
+
     print()
     if not failures:
-        print("Every block that can reach src/ repeats the rules protecting it, and every "
-              "fixed-version sample pin is protected.")
+        print("Every block that can reach src/ repeats the rules protecting it, every "
+              "fixed-version sample pin is protected, and every test package and tool has "
+              "one owning block.")
         return 0
 
     for failure in failures:
