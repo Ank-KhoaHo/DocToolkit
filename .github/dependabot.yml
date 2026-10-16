@@ -141,6 +141,7 @@ updates:
       - dependency-name: "PDFsharp"
       - dependency-name: "PdfPig"
       - dependency-name: "SixLabors.Fonts"
+      - dependency-name: "System.Security.Cryptography.Xml"
 
   # ── Samples have no block of their own ──────────────────────────────────────
   # They reference the published packages as Version="*", so nothing needs to
@@ -237,6 +238,7 @@ updates:
       - dependency-name: "PDFsharp"
       - dependency-name: "PdfPig"
       - dependency-name: "SixLabors.Fonts"
+      - dependency-name: "System.Security.Cryptography.Xml"
 
   - package-ecosystem: github-actions
     directory: "/"
