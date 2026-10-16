@@ -142,6 +142,15 @@ updates:
       - dependency-name: "PdfPig"
       - dependency-name: "SixLabors.Fonts"
       - dependency-name: "System.Security.Cryptography.Xml"
+      # ── THE TOOL MANIFEST BELONGS TO THE ROOT BLOCK ─────────────────────────
+      # Added 2026-10-16, as C44. This block reaches .config/dotnet-tools.json too, so
+      # every tool bump arrived twice: grouped here under chore:, and alone from the
+      # root block under ci:. The root block is rooted at "/" FOR the manifest, so it
+      # keeps the tools and this block ignores them. check-dependabot-scoping.py
+      # derives this list from the manifest, so a new tool joins by being added.
+      - dependency-name: "cyclonedx"
+      - dependency-name: "docfx"
+      - dependency-name: "dotnet-stryker"
 
   # ── Samples have no block of their own ──────────────────────────────────────
   # They reference the published packages as Version="*", so nothing needs to
@@ -239,6 +248,20 @@ updates:
       - dependency-name: "PdfPig"
       - dependency-name: "SixLabors.Fonts"
       - dependency-name: "System.Security.Cryptography.Xml"
+      # ── TEST-ONLY PACKAGES BELONG TO THE TESTS BLOCK ────────────────────────
+      # Added 2026-10-16, as C44. The solution puts the test projects in this block's
+      # view, so every test bump arrived twice: grouped under chore: from the tests
+      # block, and once per package and project from here under ci:. The tests block
+      # groups them and keeps them out of the changelog, so it keeps them and this
+      # block ignores them. check-dependabot-scoping.py derives this list - packages
+      # only tests/ references - so a new test package joins by being added.
+      - dependency-name: "coverlet.collector"
+      - dependency-name: "Microsoft.Extensions.DependencyInjection"
+      - dependency-name: "Microsoft.NET.Test.Sdk"
+      - dependency-name: "Mono.Cecil"
+      - dependency-name: "PublicApiGenerator"
+      - dependency-name: "xunit"
+      - dependency-name: "xunit.runner.visualstudio"
 
   - package-ecosystem: github-actions
     directory: "/"
