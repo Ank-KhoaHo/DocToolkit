@@ -358,3 +358,14 @@ date,workflow,runs
 2026-10-15,Dependabot auto-merge,1
 2026-10-15,Release PR automerge guard,1
 2026-10-15,nuget stats,1
+2026-10-16,CI,19
+2026-10-16,CodeQL,16
+2026-10-16,Dependabot Updates,13
+2026-10-16,Dependabot auto-merge,10
+2026-10-16,Docs,2
+2026-10-16,Install smoke test,2
+2026-10-16,Release,2
+2026-10-16,Release PR automerge guard,10
+2026-10-16,Release curation state,2
+2026-10-16,nuget stats,1
+2026-10-16,release-please,6
