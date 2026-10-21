@@ -1,6 +1,6 @@
 # nuget.org downloads
 
-Generated from 74 day(s) of samples, 2026-08-07 to 2026-10-19.
+Generated from 75 day(s) of samples, 2026-08-07 to 2026-10-20.
 
 | package | version | total | recent Δ | CI runs /6d | trend |
 |---|---|---:|---:|---:|---|
@@ -92,7 +92,7 @@ Generated from 74 day(s) of samples, 2026-08-07 to 2026-10-19.
 | core | 0.3.0 | 105 | 0 /6d | 107 | `▁▁▁▁▁▁` |
 | core | 0.36.0 | 68 | — | 107 | `` |
 | core | 0.57.2 | 45 | 0 /6d | 107 | `▁▁▁▁▁▁` |
-| core | 0.57.3 | 0 | 0 /4d | 107 | `▁▁▁▁` |
+| core | 0.57.3 | 0 | 0 /5d | 107 | `▁▁▁▁▁` |
 | extensions | 0.42.0 | 663 | 0 /6d | 107 | `▁▁▁▁▁▁` |
 | extensions | 0.12.0 | 655 | 0 /6d | 107 | `▁▁▁▁▁▁` |
 | extensions | 0.37.0 | 451 | 0 /6d | 107 | `▁▁▁▁▁▁` |
@@ -179,7 +179,7 @@ Generated from 74 day(s) of samples, 2026-08-07 to 2026-10-19.
 | extensions | 0.3.1 | 105 | 0 /6d | 107 | `▁▁▁▁▁▁` |
 | extensions | 0.3.0 | 103 | 0 /6d | 107 | `▁▁▁▁▁▁` |
 | extensions | 0.57.2 | 44 | 0 /6d | 107 | `▁▁▁▁▁▁` |
-| extensions | 0.57.3 | 0 | 0 /4d | 107 | `▁▁▁▁` |
+| extensions | 0.57.3 | 0 | 0 /5d | 107 | `▁▁▁▁▁` |
 
 **This does not yet tell you whether anyone outside our own CI uses the package.**
 It records the history needed to answer that once a sound method exists, because
