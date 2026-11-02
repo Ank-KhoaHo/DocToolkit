@@ -226,6 +226,7 @@ public class StreamOverloadTests
         "XlsxToPdfConverter.ConvertAsync",
         "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "PptxToPdfConverter.ConvertAsync",
+        "PptxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.ReplaceTextAsync(Regex)",
         "DocxEditor.AddWatermarkAsync",
@@ -629,6 +630,7 @@ public class StreamOverloadTests
     {
         "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)",
+        "PptxToPdfConverter.ConvertAsync(PdfFontOptions)",
     };
 
     private static TheoryData<string> Cases(IEnumerable<string> names)
@@ -1282,6 +1284,8 @@ public class StreamOverloadTests
                 XlsxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "PptxToPdfConverter.ConvertAsync" =>
                 PptxToPdfConverter.ConvertAsync(source!, destination!, ct),
+            "PptxToPdfConverter.ConvertAsync(PdfFontOptions)" =>
+                PptxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "DocxEditor.ReplaceTextAsync" =>
                 DocxEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
             // A116. A bounded pattern deliberately: the overload REFUSES an unbounded one, so an
@@ -1493,6 +1497,7 @@ public class StreamOverloadTests
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
         "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
+        "PptxToPdfConverter.ConvertAsync(PdfFontOptions)" => Pptx,
         "PdfEditor.RemovePagesAsync" => TwoPagePdf,
         "PdfEditor.UnprotectAsync" => ProtectedPdf,
         "DocxEditor.UnprotectAsync" => ProtectedDocx,

@@ -480,4 +480,97 @@ public class XlsxPptxToPdfTests
 
         Assert.Equal(XlsxToPdfConverter.Convert(xlsx, fonts), destination.ToArray());
     }
+
+    // =====================================================================================
+    // A122: fonts, and right-to-left shaping, on PPTX -> PDF
+    // =====================================================================================
+
+    private static byte[] SlideWith(string text) =>
+        PresentationEditor.Create([PptxSlide.Titled(text, text)]);
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(1024)]
+    public void PptxConvert_WithInvalidFontBytes_FailsWithTheRenderersOwnMessage(int size)
+    {
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => PptxToPdfConverter.Convert(SlideWith("Plain Latin text."), new PdfFontOptions("Fake", new byte[size])));
+
+        Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PptxConvert_WithNullFonts_IsTheSameRenderAsWithout()
+    {
+        var pptx = Deck(2);
+
+        Assert.Equal(PptxToPdfConverter.Convert(pptx), PptxToPdfConverter.Convert(pptx, null));
+    }
+
+    [Theory]
+    [InlineData("חשבונית מס מספר 12")]
+    [InlineData("فاتورة ضريبية رقم 12")]
+    public void PptxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var pptx = SlideWith(text);
+
+        Assert.NotEqual(UnshapedRender.Pptx(pptx, fonts), PptxToPdfConverter.Convert(pptx, fonts));
+    }
+
+    [Fact]
+    public void PptxConvert_WithARealFont_LatinIsUnchangedByShaping()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var pptx = SlideWith("Invoice total, office fi fl ffi: 60,000");
+
+        Assert.Equal(UnshapedRender.Pptx(pptx, fonts), PptxToPdfConverter.Convert(pptx, fonts));
+    }
+
+    [Fact]
+    public void PptxConvert_WithARealFont_MixedLatinAndHebrewRenders()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        var pdf = PptxToPdfConverter.Convert(SlideWith("Invoice חשבונית 12"), fonts);
+
+        Assert.Contains("Invoice", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PptxConvert_WithARealFont_PersianRendersWithoutThrowing()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        Assert.True(PdfProbe.IsPdf(PptxToPdfConverter.Convert(SlideWith("صورتحساب فروش کالا"), fonts)));
+    }
+
+    [Fact]
+    public void PptxConvert_WithFontsMissingTheScript_NamesTheCharacter()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => PptxToPdfConverter.Convert(SlideWith("发票"), fonts));
+
+        Assert.Contains("U+53D1", ex.InnerException!.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PptxConvertAsync_WithFonts_MatchesTheArrayOverload()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var pptx = SlideWith("חשבונית מס מספר 12");
+
+        using var destination = new MemoryStream();
+        await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
+
+        Assert.Equal(PptxToPdfConverter.Convert(pptx, fonts), destination.ToArray());
+    }
 }
