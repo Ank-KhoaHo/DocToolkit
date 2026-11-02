@@ -176,6 +176,12 @@ Worth knowing before you design around it:
   is the one exception, when it was created through `WorkbookEditor.AddChart` or
   `PresentationEditor.AddChart`: it renders correctly in XLSX → PDF and PPTX → PDF, measured
   directly.
+- **Text a font cannot encode is refused, not dropped.** Hebrew, Arabic, Persian, CJK or Cyrillic
+  on a host without a covering font throws a `DocumentConversionException` naming the character.
+  Pass `PdfFontOptions` to any PDF converter; it also lays out Hebrew and Arabic in reading order.
+- **Right-to-left support is partial.** Persian and Urdu letters (`پ چ ژ گ ک ی`) are not shaped,
+  and a worksheet's right-to-left direction is ignored: column A prints on the left. Merged cells
+  are supported.
 - **HTML → PDF goes through Word**, so CSS layout — flexbox, grid, floats, absolute positioning —
   does not survive. Text, headings, tables, lists, inline styling and images do.
 - **DOCX → HTML returns a full document**, not a fragment. Extract the body with a parser.

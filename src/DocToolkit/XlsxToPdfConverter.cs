@@ -17,6 +17,11 @@ namespace DocToolkit;
 /// <b>Fidelity is bounded</b>, and features the renderer cannot represent are dropped rather than
 /// reported: this package has no warning channel, and adding one is a decision deferred until
 /// somebody needs it rather than made by accident here. See README's <i>Known limitations</i>.
+///
+/// <b>Text is the exception: it is refused, not dropped.</b> A cell holding characters no available
+/// font covers - Hebrew, Arabic, Persian or CJK on a host without one - throws, naming the
+/// character. Pass <see cref="PdfFontOptions"/> to <see cref="Convert(byte[], PdfFontOptions?)"/>.
+/// Merged cells render; a sheet's right-to-left direction does not.
 /// </summary>
 public static class XlsxToPdfConverter
 {
