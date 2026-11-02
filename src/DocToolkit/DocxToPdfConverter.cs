@@ -200,13 +200,8 @@ public static class DocxToPdfConverter
     /// but "measured equivalent today" is exactly the assumption that failed last time, so the
     /// no-fonts path stays literally the call it always was.
     /// </remarks>
-    private static WordPdfSaveOptions? SaveOptions(PdfFontOptions? fonts)
-    {
-        var fallbacks = fonts?.ToFallbackSet();
-        return fallbacks is null
-            ? null
-            : new WordPdfSaveOptions { PdfOptions = new OfficeIMO.Pdf.PdfOptions { EmbeddedFontFallbacks = fallbacks } };
-    }
+    private static WordPdfSaveOptions? SaveOptions(PdfFontOptions? fonts) =>
+        fonts is null ? null : new WordPdfSaveOptions { PdfOptions = fonts.ToPdfOptions() };
 
     /// <summary>
     /// Renders an already-buffered .docx package onto <paramref name="destination"/>.

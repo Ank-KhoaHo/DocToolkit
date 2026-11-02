@@ -205,4 +205,55 @@ public class PdfFontOptionsTests
 
         Assert.True(PdfProbe.IsPdf(pdf));
     }
+
+    // ---- A122: supplied fonts also turn on right-to-left shaping -------------------------------------
+
+    [Fact]
+    public void ToPdfOptions_CarriesTheFallbacksAndTurnsOnShaping()
+    {
+        var options = new PdfFontOptions("First", [1, 2, 3]).ToPdfOptions();
+
+        Assert.Equal(["First"], options.EmbeddedFontFallbacks!.Candidates.Select(c => c.FontName));
+        Assert.NotNull(options.TextShapingProvider);
+    }
+
+    /// <summary>Hebrew rendered with a supplied font is shaped, not left in reversed order.</summary>
+    /// <remarks>
+    /// Same environment rule as the test above: where no font exists it asserts that, never passes
+    /// vacuously. Measured 2026-11-02: unshaped Hebrew renders right-to-left text reversed.
+    /// </remarks>
+    [Fact]
+    public void WithARealFont_HebrewDocxIsShaped()
+    {
+        var font = FindFont();
+        if (font is null)
+        {
+            Assert.True(FindFont() is null,
+                "no font found - this assertion exists so the test is never vacuously green");
+            return;
+        }
+
+        var fonts = new PdfFontOptions("Supplied", font);
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("חשבונית מס מספר 12")]);
+
+        Assert.NotEqual(UnshapedRender.Docx(docx, fonts), DocxToPdfConverter.Convert(docx, fonts));
+    }
+
+    /// <summary>Shaping leaves Latin text byte-for-byte as it was - measured, and pinned here.</summary>
+    [Fact]
+    public void WithARealFont_LatinDocxBytesAreUnchangedByShaping()
+    {
+        var font = FindFont();
+        if (font is null)
+        {
+            Assert.True(FindFont() is null,
+                "no font found - this assertion exists so the test is never vacuously green");
+            return;
+        }
+
+        var fonts = new PdfFontOptions("Supplied", font);
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("Invoice total, office fi fl ffi: 60,000")]);
+
+        Assert.Equal(UnshapedRender.Docx(docx, fonts), DocxToPdfConverter.Convert(docx, fonts));
+    }
 }

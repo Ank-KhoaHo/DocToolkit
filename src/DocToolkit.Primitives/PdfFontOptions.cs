@@ -39,6 +39,12 @@ namespace DocToolkit;
 /// varying PDF size a hundredfold. Both render correctly; the smaller leans on the standard fonts
 /// every reader has.
 ///
+/// <b>3. It turns on right-to-left shaping, on every PDF converter.</b> Hebrew and Arabic are laid out
+/// in reading order, with Arabic letters joined; without it they render reversed. Latin text is
+/// unaffected, measured byte for byte. <b>Persian and Urdu letters</b> (<c>پ چ ژ گ ک ی</c>) are not
+/// shaped - the renderer declines them, so words containing them still render reversed - and a
+/// worksheet's right-to-left direction is not applied.
+///
 /// <b>There is deliberately no compiled example for this type</b>, which is worth explaining
 /// because every other public type here has one. This project's examples are real tests, so they
 /// run - and a runnable example of this would need a font file committed to the repository, which is
@@ -97,6 +103,26 @@ public sealed class PdfFontOptions
         // renderer's job and it already reports one clearly; a second opinion in this package would
         // be one more thing to keep true as font formats change.
         return (fontName, trueTypeFont);
+    }
+
+    /// <summary>
+    /// The renderer options every PDF converter hands over when the caller supplied fonts: the
+    /// fallbacks, plus the renderer's managed right-to-left shaping.
+    /// </summary>
+    /// <remarks>
+    /// <b>One builder, so the four converters cannot disagree about what supplying a font means.</b>
+    ///
+    /// <b>Shaping rides on the fonts because it only exists for them.</b> The renderer shapes text
+    /// written with embedded fonts, and without a supplied font Hebrew and Arabic never get that far
+    /// - they are refused. Measured 2026-11-02 with a supplied font: Latin output byte-identical with
+    /// and without shaping, Hebrew and Arabic reversed without it and correct with it, and Persian's
+    /// own letters declined by the shaper either way (A124).
+    /// </remarks>
+    internal OfficeIMO.Pdf.PdfOptions ToPdfOptions()
+    {
+        var options = new OfficeIMO.Pdf.PdfOptions { EmbeddedFontFallbacks = ToFallbackSet() };
+        options.UseManagedTextShaping();
+        return options;
     }
 
     /// <summary>The renderer's own representation, or <see langword="null"/> when no font was given.</summary>
