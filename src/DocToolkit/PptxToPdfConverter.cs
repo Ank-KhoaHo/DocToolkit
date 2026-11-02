@@ -44,8 +44,9 @@ public static class PptxToPdfConverter
     /// <paramref name="fonts"/> for characters the renderer cannot otherwise encode.
     /// </summary>
     /// <remarks>
-    /// <b>Without fonts, a slide containing non-Latin text is refused, not rendered with gaps.</b>
-    /// Measured 2026-11-02: Persian, Hebrew and Arabic slides all fail on a Windows host with a
+    /// <b>Without fonts, whether non-Latin text renders depends on the host.</b> Where the renderer
+    /// cannot encode it, it is refused rather than rendered with gaps - measured 2026-11-02, Persian,
+    /// Hebrew, Arabic and Cyrillic slides all fail on a Windows host with a
     /// <see cref="DocumentConversionException"/> naming the first character that could not be
     /// encoded. Supplying the font removes the machine from the answer, and also turns on Hebrew and
     /// Arabic shaping. See <see cref="PdfFontOptions"/> for what that does and does not cover.

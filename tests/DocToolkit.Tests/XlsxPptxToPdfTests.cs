@@ -373,6 +373,27 @@ public class XlsxPptxToPdfTests
         }
     }
 
+    /// <summary>
+    /// Null fonts build exactly the options the parameterless factories build - no fallbacks, no
+    /// shaping.
+    /// </summary>
+    /// <remarks>
+    /// <b>Asserted on the options, because a render comparison cannot see it.</b> The converters'
+    /// old overloads forward to the new ones with <see langword="null"/>, so comparing
+    /// <c>Convert(x)</c> with <c>Convert(x, null)</c> compares a call with itself.
+    /// </remarks>
+    [Fact]
+    public void NullFonts_BuildTheSameOptionsAsTheParameterlessFactories()
+    {
+        static (object? Fallbacks, object? Shaping) Of(OfficeIMO.Pdf.PdfOptions? o) =>
+            (o?.EmbeddedFontFallbacks, o?.TextShapingProvider);
+
+        Assert.Equal(Of(PdfRenderPolicy.ForWorkbook().PdfOptions), Of(PdfRenderPolicy.ForWorkbook(null).PdfOptions));
+        Assert.Equal(Of(PdfRenderPolicy.ForPresentation().PdfOptions), Of(PdfRenderPolicy.ForPresentation(null).PdfOptions));
+        Assert.Equal((null, null), Of(PdfRenderPolicy.ForWorkbook(null).PdfOptions));
+        Assert.Equal((null, null), Of(PdfRenderPolicy.ForPresentation(null).PdfOptions));
+    }
+
     // =====================================================================================
     // A122: fonts, and right-to-left shaping, on XLSX -> PDF
     // =====================================================================================
@@ -380,14 +401,13 @@ public class XlsxPptxToPdfTests
     private static byte[] SheetWith(string text) =>
         WorkbookEditor.Create("Sheet", new object?[][] { new object?[] { text } });
 
-    /// <summary>A supplied font, or null with the reason asserted - never vacuously green.</summary>
-    private static PdfFontOptions? HostFonts()
-    {
-        var font = PdfFontOptionsTests.FindFont();
-        if (font is null)
-            Assert.True(PdfFontOptionsTests.FindFont() is null, "no font found on this host");
-        return font is null ? null : new PdfFontOptions("Supplied", font);
-    }
+    /// <summary>
+    /// A supplied font, or null on a host without one - in which case the calling test returns having
+    /// asserted nothing, unless <c>DOCTOOLKIT_REQUIRE_FONT=1</c> makes that a failure. See
+    /// <see cref="PdfFontOptionsTests.FindFont"/>.
+    /// </summary>
+    private static PdfFontOptions? HostFonts() =>
+        PdfFontOptionsTests.FindFont() is { } font ? new PdfFontOptions("Supplied", font) : null;
 
     /// <summary>The host-independent proof the bytes reach the renderer: its own refusal.</summary>
     [Theory]
@@ -399,14 +419,6 @@ public class XlsxPptxToPdfTests
             () => XlsxToPdfConverter.Convert(SheetWith("Plain Latin text."), new PdfFontOptions("Fake", new byte[size])));
 
         Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void XlsxConvert_WithNullFonts_IsTheSameRenderAsWithout()
-    {
-        var xlsx = Workbook();
-
-        Assert.Equal(XlsxToPdfConverter.Convert(xlsx), XlsxToPdfConverter.Convert(xlsx, null));
     }
 
     [Theory]
@@ -497,14 +509,6 @@ public class XlsxPptxToPdfTests
             () => PptxToPdfConverter.Convert(SlideWith("Plain Latin text."), new PdfFontOptions("Fake", new byte[size])));
 
         Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void PptxConvert_WithNullFonts_IsTheSameRenderAsWithout()
-    {
-        var pptx = Deck(2);
-
-        Assert.Equal(PptxToPdfConverter.Convert(pptx), PptxToPdfConverter.Convert(pptx, null));
     }
 
     [Theory]

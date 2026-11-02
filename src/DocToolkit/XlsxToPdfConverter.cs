@@ -18,9 +18,9 @@ namespace DocToolkit;
 /// reported: this package has no warning channel, and adding one is a decision deferred until
 /// somebody needs it rather than made by accident here. See README's <i>Known limitations</i>.
 ///
-/// <b>Text is the exception: it is refused, not dropped.</b> A cell holding characters no available
-/// font covers - Hebrew, Arabic, Persian or CJK on a host without one - throws, naming the
-/// character. Pass <see cref="PdfFontOptions"/> to <see cref="Convert(byte[], PdfFontOptions?)"/>.
+/// <b>Text is the exception: it is refused, not dropped.</b> A cell holding characters the fonts
+/// this renderer can reach do not cover throws, naming the character - measured on Windows for
+/// Hebrew, Arabic, Persian and Cyrillic. Pass <see cref="PdfFontOptions"/> to <see cref="Convert(byte[], PdfFontOptions?)"/>.
 /// Merged cells render; a sheet's right-to-left direction does not.
 /// </summary>
 public static class XlsxToPdfConverter
@@ -49,8 +49,9 @@ public static class XlsxToPdfConverter
     /// the renderer cannot otherwise encode.
     /// </summary>
     /// <remarks>
-    /// <b>Without fonts, a workbook containing non-Latin text is refused, not rendered with gaps.</b>
-    /// Measured 2026-11-02: Persian, Hebrew and Arabic cells all fail on a Windows host with a
+    /// <b>Without fonts, whether non-Latin text renders depends on the host.</b> Where the renderer
+    /// cannot encode it, it is refused rather than rendered with gaps - measured 2026-11-02, Persian,
+    /// Hebrew, Arabic and Cyrillic cells all fail on a Windows host with a
     /// <see cref="DocumentConversionException"/> naming the first character that could not be
     /// encoded. Supplying the font removes the machine from the answer, and also turns on Hebrew and
     /// Arabic shaping. See <see cref="PdfFontOptions"/> for what that does and does not cover.
