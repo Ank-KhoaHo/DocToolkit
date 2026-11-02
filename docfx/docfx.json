@@ -45,6 +45,7 @@
     "globalMetadata": {
       "_appName": "DocToolkit",
       "_appTitle": "DocToolkit",
+      "_appFooter": "DocToolkit is maintained by <a href=\"https://wanksolution.com/\">WillowAnk Solution</a>.",
       "_enableSearch": false,
       "pdf": false
     }

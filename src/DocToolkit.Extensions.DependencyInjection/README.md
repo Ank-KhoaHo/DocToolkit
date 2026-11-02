@@ -255,3 +255,5 @@ this package too.
 ## Licence
 
 MIT — see the parent repository's [LICENSE](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/LICENSE).
+
+DocToolkit is maintained by [WillowAnk Solution](https://wanksolution.com/).
