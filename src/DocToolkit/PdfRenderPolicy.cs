@@ -62,6 +62,19 @@ internal static class PdfRenderPolicy
 
     public static PowerPointPdfSaveOptions ForPresentation() => new() { ResourcePolicy = Policy() };
 
+    // THE FONT OVERLOADS ARE SEPARATE METHODS, NOT AN OPTIONAL PARAMETER, and that is deliberate.
+    //
+    // Null fonts must be literally the call above - not an options object whose PdfOptions was
+    // assigned null, which is a different object to the renderer. Keeping the parameterless
+    // factories also keeps EveryRenderPolicyFactorySetsThePolicy reaching them, and
+    // EveryFontTakingRenderPolicyFactoryKeepsThePolicyAndShapes reaches these.
+
+    public static ExcelPdfSaveOptions ForWorkbook(PdfFontOptions? fonts) =>
+        fonts is null ? ForWorkbook() : new() { ResourcePolicy = Policy(), PdfOptions = fonts.ToPdfOptions() };
+
+    public static PowerPointPdfSaveOptions ForPresentation(PdfFontOptions? fonts) =>
+        fonts is null ? ForPresentation() : new() { ResourcePolicy = Policy(), PdfOptions = fonts.ToPdfOptions() };
+
     /// <summary>
     /// The two flags, for <c>XlsxPptxToPdfTests</c> to assert directly.
     ///

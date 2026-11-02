@@ -22,7 +22,7 @@ namespace DocToolkit.Tests;
 public class PdfFontOptionsTests
 {
     /// <summary>A font with Cyrillic coverage, if this machine has one.</summary>
-    private static byte[]? FindFont()
+    internal static byte[]? FindFont()
     {
         var found = new[]
         {

@@ -224,6 +224,7 @@ public class StreamOverloadTests
         "DocxToPdfConverter.ConvertAsync",
         "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "XlsxToPdfConverter.ConvertAsync",
+        "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "PptxToPdfConverter.ConvertAsync",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.ReplaceTextAsync(Regex)",
@@ -627,6 +628,7 @@ public class StreamOverloadTests
     private static readonly HashSet<string> CannotAssertARenderedDocument = new(StringComparer.Ordinal)
     {
         "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
+        "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)",
     };
 
     private static TheoryData<string> Cases(IEnumerable<string> names)
@@ -1276,6 +1278,8 @@ public class StreamOverloadTests
                 DocxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "XlsxToPdfConverter.ConvertAsync" =>
                 XlsxToPdfConverter.ConvertAsync(source!, destination!, ct),
+            "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)" =>
+                XlsxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "PptxToPdfConverter.ConvertAsync" =>
                 PptxToPdfConverter.ConvertAsync(source!, destination!, ct),
             "DocxEditor.ReplaceTextAsync" =>
@@ -1487,6 +1491,7 @@ public class StreamOverloadTests
         "DocxEditor.AddTableOfContentsAsync" => TocDocx,
         "PresentationEditor.ReplaceImageAsync" => ImagePptx,
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
+        "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
         "PdfEditor.RemovePagesAsync" => TwoPagePdf,
         "PdfEditor.UnprotectAsync" => ProtectedPdf,

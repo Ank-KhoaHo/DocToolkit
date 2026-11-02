@@ -339,4 +339,145 @@ public class XlsxPptxToPdfTests
             Assert.False(localFlag, $"{factory.Name} allows local file access");
         }
     }
+
+    /// <summary>
+    /// The font-taking factories keep the same policy, and hand the fonts over with shaping on.
+    /// </summary>
+    /// <remarks>
+    /// The test above only reaches parameterless factories, so without this one a font overload
+    /// could drop the policy and nothing would notice - the same silent shape that test exists for.
+    /// </remarks>
+    [Fact]
+    public void EveryFontTakingRenderPolicyFactoryKeepsThePolicyAndShapes()
+    {
+        var factories = typeof(PdfRenderPolicy)
+            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(m => m.GetParameters() is [{ ParameterType: var p }] && p == typeof(PdfFontOptions)
+                     && m.ReturnType.Name.EndsWith("PdfSaveOptions", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(factories.Count >= 2,
+            $"expected a font-taking factory for the XLSX and PPTX paths, found {factories.Count}");
+
+        foreach (var factory in factories)
+        {
+            var options = factory.Invoke(null, [new PdfFontOptions("First", [1, 2, 3])]);
+            var policy = options!.GetType().GetProperty("ResourcePolicy")!.GetValue(options);
+            var pdf = (OfficeIMO.Pdf.PdfOptions?)options.GetType().GetProperty("PdfOptions")!.GetValue(options);
+
+            Assert.True(policy is not null, $"{factory.Name}(fonts) left ResourcePolicy null");
+            Assert.False((bool)policy!.GetType().GetProperty("AllowRemoteResourceResolution")!.GetValue(policy)!);
+            Assert.False((bool)policy.GetType().GetProperty("AllowLocalFileAccess")!.GetValue(policy)!);
+            Assert.Equal(["First"], pdf!.EmbeddedFontFallbacks!.Candidates.Select(c => c.FontName));
+            Assert.NotNull(pdf.TextShapingProvider);
+        }
+    }
+
+    // =====================================================================================
+    // A122: fonts, and right-to-left shaping, on XLSX -> PDF
+    // =====================================================================================
+
+    private static byte[] SheetWith(string text) =>
+        WorkbookEditor.Create("Sheet", new object?[][] { new object?[] { text } });
+
+    /// <summary>A supplied font, or null with the reason asserted - never vacuously green.</summary>
+    private static PdfFontOptions? HostFonts()
+    {
+        var font = PdfFontOptionsTests.FindFont();
+        if (font is null)
+            Assert.True(PdfFontOptionsTests.FindFont() is null, "no font found on this host");
+        return font is null ? null : new PdfFontOptions("Supplied", font);
+    }
+
+    /// <summary>The host-independent proof the bytes reach the renderer: its own refusal.</summary>
+    [Theory]
+    [InlineData(3)]
+    [InlineData(1024)]
+    public void XlsxConvert_WithInvalidFontBytes_FailsWithTheRenderersOwnMessage(int size)
+    {
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => XlsxToPdfConverter.Convert(SheetWith("Plain Latin text."), new PdfFontOptions("Fake", new byte[size])));
+
+        Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void XlsxConvert_WithNullFonts_IsTheSameRenderAsWithout()
+    {
+        var xlsx = Workbook();
+
+        Assert.Equal(XlsxToPdfConverter.Convert(xlsx), XlsxToPdfConverter.Convert(xlsx, null));
+    }
+
+    [Theory]
+    [InlineData("חשבונית מס מספר 12")]
+    [InlineData("فاتورة ضريبية رقم 12")]
+    public void XlsxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var xlsx = SheetWith(text);
+
+        Assert.NotEqual(UnshapedRender.Xlsx(xlsx, fonts), XlsxToPdfConverter.Convert(xlsx, fonts));
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_LatinIsUnchangedByShaping()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var xlsx = SheetWith("Invoice total, office fi fl ffi: 60,000");
+
+        Assert.Equal(UnshapedRender.Xlsx(xlsx, fonts), XlsxToPdfConverter.Convert(xlsx, fonts));
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_MixedLatinAndHebrewInOneCellRenders()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        var pdf = XlsxToPdfConverter.Convert(SheetWith("Invoice חשבונית 12"), fonts);
+
+        Assert.Contains("Invoice", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
+    }
+
+    /// <summary>Persian's own letters are not shaped (A124), but must still render, not throw.</summary>
+    [Fact]
+    public void XlsxConvert_WithARealFont_PersianRendersWithoutThrowing()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        Assert.True(PdfProbe.IsPdf(XlsxToPdfConverter.Convert(SheetWith("صورتحساب فروش کالا"), fonts)));
+    }
+
+    /// <summary>
+    /// Supplied fonts replace the host's fallbacks, so text they do not cover is refused on every
+    /// host, naming the character - never rendered blank.
+    /// </summary>
+    [Fact]
+    public void XlsxConvert_WithFontsMissingTheScript_NamesTheCharacter()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        var ex = Assert.Throws<DocumentConversionException>(
+            () => XlsxToPdfConverter.Convert(SheetWith("发票"), fonts));
+
+        Assert.Contains("U+53D1", ex.InnerException!.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task XlsxConvertAsync_WithFonts_MatchesTheArrayOverload()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var xlsx = SheetWith("חשבונית מס מספר 12");
+
+        using var destination = new MemoryStream();
+        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(xlsx), destination, fonts);
+
+        Assert.Equal(XlsxToPdfConverter.Convert(xlsx, fonts), destination.ToArray());
+    }
 }

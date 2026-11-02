@@ -135,7 +135,9 @@ namespace DocToolkit
     public static class XlsxToPdfConverter
     {
         public static byte[] Convert(byte[] xlsx) { }
+        public static byte[] Convert(byte[] xlsx, DocToolkit.PdfFontOptions? fonts) { }
         public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, System.Threading.CancellationToken ct = default) { }
+        public static System.Threading.Tasks.Task ConvertAsync(System.IO.Stream source, System.IO.Stream destination, DocToolkit.PdfFontOptions? fonts, System.Threading.CancellationToken ct = default) { }
         public static void ConvertFile(string inputPath, string outputPath) { }
     }
 }
