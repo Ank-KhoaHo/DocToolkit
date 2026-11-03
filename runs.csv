@@ -403,3 +403,13 @@ date,workflow,runs
 2026-11-01,Benchmarks,1
 2026-11-01,Real-world corpus,1
 2026-11-01,nuget stats,1
+2026-11-02,CI,7
+2026-11-02,CodeQL,4
+2026-11-02,Dependabot Updates,7
+2026-11-02,Dependabot auto-merge,2
+2026-11-02,Dependency report,1
+2026-11-02,Install smoke test,1
+2026-11-02,Mutation testing,1
+2026-11-02,Release PR automerge guard,3
+2026-11-02,nuget stats,1
+2026-11-02,release-please,1
