@@ -10,6 +10,18 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.58.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.3...v0.58.0) (2026-11-03)
+
+
+### Added
+
+* XLSX and PPTX to PDF accept fonts, and every font-taking PDF path shapes Hebrew and Arabic (A122) ([#537](https://github.com/Ank-KhoaHo/DocToolkit/issues/537)) ([06d61f3](https://github.com/Ank-KhoaHo/DocToolkit/commit/06d61f39963c4b57336404493a1a9d8455e9c9a7))
+
+
+### Changed
+
+* link WillowAnk Solution, the company behind the package (F15) ([#536](https://github.com/Ank-KhoaHo/DocToolkit/issues/536)) ([77f0d55](https://github.com/Ank-KhoaHo/DocToolkit/commit/77f0d55c8f9f50bfd5c2465ebae413e1277e124f))
+
 ## [0.57.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.2...v0.57.3) (2026-10-16)
 
 
