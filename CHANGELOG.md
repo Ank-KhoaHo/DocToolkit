@@ -15,12 +15,34 @@ repo-wide tooling (CI, release pipeline).
 
 ### Added
 
-* XLSX and PPTX to PDF accept fonts, and every font-taking PDF path shapes Hebrew and Arabic (A122) ([#537](https://github.com/Ank-KhoaHo/DocToolkit/issues/537)) ([06d61f3](https://github.com/Ank-KhoaHo/DocToolkit/commit/06d61f39963c4b57336404493a1a9d8455e9c9a7))
-
+* **Core: XLSX and PPTX to PDF take fonts.** `XlsxToPdfConverter` and `PptxToPdfConverter` gain
+  `Convert(byte[], PdfFontOptions?)` and
+  `ConvertAsync(Stream, Stream, PdfFontOptions?, CancellationToken)`, matching DOCX and HTML. Until now a workbook or presentation holding text the renderer's built-in
+  fonts cannot draw — Cyrillic, Hebrew, Arabic, CJK — could be refused with an exception,
+  depending on the host's fonts, and there was no way to supply one. Passing `null` gives exactly
+  the old render.
 
 ### Changed
 
-* link WillowAnk Solution, the company behind the package (F15) ([#536](https://github.com/Ank-KhoaHo/DocToolkit/issues/536)) ([77f0d55](https://github.com/Ank-KhoaHo/DocToolkit/commit/77f0d55c8f9f50bfd5c2465ebae413e1277e124f))
+* **Core: if you already pass `PdfFontOptions` to DOCX or HTML to PDF, Hebrew and Arabic output
+  changes.** Supplying fonts now also turns on the renderer's text shaping, on every path that takes
+  fonts. Each Hebrew or Arabic **word** now prints in the right letter order, and Arabic letters
+  join; before, the letters of every word were reversed and Arabic did not join. Text with no
+  right-to-left script renders byte-identical to 0.57.3 — measured over 83 real documents.
+* The README, the NuGet package page and the documentation site now name **WillowAnk Solution**,
+  the company that maintains DocToolkit. `PackageProjectUrl` points to https://wanksolution.com/;
+  `RepositoryUrl` still points to GitHub, where issues and source live.
+
+### Known limits of right-to-left text, stated here because "shapes Hebrew and Arabic" promises more
+
+* **Words are laid out, lines are not.** A line of several right-to-left words prints its words in
+  reverse order, and a number lands on the wrong side. This is the renderer's behaviour, measured
+  from glyph positions; a `w:bidi` paragraph behaves the same.
+* **Persian and Urdu letters are not shaped.** A word containing `پ چ ژ گ ک ی` still renders
+  reversed and unjoined. Arabic-only words in the same text are shaped.
+* **A right-to-left sheet is not mirrored.** `<sheetView rightToLeft="1">` is ignored, so column A
+  prints on the left. Merged cells are honoured.
+* **Markdown to PDF takes no fonts**, so it gets no shaping.
 
 ## [0.57.3](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.2...v0.57.3) (2026-10-16)
 
