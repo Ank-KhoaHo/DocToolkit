@@ -108,12 +108,21 @@ public sealed class DocToolkitOptions
     /// none - measured over 99 real documents, one font rendered 63 where none rendered 71 and four
     /// rendered 77. See <see cref="PdfFontOptions"/> for the whole of that.
     ///
-    /// <b>Applies to every converter that renders a PDF</b> - <see cref="IDocxToPdfConverter"/> and
-    /// <see cref="IHtmlToPdfConverter"/> alike. It reached only the first until core 0.34.0, because
+    /// <b>Applies to every converter that renders a PDF and takes fonts</b> - <see cref="IDocxToPdfConverter"/>,
+    /// <see cref="IHtmlToPdfConverter"/>, <see cref="IXlsxToPdfConverter"/> and
+    /// <see cref="IPptxToPdfConverter"/>. <see cref="IMarkdownToPdfConverter"/> is the exception: the core
+    /// Markdown converter takes no fonts. XLSX and PPTX were reached from core 0.58.0, the first release
+    /// whose converters take them.
+    ///
+    /// <b>Supplying fonts also turns on Hebrew and Arabic shaping</b> - each word comes out in the right
+    /// letter order and Arabic joins, though a line of several words keeps them in reverse order. See
+    /// <see cref="PdfFontOptions"/>.
+    ///
+    /// HTML was reached only from core 0.34.0, because
     /// no core overload carried fonts alongside page setup and the remote-image settings; wiring it
     /// anyway would have applied fonts only when neither of the others was in play, and a setting
     /// that silently stops taking effect depending on unrelated configuration is worse than one that
-    /// is documented as absent. <c>HtmlToPdfOptions</c> closed that, and this option now reaches both.
+    /// is documented as absent. <c>HtmlToPdfOptions</c> closed that.
     /// </remarks>
     public PdfFontOptions? Fonts { get; set; }
 }
