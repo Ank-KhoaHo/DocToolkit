@@ -17,7 +17,7 @@ namespace DocToolkit;
 /// this repository has never audited. So the bytes come from the caller, who already licenses the
 /// typeface their documents are written in and knows which one that is.
 ///
-/// <b>This is opt-in and changes nothing for anybody who does not use it.</b> Two effects are worth
+/// <b>This is opt-in and changes nothing for anybody who does not use it.</b> Three effects are worth
 /// knowing before you do.
 ///
 /// <b>1. The fonts you supply REPLACE the host's own fallbacks; they do not add to them.</b> That
@@ -38,6 +38,15 @@ namespace DocToolkit;
 /// output went from 128,755 bytes to 1,306 — the same base-14 swing this project already records as
 /// varying PDF size a hundredfold. Both render correctly; the smaller leans on the standard fonts
 /// every reader has.
+///
+/// <b>3. It turns on right-to-left shaping</b>, on the DOCX, HTML, XLSX and PPTX converters (Markdown
+/// to PDF takes no fonts). <b>What shaping fixes is each WORD, not the line.</b> Measured 2026-11-02
+/// from glyph positions: a Hebrew or Arabic word is spelled in the right order and Arabic letters
+/// join, where without shaping both are reversed - but a line of several words still prints its
+/// WORDS in reverse order, and a number lands on the wrong side. Latin text is unaffected, measured
+/// byte for byte. <b>Persian and Urdu letters</b> (<c>پ چ ژ گ ک ی</c>) are not shaped at all - a word
+/// containing one stays reversed - and a worksheet's right-to-left direction is not applied. All
+/// three gaps are in the renderer beneath this package.
 ///
 /// <b>There is deliberately no compiled example for this type</b>, which is worth explaining
 /// because every other public type here has one. This project's examples are real tests, so they
@@ -97,6 +106,28 @@ public sealed class PdfFontOptions
         // renderer's job and it already reports one clearly; a second opinion in this package would
         // be one more thing to keep true as font formats change.
         return (fontName, trueTypeFont);
+    }
+
+    /// <summary>
+    /// The renderer options every PDF converter hands over when the caller supplied fonts: the
+    /// fallbacks, plus the renderer's managed right-to-left shaping.
+    /// </summary>
+    /// <remarks>
+    /// <b>One builder, so the four converters cannot disagree about what supplying a font means.</b>
+    ///
+    /// <b>Shaping rides on the fonts because it only exists for them.</b> The renderer shapes text
+    /// written with embedded fonts, which without a supplied font a host may not have - and where it
+    /// does, as Arial on Windows for the DOCX path, the renderer uses it without shaping. Measured
+    /// 2026-11-02 with a supplied font: Latin output byte-identical with and without shaping; Hebrew
+    /// and Arabic words spelled correctly with it and reversed without it, though a multi-word line
+    /// keeps its words in reverse order either way; and Persian's own letters declined by the
+    /// shaper either way (A124).
+    /// </remarks>
+    internal OfficeIMO.Pdf.PdfOptions ToPdfOptions()
+    {
+        var options = new OfficeIMO.Pdf.PdfOptions { EmbeddedFontFallbacks = ToFallbackSet() };
+        options.UseManagedTextShaping();
+        return options;
     }
 
     /// <summary>The renderer's own representation, or <see langword="null"/> when no font was given.</summary>

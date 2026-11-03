@@ -104,6 +104,8 @@ capability once; see [the shape of the API](getting-started.md#the-shape-of-the-
 represent — conditional formatting, some shape effects — and does so *silently*, because those
 renderers produce no report to surface. A chart is the one exception when it was added through this
 library's own `AddChart` methods: it renders correctly in XLSX → PDF and PPTX → PDF, measured
-directly. The DOCX text exporters and the Markdown importers do report their losses, through
+directly. **Text is not dropped silently,** but whether it renders without `PdfFontOptions` depends
+on the host's fonts; where it cannot be encoded, the conversion throws, naming the character.
+The DOCX text exporters and the Markdown importers do report their losses, through
 `ConvertWithReport`. Which is which, and what each one drops, is in the guides and in the
 [known limitations](https://github.com/Ank-KhoaHo/DocToolkit#known-limitations).

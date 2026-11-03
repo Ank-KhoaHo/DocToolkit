@@ -161,7 +161,12 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build ${{ env.SOLUTION }} -c Release --no-restore -warnaserror
 
+      # DOCTOOLKIT_REQUIRE_FONT turns "no font on this host" from a silent early return into a
+      # failure in the real-font tests (PdfFontOptionsTests.FindFont). These four runners have
+      # fonts; the linux-container job deliberately does not, so it leaves the switch off.
       - name: Test
+        env:
+          DOCTOOLKIT_REQUIRE_FONT: "1"
         run: >
           dotnet test ${{ env.SOLUTION }} -c Release --no-build
           --collect:"XPlat Code Coverage"

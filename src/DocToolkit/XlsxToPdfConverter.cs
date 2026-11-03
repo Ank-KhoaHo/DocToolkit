@@ -17,6 +17,11 @@ namespace DocToolkit;
 /// <b>Fidelity is bounded</b>, and features the renderer cannot represent are dropped rather than
 /// reported: this package has no warning channel, and adding one is a decision deferred until
 /// somebody needs it rather than made by accident here. See README's <i>Known limitations</i>.
+///
+/// <b>Text is the exception: it is refused, not dropped.</b> A cell holding characters the fonts
+/// this renderer can reach do not cover throws, naming the character - measured on Windows for
+/// Hebrew, Arabic, Persian and Cyrillic. Pass <see cref="PdfFontOptions"/> to <see cref="Convert(byte[], PdfFontOptions?)"/>.
+/// Merged cells render; a sheet's right-to-left direction does not.
 /// </summary>
 public static class XlsxToPdfConverter
 {
@@ -37,7 +42,26 @@ public static class XlsxToPdfConverter
     /// <example>
     /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="XlsxToPdf"/>
     /// </example>
-    public static byte[] Convert(byte[] xlsx)
+    public static byte[] Convert(byte[] xlsx) => Convert(xlsx, null);
+
+    /// <summary>
+    /// Renders the .xlsx in <paramref name="xlsx"/>, using <paramref name="fonts"/> for characters
+    /// the renderer cannot otherwise encode.
+    /// </summary>
+    /// <remarks>
+    /// <b>Without fonts, whether non-Latin text renders depends on the host.</b> Where the renderer
+    /// cannot encode it, it is refused rather than rendered with gaps - measured 2026-11-02, Persian,
+    /// Hebrew, Arabic and Cyrillic cells all fail on a Windows host with a
+    /// <see cref="DocumentConversionException"/> naming the first character that could not be
+    /// encoded. Supplying the font removes the machine from the answer, and also turns on Hebrew and
+    /// Arabic shaping. See <see cref="PdfFontOptions"/> for what that does and does not cover.
+    /// </remarks>
+    /// <param name="xlsx">The workbook to render.</param>
+    /// <param name="fonts">Fonts to fall back to, or <see langword="null"/> for none.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="xlsx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="xlsx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be rendered.</exception>
+    public static byte[] Convert(byte[] xlsx, PdfFontOptions? fonts)
     {
         ArgumentNullException.ThrowIfNull(xlsx);
         if (xlsx.Length == 0)
@@ -82,7 +106,7 @@ public static class XlsxToPdfConverter
             // round trip - which ToPdf then reads directly.
             workbook.Calculate();
 
-            return workbook.ToPdf(PdfRenderPolicy.ForWorkbook());
+            return workbook.ToPdf(PdfRenderPolicy.ForWorkbook(fonts));
         }
         catch (Exception ex)
         {
@@ -124,8 +148,31 @@ public static class XlsxToPdfConverter
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The workbook could not be rendered.</exception>
+    public static Task ConvertAsync(Stream source, Stream destination, CancellationToken ct = default) =>
+        ConvertAsync(source, destination, null, ct);
+
+    /// <summary>
+    /// Reads an .xlsx from <paramref name="source"/> and writes the rendered PDF to
+    /// <paramref name="destination"/>, using <paramref name="fonts"/> for characters the renderer
+    /// cannot otherwise encode.
+    /// </summary>
+    /// <remarks>
+    /// The stream contract is <see cref="ConvertAsync(Stream, Stream, CancellationToken)"/>'s; the
+    /// fonts are <see cref="Convert(byte[], PdfFontOptions?)"/>'s.
+    /// </remarks>
+    /// <param name="source">The stream the .xlsx package is read from.</param>
+    /// <param name="destination">The stream the PDF is written to.</param>
+    /// <param name="fonts">Fonts to fall back to, or <see langword="null"/> for none.</param>
+    /// <param name="ct">Cancels the read, the render and the write.</param>
+    /// <exception cref="ArgumentNullException">Either stream is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The workbook could not be rendered.</exception>
     public static async Task ConvertAsync(
-        Stream source, Stream destination, CancellationToken ct = default)
+        Stream source, Stream destination, PdfFontOptions? fonts, CancellationToken ct = default)
     {
         StreamPipeline.RequireReadable(source, nameof(source));
         StreamPipeline.RequireWritable(destination, nameof(destination));
@@ -164,7 +211,7 @@ public static class XlsxToPdfConverter
             workbook.Calculate();
 
             await workbook
-                .SaveAsPdfAsync(destination, PdfRenderPolicy.ForWorkbook(), ct)
+                .SaveAsPdfAsync(destination, PdfRenderPolicy.ForWorkbook(fonts), ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
