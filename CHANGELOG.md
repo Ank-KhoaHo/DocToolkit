@@ -13,9 +13,18 @@ repo-wide tooling (CI, release pipeline).
 ## [0.59.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.58.0...v0.59.0) (2026-11-03)
 
 
-### Added
+### Changed
 
-* **extensions:** XLSX and PPTX to PDF services use the configured fonts (A125) ([#539](https://github.com/Ank-KhoaHo/DocToolkit/issues/539)) ([b020b4d](https://github.com/Ank-KhoaHo/DocToolkit/commit/b020b4d6a3bd5132c469179422a6291d1adb8aa4))
+* **Extensions: if you set `DocToolkitOptions.Fonts` and convert XLSX or PPTX to PDF, this changes
+  your output.** `IXlsxToPdfConverter` and `IPptxToPdfConverter` ignored the setting until now,
+  because the core converters took no fonts before 0.58.0. They now use yours, read on every call,
+  as `IDocxToPdfConverter` and `IHtmlToPdfConverter` already did.
+
+  Supplied fonts **replace** the host's fallbacks rather than adding to them, so a list that covers
+  less than your workbooks and presentations use can refuse text the host's fonts used to cover.
+  Supplying fonts also turns on Hebrew and Arabic shaping, with the limits listed under 0.58.0.
+  Clear `Fonts` if you relied on the host's fonts.
+* **Extensions:** the package now requires Ank.DocToolkit 0.58.0 or later.
 
 ## [0.58.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.3...v0.58.0) (2026-11-03)
 
