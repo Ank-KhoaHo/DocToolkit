@@ -70,9 +70,18 @@ Nothing is fetched and nothing is read from disk by this library — the bytes c
 *replace* the host's own fallbacks rather than adding to them, so too few is worse than none —
 measured over 99 real documents, one font rendered 63 where none rendered 71, and four rendered 77.
 
-**`Fonts` applies to every converter that renders a PDF** — `IDocxToPdfConverter` and
-`IHtmlToPdfConverter` alike, and on the same conversion as your page setup and remote-image
-settings.
+**`Fonts` applies to every converter that renders a PDF and takes fonts** — `IDocxToPdfConverter`,
+`IHtmlToPdfConverter`, `IXlsxToPdfConverter` and `IPptxToPdfConverter` — and on the same conversion
+as your page setup and remote-image settings. `IMarkdownToPdfConverter` is the exception: the core
+Markdown converter takes no fonts.
+
+**Supplying fonts also turns on Hebrew and Arabic shaping.** Each word comes out in the right letter
+order and Arabic letters join, but a line of several right-to-left words still prints them in
+reverse order, and Persian letters are not shaped. See the core package's README for the detail.
+
+> **If you already set `Fonts` and convert XLSX or PPTX to PDF, this changes your output.** Before
+> 0.59.0 those two converters ignored the setting, because the core gained the overloads only in
+> 0.58.0. They now use your fonts, which replace the host's fallbacks — see the note on HTML below.
 
 It reached only the first before **0.35.0**, because the core package had no overload carrying fonts
 alongside the other two; wiring it anyway would have made the setting apply only when neither of the

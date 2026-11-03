@@ -1,10 +1,21 @@
+using Microsoft.Extensions.Options;
+
 namespace DocToolkit.Extensions.DependencyInjection;
 
-/// <summary>Default <see cref="IPptxToPdfConverter"/>, delegating to <see cref="DocToolkit.PptxToPdfConverter"/>.</summary>
-internal sealed class PptxToPdfConverterService : IPptxToPdfConverter
+/// <summary>
+/// Default <see cref="IPptxToPdfConverter"/>, delegating to <see cref="DocToolkit.PptxToPdfConverter"/>
+/// with <see cref="DocToolkitOptions.Fonts"/>.
+/// </summary>
+/// <remarks>
+/// <b>Reads the options on every call</b>, as <see cref="DocxToPdfConverterService"/> does and for
+/// the same reason. Fonts reached this service only from core 0.58.0, the first release whose
+/// <see cref="DocToolkit.PptxToPdfConverter"/> takes them.
+/// </remarks>
+internal sealed class PptxToPdfConverterService(IOptionsMonitor<DocToolkitOptions> options)
+    : IPptxToPdfConverter
 {
-    public byte[] Convert(byte[] pptx) => DocToolkit.PptxToPdfConverter.Convert(pptx);
+    public byte[] Convert(byte[] pptx) => DocToolkit.PptxToPdfConverter.Convert(pptx, options.CurrentValue.Fonts);
 
     public Task ConvertAsync(Stream source, Stream destination, CancellationToken ct = default)
-        => DocToolkit.PptxToPdfConverter.ConvertAsync(source, destination, ct);
+        => DocToolkit.PptxToPdfConverter.ConvertAsync(source, destination, options.CurrentValue.Fonts, ct);
 }
