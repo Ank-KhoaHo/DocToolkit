@@ -37,7 +37,26 @@ public static class PptxToPdfConverter
     /// <example>
     /// <code source="../../tests/DocToolkit.Tests/DocumentationExamples.cs" region="PptxToPdf"/>
     /// </example>
-    public static byte[] Convert(byte[] pptx)
+    public static byte[] Convert(byte[] pptx) => Convert(pptx, null);
+
+    /// <summary>
+    /// Renders the .pptx in <paramref name="pptx"/>, one page per slide, using
+    /// <paramref name="fonts"/> for characters the renderer cannot otherwise encode.
+    /// </summary>
+    /// <remarks>
+    /// <b>Without fonts, whether non-Latin text renders depends on the host.</b> Where the renderer
+    /// cannot encode it, it is refused rather than rendered with gaps - measured 2026-11-02, Persian,
+    /// Hebrew, Arabic and Cyrillic slides all fail on a Windows host with a
+    /// <see cref="DocumentConversionException"/> naming the first character that could not be
+    /// encoded. Supplying the font removes the machine from the answer, and also turns on Hebrew and
+    /// Arabic shaping. See <see cref="PdfFontOptions"/> for what that does and does not cover.
+    /// </remarks>
+    /// <param name="pptx">The presentation to render.</param>
+    /// <param name="fonts">Fonts to fall back to, or <see langword="null"/> for none.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="pptx"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="pptx"/> is empty.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be rendered.</exception>
+    public static byte[] Convert(byte[] pptx, PdfFontOptions? fonts)
     {
         ArgumentNullException.ThrowIfNull(pptx);
         if (pptx.Length == 0)
@@ -52,7 +71,7 @@ public static class PptxToPdfConverter
             input.Position = 0;
 
             using var presentation = PowerPointPresentation.Load(input);
-            return presentation.ToPdf(PdfRenderPolicy.ForPresentation());
+            return presentation.ToPdf(PdfRenderPolicy.ForPresentation(fonts));
         }
         catch (Exception ex)
         {
@@ -94,8 +113,31 @@ public static class PptxToPdfConverter
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
     /// <exception cref="DocumentConversionException">The presentation could not be rendered.</exception>
+    public static Task ConvertAsync(Stream source, Stream destination, CancellationToken ct = default) =>
+        ConvertAsync(source, destination, null, ct);
+
+    /// <summary>
+    /// Reads a .pptx from <paramref name="source"/> and writes the rendered PDF to
+    /// <paramref name="destination"/>, one page per slide, using <paramref name="fonts"/> for
+    /// characters the renderer cannot otherwise encode.
+    /// </summary>
+    /// <remarks>
+    /// The stream contract is <see cref="ConvertAsync(Stream, Stream, CancellationToken)"/>'s; the
+    /// fonts are <see cref="Convert(byte[], PdfFontOptions?)"/>'s.
+    /// </remarks>
+    /// <param name="source">The stream the .pptx package is read from.</param>
+    /// <param name="destination">The stream the PDF is written to.</param>
+    /// <param name="fonts">Fonts to fall back to, or <see langword="null"/> for none.</param>
+    /// <param name="ct">Cancels the read, the render and the write.</param>
+    /// <exception cref="ArgumentNullException">Either stream is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="source"/> is not readable or held no bytes, or <paramref name="destination"/>
+    /// is not writable.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="ct"/> was cancelled.</exception>
+    /// <exception cref="DocumentConversionException">The presentation could not be rendered.</exception>
     public static async Task ConvertAsync(
-        Stream source, Stream destination, CancellationToken ct = default)
+        Stream source, Stream destination, PdfFontOptions? fonts, CancellationToken ct = default)
     {
         StreamPipeline.RequireReadable(source, nameof(source));
         StreamPipeline.RequireWritable(destination, nameof(destination));
@@ -109,7 +151,7 @@ public static class PptxToPdfConverter
         {
             using var presentation = PowerPointPresentation.Load(pptx);
             await presentation
-                .SaveAsPdfAsync(destination, PdfRenderPolicy.ForPresentation(), ct)
+                .SaveAsPdfAsync(destination, PdfRenderPolicy.ForPresentation(fonts), ct)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)

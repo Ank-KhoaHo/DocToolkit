@@ -4,9 +4,9 @@
     "net10.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.56.0, )",
-        "resolved": "0.56.0",
-        "contentHash": "pAfOrSrBraCICxuJ5NInCPoHqg6mQ+wUuPB5c+8OcuA1FxmehmyTYs4m11LxLzrwemp0S1QjC9B4bjfHs7p3uw==",
+        "requested": "[0.58.0, )",
+        "resolved": "0.58.0",
+        "contentHash": "DtQNmYHIZst4TRaX3NLM/2GCtxQKIeZ6Igv8ptsTqhBeEbDNbWpJCn4Vb35+jAQngWFJC9lLN2tJW1Ad8khLqg==",
         "dependencies": {
           "AngleSharp": "1.7.2",
           "ClosedXML": "0.105.1",
@@ -23,7 +23,8 @@
           "OfficeIMO.Word.Pdf": "3.2.6",
           "PDFsharp": "6.2.4",
           "PdfPig": "0.1.16",
-          "SixLabors.Fonts": "[1.0.1]"
+          "SixLabors.Fonts": "[1.0.1]",
+          "System.Security.Cryptography.Xml": "10.0.13"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
@@ -298,9 +299,9 @@
     "net8.0": {
       "Ank.DocToolkit": {
         "type": "Direct",
-        "requested": "[0.56.0, )",
-        "resolved": "0.56.0",
-        "contentHash": "pAfOrSrBraCICxuJ5NInCPoHqg6mQ+wUuPB5c+8OcuA1FxmehmyTYs4m11LxLzrwemp0S1QjC9B4bjfHs7p3uw==",
+        "requested": "[0.58.0, )",
+        "resolved": "0.58.0",
+        "contentHash": "DtQNmYHIZst4TRaX3NLM/2GCtxQKIeZ6Igv8ptsTqhBeEbDNbWpJCn4Vb35+jAQngWFJC9lLN2tJW1Ad8khLqg==",
         "dependencies": {
           "AngleSharp": "1.7.2",
           "ClosedXML": "0.105.1",
@@ -317,7 +318,8 @@
           "OfficeIMO.Word.Pdf": "3.2.6",
           "PDFsharp": "6.2.4",
           "PdfPig": "0.1.16",
-          "SixLabors.Fonts": "[1.0.1]"
+          "SixLabors.Fonts": "[1.0.1]",
+          "System.Security.Cryptography.Xml": "10.0.13"
         }
       },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {

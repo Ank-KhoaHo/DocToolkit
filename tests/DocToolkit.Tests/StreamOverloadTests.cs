@@ -224,7 +224,9 @@ public class StreamOverloadTests
         "DocxToPdfConverter.ConvertAsync",
         "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "XlsxToPdfConverter.ConvertAsync",
+        "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "PptxToPdfConverter.ConvertAsync",
+        "PptxToPdfConverter.ConvertAsync(PdfFontOptions)",
         "DocxEditor.ReplaceTextAsync",
         "DocxEditor.ReplaceTextAsync(Regex)",
         "DocxEditor.AddWatermarkAsync",
@@ -627,6 +629,8 @@ public class StreamOverloadTests
     private static readonly HashSet<string> CannotAssertARenderedDocument = new(StringComparer.Ordinal)
     {
         "DocxToPdfConverter.ConvertAsync(PdfFontOptions)",
+        "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)",
+        "PptxToPdfConverter.ConvertAsync(PdfFontOptions)",
     };
 
     private static TheoryData<string> Cases(IEnumerable<string> names)
@@ -1276,8 +1280,12 @@ public class StreamOverloadTests
                 DocxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "XlsxToPdfConverter.ConvertAsync" =>
                 XlsxToPdfConverter.ConvertAsync(source!, destination!, ct),
+            "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)" =>
+                XlsxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "PptxToPdfConverter.ConvertAsync" =>
                 PptxToPdfConverter.ConvertAsync(source!, destination!, ct),
+            "PptxToPdfConverter.ConvertAsync(PdfFontOptions)" =>
+                PptxToPdfConverter.ConvertAsync(source!, destination!, SampleFonts, ct),
             "DocxEditor.ReplaceTextAsync" =>
                 DocxEditor.ReplaceTextAsync(source!, Replacements, destination!, ct),
             // A116. A bounded pattern deliberately: the overload REFUSES an unbounded one, so an
@@ -1487,7 +1495,9 @@ public class StreamOverloadTests
         "DocxEditor.AddTableOfContentsAsync" => TocDocx,
         "PresentationEditor.ReplaceImageAsync" => ImagePptx,
         "XlsxToPdfConverter.ConvertAsync" => Xlsx,
+        "XlsxToPdfConverter.ConvertAsync(PdfFontOptions)" => Xlsx,
         "PptxToPdfConverter.ConvertAsync" => Pptx,
+        "PptxToPdfConverter.ConvertAsync(PdfFontOptions)" => Pptx,
         "PdfEditor.RemovePagesAsync" => TwoPagePdf,
         "PdfEditor.UnprotectAsync" => ProtectedPdf,
         "DocxEditor.UnprotectAsync" => ProtectedDocx,

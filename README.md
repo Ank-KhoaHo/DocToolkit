@@ -194,6 +194,8 @@ the package page.
 
 MIT — see [LICENSE](LICENSE).
 
+DocToolkit is maintained by [WillowAnk Solution](https://wanksolution.com/).
+
 ---
 
 If this replaced a headless browser in your build, a star helps others find it — GitHub's
