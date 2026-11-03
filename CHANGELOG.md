@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.59.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.58.0...v0.59.0) (2026-11-03)
+
+
+### Added
+
+* **extensions:** XLSX and PPTX to PDF services use the configured fonts (A125) ([#539](https://github.com/Ank-KhoaHo/DocToolkit/issues/539)) ([b020b4d](https://github.com/Ank-KhoaHo/DocToolkit/commit/b020b4d6a3bd5132c469179422a6291d1adb8aa4))
+
 ## [0.58.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.57.3...v0.58.0) (2026-11-03)
 
 
