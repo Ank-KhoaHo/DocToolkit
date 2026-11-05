@@ -194,7 +194,7 @@ the package page.
 
 MIT — see [LICENSE](LICENSE).
 
-DocToolkit is maintained by [WillowAnk Solution](https://wanksolution.com/).
+DocToolkit is maintained by [WillowAnk Solution](https://wanksolution.com/). Its product page is [wanksolution.com/doctoolkit](https://wanksolution.com/doctoolkit/).
 
 ---
 

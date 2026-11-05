@@ -25,7 +25,7 @@
     <Authors>Khoa Ho</Authors>
     <Company>WillowAnk Solution</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://wanksolution.com/</PackageProjectUrl>
+    <PackageProjectUrl>https://wanksolution.com/doctoolkit/</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <PackageOutputPath>$(MSBuildThisFileDirectory)..\artifacts</PackageOutputPath>

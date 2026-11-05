@@ -265,4 +265,4 @@ this package too.
 
 MIT — see the parent repository's [LICENSE](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/LICENSE).
 
-DocToolkit is maintained by [WillowAnk Solution](https://wanksolution.com/).
+DocToolkit is maintained by [WillowAnk Solution](https://wanksolution.com/). Its product page is [wanksolution.com/doctoolkit](https://wanksolution.com/doctoolkit/).
