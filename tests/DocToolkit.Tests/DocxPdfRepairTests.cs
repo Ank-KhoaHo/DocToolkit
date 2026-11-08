@@ -243,16 +243,26 @@ public class DocxPdfRepairTests
             using (var reader = new StreamReader(entry.Open(), Encoding.UTF8)) xml = reader.ReadToEnd();
             var root = xml.IndexOf("<w:document", StringComparison.Ordinal);
             xml = xml[..root] + "<!DOCTYPE w:document [<!ENTITY boom \"expanded\">]>" + xml[root..];
+            // The entity is referenced from the text, so a parser that allows DTDs expands it.
+            xml = xml.Replace("B</w:t>", "B&boom;</w:t>", StringComparison.Ordinal);
             entry.Delete();
             using var writer = new StreamWriter(zip.CreateEntry("word/document.xml").Open(), new UTF8Encoding(false));
             writer.Write(xml);
         }
 
         var docx = ms.ToArray();
+        var before = Part(docx, "word/document.xml");
+        Assert.Contains("", before, StringComparison.Ordinal);
+        Assert.Contains("&boom;", before, StringComparison.Ordinal);
 
-        // Skipped, not thrown and not expanded: the control character is still there to be refused
-        // by the renderer, which is the better answer than a parse failure from here.
-        Assert.Same(docx, ControlCharacterStrip.Apply(docx));
+        // A parser that allows DTDs would expand the entity, strip the control character and return
+        // a NEW array - so this fails without DtdProcessing.Prohibit. With it the part is skipped:
+        // no throw, no expansion, and the control character is left for the renderer to refuse,
+        // which is a better answer than a parse failure from here.
+        var result = ControlCharacterStrip.Apply(docx);
+
+        Assert.Same(docx, result);
+        Assert.Equal(before, Part(result, "word/document.xml"));
     }
 
     // ---- R5: control characters --------------------------------------------------------------------
