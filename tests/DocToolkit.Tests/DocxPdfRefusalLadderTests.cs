@@ -119,6 +119,13 @@ public class DocxPdfRefusalLadderTests
     private static string FiftyNarrowColumns(string margins) =>
         AutoTable(50, margins, (_, _) => Cell(Para("x")), rows: 1) + Para("after the table");
 
+    /// <summary>
+    /// A document raw 3.5.3 refuses and only the ladder recovers (50 columns narrower than their
+    /// padding), for tests elsewhere that need a conversion which cannot succeed without a repair.
+    /// </summary>
+    internal static byte[] PaddingRefusedDocument() =>
+        Package(FiftyNarrowColumns(SideMargins(108, "<w:top w:w=\"55\" w:type=\"dxa\"/>")));
+
     private static string IndentedParagraph(string indent) =>
         Para("indented paragraph text", $"<w:ind {indent}/>") + Para("plain paragraph");
 
@@ -606,18 +613,20 @@ public class DocxPdfRefusalLadderTests
     }
 
     [Fact]
-    public void AStepThatThrows_EndsTheLadderAsADocumentConversionException()
+    public void AnUnreadablePart_IsSkippedByTheStep_AndTheDocumentStillConverts()
     {
+        // A step that opens a part the renderer never reads used to meet this one and throw
+        // InvalidDataException out of the catch block that runs the ladder. The shared rewrite now
+        // skips an unreadable part, as it skips one that is not XML, so the step repairs the rest
+        // and the document converts. (DocxToPdfConverter.NextRepair still ends the ladder on any
+        // exception a step throws, as the guard for a step that is not written this way.)
         var docx = WithCorruptUnreferencedStyles(Package(FiftyNarrowColumns(SideMargins(108))));
         AssertRefused(docx, PaddingRefusal);
-        // The empty-cell step has nothing to change; the next step opens the corrupt part and throws.
-        Assert.Throws<InvalidDataException>(() => CellPaddingZero.Apply(docx));
+        Assert.Null(Record.Exception(() => CellPaddingZero.Apply(docx)));
 
-        var failure = Assert.Throws<DocumentConversionException>(() => DocxToPdfConverter.Convert(docx));
+        var pdf = DocxToPdfConverter.Convert(docx);
 
-        // The renderer's refusal is what is reported, not the step's own failure.
-        Assert.IsType<ArgumentException>(failure.InnerException);
-        Assert.Contains(PaddingRefusal, failure.InnerException!.Message, StringComparison.Ordinal);
+        Assert.Contains("after the table", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
     }
 
     [Fact]

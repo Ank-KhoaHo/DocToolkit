@@ -67,11 +67,13 @@ internal static class DocxPartRewrite
                     });
                     doc = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
                 }
-                catch (XmlException)
+                catch (Exception ex) when (ex is XmlException or InvalidDataException)
                 {
                     // A part this parser rejects (a C0 control character is not legal XML at all, and
                     // a DOCTYPE is refused) is left alone: the repair is an attempt to help, and the renderer's own
-                    // error is the better answer than a parse failure from here.
+                    // error is the better answer than a parse failure from here. The same goes for a
+                    // part whose compressed data is corrupt (InvalidDataException), which would
+                    // otherwise escape from this up-front repair before the renderer is reached.
                     continue;
                 }
 

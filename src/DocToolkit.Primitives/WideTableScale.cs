@@ -24,6 +24,12 @@ namespace DocToolkit;
 /// fixed layout), an autofit table with no width whose grid is wide, a <c>dxa</c> table width that
 /// fits over a wider grid, and a fixed layout whose cell widths are narrower than its grid.
 ///
+/// <b>Each table is measured against its own section.</b> A section's page size and margins sit in
+/// the <c>w:pPr/w:sectPr</c> of its last paragraph; only the final section's <c>w:sectPr</c> is a direct
+/// child of <c>w:body</c>. A table is measured against the next paragraph-level section after it, or
+/// the body's own when none follows. Widths are read as <c>long</c>, so a grid whose columns sum past
+/// <c>int.MaxValue</c> scales instead of throwing.
+///
 /// <b>Only top-level body tables are scaled.</b> A table nested in a cell is sized by that cell, and
 /// scaling it as well would shrink it twice. A wide nested table is therefore not repaired.
 ///
@@ -43,20 +49,42 @@ internal static class WideTableScale
     private static bool ScaleTables(XDocument doc)
     {
         var body = doc.Root?.Element(W + "body");
-        var section = body?.Elements(W + "sectPr").LastOrDefault();
-        if (body is null || section is null) return false;
+        if (body is null) return false;
 
-        var margins = section.Element(W + "pgMar");
-        var text = Twips(section.Element(W + "pgSz"), "w") - Twips(margins, "left") - Twips(margins, "right");
-        if (text <= 0) return false;
+        // Each top-level table is measured against ITS OWN section. In Word a section's w:sectPr
+        // sits in the pPr of that section's last paragraph; only the final section's is a direct
+        // child of w:body. So the section of a table is the next paragraph-level w:sectPr after it,
+        // or the body's own when none follows. Walking the body once, backwards, keeps that a single
+        // pass: `text` is the text width of the section that the elements still to be visited close.
+        var bodySection = body.Elements(W + "sectPr").LastOrDefault();
+        long? text = bodySection is null ? null : TextWidth(bodySection);
 
         var changed = false;
-        foreach (var table in body.Elements(W + "tbl"))
-            changed |= Scale(table, text);
+        foreach (var element in body.Elements().Reverse())
+        {
+            if (element.Name == W + "tbl")
+            {
+                if (text is > 0) changed |= Scale(element, text.Value);
+            }
+            else if (element.Name == W + "p" && element.Element(W + "pPr")?.Element(W + "sectPr") is { } ending)
+            {
+                // This paragraph ends a section: everything before it (back to the previous such
+                // paragraph) belongs to that section.
+                text = TextWidth(ending);
+            }
+        }
+
         return changed;
     }
 
-    private static bool Scale(XElement table, int text)
+    /// <summary>The page width less both side margins, or 0 when the section has no page size.</summary>
+    private static long TextWidth(XElement section)
+    {
+        var margins = section.Element(W + "pgMar");
+        return Twips(section.Element(W + "pgSz"), "w") - Twips(margins, "left") - Twips(margins, "right");
+    }
+
+    private static bool Scale(XElement table, long text)
     {
         var properties = table.Element(W + "tblPr");
         var tableWidth = properties?.Element(W + "tblW");
@@ -64,9 +92,9 @@ internal static class WideTableScale
         if (type == "pct") return false;
 
         var grid = table.Element(W + "tblGrid")?.Elements(W + "gridCol").ToList() ?? [];
-        var gridWidth = grid.Sum(g => Twips(g, "w"));
+        var gridWidth = grid.Sum(g => Twips(g, "w"));  // long: Twips is long, so the sum cannot overflow
 
-        int width;
+        long width;
         if (type == "dxa")
         {
             width = Twips(tableWidth, "w");
@@ -79,14 +107,14 @@ internal static class WideTableScale
 
         if (width <= text) return false;
 
-        var factor = (double)text / width;
+        var factor = (double)text / width;  // 0 < factor < 1: width > text > 0
         var toScale = grid
             .Concat(table.Elements(W + "tr").Elements(W + "tc").Elements(W + "tcPr").Elements(W + "tcW")
                 .Where(e => (string?)e.Attribute(W + "type") == "dxa"));
         if (type == "dxa" && tableWidth is not null) toScale = toScale.Append(tableWidth);
 
         foreach (var element in toScale)
-            element.SetAttributeValue(W + "w", ((int)(Twips(element, "w") * factor)).ToString(CultureInfo.InvariantCulture));
+            element.SetAttributeValue(W + "w", ((long)(Twips(element, "w") * factor)).ToString(CultureInfo.InvariantCulture));
         return true;
     }
 
@@ -94,9 +122,9 @@ internal static class WideTableScale
     /// The widest row, by its cell widths. A row in which any cell has no <c>dxa</c> width is taken
     /// as <paramref name="gridWidth"/>: the renderer then sizes it from the grid.
     /// </summary>
-    private static int WidestRow(XElement table, int gridWidth)
+    private static long WidestRow(XElement table, long gridWidth)
     {
-        var widest = 0;
+        long widest = 0;
         foreach (var row in table.Elements(W + "tr"))
         {
             var cells = row.Elements(W + "tc").ToList();
@@ -110,6 +138,12 @@ internal static class WideTableScale
         return widest == 0 ? gridWidth : widest;
     }
 
-    private static int Twips(XElement? element, string attribute) =>
-        int.TryParse((string?)element?.Attribute(W + attribute), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
+    /// <summary>
+    /// A twip attribute as a <see langword="long"/>, clamped to the range of an <see langword="int"/>
+    /// so that summing many of them cannot overflow either. A value that is not a number is 0.
+    /// </summary>
+    private static long Twips(XElement? element, string attribute) =>
+        long.TryParse((string?)element?.Attribute(W + attribute), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? Math.Clamp(value, int.MinValue, int.MaxValue)
+            : 0;
 }

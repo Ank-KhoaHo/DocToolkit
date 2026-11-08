@@ -791,4 +791,171 @@ public class DocxPdfRepairTests
 
         Assert.Same(docx, WideTableScale.Apply(docx));
     }
+
+    // ---- R9 (final review): each table is measured against ITS OWN section -------------------------
+
+    /// <summary>
+    /// A body of <paramref name="table"/>, then a paragraph whose <c>w:pPr/w:sectPr</c> closes the first
+    /// section (width, height, side margin in twips), then a last paragraph and the body's own last
+    /// <c>w:sectPr</c> (the second section). In Word only the LAST section's properties are a direct
+    /// child of <c>w:body</c>.
+    /// </summary>
+    private static byte[] TwoSections(Table table, (uint W, uint H, uint Margin) first, (uint W, uint H, uint Margin) last)
+    {
+        static SectionProperties Section((uint W, uint H, uint Margin) s) => new(
+            new PageSize { Width = s.W, Height = s.H, Orient = s.W > s.H ? PageOrientationValues.Landscape : PageOrientationValues.Portrait },
+            new PageMargin { Top = 1440, Bottom = 1440, Left = s.Margin, Right = s.Margin, Header = 720U, Footer = 720U, Gutter = 0U });
+
+        var docx = Build(table, new Paragraph(new ParagraphProperties(Section(first))), P(R("second section")));
+
+        using var ms = new MemoryStream();
+        ms.Write(docx);
+        using (var doc = WordprocessingDocument.Open(ms, true))
+        {
+            var body = doc.MainDocumentPart!.Document!.Body!;
+            foreach (var old in body.Elements<SectionProperties>().ToList()) old.Remove();
+            body.AppendChild(Section(last));
+            doc.MainDocumentPart.Document.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void AWideTableInALandscapeSectionBeforeAPortraitLastSection_IsUntouched()
+    {
+        // Landscape 15840 wide with 1080 side margins: a text area of 13680. The 13000 table fits it.
+        // The body's own w:sectPr is the portrait one (text area 9026), which is NOT this table's.
+        var docx = TwoSections(
+            TwoColumnTable(true, "dxa", 13000, [6500, 6500], [6500, 6500]),
+            (15840, 12240, 1080),
+            (11906, 16838, 1440));
+
+        Assert.Same(docx, WideTableScale.Apply(docx));
+    }
+
+    [Fact]
+    public void ATableTooWideForAPortraitSectionBeforeALandscapeLastSection_IsScaled()
+    {
+        // The mirror: the table is in the portrait (9026) section, the last section is landscape.
+        var docx = TwoSections(
+            TwoColumnTable(true, "dxa", 12000, [6000, 6000], [6000, 6000]),
+            (11906, 16838, 1440),
+            (15840, 12240, 1440));
+
+        var repaired = WideTableScale.Apply(docx);
+
+        Assert.NotSame(docx, repaired);
+        Assert.True(TableWidths(repaired, "tblW").Single() <= 9026);
+        Assert.True(TableWidths(repaired, "gridCol").Sum() <= 9026);
+    }
+
+    [Fact]
+    public void WideTableScale_ATableAfterTheLastParagraphSectionUsesTheBodySection()
+    {
+        // Two tables: one in the portrait section, one after it (so in the landscape last section).
+        // 12000 fits the landscape text area (12960) and not the portrait one.
+        var docx = TwoSections(
+            TwoColumnTable(true, "dxa", 12000, [6000, 6000], [6000, 6000]),
+            (11906, 16838, 1440),
+            (15840, 12240, 1440));
+        using var ms = new MemoryStream();
+        ms.Write(docx);
+        using (var doc = WordprocessingDocument.Open(ms, true))
+        {
+            var body = doc.MainDocumentPart!.Document!.Body!;
+            body.InsertBefore(
+                TwoColumnTable(true, "dxa", 12000, [6000, 6000], [6000, 6000]),
+                body.Elements<SectionProperties>().Last());
+            doc.MainDocumentPart.Document.Save();
+        }
+
+        var xml = System.Xml.Linq.XDocument.Parse(Part(WideTableScale.Apply(ms.ToArray()), "word/document.xml"));
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        var widths = xml.Root!.Element(w + "body")!.Elements(w + "tbl")
+            .Select(t => (string?)t.Element(w + "tblPr")!.Element(w + "tblW")!.Attribute(w + "w")).ToList();
+        Assert.Equal(new[] { "9026", "12000" }, widths);
+    }
+
+    // ---- R9 (final review): arithmetic that cannot throw or wrap -----------------------------------
+
+    private static byte[] HugeGridTable() =>
+        WideTablePage(TwoColumnTable(true, null, null, [2000000000, 2000000000], [null, null]));
+
+    [Fact]
+    public void WideTableScale_AGridWhoseSumOverflowsAnInt_DoesNotThrow_AndScalesToTheTextArea()
+    {
+        var docx = HugeGridTable();
+
+        var repaired = WideTableScale.Apply(docx);
+
+        var grid = TableWidths(repaired, "gridCol");
+        Assert.All(grid, g => Assert.InRange(g, 1, 9026));
+        Assert.True(grid.Sum(g => (long)g) <= 9026);
+    }
+
+    [Fact]
+    public void WideTableScale_AGridWhoseSumOverflowsAnInt_ConvertNeverThrowsOverflow()
+    {
+        var thrown = Record.Exception(() => DocxToPdfConverter.Convert(HugeGridTable()));
+
+        Assert.True(thrown is null or DocumentConversionException, $"escaped: {thrown}");
+    }
+
+    [Fact]
+    public void WideTableScale_CellWidthsWhoseSumOverflowsAnInt_DoNotThrow()
+    {
+        var docx = WideTablePage(TwoColumnTable(true, null, null, [6000, 6000], [2000000000, 2000000000]));
+
+        var thrown = Record.Exception(() => WideTableScale.Apply(docx));
+
+        Assert.Null(thrown);
+    }
+
+    // ---- an unreadable part is skipped, not thrown -------------------------------------------------
+
+    /// <summary>
+    /// <paramref name="docx"/> plus an unreferenced <c>word/footer3.xml</c> whose Deflate data is
+    /// garbage (a block header of type 3, which Deflate reserves): reading it throws
+    /// <see cref="InvalidDataException"/>.
+    /// </summary>
+    private static byte[] WithCorruptFooter(byte[] docx)
+    {
+        using var ms = new MemoryStream();
+        ms.Write(docx);
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            using var writer = new StreamWriter(zip.CreateEntry("word/footer3.xml", CompressionLevel.Optimal).Open(), new UTF8Encoding(false));
+            writer.Write("<w:ftr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:p><w:r><w:t>footer text long enough to deflate</w:t></w:r></w:p></w:ftr>");
+        }
+
+        var bytes = ms.ToArray();
+        var name = "word/footer3.xml"u8;
+        var at = bytes.AsSpan().IndexOf(name);
+        Assert.True(at >= 30, "local header not found");
+        var extra = BitConverter.ToUInt16(bytes, at - 30 + 28);
+        bytes[at + name.Length + extra] = 0xFF;
+        return bytes;
+    }
+
+    [Fact]
+    public void ControlCharacterStrip_AnUnreadablePartIsSkipped_NotThrown()
+    {
+        var docx = WithCorruptFooter(Build("Header", "Footer", P(R("Plain text"))));
+        // The fixture is a real one: reading the part does throw.
+        using (var zip = new ZipArchive(new MemoryStream(docx), ZipArchiveMode.Read))
+            Assert.Throws<InvalidDataException>(() => new StreamReader(zip.GetEntry("word/footer3.xml")!.Open()).ReadToEnd());
+
+        Assert.Same(docx, ControlCharacterStrip.Apply(docx));
+    }
+
+    [Fact]
+    public void ControlCharacterStrip_AnUnreadablePart_DoesNotStopTheRepairOfTheOthers()
+    {
+        var docx = WithCorruptFooter(Build(P(R("Body A\u009DB"))));
+
+        var repaired = ControlCharacterStrip.Apply(docx);
+
+        Assert.False(Part(repaired, "word/document.xml").Contains('\u009D'));
+    }
 }
