@@ -440,7 +440,13 @@ public class DocxPdfRepairTests
             section.AppendChild(new PageSize { Width = 11906U, Height = 16838U });
             section.AppendChild(new PageMargin
             {
-                Top = top, Bottom = bottom, Header = header, Footer = footer, Left = 1440U, Right = 1440U, Gutter = 0U,
+                Top = top,
+                Bottom = bottom,
+                Header = header,
+                Footer = footer,
+                Left = 1440U,
+                Right = 1440U,
+                Gutter = 0U,
             });
             doc.MainDocumentPart.Document.Save();
         }
