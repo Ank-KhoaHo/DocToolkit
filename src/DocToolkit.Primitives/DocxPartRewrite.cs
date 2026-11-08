@@ -55,13 +55,22 @@ internal static class DocxPartRewrite
                 XDocument doc;
                 try
                 {
+                    // The package is untrusted input and this is a public library, and the parse
+                    // happens here BEFORE OfficeIMO sees the document. A DOCTYPE is never legal in
+                    // WordprocessingML, so it is refused outright (which also rules out entity
+                    // expansion) and no resolver is set, so nothing is fetched.
                     using var stream = entry.Open();
-                    doc = XDocument.Load(stream, LoadOptions.PreserveWhitespace);
+                    using var reader = XmlReader.Create(stream, new XmlReaderSettings
+                    {
+                        DtdProcessing = DtdProcessing.Prohibit,
+                        XmlResolver = null,
+                    });
+                    doc = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
                 }
                 catch (XmlException)
                 {
-                    // A part this parser rejects (a C0 control character is not legal XML at all)
-                    // is left alone: the repair is an attempt to help, and the renderer's own
+                    // A part this parser rejects (a C0 control character is not legal XML at all, and
+                    // a DOCTYPE is refused) is left alone: the repair is an attempt to help, and the renderer's own
                     // error is the better answer than a parse failure from here.
                     continue;
                 }

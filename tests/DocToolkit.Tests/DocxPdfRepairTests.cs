@@ -3,6 +3,9 @@ using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using OfficeIMO.Word;
 using OfficeIMO.Word.Pdf;
 using static DocToolkit.Tests.DocxFixtures;
@@ -62,22 +65,57 @@ public class DocxPdfRepairTests
 
     /// <summary>
     /// <b>The link must be inside a table cell.</b> The same link in a body paragraph renders on raw
-    /// 3.5.3 (measured), so a body-paragraph fixture would prove nothing.
+    /// 3.5.3 (measured), so a body-paragraph fixture would prove nothing - and the repair leaves
+    /// such a link alone.
     /// </summary>
-    private static byte[] LinkWithBreakInCell(params Run[] linkRuns)
+    private static byte[] LinkWithBreakInCell(params Run[] linkRuns) => LinkDocument(true, false, linkRuns);
+
+    /// <summary>
+    /// A document with one hyperlink - in a table cell or in a body paragraph - made of
+    /// <paramref name="linkRuns"/>. A run holding <c>w:drawing</c> with no image in it is replaced by
+    /// a real picture, so the fixture is a valid document.
+    /// </summary>
+    private static byte[] LinkDocument(bool inCell, bool withPicture, params Run[] linkRuns)
     {
         using var ms = new MemoryStream();
         using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
         {
             var main = doc.AddMainDocumentPart();
             var rel = main.AddHyperlinkRelationship(new Uri("https://example.org/x"), true);
-            var link = new Hyperlink(linkRuns.Select(r => (OpenXmlElement)r.CloneNode(true))) { Id = rel.Id };
-            var cell = Tbl(Row(link, R(" after the link")));
-            main.Document = new Document(new Body(cell));
+            var children = linkRuns.Select(r => (OpenXmlElement)r.CloneNode(true)).ToList();
+            if (withPicture)
+            {
+                var image = main.AddImagePart(ImagePartType.Png);
+                using (var png = new MemoryStream(ImageFixtures.Png())) image.FeedData(png);
+                children.Insert(children.Count > 0 ? 1 : 0, new Run(Picture(main.GetIdOfPart(image))));
+            }
+
+            var link = new Hyperlink(children) { Id = rel.Id };
+            OpenXmlElement content = inCell
+                ? Tbl(Row(link, R(" after the link")))
+                : P(link, R(" after the link"));
+            main.Document = new Document(new Body(content));
             main.Document.Save();
         }
 
         return ms.ToArray();
+    }
+
+    private static Drawing Picture(string relationshipId)
+    {
+        var picture = new PIC.Picture(
+            new PIC.NonVisualPictureProperties(
+                new PIC.NonVisualDrawingProperties { Id = 0U, Name = "picture" },
+                new PIC.NonVisualPictureDrawingProperties()),
+            new PIC.BlipFill(new A.Blip { Embed = relationshipId }, new A.Stretch(new A.FillRectangle())),
+            new PIC.ShapeProperties(
+                new A.Transform2D(new A.Offset { X = 0L, Y = 0L }, new A.Extents { Cx = 990000L, Cy = 792000L }),
+                new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle }));
+
+        return new Drawing(new DW.Inline(
+            new DW.Extent { Cx = 990000L, Cy = 792000L },
+            new DW.DocProperties { Id = 1U, Name = "picture" },
+            new A.Graphic(new A.GraphicData(picture) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" })));
     }
 
     private static byte[] LinkWithBreak() => LinkWithBreakInCell(R("linked words"), new Run(new Break()));
@@ -130,6 +168,91 @@ public class DocxPdfRepairTests
         var docx = LinkWithBreakInCell(R("just a link"));
 
         Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
+    }
+
+    [Fact]
+    public void HyperlinkBlankRunSplit_ABodyParagraphLinkWithABreak_ReturnsTheSameArray()
+    {
+        // Renders on raw 3.5.3, so it must not be rewritten.
+        var docx = LinkDocument(false, false, R("linked words"), new Run(new Break()));
+        Assert.Null(RawRefusal(docx));
+
+        Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
+    }
+
+    [Fact]
+    public void HyperlinkBlankRunSplit_APictureOnlyLinkInACell_IsLeftAlone()
+    {
+        // Measured: a picture-only link in a cell renders on raw 3.5.3, and unwrapping it would lose the link.
+        var docx = LinkDocument(true, true);
+        Assert.Null(RawRefusal(docx));
+
+        Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
+    }
+
+    [Fact]
+    public void HyperlinkBlankRunSplit_ThePictureStaysInsideALink()
+    {
+        var docx = LinkDocument(true, true, R("before"), new Run(new Break()), R("after"));
+
+        var xml = Part(HyperlinkBlankRunSplit.Apply(docx), "word/document.xml");
+
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        Assert.All(doc.Descendants(w + "drawing"), d => Assert.NotNull(d.Ancestors(w + "hyperlink").FirstOrDefault()));
+    }
+
+    [Fact]
+    public void HyperlinkBlankRunSplit_BothPiecesCarryTheSameTarget()
+    {
+        var xml = Part(HyperlinkBlankRunSplit.Apply(
+            LinkWithBreakInCell(R("before"), new Run(new Break()), R("after"))), "word/document.xml");
+
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        System.Xml.Linq.XNamespace r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        var targets = doc.Descendants(w + "hyperlink").Select(h => (string?)h.Attribute(r + "id")).ToList();
+        Assert.Equal(2, targets.Count);
+        Assert.NotNull(targets[0]);
+        Assert.Equal(targets[0], targets[1]);
+    }
+
+    [Fact]
+    public void HyperlinkBlankRunSplit_AFieldInsideACellLink_IsNotSplit()
+    {
+        var docx = LinkWithBreakInCell(
+            new Run(new FieldChar { FieldCharType = FieldCharValues.Begin }),
+            new Run(new FieldCode(" PAGE ")),
+            new Run(new Break()),
+            new Run(new FieldChar { FieldCharType = FieldCharValues.End }));
+
+        Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
+    }
+
+    [Fact]
+    public void DocxPartRewrite_ADoctypeIsNotParsed_AndTheSameArrayComesBack()
+    {
+        var plain = Build(P(R("AB")));
+        using var ms = new MemoryStream();
+        ms.Write(plain);
+        ms.Position = 0;
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var entry = zip.GetEntry("word/document.xml")!;
+            string xml;
+            using (var reader = new StreamReader(entry.Open(), Encoding.UTF8)) xml = reader.ReadToEnd();
+            var root = xml.IndexOf("<w:document", StringComparison.Ordinal);
+            xml = xml[..root] + "<!DOCTYPE w:document [<!ENTITY boom \"expanded\">]>" + xml[root..];
+            entry.Delete();
+            using var writer = new StreamWriter(zip.CreateEntry("word/document.xml").Open(), new UTF8Encoding(false));
+            writer.Write(xml);
+        }
+
+        var docx = ms.ToArray();
+
+        // Skipped, not thrown and not expanded: the control character is still there to be refused
+        // by the renderer, which is the better answer than a parse failure from here.
+        Assert.Same(docx, ControlCharacterStrip.Apply(docx));
     }
 
     // ---- R5: control characters --------------------------------------------------------------------
