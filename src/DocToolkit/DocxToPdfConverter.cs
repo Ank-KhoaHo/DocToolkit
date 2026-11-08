@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Runtime.ExceptionServices;
 using OfficeIMO.Word;
 using OfficeIMO.Word.Pdf;
 
@@ -201,8 +203,71 @@ public static class DocxToPdfConverter
         }
     }
 
+    /// <summary>
+    /// Renders on a thread of its own with <see cref="RenderStackSize"/> of stack, so the depth of a
+    /// render never depends on the caller's thread.
+    /// </summary>
+    /// <remarks>
+    /// <b>A stack overflow cannot be caught: it ends the caller's whole process</b>, and the depth a
+    /// render needs is not the caller's to know. OfficeIMO's frames are large (~4 KB each), nested
+    /// tables recurse, and a refusal doubles it: the ladder in <see cref="Convert(byte[], PdfFontOptions)"/>
+    /// retries inside a catch block, which runs on top of the failed render's frames. A cell
+    /// hyperlink that 3.5 refuses then needed ~225 KB on Linux x64, and macOS net8.0 gives a
+    /// secondary thread only 512 KB (net9+ raised it to 1.5 MB), so the test host died there (A123).
+    /// </remarks>
+    private static byte[] Render(byte[] docx, PdfFontOptions? fonts) =>
+        OnRenderThread(() => RenderHere(docx, fonts));
+
+    /// <summary>
+    /// The render thread's stack: 16 MB. Measured 2026-11-08 on Linux x64 (A123): a flat document
+    /// needs 64-130 KB, the refused-then-repaired cell link ~225 KB, and tables nested 32 deep
+    /// ~1.5 MB, growing ~43 KB a level. 16 MB is over 10x the worst case seen, room for arm64's
+    /// larger frames. It is reserved address space, committed only as the render uses it.
+    /// </summary>
+    internal const int RenderStackSize = 16 * 1024 * 1024;
+
+    /// <summary>
+    /// Runs <paramref name="work"/> on a new thread with <see cref="RenderStackSize"/> of stack and
+    /// waits for it. Its exception is rethrown here unchanged (same instance, original stack trace
+    /// kept), so the refusal ladder and <see cref="DocxPdfFailureDiagnosis"/> see what they always
+    /// saw. The caller's culture goes with it explicitly, because the execution context that would
+    /// otherwise carry it can be suppressed.
+    /// </summary>
+    internal static T OnRenderThread<T>(Func<T> work)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        var uiCulture = CultureInfo.CurrentUICulture;
+        T result = default!;
+        ExceptionDispatchInfo? failure = null;
+
+        var thread = new Thread(
+            () =>
+            {
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = uiCulture;
+                try
+                {
+                    result = work();
+                }
+                catch (Exception ex)
+                {
+                    failure = ExceptionDispatchInfo.Capture(ex);
+                }
+            },
+            RenderStackSize)
+        {
+            IsBackground = true,
+            Name = "DocToolkit PDF render",
+        };
+        thread.Start();
+        thread.Join();
+
+        failure?.Throw();
+        return result;
+    }
+
     /// <summary>Loads a package and renders it. The one place the renderer is actually called.</summary>
-    private static byte[] Render(byte[] docx, PdfFontOptions? fonts)
+    private static byte[] RenderHere(byte[] docx, PdfFontOptions? fonts)
     {
         // Copy into an expandable stream: OfficeIMO opens the package read/write.
         using var input = new MemoryStream();

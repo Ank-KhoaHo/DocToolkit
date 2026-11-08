@@ -120,6 +120,48 @@ public class DocxPdfRepairTests
         Assert.Contains("after the link", text);
     }
 
+    /// <summary>
+    /// <b>A refused-then-repaired document must convert on a caller's small stack</b> (A123). The
+    /// ladder retries inside a catch block, which runs on top of the failed render's frames, so this
+    /// fixture needs about 225 KB of stack to render on Linux x64 (measured) and more on arm64.
+    /// macOS net8.0 gives a secondary thread 512 KB, and the test host died there with a stack
+    /// overflow, which no caller can catch. The render now runs on its own large-stack thread, so
+    /// the caller's stack carries only the package repairs.
+    /// </summary>
+    /// <remarks>
+    /// <b>RED kills the test host, not just this test</b>: run it alone (<c>--filter</c>) when
+    /// checking that it still fails without the fix.
+    /// </remarks>
+    [Fact]
+    public void HyperlinkBlankRunSplit_ConvertsOnASmallStackThread()
+    {
+        var docx = LinkWithBreak();
+        byte[]? pdf = null;
+        Exception? failure = null;
+
+        var thread = new Thread(
+            () =>
+            {
+                try
+                {
+                    pdf = DocxToPdfConverter.Convert(docx);
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+            },
+            SmallStack);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(failure);
+        Assert.Contains("after the link", PdfProbe.ExtractText(pdf!));
+    }
+
+    /// <summary>Below the ~225 KB the render itself needs on Linux x64, measured 2026-11-08.</summary>
+    private const int SmallStack = 192 * 1024;
+
     [Fact]
     public void HyperlinkBlankRunSplit_ALinkOfOnlySpaces_RefusedBefore_RendersAfter()
     {

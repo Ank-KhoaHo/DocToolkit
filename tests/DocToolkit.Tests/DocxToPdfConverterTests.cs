@@ -1,3 +1,4 @@
+using System.Globalization;
 using DocToolkit;
 using Xunit;
 
@@ -37,5 +38,63 @@ public class DocxToPdfConverterTests
     public void Convert_RejectsEmptyInput()
     {
         Assert.Throws<ArgumentException>(() => DocxToPdfConverter.Convert(Array.Empty<byte>()));
+    }
+
+    // ---- the render thread (A123): see DocxToPdfConverter.Render -----------------------------------
+
+    [Fact]
+    public void OnRenderThread_RunsTheWorkOnItsOwnThread_AndReturnsItsResult()
+    {
+        var caller = Environment.CurrentManagedThreadId;
+
+        var (thread, name) = DocxToPdfConverter.OnRenderThread(
+            () => (Environment.CurrentManagedThreadId, Thread.CurrentThread.Name));
+
+        Assert.NotEqual(caller, thread);
+        Assert.Equal("DocToolkit PDF render", name);
+    }
+
+    /// <summary>
+    /// The refusal ladder matches on the exception the renderer threw, so the hop must hand back
+    /// that same instance, with the render thread's frames still in its stack trace.
+    /// </summary>
+    [Fact]
+    public void OnRenderThread_RethrowsTheSameException_WithItsOriginalStackTrace()
+    {
+        var thrown = new ArgumentException("Parameter 'text' cannot be empty or whitespace.");
+
+        var caught = Assert.Throws<ArgumentException>(
+            () => DocxToPdfConverter.OnRenderThread<int>(() => throw thrown));
+
+        Assert.Same(thrown, caught);
+        Assert.Contains("<OnRenderThread>b__", caught.StackTrace!, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>With the execution context suppressed</b>, because a new thread normally inherits the
+    /// cultures through it anyway, and then this test could not tell the explicit hand-over from
+    /// none.
+    /// </summary>
+    [Fact]
+    public void OnRenderThread_CarriesTheCallersCultures_EvenWithoutTheExecutionContext()
+    {
+        var (culture, uiCulture) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+            CultureInfo.CurrentUICulture = new CultureInfo("fr-FR");
+
+            (string, string) seen;
+            using (ExecutionContext.SuppressFlow())
+                seen = DocxToPdfConverter.OnRenderThread(
+                    () => (CultureInfo.CurrentCulture.Name, CultureInfo.CurrentUICulture.Name));
+
+            Assert.Equal(("de-DE", "fr-FR"), seen);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = uiCulture;
+        }
     }
 }
