@@ -253,7 +253,7 @@ public class XlsxPptxToPdfTests
     /// </summary>
     /// <remarks>
     /// <b>One was added on 2026-08-18 and reverted the same day.</b> Measured over 99 real
-    /// documents, assigning a <c>ResourcePolicy</c> to <c>WordPdfSaveOptions</c> dropped DOCX to PDF
+    /// documents, assigning a <c>ResourcePolicy</c> to <c>WordToPdfOptions</c> dropped DOCX to PDF
     /// from <b>71/99 to 57/99</b>, and the failures were text-encoding preflight errors rather than
     /// anything about resources - it puts the Word renderer into a mode that cannot find fonts.
     ///
@@ -279,7 +279,7 @@ public class XlsxPptxToPdfTests
 
         Assert.True(wordFactories.Count == 0,
             "PdfRenderPolicy has gained a Word options factory: " + string.Join(", ", wordFactories)
-            + ". Assigning a ResourcePolicy to WordPdfSaveOptions was measured to drop DOCX to PDF "
+            + ". Assigning a ResourcePolicy to WordToPdfOptions was measured to drop DOCX to PDF "
             + "from 71/99 to 57/99 on real documents, with font-encoding failures. Re-run that "
             + "measurement before keeping it.");
     }
@@ -313,13 +313,13 @@ public class XlsxPptxToPdfTests
         var factories = typeof(PdfRenderPolicy)
             .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
             .Where(m => m.GetParameters().Length == 0
-                     && m.ReturnType.Name.EndsWith("PdfSaveOptions", StringComparison.Ordinal))
+                     && m.ReturnType.Name.EndsWith("ToPdfOptions", StringComparison.Ordinal))
             .ToList();
 
         // Non-vacuity: reflection that matched nothing would pass while asserting nothing at all.
         //
         // TWO, not three. The Word path deliberately has no factory - assigning a ResourcePolicy to
-        // WordPdfSaveOptions was measured to drop DOCX to PDF from 71/99 to 57/99 on real documents,
+        // WordToPdfOptions was measured to drop DOCX to PDF from 71/99 to 57/99 on real documents,
         // for font reasons rather than resource ones. ThereIsNoWordOptionsFactory_AndThatIsMeasured
         // pins that; this floor only has to stop the reflection silently matching nothing.
         Assert.True(factories.Count >= 2,
@@ -353,7 +353,7 @@ public class XlsxPptxToPdfTests
         var factories = typeof(PdfRenderPolicy)
             .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
             .Where(m => m.GetParameters() is [{ ParameterType: var p }] && p == typeof(PdfFontOptions)
-                     && m.ReturnType.Name.EndsWith("PdfSaveOptions", StringComparison.Ordinal))
+                     && m.ReturnType.Name.EndsWith("ToPdfOptions", StringComparison.Ordinal))
             .ToList();
 
         Assert.True(factories.Count >= 2,

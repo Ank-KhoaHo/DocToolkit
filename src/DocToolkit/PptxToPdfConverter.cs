@@ -71,7 +71,7 @@ public static class PptxToPdfConverter
             input.Position = 0;
 
             using var presentation = PowerPointPresentation.Load(input);
-            return presentation.ToPdf(PdfRenderPolicy.ForPresentation(fonts));
+            return presentation.ToPdfBytes(PdfRenderPolicy.ForPresentation(fonts));
         }
         catch (Exception ex)
         {

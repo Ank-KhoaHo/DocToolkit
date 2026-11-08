@@ -186,7 +186,7 @@ public static class DocxToPdfConverter
         using var word = WordDocument.Load(input);
         // NO ResourcePolicy, and that is measured rather than an oversight. See PdfRenderPolicy.
         var options = SaveOptions(fonts);
-        return options is null ? word.ToPdf() : word.ToPdf(options);
+        return options is null ? word.ToPdfBytes() : word.ToPdfBytes(options);
     }
 
     /// <summary>
@@ -200,8 +200,8 @@ public static class DocxToPdfConverter
     /// but "measured equivalent today" is exactly the assumption that failed last time, so the
     /// no-fonts path stays literally the call it always was.
     /// </remarks>
-    private static WordPdfSaveOptions? SaveOptions(PdfFontOptions? fonts) =>
-        fonts is null ? null : new WordPdfSaveOptions { PdfOptions = fonts.ToPdfOptions() };
+    private static WordToPdfOptions? SaveOptions(PdfFontOptions? fonts) =>
+        fonts is null ? null : new WordToPdfOptions { PdfOptions = fonts.ToPdfOptions() };
 
     /// <summary>
     /// Renders an already-buffered .docx package onto <paramref name="destination"/>.
