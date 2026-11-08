@@ -8,10 +8,10 @@ namespace DocToolkit.Tests;
 /// <summary>
 /// Reads facts out of a generated PDF for assertions.
 ///
-/// IMPORTANT: OfficeIMO writes content streams UNCOMPRESSED (no /Filter) and emits text as
-/// hex-string operators, e.g. "&lt;41636D65&gt; Tj" == "Acme". So neither inflating the streams
-/// nor substring-searching the raw bytes finds any text - both return nothing and look exactly
-/// like a broken converter. Always go through this helper.
+/// IMPORTANT: OfficeIMO emits text as hex-string operators, e.g. "&lt;41636D65&gt; Tj" == "Acme",
+/// and from 3.5 deflates the content streams as well. So substring-searching the file finds no
+/// text - it returns nothing and looks exactly like a broken converter. Always go through this
+/// helper, which inflates the streams (<see cref="Raw"/>) and decodes each font on its own.
 /// </summary>
 public static class PdfProbe
 {
@@ -87,7 +87,105 @@ public static class PdfProbe
     private static char DecodeWinAnsiByte(int b) =>
         b is >= 0x80 and <= 0x9F ? WinAnsiHighRange[b - 0x80] : (char)b;
 
-    private static string Raw(byte[] pdf) => Encoding.Latin1.GetString(pdf);
+    // OfficeIMO 3.5 deflates its content streams; Raw (below) inflates each by its /Length.
+    private static readonly Regex FlateStream = new(
+        @"<<((?:[^<>]|<<[^<>]*>>|<[0-9A-Fa-f]*>)*?/FlateDecode(?:[^<>]|<<[^<>]*>>|<[0-9A-Fa-f]*>)*?)>>\s*stream\r?\n",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex LengthField = new(@"/Length\s+(\d+)(?!\s+\d+\s+R)", RegexOptions.Compiled);
+
+    /// <summary>
+    /// The PDF as text with every <c>/FlateDecode</c> content stream inflated in place, so the rest of
+    /// this class can keep reading operators straight out of the bytes. Font files (<c>/Length1</c>)
+    /// and images are left compressed: they are binary and nothing here reads them.
+    /// </summary>
+    public static string Raw(byte[] pdf)
+    {
+        var raw = Encoding.Latin1.GetString(pdf);
+        if (!raw.Contains("/FlateDecode", StringComparison.Ordinal)) return raw;
+        var sb = new StringBuilder(raw.Length * 2);
+        var at = 0;
+        foreach (Match m in FlateStream.Matches(raw))
+        {
+            if (m.Index < at) continue;
+            var len = LengthField.Match(m.Groups[1].Value);
+            if (!len.Success || m.Groups[1].Value.Contains("/Length1", StringComparison.Ordinal)
+                || m.Groups[1].Value.Contains("/Image", StringComparison.Ordinal)) continue;
+            var start = m.Index + m.Length;
+            var n = int.Parse(len.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (start + n > pdf.Length) continue;
+            string body;
+            try
+            {
+                using var z = new System.IO.Compression.ZLibStream(new MemoryStream(pdf, start, n), System.IO.Compression.CompressionMode.Decompress);
+                using var o = new MemoryStream();
+                z.CopyTo(o);
+                body = Encoding.Latin1.GetString(o.ToArray());
+            }
+            catch (InvalidDataException) { continue; }
+            sb.Append(raw, at, start - at).Append(body).Append('\n');
+            at = start + n;
+        }
+        sb.Append(raw, at, raw.Length - at);
+        return sb.ToString();
+    }
+
+    // OfficeIMO 3.5 mixes several subset fonts per page, each with its own glyph ids,
+    // and writes kerned text as TJ arrays. Decode each string with the font selected by Tf.
+    private static readonly Regex ObjectBody = new(@"(?<![\d])(\d+)\s+0\s+obj\b(.*?)endobj", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex FontResources = new(@"/Font\s*<<([^<>]*)>>", RegexOptions.Compiled);
+    private static readonly Regex NamedRef = new(@"/([^\s/\[\]<>()]+)\s+(\d+)\s+0\s+R", RegexOptions.Compiled);
+    private static readonly Regex ToUnicodeRef = new(@"/ToUnicode\s+(\d+)\s+0\s+R", RegexOptions.Compiled);
+    private static readonly Regex TextOps = new(
+        @"/(?<font>[^\s/\[\]<>()]+)\s+[-\d.]+\s+Tf|\[(?<arr>[^\]]*)\]\s*TJ|<(?<hex>[0-9A-Fa-f]*)>\s*Tj",
+        RegexOptions.Compiled);
+    private static readonly Regex HexInArray = new(@"<([0-9A-Fa-f]*)>", RegexOptions.Compiled);
+
+    private static string? ExtractPerFont(string raw)
+    {
+        var bodies = new Dictionary<string, string>();
+        var order = new List<string>();
+        foreach (Match m in ObjectBody.Matches(raw))
+        {
+            if (bodies.TryAdd(m.Groups[1].Value, m.Groups[2].Value)) order.Add(m.Groups[1].Value);
+        }
+
+        var fonts = new Dictionary<string, (bool TwoByte, Dictionary<int, string>? Map)>();
+        foreach (Match res in FontResources.Matches(raw))
+            foreach (Match r in NamedRef.Matches(res.Groups[1].Value))
+            {
+                if (fonts.ContainsKey(r.Groups[1].Value) || !bodies.TryGetValue(r.Groups[2].Value, out var font)) continue;
+                var tu = ToUnicodeRef.Match(font);
+                var map = tu.Success && bodies.TryGetValue(tu.Groups[1].Value, out var cmap) ? ToUnicodeMap(cmap) : null;
+                fonts[r.Groups[1].Value] = (font.Contains("/Identity-H", StringComparison.Ordinal), map);
+            }
+        if (fonts.Count == 0) return null;
+
+        var sb = new StringBuilder();
+        foreach (var body in order.Select(n => bodies[n]).Where(b => b.Contains("BT", StringComparison.Ordinal) && b.Contains("ET", StringComparison.Ordinal)))
+        {
+            (bool TwoByte, Dictionary<int, string>? Map) current = (false, null);
+            foreach (Match op in TextOps.Matches(body))
+            {
+                if (op.Groups["font"].Success) { fonts.TryGetValue(op.Groups["font"].Value, out current); continue; }
+                var hexes = op.Groups["hex"].Success
+                    ? new[] { op.Groups["hex"].Value }
+                    : HexInArray.Matches(op.Groups["arr"].Value).Select(h => h.Groups[1].Value).ToArray();
+                foreach (var hex in hexes) Decode(hex, current, sb);
+            }
+        }
+        return sb.ToString();
+    }
+
+    private static void Decode(string hex, (bool TwoByte, Dictionary<int, string>? Map) font, StringBuilder sb)
+    {
+        var step = font.TwoByte ? 4 : 2;
+        for (var i = 0; i + step <= hex.Length; i += step)
+        {
+            var code = Convert.ToInt32(hex.Substring(i, step), 16);
+            if (font.Map is not null && font.Map.TryGetValue(code, out var text)) sb.Append(text);
+            else if (!font.TwoByte) sb.Append(DecodeWinAnsiByte(code));
+        }
+    }
 
     public static bool IsPdf(byte[] pdf) =>
         pdf.Length >= 5 && Encoding.ASCII.GetString(pdf, 0, 5) == "%PDF-";
@@ -110,6 +208,11 @@ public static class PdfProbe
     public static string ExtractText(byte[] pdf)
     {
         var raw = Raw(pdf);
+
+        // 3.5 writes kerned text as TJ arrays through several subset fonts, each with its own glyph
+        // ids and its own /ToUnicode, so a single document-wide map would mix them up.
+        if (pdf.Length > 0 && raw.Contains(" TJ", StringComparison.Ordinal) && ExtractPerFont(raw) is { } perFont)
+            return perFont;
 
         // /Identity-H is the signal that codes are two-byte glyph IDs. Keyed on that rather than on
         // "a ToUnicode exists", so a simple-encoded PDF that happens to carry one still decodes the

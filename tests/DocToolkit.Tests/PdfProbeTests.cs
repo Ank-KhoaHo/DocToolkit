@@ -179,4 +179,39 @@ public class PdfProbeTests
         Assert.NotEmpty(positions);
         Assert.DoesNotContain(positions, y => y < 0);
     }
+
+    // ---- A123: OfficeIMO 3.5 deflates streams, writes TJ arrays, and uses several subset fonts ----
+
+    /// <summary>One Latin and one Cyrillic paragraph land in different subset fonts, each with its own glyph ids.</summary>
+    [Fact]
+    public void ExtractText_ReadsTextFromTwoSubsetFontsOnOnePage()
+    {
+        var font = PdfFontOptionsTests.FindFont();
+        if (font is null)
+            return; // same no-font handling as PdfFontOptionsTests: DOCTOOLKIT_REQUIRE_FONT=1 turns this into a failure
+
+        var docx = DocxEditor.Create([DocxBlock.Paragraph("Invoice total"), DocxBlock.Paragraph("Привет мир")]);
+        var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx, new PdfFontOptions("Supplied", font)));
+
+        Assert.Contains("Invoice total", text);
+        Assert.Contains("Привет мир", text);
+    }
+
+    [Fact]
+    public void ExtractText_ReadsATjStringAndASimpleWinAnsiFont()
+    {
+        var pdf = DocxToPdfConverter.Convert(DocxEditor.Create([DocxBlock.Paragraph("Plain text")]));
+
+        Assert.Contains("Plain text", PdfProbe.ExtractText(pdf));
+    }
+
+    [Fact]
+    public void Raw_InflatesContentStreams()
+    {
+        var pdf = DocxToPdfConverter.Convert(DocxEditor.Create([DocxBlock.Paragraph("Plain text")]));
+        var raw = PdfProbe.Raw(pdf);
+
+        Assert.True(raw.Contains(" TJ", StringComparison.Ordinal) || raw.Contains(" Tj", StringComparison.Ordinal),
+            "no text operator found after inflating; the streams are still compressed");
+    }
 }
