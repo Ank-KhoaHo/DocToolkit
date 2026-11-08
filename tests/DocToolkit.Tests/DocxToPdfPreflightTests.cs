@@ -20,6 +20,9 @@ namespace DocToolkit.Tests;
 /// FAILS — which is the signal to demote the finding or drop it.</item>
 /// </list>
 ///
+/// Since OfficeIMO 3.5 the nested table is the only <c>Known</c> finding: footnotes and content
+/// controls render, so their tests here assert that they render and are NOT reported.
+///
 /// That third kind is the whole staleness defence. The construct list cannot be derived from
 /// anything — measured 2026-08-25, all three candidate sources in the graph describe consuming a PDF
 /// rather than producing one — so it is hand-written, and this repository has watched six
@@ -41,6 +44,7 @@ public class DocxToPdfPreflightTests
     {
         var report = DocxToPdfPreflight.Inspect(WithNestedTable());
 
+        Assert.True(report.HasFindings);
         var finding = Assert.Single(report.Findings, f => f.Code == "NestedTable");
         Assert.Equal(1, finding.Count);
         Assert.Equal(DocxToPdfRisk.Known, finding.Risk);
@@ -270,9 +274,9 @@ public class DocxToPdfPreflightTests
     /// shape one — unlike <see cref="WithFootnote"/> above, which is deliberately the UNSTYLED
     /// shape neither of those produces. Built through the real API rather than hand-rolled XML, on
     /// purpose: A94 found <see cref="WithFootnote"/>'s own lack of
-    /// <c>RunStyle="FootnoteReference"</c> was exactly the property this preflight's
-    /// <c>Footnote</c> finding now keys on, and a second hand-built fixture would only re-risk the
-    /// same mistake.
+    /// <c>RunStyle="FootnoteReference"</c> mattered to the renderer (3.2.6 lost such a footnote;
+    /// OfficeIMO 3.5 renders both), and a second hand-built fixture would only re-risk the same
+    /// mistake.
     /// </summary>
     private static byte[] WithStyledFootnote() =>
         DocxEditor.AddFootnote(

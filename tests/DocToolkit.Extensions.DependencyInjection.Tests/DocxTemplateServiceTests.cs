@@ -226,7 +226,7 @@ public class DocxTemplateServiceTests
         new SimpleField(new Run(new Text("<<FirstName>>")))
         { Instruction = " MERGEFIELD FirstName \\* MERGEFORMAT " })));
 
-    /// <summary>A table inside a table cell — one of the preflight's two measured findings.</summary>
+    /// <summary>A table inside a table cell — the preflight's one measured finding.</summary>
     private static byte[] WithANestedTable() => Build(body =>
     {
         static Table Tbl(params OpenXmlElement[] cellContent) => new(
