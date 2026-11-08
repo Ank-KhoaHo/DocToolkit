@@ -40,7 +40,7 @@ public static class DocxToPdfConverter
         // all. Substituted before loading; see ListMarkerSubstitution for why the replacements are
         // measured rather than chosen, and why this is a deliberate trade.
         //
-        // HELD IN A LOCAL because the retry below needs THIS array, not a second substitution of
+        // HELD IN A LOCAL because the ladder below needs THIS array, not a second substitution of
         // the same input. See the comment there.
         byte[]? prepared = null;
 
@@ -59,38 +59,6 @@ public static class DocxToPdfConverter
             return Render(prepared, fonts);
         }
         catch (DocumentConversionException) { throw; }
-        catch (Exception ex) when (DocxPdfFailureDiagnosis.IsNegativeIndent(ex))
-        {
-            // A negative paragraph indent is refused at any magnitude and is legal in Word, so it
-            // is clamped and retried - on the maintainer's decision, and see NegativeIndentClamp
-            // for what that costs and buys.
-            //
-            // ON FAILURE ONLY, so the ordinary path never pays for it. The clamp has to open the
-            // package to find out whether there is anything to clamp, and doing that on every
-            // conversion would tax the 71 documents in 99 that never needed it. The retry costs a
-            // second render, and only a document that already failed pays it - the same shape as
-            // HtmlForPdf's repairs, for the same reason.
-            //
-            // ClampOrNull takes the array that was actually rendered and answers about THAT one,
-            // so there is no second array here to compare against by mistake. See its remarks for
-            // what the mistake was and why no test can see it from outside.
-            //
-            // Reusing `prepared` also drops a second full ZIP rewrite: this line used to run
-            // ListMarkerSubstitution.Apply again, on every negative-indent retry.
-            var clamped = NegativeIndentClamp.ClampOrNull(prepared ?? docx);
-            if (clamped is null) throw new DocumentConversionException(
-                DocxPdfFailureDiagnosis.Describe(ex) ?? FailureMessage, ex);
-
-            try
-            {
-                return Render(clamped, fonts);
-            }
-            catch (Exception second)
-            {
-                throw new DocumentConversionException(
-                    DocxPdfFailureDiagnosis.Describe(second) ?? FailureMessage, second);
-            }
-        }
         catch (Exception ex) when (DocxPdfRefusalLadder.Knows(ex))
         {
             // 3.5 refused with a message a ladder step answers. Each step runs only now, so a
@@ -99,8 +67,11 @@ public static class DocxToPdfConverter
             // A LOOP, because one document can hit several refusals in turn: the next refusal only
             // appears once the earlier one is out of the way (html-000079 needs padding zeroed, and
             // then its 1% width repaired). Every step runs at most once, so it ends; a step that
-            // changes nothing is skipped inside NextOrNull. Starts from `prepared`, the array that
-            // was just refused, for the reason given on the negative-indent retry above.
+            // changes nothing is skipped inside NextOrNull.
+            //
+            // Starts from `prepared`, the array that was actually refused, so a step answers about
+            // THAT array and not a second substitution of the input (which would also be a second
+            // full ZIP rewrite).
             var current = prepared ?? docx;
             var used = new HashSet<int>();
             var failure = ex;
@@ -199,9 +170,10 @@ public static class DocxToPdfConverter
         //
         // RenderAsync writes onto the caller's stream as OfficeIMO lays the PDF out, which reads
         // like a virtue and cost correctness: it applies neither ListMarkerSubstitution nor the
-        // negative-indent clamp, because a clamp-and-retry cannot un-write bytes already sent.
-        // Measured 2026-08-20 over 99 real Word documents: FOUR converted through Convert(byte[])
-        // and were refused here, every one of them a negative indent the clamp recovers.
+        // refusal ladder, because a repair-and-retry cannot un-write bytes already sent.
+        // Measured 2026-08-20 over 99 real Word documents on OfficeIMO 3.2.6: FOUR converted
+        // through Convert(byte[]) and were refused here, every one of them a negative indent that a
+        // retry then recovered (3.5 renders those as they stand; the lesson is the one that holds).
         //
         // Buffering costs one PDF of memory. It is not a memory regression against the array path -
         // DrainAsync above has already buffered the source - and it means a failure now leaves

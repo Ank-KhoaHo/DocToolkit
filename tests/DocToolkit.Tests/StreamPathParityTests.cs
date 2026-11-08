@@ -17,7 +17,7 @@ namespace DocToolkit.Tests;
 /// <see cref="HtmlAnchorRepair"/>'s own count - converted through <c>ConvertAsync(html)</c> and was
 /// refused through <c>ConvertAsync(html, destination)</c>;</item>
 /// <item><b>4 of 99 real Word documents</b> converted through <c>DocxToPdfConverter.Convert</c> and
-/// were refused through its stream overload, every one a negative indent the clamp recovers.</item>
+/// were refused through its stream overload, every one a negative indent (3.2.6 refused those and a retry recovered them; 3.5 renders them).</item>
 /// </list>
 ///
 /// <b>The fix buffers, on the maintainer's decision, and that is the trade this file pins.</b> One
@@ -74,7 +74,7 @@ public class StreamPathParityTests
 
     // ---- DOCX to PDF --------------------------------------------------------------------------------
 
-    /// <summary>A .docx carrying the negative indent the renderer refuses and the clamp repairs.</summary>
+    /// <summary>A .docx carrying a negative right indent, which 3.2.6 refused and 3.5 renders.</summary>
     private static byte[] NegativeIndentDocument()
     {
         var docx = DocxEditor.Create([DocxBlock.Paragraph("Text long enough to wrap onto a second line.")]);
@@ -104,7 +104,7 @@ public class StreamPathParityTests
     }
 
     [Fact]
-    public async Task DocxToPdf_StreamAgreesWithBytes_OnADocumentNeedingTheClamp()
+    public async Task DocxToPdf_StreamAgreesWithBytes_OnANegativeIndent()
     {
         var docx = NegativeIndentDocument();
 

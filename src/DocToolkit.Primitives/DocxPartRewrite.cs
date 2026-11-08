@@ -21,8 +21,8 @@ namespace DocToolkit;
 ///
 /// <b>Whitespace is preserved</b> (<see cref="LoadOptions.PreserveWhitespace"/>, no formatting on
 /// save): a <c>w:t</c> holding only a space would otherwise change meaning. Changed entries are
-/// deleted and recreated rather than overwritten, for the reason <see cref="NegativeIndentClamp"/>
-/// gives: an entry cannot be resized downwards safely.
+/// deleted and recreated rather than overwritten, because an entry cannot be resized downwards
+/// safely.
 /// </remarks>
 internal static class DocxPartRewrite
 {
