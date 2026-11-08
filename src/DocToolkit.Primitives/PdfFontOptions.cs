@@ -40,13 +40,13 @@ namespace DocToolkit;
 /// every reader has.
 ///
 /// <b>3. It turns on right-to-left shaping</b>, on the DOCX, HTML, XLSX and PPTX converters (Markdown
-/// to PDF takes no fonts). <b>What shaping fixes is each WORD, not the line.</b> Measured 2026-11-02
-/// from glyph positions: a Hebrew or Arabic word is spelled in the right order and Arabic letters
-/// join, where without shaping both are reversed - but a line of several words still prints its
-/// WORDS in reverse order, and a number lands on the wrong side. Latin text is unaffected, measured
-/// byte for byte. <b>Persian and Urdu letters</b> (<c>پ چ ژ گ ک ی</c>) are not shaped at all - a word
-/// containing one stays reversed - and a worksheet's right-to-left direction is not applied. All
-/// three gaps are in the renderer beneath this package.
+/// to PDF takes no fonts). <b>Since OfficeIMO 3.5 a Hebrew line comes out in reading order</b> in the DOCX, XLSX
+/// and PPTX converters: the words follow each other from right to left, each word's letters are
+/// right and a number sits on the correct side. <b>Arabic letters do not join yet</b>, and no test
+/// measures the word order of an Arabic line. <b>Persian and Urdu letters</b> (<c>پ چ ژ گ ک ی</c>)
+/// are not shaped - text that holds them still renders - and a worksheet's right-to-left direction
+/// is not applied. Latin text is unaffected, measured byte for byte. The gaps are in the renderer
+/// beneath this package.
 ///
 /// <b>There is deliberately no compiled example for this type</b>, which is worth explaining
 /// because every other public type here has one. This project's examples are real tests, so they
@@ -118,10 +118,9 @@ public sealed class PdfFontOptions
     /// <b>Shaping rides on the fonts because it only exists for them.</b> The renderer shapes text
     /// written with embedded fonts, which without a supplied font a host may not have - and where it
     /// does, as Arial on Windows for the DOCX path, the renderer uses it without shaping. Measured
-    /// 2026-11-02 with a supplied font: Latin output byte-identical with and without shaping; Hebrew
-    /// and Arabic words spelled correctly with it and reversed without it, though a multi-word line
-    /// keeps its words in reverse order either way; and Persian's own letters declined by the
-    /// shaper either way (A124).
+    /// with a supplied font: Latin output byte-identical with and without shaping; Hebrew lines in reading
+    /// order on OfficeIMO 3.5.3; Arabic letters not joined; and Persian's own letters declined by the
+    /// shaper either way.
     /// </remarks>
     internal OfficeIMO.Pdf.PdfOptions ToPdfOptions()
     {

@@ -114,8 +114,8 @@ public sealed class DocToolkitOptions
     /// Markdown converter takes no fonts. XLSX and PPTX were reached from core 0.58.0, the first release
     /// whose converters take them.
     ///
-    /// <b>Supplying fonts also turns on Hebrew and Arabic shaping</b> - each word comes out in the right
-    /// letter order and Arabic joins, though a line of several words keeps them in reverse order. See
+    /// <b>Supplying fonts also turns on right-to-left shaping</b> - since OfficeIMO 3.5 a Hebrew line
+    /// comes out in reading order, while Arabic letters do not join yet. See
     /// <see cref="PdfFontOptions"/>.
     ///
     /// HTML was reached only from core 0.34.0, because
