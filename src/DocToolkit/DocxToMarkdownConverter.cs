@@ -35,7 +35,9 @@ public static class DocxToMarkdownConverter
         {
             // Expandable copy: the loader opens the package read/write, as DocxToPdfConverter does.
             using var input = new MemoryStream();
-            input.Write(docx, 0, docx.Length);
+            // OfficeIMO 3.5 exports only the first drawing of a run; see DrawingRunSplit.
+            var prepared = DrawingRunSplit.Apply(docx);
+            input.Write(prepared, 0, prepared.Length);
             input.Position = 0;
 
             using var word = WordDocument.Load(input);
@@ -79,7 +81,9 @@ public static class DocxToMarkdownConverter
         try
         {
             using var input = new MemoryStream();
-            input.Write(docx, 0, docx.Length);
+            // OfficeIMO 3.5 exports only the first drawing of a run; see DrawingRunSplit.
+            var prepared = DrawingRunSplit.Apply(docx);
+            input.Write(prepared, 0, prepared.Length);
             input.Position = 0;
 
             using var word = WordDocument.Load(input);
