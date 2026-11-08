@@ -25,9 +25,10 @@ namespace DocToolkit;
 /// <c>"50%"</c> spelling is a different, valid form. Auto sizes the table to its content, which is
 /// what the writer asked for by leaving the cell otherwise unsized.
 ///
-/// <b>It does change some documents that render today.</b> A top-level 1% table is not refused, and
-/// is edited all the same: it becomes a table sized to its content instead of a 1% sliver. That is
-/// what the writer meant, and it is why the width is repaired rather than only the refused nesting.
+/// <b>It runs only after 3.5 refuses with that message</b>, as a step of
+/// <see cref="DocxPdfRefusalLadder"/>. Run on every conversion it also rewrote a top-level 1% table,
+/// which 3.5 renders as it stands (a sliver, as Word draws it), so a document that rendered today
+/// came out different. A refused document has nothing to lose; a rendering one is left alone.
 /// </remarks>
 internal static class TinyPercentWidthRepair
 {

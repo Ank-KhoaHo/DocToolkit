@@ -49,10 +49,11 @@ public static class DocxToPdfConverter
             prepared = ListMarkerSubstitution.Apply(docx);
             // Constructs Word accepts and OfficeIMO 3.5 refuses, repaired on every conversion. Each
             // returns the SAME array when it finds nothing, so a document that renders today is never
-            // rewritten, and `prepared` stays the array that was rendered (A123).
+            // rewritten, and `prepared` stays the array that was rendered (A123). Repairs that would
+            // change a layout 3.5 renders as it stands are not here; they wait for the refusal, in
+            // DocxPdfRefusalLadder below.
             prepared = HyperlinkBlankRunSplit.Apply(prepared);
             prepared = ControlCharacterStrip.Apply(prepared);
-            prepared = TinyPercentWidthRepair.Apply(prepared);
             prepared = HeaderOffsetRepair.Apply(prepared);
             prepared = WideTableScale.Apply(prepared);
             return Render(prepared, fonts);
@@ -89,6 +90,34 @@ public static class DocxToPdfConverter
                 throw new DocumentConversionException(
                     DocxPdfFailureDiagnosis.Describe(second) ?? FailureMessage, second);
             }
+        }
+        catch (Exception ex) when (DocxPdfRefusalLadder.Knows(ex))
+        {
+            // 3.5 refused with a message a ladder step answers. Each step runs only now, so a
+            // document that renders as it stands pays nothing and is never changed.
+            //
+            // A LOOP, because one document can hit several refusals in turn: the next refusal only
+            // appears once the earlier one is out of the way (html-000079 needs padding zeroed, and
+            // then its 1% width repaired). Every step runs at most once, so it ends; a step that
+            // changes nothing is skipped inside NextOrNull. Starts from `prepared`, the array that
+            // was just refused, for the reason given on the negative-indent retry above.
+            var current = prepared ?? docx;
+            var used = new HashSet<int>();
+            var failure = ex;
+            while (DocxPdfRefusalLadder.NextOrNull(failure, current, used) is { } next)
+            {
+                current = next;
+                try
+                {
+                    return Render(current, fonts);
+                }
+                catch (Exception again)
+                {
+                    failure = again;
+                }
+            }
+
+            throw new DocumentConversionException(DocxPdfFailureDiagnosis.Describe(failure) ?? FailureMessage, failure);
         }
         catch (Exception ex)
         {
