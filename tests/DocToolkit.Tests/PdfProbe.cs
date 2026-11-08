@@ -179,7 +179,7 @@ public static class PdfProbe
         return r.Success && r.Index == rest && bodies.TryGetValue(r.Groups[1].Value, out var target) ? target : null;
     }
 
-    private static string? ExtractPerFont(string raw, List<(string Text, double X)>? runs = null)
+    private static string? ExtractPerFont(string raw, List<(string Text, double X)>? runs = null, List<string>? codes = null)
     {
         var bodies = new Dictionary<string, string>();
         var order = new List<string>();
@@ -253,6 +253,7 @@ public static class PdfProbe
                     foreach (var hex in hexes) Decode(hex, current, run);
                     sb.Append(run);
                     runs?.Add((run.ToString(), x));
+                    codes?.Add(string.Concat(hexes));
                 }
         }
 
@@ -285,6 +286,18 @@ public static class PdfProbe
         var runs = new List<(string Text, double X)>();
         ExtractPerFont(Raw(pdf), runs);
         return runs;
+    }
+
+    /// <summary>
+    /// The raw hex of each text-showing operator, in the same order as <see cref="TextRuns"/> (a TJ
+    /// array's strings joined). For an Identity-H font that is four hex digits per glyph: the glyph id
+    /// the PDF draws, which is what separates a joined letter from its isolated form.
+    /// </summary>
+    public static IReadOnlyList<string> GlyphCodeRuns(byte[] pdf)
+    {
+        var codes = new List<string>();
+        ExtractPerFont(Raw(pdf), new List<(string Text, double X)>(), codes);
+        return codes;
     }
 
     public static bool IsPdf(byte[] pdf) =>

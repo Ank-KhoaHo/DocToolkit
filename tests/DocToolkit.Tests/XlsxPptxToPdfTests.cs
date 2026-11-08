@@ -409,6 +409,13 @@ public class XlsxPptxToPdfTests
     private static PdfFontOptions? HostFonts() =>
         PdfFontOptionsTests.FindFont() is { } font ? new PdfFontOptions("Supplied", font) : null;
 
+    /// <summary>
+    /// Like <see cref="HostFonts"/>, but a font whose cmap covers the Arabic presentation forms: the
+    /// joining tests need glyphs to draw (see <see cref="ArabicFontTests"/>).
+    /// </summary>
+    private static PdfFontOptions? ArabicHostFonts() =>
+        ArabicFontTests.FindArabicFont() is { } font ? new PdfFontOptions("Supplied", font) : null;
+
     /// <summary>The host-independent proof the bytes reach the renderer: its own refusal.</summary>
     [Theory]
     [InlineData(3)]
@@ -431,7 +438,7 @@ public class XlsxPptxToPdfTests
             XlsxToPdfConverter.Convert(SheetWith(string.Join(" ", PdfFontOptionsTests.HebrewLine)), fonts));
     }
 
-    [Theory(Skip = "A124: needs pre-shaping, lands in PR 2")]
+    [Theory]
     [InlineData("فاتورة ضريبية رقم 12")]
     public void XlsxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
     {
@@ -463,7 +470,7 @@ public class XlsxPptxToPdfTests
         Assert.Contains("Invoice", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
     }
 
-    /// <summary>Persian's own letters are not shaped (A124), but must still render, not throw.</summary>
+    /// <summary>Persian text, with its own letters, is joined (A124) and must render, not throw.</summary>
     [Fact]
     public void XlsxConvert_WithARealFont_PersianRendersWithoutThrowing()
     {
@@ -531,7 +538,7 @@ public class XlsxPptxToPdfTests
                 PresentationEditor.Create([PptxSlide.Titled(string.Join(" ", PdfFontOptionsTests.HebrewLine))]), fonts));
     }
 
-    [Theory(Skip = "A124: needs pre-shaping, lands in PR 2")]
+    [Theory]
     [InlineData("فاتورة ضريبية رقم 12")]
     public void PptxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
     {
@@ -595,5 +602,155 @@ public class XlsxPptxToPdfTests
         await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
 
         Assert.Equal(PptxToPdfConverter.Convert(pptx, fonts), destination.ToArray());
+    }
+
+    // =====================================================================================
+    // A124 - Arabic letters join when fonts are supplied
+    // =====================================================================================
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_ArabicIsPreShaped()
+    {
+        if (ArabicFontTests.FindArabicFont() is not { } font)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(XlsxToPdfConverter.Convert(xlsx, fonts), font);
+    }
+
+    [Fact]
+    public async Task XlsxConvertAsync_WithARealFont_ArabicIsPreShaped()
+    {
+        if (ArabicFontTests.FindArabicFont() is not { } font)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
+        using var destination = new MemoryStream();
+
+        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(xlsx), destination, fonts);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), font);
+    }
+
+    [Fact]
+    public void PptxConvert_WithARealFont_ArabicIsPreShaped()
+    {
+        if (ArabicFontTests.FindArabicFont() is not { } font)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(PptxToPdfConverter.Convert(pptx, fonts), font);
+    }
+
+    [Fact]
+    public async Task PptxConvertAsync_WithARealFont_ArabicIsPreShaped()
+    {
+        if (ArabicFontTests.FindArabicFont() is not { } font)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
+        using var destination = new MemoryStream();
+
+        await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), font);
+    }
+
+    // ---- Formulas are calculated BEFORE the letters are joined ---------------------------------------
+
+    private const string Salam = "سلام";   // seen (sin lam alef mim): lam-alef is one glyph
+    private const string Paid = "مدفوع";
+
+    /// <summary>A1 text, B1 its length, C1 a comparison against an Arabic literal, D1 an Arabic text result.</summary>
+    private static byte[] FormulaSheet() =>
+        WorkbookEditor.Create("Sheet", new object?[][]
+        {
+            new object?[]
+            {
+                Salam,
+                XlsxFormula.From("LEN(A1)"),
+                XlsxFormula.From($"IF(A1=\"{Salam}\",\"ok\",\"no\")"),
+                XlsxFormula.From($"IF(TRUE,\"{Paid}\",\"\")"),
+            },
+        });
+
+    /// <summary>The same sheet holding the results as plain values: what the formulas should render as.</summary>
+    private static byte[] ValueSheet() =>
+        WorkbookEditor.Create("Sheet", new object?[][] { new object?[] { Salam, 4, "ok", Paid } });
+
+    private static void AssertFormulaResultsRender(byte[] pdf, PdfFontOptions fonts)
+    {
+        var runs = PdfProbe.TextRuns(pdf).Where(r => r.Text.Trim().Length > 0).ToList();
+
+        Assert.Contains(runs, r => r.Text == "4");
+        Assert.Contains(runs, r => r.Text == "ok");
+        Assert.Equal(
+            PdfProbe.TextRuns(XlsxToPdfConverter.Convert(ValueSheet(), fonts)).Where(r => r.Text.Trim().Length > 0),
+            runs);
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_LenOfAnArabicCellCountsTheUnjoinedLetters()
+    {
+        if (ArabicHostFonts() is not { } fonts)
+            return;
+
+        var runs = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts));
+
+        Assert.Contains(runs, r => r.Text == "4");
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_ACompareAgainstAnArabicLiteralStillMatches()
+    {
+        if (ArabicHostFonts() is not { } fonts)
+            return;
+
+        var runs = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts));
+
+        Assert.Contains(runs, r => r.Text == "ok");
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_AFormulasArabicTextResultIsJoined()
+    {
+        if (ArabicHostFonts() is not { } fonts)
+            return;
+
+        var formulas = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts)).Where(r => r.Text.Trim().Length > 0);
+        var values = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(ValueSheet(), fonts)).Where(r => r.Text.Trim().Length > 0);
+
+        Assert.Equal(values, formulas);
+    }
+
+    [Fact]
+    public async Task XlsxConvertAsync_WithARealFont_FormulaResultsAreCalculatedBeforeJoining()
+    {
+        if (ArabicHostFonts() is not { } fonts)
+            return;
+        using var destination = new MemoryStream();
+
+        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(FormulaSheet()), destination, fonts);
+
+        AssertFormulaResultsRender(destination.ToArray(), fonts);
+    }
+
+    /// <summary>
+    /// No fonts: Arabic is refused as it is today (measured 2026-11-09, on hosts with and without
+    /// fonts), and nothing changes it. The refusal is the pinned behaviour; that the pre-shaper is
+    /// not reached is the DOCX counterpart's job, where the outcome can differ.
+    /// </summary>
+    [Fact]
+    public void WithoutFonts_ArabicXlsxAndPptxStillRefuseAsToday()
+    {
+        var xlsx = Assert.Throws<DocumentConversionException>(
+            () => XlsxToPdfConverter.Convert(SheetWith(PdfFontOptionsTests.ArabicLine)));
+        var pptx = Assert.Throws<DocumentConversionException>(
+            () => PptxToPdfConverter.Convert(SlideWith(PdfFontOptionsTests.ArabicLine)));
+
+        Assert.Contains("WinAnsi", xlsx.InnerException!.Message, StringComparison.Ordinal);
+        Assert.Contains("WinAnsi", pptx.InnerException!.Message, StringComparison.Ordinal);
     }
 }

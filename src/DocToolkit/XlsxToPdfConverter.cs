@@ -92,8 +92,12 @@ public static class XlsxToPdfConverter
         {
             // Expandable copy: the loader opens the package read/write, exactly as
             // DocxToPdfConverter.Convert has to.
+            //
+            // With fonts and Arabic text, the workbook is calculated first and only then has its
+            // letters rewritten into their joined forms (A124), so see PrepareForRender.
+            var (package, calculated) = PrepareForRender(xlsx, fonts);
             using var input = new MemoryStream();
-            input.Write(xlsx, 0, xlsx.Length);
+            input.Write(package, 0, package.Length);
             input.Position = 0;
 
             using var workbook = ExcelDocument.Load(input);
@@ -104,7 +108,8 @@ public static class XlsxToPdfConverter
             // cell rendered its own SOURCE TEXT where the computed value belongs. Measured
             // 2026-08-31. Calculate() updates the in-memory model only - no re-save, no second
             // round trip - which ToPdf then reads directly.
-            workbook.Calculate();
+            if (!calculated)
+                workbook.Calculate();
 
             return workbook.ToPdfBytes(PdfRenderPolicy.ForWorkbook(fonts));
         }
@@ -112,6 +117,34 @@ public static class XlsxToPdfConverter
         {
             throw new DocumentConversionException(FailureMessage, ex);
         }
+    }
+
+    /// <summary>
+    /// The package to render, and whether its formulas are already calculated (so the caller must
+    /// not calculate again).
+    /// </summary>
+    /// <remarks>
+    /// <b>Joining must come after calculation.</b> A formula is evaluated against the cell text it
+    /// reads, so joined letters change <c>LEN</c> (a lam-alef is one glyph), make
+    /// <c>=IF(A1="...",...)</c> and <c>COUNTIF</c> miss, and leave a formula's own text result
+    /// unjoined. So with fonts and Arabic text the unjoined workbook is calculated and saved
+    /// (OfficeIMO writes each result as the cell's cached value, <c>t="str"</c> for text), and that
+    /// copy is joined. Anything else is returned as it came, to be calculated by the caller.
+    /// </remarks>
+    private static (byte[] Package, bool Calculated) PrepareForRender(byte[] xlsx, PdfFontOptions? fonts)
+    {
+        if (fonts is null || !ArabicPreShaper.HasArabicLetter(xlsx))
+            return (xlsx, false);
+
+        using var input = new MemoryStream();
+        input.Write(xlsx, 0, xlsx.Length);
+        input.Position = 0;
+        using var workbook = ExcelDocument.Load(input);
+        workbook.Calculate();
+
+        using var saved = new MemoryStream();
+        workbook.Save(saved);
+        return (ArabicPreShaper.Apply(saved.ToArray()), true);
     }
 
     /// <summary>Renders <paramref name="inputPath"/> to a PDF at <paramref name="outputPath"/>.</summary>
@@ -203,12 +236,23 @@ public static class XlsxToPdfConverter
 
         try
         {
+            // With fonts and Arabic text, calculate first and join the letters after (A124); same
+            // as Convert(byte[]).
+            var original = xlsx.GetBuffer().AsSpan(0, (int)xlsx.Length).ToArray();
+            var (package, calculated) = PrepareForRender(original, fonts);
+            if (calculated)
+            {
+                xlsx.SetLength(0);
+                xlsx.Write(package, 0, package.Length);
+            }
+
             xlsx.Position = 0;
             using var workbook = ExcelDocument.Load(xlsx);
 
             // See Convert(byte[])'s identical comment: a formula cell renders its own source text
             // without this.
-            workbook.Calculate();
+            if (!calculated)
+                workbook.Calculate();
 
             await workbook
                 .SaveAsPdfAsync(destination, PdfRenderPolicy.ForWorkbook(fonts), ct)

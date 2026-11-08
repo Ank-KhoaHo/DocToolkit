@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace DocToolkit.Tests;
 
 /// <summary>
@@ -315,5 +317,141 @@ public class PdfFontOptionsTests
         var docx = DocxEditor.Create([DocxBlock.Paragraph("Invoice total, office fi fl ffi: 60,000")]);
 
         Assert.Equal(UnshapedRender.Docx(docx, fonts), DocxToPdfConverter.Convert(docx, fonts));
+    }
+
+    // ---- Arabic joins when fonts are supplied (A124) ------------------------------------------------
+
+    internal const string ArabicLine = "فاتورة ضريبية";
+
+    /// <summary>
+    /// Asserts <paramref name="pdf"/> draws the Arabic line JOINED: each of its first two words is drawn
+    /// with the glyphs that <paramref name="font"/> has for the word's joined presentation forms, in
+    /// visual order.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why glyph codes, not positions (measured 2026-11-09, OfficeIMO 3.5.3).</b> The decoded text
+    /// is the same shaped or not: the ToUnicode map gives the base letters back for presentation forms,
+    /// and the renderer emits no <c>/ActualText</c>. A comparison with an unshaped render worked on
+    /// Windows and Linux (first word at x 132.0 unshaped, 109.2 shaped) but not on macOS, where
+    /// OfficeIMO joins the letters itself and both renders drew the same glyphs. The glyph codes are
+    /// the one thing that is right on every host: the expected codes come from the supplied font's own
+    /// cmap, and the PDF keeps the font's glyph ids as its Identity-H codes (confirmed against Tahoma
+    /// and DejaVu Sans). A render that does not join draws the isolated forms, whose ids differ.
+    /// </remarks>
+    internal static void AssertArabicLineIsJoined(byte[] pdf, byte[] font)
+    {
+        var glyphOf = FontCmap.GlyphIds(font);
+        var runs = PdfProbe.TextRuns(pdf);
+        var codes = PdfProbe.GlyphCodeRuns(pdf);
+        var words = Enumerable.Range(0, runs.Count)
+            .Where(i => runs[i].Text.Trim().Length > 0)
+            .Take(2)
+            .ToList();
+
+        // The decoded text: the words' base letters, each backwards (a run is drawn left to right).
+        var expectedText = ArabicLine.Split(' ').Select(w => new string(w.Reverse().ToArray())).ToArray();
+        Assert.Equal(expectedText, words.Select(i => runs[i].Text).ToArray());
+
+        // The drawn glyphs: each word's joined forms, reversed into visual order, through the font's cmap.
+        var expected = ArabicLine.Split(' ')
+            .Select(w => string.Concat(
+                string.Concat(ArabicPreShaper.Shape(w)).Reverse().Select(c => glyphOf(c).ToString("X4"))))
+            .ToArray();
+        var drawn = words.Select(i => codes[i].ToUpperInvariant()).ToArray();
+
+        Assert.True(
+            expected.SequenceEqual(drawn),
+            $"The first two words should be drawn with glyphs {string.Join(" ", expected)} (the font's joined forms),"
+            + $" but the PDF draws {string.Join(" ", drawn)}."
+            + Environment.NewLine + TextEvidence(pdf));
+    }
+
+    /// <summary>
+    /// The fonts a PDF names and its first text-showing operators, raw, so a failure on a host this
+    /// repository cannot run locally (macOS) shows which glyph codes each render drew.
+    /// </summary>
+    private static string TextEvidence(byte[] pdf)
+    {
+        var raw = PdfProbe.Raw(pdf);
+        var fonts = Regex.Matches(raw, @"/BaseFont\s*/[^\s/>\]]+").Select(m => m.Value).Distinct();
+        var shows = Regex.Matches(raw, @"(\[[^\]]{0,400}\]\s*TJ|<[0-9A-Fa-f]{1,400}>\s*Tj|\([^)]{0,200}\)\s*Tj)")
+            .Take(6)
+            .Select(m => m.Value);
+        return string.Join(" ", fonts) + " | " + string.Join(" ; ", shows);
+    }
+
+    private static byte[] ArabicDocx() => DocxEditor.Create([DocxBlock.Paragraph(ArabicLine)]);
+
+    [Fact]
+    public void WithFonts_ArabicDocxIsPreShaped()
+    {
+        var font = ArabicFontTests.FindArabicFont();
+        if (font is null)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var docx = ArabicDocx();
+
+        var pdf = DocxToPdfConverter.Convert(docx, fonts);
+
+        AssertArabicLineIsJoined(pdf, font);
+        // And it is exactly the render of the pre-shaped package, so nothing else changed.
+        Assert.Equal(UnshapedRender.Docx(ArabicPreShaper.Apply(docx), fonts), pdf);
+    }
+
+    /// <summary>The stream overload reaches the same call site as the byte[] one.</summary>
+    [Fact]
+    public async Task WithFonts_ArabicDocxThroughAStreamOverloadIsPreShaped()
+    {
+        var font = ArabicFontTests.FindArabicFont();
+        if (font is null)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var docx = ArabicDocx();
+        using var destination = new MemoryStream();
+
+        await DocxToPdfConverter.ConvertAsync(new MemoryStream(docx), destination, fonts);
+
+        AssertArabicLineIsJoined(destination.ToArray(), font);
+    }
+
+    /// <summary>HTML reaches the renderer through DOCX but not through Convert; it joins too.</summary>
+    [Fact]
+    public async Task WithFonts_ArabicHtmlIsPreShaped()
+    {
+        var font = ArabicFontTests.FindArabicFont();
+        if (font is null)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var html = $"<html><body><p>{ArabicLine}</p></body></html>";
+
+        var pdf = await HtmlToPdfConverter.ConvertAsync(html, fonts);
+
+        AssertArabicLineIsJoined(pdf, font);
+    }
+
+    /// <summary>
+    /// No fonts: the pre-shaper is never reached. Rendering the pre-shaped package gives a different
+    /// outcome (here a refusal naming the first shaped letter, or a different PDF on a host whose own
+    /// fonts cover Arabic), so a converter that shaped without fonts would make the two equal.
+    /// </summary>
+    [Fact]
+    public void WithoutFonts_ArabicDocxIsNotPreShaped()
+    {
+        var docx = ArabicDocx();
+
+        Assert.NotEqual(Outcome(ArabicPreShaper.Apply(docx)), Outcome(docx));
+    }
+
+    /// <summary>What the no-fonts render of this package does on this host: the PDF, or its refusal.</summary>
+    private static string Outcome(byte[] docx)
+    {
+        try
+        {
+            return System.Convert.ToBase64String(DocxToPdfConverter.Convert(docx));
+        }
+        catch (DocumentConversionException ex)
+        {
+            return "refused: " + (ex.InnerException?.Message ?? ex.Message);
+        }
     }
 }

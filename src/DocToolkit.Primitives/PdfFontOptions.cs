@@ -39,14 +39,20 @@ namespace DocToolkit;
 /// varying PDF size a hundredfold. Both render correctly; the smaller leans on the standard fonts
 /// every reader has.
 ///
-/// <b>3. It turns on right-to-left shaping</b>, on the DOCX, HTML, XLSX and PPTX converters (Markdown
-/// to PDF takes no fonts). <b>Since OfficeIMO 3.5 a Hebrew line comes out in reading order</b> in the DOCX, XLSX
-/// and PPTX converters: the words follow each other from right to left, each word's letters are
-/// right and a number sits on the correct side. <b>Arabic letters do not join yet</b>, and no test
-/// measures the word order of an Arabic line. <b>Persian and Urdu letters</b> (<c>پ چ ژ گ ک ی</c>)
-/// are not shaped - text that holds them still renders - and a worksheet's right-to-left direction
-/// is not applied. Latin text is unaffected, measured byte for byte. The gaps are in the renderer
-/// beneath this package.
+/// <b>3. It turns on right-to-left shaping</b>, on the DOCX, XLSX and PPTX converters, and on HTML,
+/// which reaches PDF through DOCX (Markdown to PDF takes no fonts). <b>A Hebrew line comes out in
+/// reading order</b>: the words follow each other from right to left, each word's letters are right
+/// and a number sits on the correct side. <b>Arabic-script letters that have Unicode presentation
+/// forms take their contextual (joined) forms</b>, joining with their neighbours as the script
+/// allows: the converter swaps each letter for its joined form, in logical order, before the
+/// renderer lays the line out, and a lam followed by an alef becomes one ligature. A few letters
+/// have no such forms (Urdu U+06C3 and Kurdish or Uyghur U+06D5 are two), so joining stops next to
+/// them. The supplied font must cover the Arabic Presentation Forms-B block, and Forms-A for
+/// Persian letters; the Windows versions of Arial, Tahoma, Segoe UI and Times New Roman do. On one Persian invoice, the words ran right
+/// to left in the extracted text. Copy and search return the base letters, and a word with a
+/// lam-alef ligature can come back in visual order, so a search for it can miss. A worksheet's
+/// right-to-left direction is not applied. Latin text is unaffected, measured byte for byte. Without fonts no
+/// shaping happens at all.
 ///
 /// <b>There is deliberately no compiled example for this type</b>, which is worth explaining
 /// because every other public type here has one. This project's examples are real tests, so they
@@ -110,7 +116,8 @@ public sealed class PdfFontOptions
 
     /// <summary>
     /// The renderer options every PDF converter hands over when the caller supplied fonts: the
-    /// fallbacks, plus the renderer's managed right-to-left shaping.
+    /// fallbacks, plus the renderer's managed right-to-left shaping. Arabic-script letters are joined
+    /// separately, before the renderer runs, by the converters themselves.
     /// </summary>
     /// <remarks>
     /// <b>One builder, so the four converters cannot disagree about what supplying a font means.</b>
@@ -119,8 +126,8 @@ public sealed class PdfFontOptions
     /// written with embedded fonts, which without a supplied font a host may not have - and where it
     /// does, as Arial on Windows for the DOCX path, the renderer uses it without shaping. Measured
     /// with a supplied font: Latin output byte-identical with and without shaping; Hebrew lines in reading
-    /// order on OfficeIMO 3.5.3; Arabic letters not joined; and Persian's own letters declined by the
-    /// shaper either way.
+    /// order on OfficeIMO 3.5.3. The renderer lays Arabic letters out in the right order but does not
+    /// join them, and declines Persian's own letters; the converters pre-shape those before it runs.
     /// </remarks>
     internal OfficeIMO.Pdf.PdfOptions ToPdfOptions()
     {

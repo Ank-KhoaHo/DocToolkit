@@ -34,16 +34,18 @@ internal static class DocxPartRewrite
     /// <param name="docx">The package. Never modified.</param>
     /// <param name="parts">Takes a part's name inside the package (<c>word/document.xml</c>).</param>
     /// <param name="edit">Edits the part in place and returns whether it changed anything.</param>
+    /// <param name="requireWordMain">False skips the DOCX-only early reject, for a repair that works on any OPC package.</param>
     /// <remarks>
     /// <b>Returning the same array is load-bearing, not a nicety.</b> Callers and tests use
     /// reference equality to tell "rendering this again would render what just failed" from "this
     /// is a new document", so a repair that rebuilt an identical package would still read as a
     /// change.
     /// </remarks>
-    internal static byte[] Apply(byte[] docx, Func<string, bool> parts, Func<XDocument, bool> edit)
+    internal static byte[] Apply(byte[] docx, Func<string, bool> parts, Func<XDocument, bool> edit, bool requireWordMain = true)
     {
         // Cheap reject on the raw bytes: a package with no main part is not a DOCX this can help.
-        if (docx.AsSpan().IndexOf("word/document.xml"u8) < 0) return docx;
+        // A repair that also serves XLSX and PPTX passes requireWordMain: false and rejects itself.
+        if (requireWordMain && docx.AsSpan().IndexOf("word/document.xml"u8) < 0) return docx;
 
         List<(string Name, XDocument Doc)> changed = [];
 

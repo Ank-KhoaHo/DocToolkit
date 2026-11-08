@@ -56,6 +56,12 @@ public static class DocxToPdfConverter
             // DocxPdfRefusalLadder below.
             prepared = ControlCharacterStrip.Apply(prepared);
             prepared = WideTableScale.Apply(prepared);
+            // Arabic, Persian and Urdu letters are joined here and ONLY here, once, before the first
+            // render, so every refusal-ladder retry starts from the shaped array. The renderer
+            // positions glyphs but does not join letters, so without this each letter is drawn in
+            // its isolated form. Only with fonts: the no-fonts path is unchanged (A124).
+            if (fonts is not null)
+                prepared = ArabicPreShaper.Apply(prepared);
             return Render(prepared, fonts);
         }
         catch (DocumentConversionException) { throw; }
