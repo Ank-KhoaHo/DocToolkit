@@ -91,7 +91,8 @@ public static class PdfProbe
     private static readonly Regex FlateStream = new(
         @"<<((?:[^<>]|<<[^<>]*>>|<[0-9A-Fa-f]*>)*?/FlateDecode(?:[^<>]|<<[^<>]*>>|<[0-9A-Fa-f]*>)*?)>>\s*stream\r?\n",
         RegexOptions.Compiled | RegexOptions.Singleline);
-    private static readonly Regex LengthField = new(@"/Length\s+(\d+)(?!\s+\d+\s+R)", RegexOptions.Compiled);
+    // "/Length 12 0 R" is an indirect length: group 2 is then set, and group 1 names the object holding the number.
+    private static readonly Regex LengthField = new(@"/Length\s+(\d+)(\s+\d+\s+R)?", RegexOptions.Compiled);
 
     /// <summary>
     /// The PDF as text with every <c>/FlateDecode</c> content stream inflated in place, so the rest of
@@ -112,6 +113,12 @@ public static class PdfProbe
                 || m.Groups[1].Value.Contains("/Image", StringComparison.Ordinal)) continue;
             var start = m.Index + m.Length;
             var n = int.Parse(len.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (len.Groups[2].Success)
+            {
+                var target = Regex.Match(raw, @"(?<!\d)" + n + @"\s+\d+\s+obj\s+(\d+)\s+endobj");
+                if (!target.Success) continue;
+                n = int.Parse(target.Groups[1].Value, CultureInfo.InvariantCulture);
+            }
             if (start + n > pdf.Length) continue;
             string body;
             try
@@ -129,51 +136,122 @@ public static class PdfProbe
         return sb.ToString();
     }
 
-    // OfficeIMO 3.5 mixes several subset fonts per page, each with its own glyph ids,
-    // and writes kerned text as TJ arrays. Decode each string with the font selected by Tf.
+    // OfficeIMO 3.5 mixes several subset fonts per page, each with its own glyph ids, and writes
+    // kerned text as TJ arrays. So the font names are resolved PER PAGE (/F1 can mean a different
+    // font on the next page), and each string is decoded with the font the last Tf selected.
+    //
+    // Still assumed: text is in hex strings (as OfficeIMO writes it), and the page tree is a plain
+    // /Kids tree. Anything else decodes as WinAnsi or is skipped, never as another font's map.
     private static readonly Regex ObjectBody = new(@"(?<![\d])(\d+)\s+0\s+obj\b(.*?)endobj", RegexOptions.Compiled | RegexOptions.Singleline);
-    private static readonly Regex FontResources = new(@"/Font\s*<<([^<>]*)>>", RegexOptions.Compiled);
+    private static readonly Regex IndirectRef = new(@"(\d+)\s+0\s+R", RegexOptions.Compiled);
     private static readonly Regex NamedRef = new(@"/([^\s/\[\]<>()]+)\s+(\d+)\s+0\s+R", RegexOptions.Compiled);
     private static readonly Regex ToUnicodeRef = new(@"/ToUnicode\s+(\d+)\s+0\s+R", RegexOptions.Compiled);
+    private static readonly Regex TypeIsPage = new(@"/Type\s*/Page(?![s\w])", RegexOptions.Compiled);
+    private static readonly Regex KidsArray = new(@"/Kids\s*\[([^\]]*)\]", RegexOptions.Compiled);
+    private static readonly Regex ContentsArray = new(@"/Contents\s*\[([^\]]*)\]", RegexOptions.Compiled);
     private static readonly Regex TextOps = new(
         @"/(?<font>[^\s/\[\]<>()]+)\s+[-\d.]+\s+Tf|\[(?<arr>[^\]]*)\]\s*TJ|<(?<hex>[0-9A-Fa-f]*)>\s*Tj",
         RegexOptions.Compiled);
     private static readonly Regex HexInArray = new(@"<([0-9A-Fa-f]*)>", RegexOptions.Compiled);
+
+    /// <summary>The value of <paramref name="key"/> in <paramref name="body"/>: a dictionary or object, direct or via "N 0 R".</summary>
+    private static string? ValueOf(string body, string key, Dictionary<string, string> bodies)
+    {
+        var at = Regex.Match(body, Regex.Escape(key) + @"(?![\w])\s*");
+        if (!at.Success) return null;
+        var rest = at.Index + at.Length;
+        if (string.CompareOrdinal(body, rest, "<<", 0, 2) == 0)
+        {
+            var depth = 0;
+            for (var i = rest; i + 1 < body.Length; i++)
+            {
+                if (body[i] == '<' && body[i + 1] == '<') { depth++; i++; }
+                else if (body[i] == '>' && body[i + 1] == '>')
+                {
+                    if (--depth == 0) return body.Substring(rest, i + 2 - rest);
+                    i++;
+                }
+            }
+            return null;
+        }
+        var r = IndirectRef.Match(body, rest);
+        return r.Success && r.Index == rest && bodies.TryGetValue(r.Groups[1].Value, out var target) ? target : null;
+    }
 
     private static string? ExtractPerFont(string raw)
     {
         var bodies = new Dictionary<string, string>();
         var order = new List<string>();
         foreach (Match m in ObjectBody.Matches(raw))
-        {
             if (bodies.TryAdd(m.Groups[1].Value, m.Groups[2].Value)) order.Add(m.Groups[1].Value);
-        }
 
-        var fonts = new Dictionary<string, (bool TwoByte, Dictionary<int, string>? Map)>();
-        foreach (Match res in FontResources.Matches(raw))
-            foreach (Match r in NamedRef.Matches(res.Groups[1].Value))
-            {
-                if (fonts.ContainsKey(r.Groups[1].Value) || !bodies.TryGetValue(r.Groups[2].Value, out var font)) continue;
-                var tu = ToUnicodeRef.Match(font);
-                var map = tu.Success && bodies.TryGetValue(tu.Groups[1].Value, out var cmap) ? ToUnicodeMap(cmap) : null;
-                fonts[r.Groups[1].Value] = (font.Contains("/Identity-H", StringComparison.Ordinal), map);
-            }
-        if (fonts.Count == 0) return null;
-
-        var sb = new StringBuilder();
-        foreach (var body in order.Select(n => bodies[n]).Where(b => b.Contains("BT", StringComparison.Ordinal) && b.Contains("ET", StringComparison.Ordinal)))
+        // Pages in page-tree order, each with its (possibly inherited) /Resources; in file order if there is no tree.
+        var pages = new List<(string Body, string? Resources)>();
+        var root = order.FirstOrDefault(n => TypeIsPages.IsMatch(bodies[n]) && !bodies[n].Contains("/Parent", StringComparison.Ordinal));
+        void Walk(string num, string? inherited, int depth)
         {
-            (bool TwoByte, Dictionary<int, string>? Map) current = (false, null);
-            foreach (Match op in TextOps.Matches(body))
-            {
-                if (op.Groups["font"].Success) { fonts.TryGetValue(op.Groups["font"].Value, out current); continue; }
-                var hexes = op.Groups["hex"].Success
-                    ? new[] { op.Groups["hex"].Value }
-                    : HexInArray.Matches(op.Groups["arr"].Value).Select(h => h.Groups[1].Value).ToArray();
-                foreach (var hex in hexes) Decode(hex, current, sb);
-            }
+            if (depth > 32 || !bodies.TryGetValue(num, out var body)) return;
+            var own = ValueOf(body, "/Resources", bodies) ?? inherited;
+            if (TypeIsPage.IsMatch(body)) { pages.Add((body, own)); return; }
+            var kids = KidsArray.Match(body);
+            if (kids.Success)
+                foreach (Match k in IndirectRef.Matches(kids.Groups[1].Value)) Walk(k.Groups[1].Value, own, depth + 1);
         }
-        return sb.ToString();
+        if (root is not null) Walk(root, null, 0);
+        else
+            foreach (var n in order.Where(n => TypeIsPage.IsMatch(bodies[n])))
+                pages.Add((bodies[n], ValueOf(bodies[n], "/Resources", bodies)));
+
+        var cmaps = new Dictionary<string, Dictionary<int, string>>();
+        var fontIds = new HashSet<string>();
+        var anyIdentity = false;
+        var sb = new StringBuilder();
+        foreach (var (page, resources) in pages)
+        {
+            var fonts = new Dictionary<string, (bool TwoByte, Dictionary<int, string>? Map)>();
+            var fontDict = resources is null ? null : ValueOf(resources, "/Font", bodies);
+            if (fontDict is not null)
+                foreach (Match r in NamedRef.Matches(fontDict))
+                {
+                    if (!bodies.TryGetValue(r.Groups[2].Value, out var font)) continue;
+                    fontIds.Add(r.Groups[2].Value);
+                    Dictionary<int, string>? map = null;
+                    var tu = ToUnicodeRef.Match(font);
+                    if (tu.Success && bodies.TryGetValue(tu.Groups[1].Value, out var cmap))
+                    {
+                        if (!cmaps.TryGetValue(tu.Groups[1].Value, out map))
+                            cmaps[tu.Groups[1].Value] = map = ToUnicodeMap(cmap);
+                    }
+                    var twoByte = font.Contains("/Identity-H", StringComparison.Ordinal);
+                    anyIdentity |= twoByte;
+                    fonts[r.Groups[1].Value] = (twoByte, map);
+                }
+
+            // /Contents is one stream or an array of them.
+            var streams = new List<string>();
+            var array = ContentsArray.Match(page);
+            if (array.Success)
+            {
+                foreach (Match c in IndirectRef.Matches(array.Groups[1].Value))
+                    if (bodies.TryGetValue(c.Groups[1].Value, out var cb)) streams.Add(cb);
+            }
+            else if (ValueOf(page, "/Contents", bodies) is { } single) streams.Add(single);
+
+            (bool TwoByte, Dictionary<int, string>? Map) current = (false, null);
+            foreach (var body in streams)
+                foreach (Match op in TextOps.Matches(body))
+                {
+                    if (op.Groups["font"].Success) { fonts.TryGetValue(op.Groups["font"].Value, out current); continue; }
+                    var hexes = op.Groups["hex"].Success
+                        ? new[] { op.Groups["hex"].Value }
+                        : HexInArray.Matches(op.Groups["arr"].Value).Select(h => h.Groups[1].Value).ToArray();
+                    foreach (var hex in hexes) Decode(hex, current, sb);
+                }
+        }
+
+        // Only taken over from the single-map path when that could go wrong: composite fonts (glyph
+        // ids), more than one font in play, or TJ arrays (which the single-map path does not read).
+        return fontIds.Count > 1 || anyIdentity || raw.Contains(" TJ", StringComparison.Ordinal) ? sb.ToString() : null;
     }
 
     private static void Decode(string hex, (bool TwoByte, Dictionary<int, string>? Map) font, StringBuilder sb)
@@ -211,7 +289,7 @@ public static class PdfProbe
 
         // 3.5 writes kerned text as TJ arrays through several subset fonts, each with its own glyph
         // ids and its own /ToUnicode, so a single document-wide map would mix them up.
-        if (pdf.Length > 0 && raw.Contains(" TJ", StringComparison.Ordinal) && ExtractPerFont(raw) is { } perFont)
+        if (ExtractPerFont(raw) is { } perFont)
             return perFont;
 
         // /Identity-H is the signal that codes are two-byte glyph IDs. Keyed on that rather than on

@@ -214,4 +214,72 @@ public class PdfProbeTests
         Assert.True(raw.Contains(" TJ", StringComparison.Ordinal) || raw.Contains(" Tj", StringComparison.Ordinal),
             "no text operator found after inflating; the streams are still compressed");
     }
+
+    // ---- hand-built PDFs: no font needed, so these run on every host --------------------------------
+
+    private static string Cmap(string code, string unicode) =>
+        $"/CIDInit /ProcSet findresource begin begin beginbfchar <{code}> <{unicode}> endbfchar end end";
+
+    private static string Type0(int toUnicode) =>
+        $"<< /Type /Font /Subtype /Type0 /Encoding /Identity-H /ToUnicode {toUnicode} 0 R >>";
+
+    private static byte[] Build(params (int Num, string Body)[] objects)
+    {
+        var sb = new System.Text.StringBuilder("%PDF-1.7\n");
+        foreach (var (num, body) in objects) sb.Append($"{num} 0 obj\n{body}\nendobj\n");
+        sb.Append("trailer\n<< /Root 1 0 R >>\n");
+        return System.Text.Encoding.Latin1.GetBytes(sb.ToString());
+    }
+
+    private static string Stream(string content) =>
+        $"<< /Length {content.Length} >>\nstream\n{content}\nendstream";
+
+    /// <summary>Two fonts whose glyph id 0001 means different letters; only per-font maps get both right.</summary>
+    [Fact]
+    public void ExtractText_KeepsCollidingGlyphIdsApartPerFont()
+    {
+        var pdf = Build(
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            (3, "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 8 0 R >>"),
+            (4, Type0(6)), (5, Type0(7)),
+            (6, Stream(Cmap("0001", "0041"))), (7, Stream(Cmap("0001", "0058"))),
+            (8, Stream("BT /F1 12 Tf <0001> Tj /F2 12 Tf <0001> Tj ET")));
+
+        Assert.Equal("AX", PdfProbe.ExtractText(pdf));
+    }
+
+    /// <summary>"/Length 12 0 R" must be resolved, not read as a length of 1.</summary>
+    [Fact]
+    public void Raw_ResolvesAnIndirectMultiDigitLength()
+    {
+        var content = System.Text.Encoding.Latin1.GetBytes("BT /F1 12 Tf [<0001>] TJ ET");
+        using var packed = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionMode.Compress, true))
+            z.Write(content);
+        var deflated = System.Text.Encoding.Latin1.GetString(packed.ToArray());
+
+        var pdf = System.Text.Encoding.Latin1.GetBytes(
+            "%PDF-1.7\n12 0 obj\n" + deflated.Length + "\nendobj\n" +
+            "13 0 obj\n<< /Filter /FlateDecode /Length 12 0 R >>\nstream\n" + deflated + "\nendstream\nendobj\n");
+
+        Assert.Contains("[<0001>] TJ", PdfProbe.Raw(pdf));
+    }
+
+    /// <summary>Each page binds /F1 to its own font, one through indirect Resources and Font dictionaries.</summary>
+    [Fact]
+    public void ExtractText_ResolvesFontNamesPerPage_InPageOrder()
+    {
+        var pdf = Build(
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R 9 0 R] /Count 2 >>"),
+            (3, "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 8 0 R >>"),
+            (9, "<< /Type /Page /Parent 2 0 R /Resources 10 0 R /Contents 11 0 R >>"),
+            (10, "<< /Font 12 0 R >>"), (12, "<< /F1 5 0 R >>"),
+            (4, Type0(6)), (5, Type0(7)),
+            (6, Stream(Cmap("0001", "0041"))), (7, Stream(Cmap("0001", "0058"))),
+            (8, Stream("BT /F1 12 Tf <0001> Tj ET")), (11, Stream("BT /F1 12 Tf <0001> Tj ET")));
+
+        Assert.Equal("AX", PdfProbe.ExtractText(pdf));
+    }
 }
