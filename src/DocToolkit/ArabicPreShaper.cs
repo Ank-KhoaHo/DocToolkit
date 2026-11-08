@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Xml.Linq;
 
 namespace DocToolkit;
 
@@ -40,6 +41,91 @@ internal static class ArabicPreShaper
             result[i] = forms.Resolve(joinsPrevious, joinsNext).ToString();
         }
         return result;
+    }
+
+    private static readonly XNamespace W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private static readonly XNamespace A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    private static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+    /// <summary>
+    /// Rewrites the Arabic-script text of a Word, Excel or PowerPoint package into presentation
+    /// forms, and returns <paramref name="package"/> itself when no text changes.
+    /// </summary>
+    /// <remarks>
+    /// <b>The unit of shaping is the container, not the run.</b> A word is often split over runs
+    /// (a font change, a spell-check mark), and a letter's form depends on its neighbours across
+    /// the split. So a paragraph or string item is shaped as one string and each text node then
+    /// gets back exactly its own slice; a lam-alef ligature may shorten the node holding the alef.
+    /// An Excel shared string is one <c>si</c>, so it is shaped once however many cells use it.
+    /// </remarks>
+    internal static byte[] Apply(byte[] package)
+    {
+        // A zip starts with "PK"; anything else is not a package this can help.
+        if (package.Length < 4 || package[0] != (byte)'P' || package[1] != (byte)'K') return package;
+        return DocxPartRewrite.Apply(package, IsTargetPart, ShapeDocument, requireWordMain: false);
+    }
+
+    private static bool IsTargetPart(string name) =>
+        name is "word/document.xml" or "word/footnotes.xml" or "word/endnotes.xml" or "xl/sharedStrings.xml"
+        || IsNumbered(name, "word/header") || IsNumbered(name, "word/footer")
+        || IsNumbered(name, "xl/worksheets/sheet") || IsNumbered(name, "ppt/slides/slide");
+
+    // "<prefix>*.xml" in that folder only: header1.xml yes, _rels/header1.xml.rels and slideLayouts no.
+    private static bool IsNumbered(string name, string prefix) =>
+        name.StartsWith(prefix, StringComparison.Ordinal) && name.EndsWith(".xml", StringComparison.Ordinal)
+        && name.IndexOf('/', prefix.Length) < 0;
+
+    private static bool ShapeDocument(XDocument doc)
+    {
+        var changed = false;
+        foreach (var container in doc.Descendants().Where(IsContainer).ToList())
+        {
+            var nodes = container.Descendants().Where(e => IsTextNode(e, container)).ToList();
+            if (nodes.Count == 0) continue;
+            var originals = nodes.Select(n => n.Value).ToList();
+            var logical = string.Concat(originals);
+            if (!ContainsArabicLetter(logical)) continue;
+
+            var shaped = Shape(logical);
+            var offset = 0;
+            for (var i = 0; i < nodes.Count; i++)
+            {
+                var length = originals[i].Length;
+                var text = string.Concat(shaped.Skip(offset).Take(length));
+                offset += length;
+                if (text == originals[i]) continue;
+                nodes[i].Value = text;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private static bool ContainsArabicLetter(string s)
+    {
+        foreach (var c in s) if (c is >= 'ؠ' and <= 'ۿ') return true;
+        return false;
+    }
+
+    private static bool IsContainer(XElement e) =>
+        (e.Name.LocalName == "p" && (e.Name.Namespace == W || e.Name.Namespace == A))
+        || (e.Name.Namespace == S && e.Name.LocalName is "si" or "is");
+
+    // A text node belongs to its NEAREST container: a text box's paragraph inside a run of another
+    // paragraph is shaped on its own. In si/is only the item's own text counts (directly, or in an
+    // r run), so phonetic text (rPh) is skipped.
+    private static bool IsTextNode(XElement e, XElement container)
+    {
+        if (e.Name.LocalName != "t") return false;
+        if (e.Name.Namespace == S)
+        {
+            if (container.Name.Namespace != S) return false;
+            var parent = e.Parent;
+            return parent == container || (parent?.Name == S + "r" && parent.Parent == container);
+        }
+        if (e.Name.Namespace != W && e.Name.Namespace != A) return false;
+        if (e.Name.Namespace != container.Name.Namespace) return false;
+        return e.Ancestors().First(IsContainer) == container;
     }
 
     // Isolated and final ligature for lam followed by each alef (the final form is the isolated + 1).

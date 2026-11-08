@@ -1,3 +1,7 @@
+using System.IO.Compression;
+using System.Text;
+using System.Xml.Linq;
+
 namespace DocToolkit.Tests;
 
 /// <summary>
@@ -113,5 +117,179 @@ public class ArabicPreShaperTests
         Assert.Equal(new[] { "\uFB90", "\uFE8E", "\uFEFB", "" }, shaped);
         // Same chars, ba + ba as two "runs": the join crosses the boundary.
         Assert.Equal(new[] { "\uFE91", "\uFE90" }, Shape(Ba + Ba));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Apply: rewriting a package's text
+    // ---------------------------------------------------------------------------------------------
+
+    private const string WNs = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private const string ANs = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    private const string SNs = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+    private static byte[] Zip(params (string Name, string Xml)[] parts)
+    {
+        using var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, xml) in parts)
+            {
+                using var w = new StreamWriter(zip.CreateEntry(name).Open(), new UTF8Encoding(false));
+                w.Write(xml);
+            }
+        }
+        return ms.ToArray();
+    }
+
+    private static string Part(byte[] package, string name)
+    {
+        using var zip = new ZipArchive(new MemoryStream(package), ZipArchiveMode.Read);
+        using var r = new StreamReader(zip.GetEntry(name)!.Open(), Encoding.UTF8);
+        return r.ReadToEnd();
+    }
+
+    private static string Doc(string body)
+        => $"<?xml version=\"1.0\" encoding=\"UTF-8\"?><w:document xmlns:w=\"{WNs}\"><w:body>{body}</w:body></w:document>";
+
+    private static string[] WTexts(byte[] package, string part = "word/document.xml")
+        => XDocument.Parse(Part(package, part), LoadOptions.PreserveWhitespace)
+            .Descendants(XName.Get("t", WNs)).Select(t => t.Value).ToArray();
+
+    private static bool IsPresentationForms(string s)
+        => s.Length > 0 && s.All(c => c is >= '\uFB50' and <= '\uFEFC');
+
+    [Fact]
+    public void AWordSplitAcrossTwoRunsJoins()
+    {
+        // kaf + teh | ba: the join crosses the run boundary, so run 1 ends medial and run 2 is final.
+        var docx = Zip(("word/document.xml", Doc("<w:p><w:r><w:t>\u0643\u062A</w:t></w:r><w:r><w:t>\u0628</w:t></w:r></w:p>")));
+        Assert.Equal(new[] { "\uFEDB\uFE98", "\uFE90" }, WTexts(ArabicPreShaper.Apply(docx)));
+    }
+
+    [Fact]
+    public void ALamAlefSplitAcrossRunsKeepsEachRunsOwnSlice()
+    {
+        // kaf alef | lam alef: the ligature takes the lam's slot, so run 2 shrinks by one char.
+        var docx = Zip(("word/document.xml", Doc("<w:p><w:r><w:t>\u06A9\u0627</w:t></w:r><w:r><w:t>\u0644\u0627</w:t></w:r></w:p>")));
+        Assert.Equal(new[] { "\uFB90\uFE8E", "\uFEFB" }, WTexts(ArabicPreShaper.Apply(docx)));
+    }
+
+    [Fact]
+    public void ALamAlefAcrossTheRunBoundaryLeavesTheSecondRunEmpty()
+    {
+        var docx = Zip(("word/document.xml", Doc("<w:p><w:r><w:t>\u0644</w:t></w:r><w:r><w:t>\u0627</w:t></w:r></w:p>")));
+        Assert.Equal(new[] { "\uFEFB", "" }, WTexts(ArabicPreShaper.Apply(docx)));
+    }
+
+    [Fact]
+    public void ANestedTextBoxParagraphIsShapedOnItsOwn()
+    {
+        // The inner paragraph sits inside a run of the outer one. Merged, the two ba would join.
+        var docx = Zip(("word/document.xml", Doc(
+            "<w:p><w:r><w:t>\u0628</w:t></w:r><w:r><w:pict><w:txbxContent><w:p><w:r><w:t>\u0628</w:t></w:r></w:p></w:txbxContent></w:pict></w:r></w:p>")));
+        Assert.Equal(new[] { "\uFE8F", "\uFE8F" }, WTexts(ArabicPreShaper.Apply(docx)));
+    }
+
+    [Fact]
+    public void OnlyWTextIsShaped_AndSpacePreserveSurvives()
+    {
+        var docx = Zip(("word/document.xml", Doc(
+            "<w:p><w:r><w:instrText>\u0628\u0628</w:instrText></w:r><w:del><w:r><w:delText>\u0628\u0628</w:delText></w:r></w:del>" +
+            "<w:r><w:t xml:space=\"preserve\"> \u0628\u0628 </w:t></w:r></w:p>")));
+        var result = ArabicPreShaper.Apply(docx);
+        var xml = Part(result, "word/document.xml");
+        Assert.Contains("<w:instrText>\u0628\u0628</w:instrText>", xml);
+        Assert.Contains("<w:delText>\u0628\u0628</w:delText>", xml);
+        Assert.Contains("xml:space=\"preserve\"", xml);
+        Assert.Equal(new[] { " \uFE91\uFE90 " }, WTexts(result));
+    }
+
+    [Fact]
+    public void MixedLatinAndArabicInOneRunKeepsLatin()
+    {
+        var docx = Zip(("word/document.xml", Doc("<w:p><w:r><w:t>Hi \u0628\u0628 ok</w:t></w:r></w:p>")));
+        Assert.Equal(new[] { "Hi \uFE91\uFE90 ok" }, WTexts(ArabicPreShaper.Apply(docx)));
+    }
+
+    [Fact]
+    public void HeadersFootnotesSheetsAndSlidesAreShaped()
+    {
+        const string ar = "\u0628\u0628";
+        string header = $"<w:hdr xmlns:w=\"{WNs}\"><w:p><w:r><w:t>{ar}</w:t></w:r></w:p></w:hdr>";
+        string footer = $"<w:ftr xmlns:w=\"{WNs}\"><w:p><w:r><w:t>{ar}</w:t></w:r></w:p></w:ftr>";
+        string footnotes = $"<w:footnotes xmlns:w=\"{WNs}\"><w:footnote w:id=\"1\"><w:p><w:r><w:t>{ar}</w:t></w:r></w:p></w:footnote></w:footnotes>";
+        string endnotes = $"<w:endnotes xmlns:w=\"{WNs}\"><w:endnote w:id=\"1\"><w:p><w:r><w:t>{ar}</w:t></w:r></w:p></w:endnote></w:endnotes>";
+        string shared = $"<sst xmlns=\"{SNs}\"><si><t>{ar}</t></si></sst>";
+        string sheet = $"<worksheet xmlns=\"{SNs}\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>{ar}</t></is></c></row></sheetData></worksheet>";
+        string slide = $"<p:sld xmlns:p=\"urn:p\" xmlns:a=\"{ANs}\"><a:p><a:r><a:t>{ar}</a:t></a:r></a:p></p:sld>";
+        var pkg = Zip(
+            ("word/document.xml", Doc("<w:p/>")),
+            ("word/header1.xml", header), ("word/footer2.xml", footer),
+            ("word/footnotes.xml", footnotes), ("word/endnotes.xml", endnotes),
+            ("xl/sharedStrings.xml", shared), ("xl/worksheets/sheet1.xml", sheet),
+            ("ppt/slides/slide1.xml", slide));
+
+        var result = ArabicPreShaper.Apply(pkg);
+
+        foreach (var name in new[] { "word/header1.xml", "word/footer2.xml", "word/footnotes.xml", "word/endnotes.xml",
+                     "xl/sharedStrings.xml", "xl/worksheets/sheet1.xml", "ppt/slides/slide1.xml" })
+        {
+            var text = XDocument.Parse(Part(result, name)).Descendants().Single(e => e.Name.LocalName == "t").Value;
+            Assert.True(IsPresentationForms(text), $"{name}: {text}");
+        }
+    }
+
+    [Fact]
+    public void PartsOutsideTheListAreLeftAlone()
+    {
+        string layout = $"<p:sldLayout xmlns:p=\"urn:p\" xmlns:a=\"{ANs}\"><a:p><a:r><a:t>\u0628\u0628</a:t></a:r></a:p></p:sldLayout>";
+        string slide = $"<p:sld xmlns:p=\"urn:p\" xmlns:a=\"{ANs}\"><a:p><a:r><a:t>\u0628\u0628</a:t></a:r></a:p></p:sld>";
+        var result = ArabicPreShaper.Apply(Zip(("ppt/slides/slide1.xml", slide), ("ppt/slideLayouts/slideLayout1.xml", layout)));
+        Assert.Equal(layout, Part(result, "ppt/slideLayouts/slideLayout1.xml"));
+        Assert.Contains("\uFE91\uFE90", Part(result, "ppt/slides/slide1.xml"));
+    }
+
+    [Fact]
+    public void ASharedStringIsShapedOnceAndStaysShared()
+    {
+        string shared = $"<sst xmlns=\"{SNs}\" count=\"2\" uniqueCount=\"1\"><si><t>\u0628\u0628</t></si></sst>";
+        string sheet = $"<worksheet xmlns=\"{SNs}\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"s\"><v>0</v></c><c r=\"B1\" t=\"s\"><v>0</v></c></row></sheetData></worksheet>";
+        var result = ArabicPreShaper.Apply(Zip(("xl/sharedStrings.xml", shared), ("xl/worksheets/sheet1.xml", sheet)));
+
+        var si = XDocument.Parse(Part(result, "xl/sharedStrings.xml")).Descendants(XName.Get("si", SNs)).ToList();
+        Assert.Single(si);
+        Assert.Equal("\uFE91\uFE90", si[0].Value);
+        var cells = XDocument.Parse(Part(result, "xl/worksheets/sheet1.xml")).Descendants(XName.Get("v", SNs)).Select(v => v.Value);
+        Assert.Equal(new[] { "0", "0" }, cells);
+    }
+
+    [Fact]
+    public void ASharedStringsRichRunsJoinAndPhoneticTextIsSkipped()
+    {
+        string shared = $"<sst xmlns=\"{SNs}\"><si><r><t>\u0643\u062A</t></r><r><t>\u0628</t></r><rPh sb=\"0\" eb=\"1\"><t>\u0628\u0628</t></rPh></si></sst>";
+        var result = ArabicPreShaper.Apply(Zip(("xl/sharedStrings.xml", shared)));
+        var ts = XDocument.Parse(Part(result, "xl/sharedStrings.xml")).Descendants(XName.Get("t", SNs)).Select(t => t.Value).ToArray();
+        Assert.Equal(new[] { "\uFEDB\uFE98", "\uFE90", "\u0628\u0628" }, ts);
+    }
+
+    [Fact]
+    public void NoArabic_ReturnsTheSameArray()
+    {
+        var docx = Zip(("word/document.xml", Doc("<w:p><w:r><w:t>Hello \u05E9\u05DC\u05D5\u05DD</w:t></w:r></w:p>")));
+        Assert.Same(docx, ArabicPreShaper.Apply(docx));
+    }
+
+    [Fact]
+    public void NotAZip_ReturnsTheSameArray()
+    {
+        var junk = new byte[] { 1, 2, 3 };
+        Assert.Same(junk, ArabicPreShaper.Apply(junk));
+    }
+
+    [Fact]
+    public void AlreadyShapedText_ReturnsTheSameArray()
+    {
+        var docx = Zip(("word/document.xml", Doc("<w:p><w:r><w:t>\uFE91\uFE90</w:t></w:r></w:p>")));
+        Assert.Same(docx, ArabicPreShaper.Apply(docx));
     }
 }
