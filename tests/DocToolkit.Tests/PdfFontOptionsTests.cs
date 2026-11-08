@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace DocToolkit.Tests;
 
 /// <summary>
@@ -344,7 +346,24 @@ public class PdfFontOptionsTests
             ArabicLine.Split(' ').Select(w => new string(w.Reverse().ToArray())).ToArray(),
             words.Select(r => r.Text).ToArray());
         // ...but the first starts somewhere else, because its glyphs are wider or narrower.
-        Assert.NotEqual(unshaped[0].X, words[0].X);
+        Assert.True(
+            unshaped[0].X != words[0].X,
+            $"The first word starts at {words[0].X} shaped and unshaped alike, so pre-shaping changed no glyph."
+            + $"\nShaped:   {TextEvidence(pdf)}\nUnshaped: {TextEvidence(unshapedPdf)}");
+    }
+
+    /// <summary>
+    /// The fonts a PDF names and its first text-showing operators, raw, so a failure on a host this
+    /// repository cannot run locally (macOS) shows which glyph codes each render drew.
+    /// </summary>
+    private static string TextEvidence(byte[] pdf)
+    {
+        var raw = PdfProbe.Raw(pdf);
+        var fonts = Regex.Matches(raw, @"/BaseFont\s*/[^\s/>\]]+").Select(m => m.Value).Distinct();
+        var shows = Regex.Matches(raw, @"(\[[^\]]{0,400}\]\s*TJ|<[0-9A-Fa-f]{1,400}>\s*Tj|\([^)]{0,200}\)\s*Tj)")
+            .Take(6)
+            .Select(m => m.Value);
+        return string.Join(" ", fonts) + " | " + string.Join(" ; ", shows);
     }
 
     private static byte[] ArabicDocx() => DocxEditor.Create([DocxBlock.Paragraph(ArabicLine)]);
