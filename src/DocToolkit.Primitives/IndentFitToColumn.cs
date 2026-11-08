@@ -57,9 +57,11 @@ internal static class IndentFitToColumn
         {
             foreach (var section in doc.Descendants(W + "sectPr"))
             {
+                // long, because the values are untrusted: Math.Abs(int.MinValue) throws, and the
+                // sums below can overflow an int.
                 var margins = section.Element(W + "pgMar");
-                var text = Number(section.Element(W + "pgSz"), "w")
-                    - Math.Abs(Number(margins, "left")) - Math.Abs(Number(margins, "right"));
+                var text = (long)Number(section.Element(W + "pgSz"), "w")
+                    - Math.Abs((long)Number(margins, "left")) - Math.Abs((long)Number(margins, "right"));
                 if (text <= 0) continue;
 
                 var columns = section.Element(W + "cols");
@@ -67,9 +69,9 @@ internal static class IndentFitToColumn
                 var count = Math.Max(1, Number(columns, "num", 1));
                 var width = explicitWidths is { Count: > 0 }
                     ? explicitWidths.Min()
-                    : (text - (count - 1) * Number(columns, "space", 720)) / count;
+                    : (text - (count - 1L) * Number(columns, "space", 720)) / count;
 
-                narrowest = Math.Min(narrowest, width);
+                narrowest = (int)Math.Clamp(Math.Min(narrowest, width), int.MinValue, int.MaxValue);
             }
 
             return false;
@@ -84,7 +86,7 @@ internal static class IndentFitToColumn
         foreach (var indent in doc.Descendants(W + "ind"))
         {
             var right = Math.Max(Number(indent, "right"), Number(indent, "end"));
-            var room = Math.Max(0, column - TextRoom - Math.Max(right, 0));
+            var room = (int)Math.Max(0L, column - (long)TextRoom - Math.Max(right, 0));
 
             var fitted = false;
             foreach (var name in new[] { "left", "start" })

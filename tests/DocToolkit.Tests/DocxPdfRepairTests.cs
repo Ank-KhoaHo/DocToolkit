@@ -25,25 +25,6 @@ public class DocxPdfRepairTests
 {
     // ---- helpers -----------------------------------------------------------------------------------
 
-    /// <summary>What the renderer says about these bytes as they are, or null if it renders them.</summary>
-    private static Exception? RawRefusal(byte[] docx, PdfFontOptions? fonts = null)
-    {
-        var buffer = new MemoryStream();
-        buffer.Write(docx, 0, docx.Length);
-        buffer.Position = 0;
-        using var input = buffer;
-        using var word = WordDocument.Load(input);
-        try
-        {
-            word.ToPdfBytes(new WordToPdfOptions { PdfOptions = fonts?.ToPdfOptions() });
-            return null;
-        }
-        catch (Exception ex)
-        {
-            return ex;
-        }
-    }
-
     private static string Part(byte[] docx, string name)
     {
         using var ms = new MemoryStream(docx);
@@ -131,7 +112,7 @@ public class DocxPdfRepairTests
     {
         var docx = LinkWithBreak();
         // Raw 3.5.3: ArgumentException "Parameter 'text' cannot be empty or whitespace."
-        AssertEmptyTextRefusal(RawRefusal(docx));
+        AssertEmptyTextRefusal(RawRender.Refusal(docx));
 
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
 
@@ -143,7 +124,7 @@ public class DocxPdfRepairTests
     public void HyperlinkBlankRunSplit_ALinkOfOnlySpaces_RefusedBefore_RendersAfter()
     {
         var docx = LinkWithBreakInCell(new Run(new Text(" ") { Space = SpaceProcessingModeValues.Preserve }));
-        AssertEmptyTextRefusal(RawRefusal(docx));
+        AssertEmptyTextRefusal(RawRender.Refusal(docx));
 
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
 
@@ -175,7 +156,7 @@ public class DocxPdfRepairTests
     {
         // Renders on raw 3.5.3, so it must not be rewritten.
         var docx = LinkDocument(false, false, R("linked words"), new Run(new Break()));
-        Assert.Null(RawRefusal(docx));
+        Assert.Null(RawRender.Refusal(docx));
 
         Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
     }
@@ -185,7 +166,7 @@ public class DocxPdfRepairTests
     {
         // Measured: a picture-only link in a cell renders on raw 3.5.3, and unwrapping it would lose the link.
         var docx = LinkDocument(true, true);
-        Assert.Null(RawRefusal(docx));
+        Assert.Null(RawRender.Refusal(docx));
 
         Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
     }
@@ -311,7 +292,7 @@ public class DocxPdfRepairTests
         var docx = ControlsInBodyHeaderAndFootnote();
         // Raw 3.5.3: PdfTextEncodingPreflightException "Text contains character U+009D ... not covered
         // by any embedded font fallback candidate".
-        var refusal = RawRefusal(docx, fonts);
+        var refusal = RawRender.Refusal(docx, fonts);
         Assert.NotNull(refusal);
         Assert.Equal("PdfTextEncodingPreflightException", refusal.GetType().Name);
         Assert.Contains("U+009D", refusal.Message, StringComparison.Ordinal);
@@ -362,13 +343,13 @@ public class DocxPdfRepairTests
         var docx = TinyPercentSpacedTableInCell();
         // Raw 3.5.3: ArgumentException "Table preferred width must be a positive finite value.
         // (Parameter 'PreferredWidth')".
-        var refusal = RawRefusal(docx);
+        var refusal = RawRender.Refusal(docx);
         Assert.IsType<ArgumentException>(refusal);
         Assert.Contains("preferred width must be a positive finite value", refusal.Message, StringComparison.Ordinal);
 
         // The repair alone is enough here; a document that ALSO trips the cell-padding refusal (the
         // real html-000079 does) needs the padding ladder as well.
-        Assert.Null(RawRefusal(TinyPercentWidthRepair.Apply(docx)));
+        Assert.Null(RawRender.Refusal(TinyPercentWidthRepair.Apply(docx)));
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
         Assert.Contains("tiny percent table", text);
         Assert.Contains("after", text);
@@ -459,14 +440,14 @@ public class DocxPdfRepairTests
         var docx = HeaderPage(288);
         // Raw 3.5.3: ArgumentException "PDF header offset must not exceed the top margin when header
         // content is enabled", with a header distance of 0.
-        var refusal = RawRefusal(docx);
+        var refusal = RawRender.Refusal(docx);
         Assert.IsType<ArgumentException>(refusal);
         Assert.Contains("header offset must not exceed the top margin", refusal.Message, StringComparison.Ordinal);
 
         var repaired = HeaderOffsetRepair.Apply(docx);
 
         Assert.Equal("360", MarginAttribute(repaired, "top"));
-        Assert.Null(RawRefusal(repaired));
+        Assert.Null(RawRender.Refusal(repaired));
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
         Assert.Contains("Body words", text);
         Assert.Contains("Header words", text);
@@ -475,11 +456,11 @@ public class DocxPdfRepairTests
     [Fact]
     public void HeaderOffsetRepair_TheFloorIs360_359IsRefused_360IsNot()
     {
-        Assert.Contains("header offset", RawRefusal(HeaderPage(359))!.Message, StringComparison.Ordinal);
+        Assert.Contains("header offset", RawRender.Refusal(HeaderPage(359))!.Message, StringComparison.Ordinal);
 
         var accepted = HeaderPage(360);
 
-        Assert.Null(RawRefusal(accepted));
+        Assert.Null(RawRender.Refusal(accepted));
         Assert.Same(accepted, HeaderOffsetRepair.Apply(accepted));
     }
 
@@ -487,7 +468,7 @@ public class DocxPdfRepairTests
     public void HeaderOffsetRepair_ATopMarginOfZero_IsRaisedToo()
     {
         var docx = HeaderPage(0);
-        Assert.Contains("header offset", RawRefusal(docx)!.Message, StringComparison.Ordinal);
+        Assert.Contains("header offset", RawRender.Refusal(docx)!.Message, StringComparison.Ordinal);
 
         Assert.Equal("360", MarginAttribute(HeaderOffsetRepair.Apply(docx), "top"));
     }
@@ -497,7 +478,7 @@ public class DocxPdfRepairTests
     {
         // A small top margin is fine without a header: measured, raw 3.5.3 renders it.
         var docx = WithMargins(Build(P(R("Body words"))), 288, 0, 288, 0);
-        Assert.Null(RawRefusal(docx));
+        Assert.Null(RawRender.Refusal(docx));
 
         Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
     }
@@ -508,7 +489,7 @@ public class DocxPdfRepairTests
         // Measured: "header content is enabled" is about content. A header holding no text renders
         // on raw 3.5.3 with a top margin of 288, so it must not be edited.
         var docx = HeaderPage(288, 0, headerText: "");
-        Assert.Null(RawRefusal(docx));
+        Assert.Null(RawRender.Refusal(docx));
 
         Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
     }
@@ -519,7 +500,7 @@ public class DocxPdfRepairTests
         // The plan expected 3.5 to refuse this; measured on raw 3.5.3 it renders (even 8000 over
         // 1440), so editing it would change a document that renders today.
         var docx = HeaderPage(576, 720);
-        Assert.Null(RawRefusal(docx));
+        Assert.Null(RawRender.Refusal(docx));
 
         Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
@@ -532,7 +513,7 @@ public class DocxPdfRepairTests
     {
         // 3.5 refuses a negative margin at any size and for another reason, so -360 would not help.
         var docx = HeaderPage(-288);
-        var refusal = RawRefusal(docx);
+        var refusal = RawRender.Refusal(docx);
         Assert.IsType<ArgumentOutOfRangeException>(refusal);
         Assert.Contains("must be a finite non-negative number", refusal.Message, StringComparison.Ordinal);
 
@@ -580,15 +561,6 @@ public class DocxPdfRepairTests
     private static byte[] TwelveThousandTwipTable() =>
         WideTablePage(TwoColumnTable(true, "dxa", 12000, [8000, 4000], [8000, 4000]));
 
-    private static byte[] RenderRawBytes(byte[] docx)
-    {
-        using var input = new MemoryStream();
-        input.Write(docx, 0, docx.Length);
-        input.Position = 0;
-        using var word = WordDocument.Load(input);
-        return word.ToPdfBytes(new WordToPdfOptions());
-    }
-
     private static double XOf(byte[] pdf, string text) =>
         PdfProbe.TextRuns(pdf).Single(r => r.Text.Contains(text, StringComparison.Ordinal)).X;
 
@@ -607,8 +579,8 @@ public class DocxPdfRepairTests
     {
         var docx = TwelveThousandTwipTable();
         // Not a refusal: raw 3.5.3 renders it, and draws the right-aligned text outside the page.
-        Assert.Null(RawRefusal(docx));
-        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") > A4WidthPoints);
+        Assert.Null(RawRender.Refusal(docx));
+        Assert.True(XOf(RawRender.Pdf(docx), "RIGHT") > A4WidthPoints);
 
         var repaired = WideTableScale.Apply(docx);
 
@@ -627,7 +599,7 @@ public class DocxPdfRepairTests
     {
         // Measured: a dxa table width of 12000 over a grid of 3000 + 3000 is drawn 12000 wide.
         var docx = WideTablePage(TwoColumnTable(false, "dxa", 12000, [3000, 3000], [3000, 3000]));
-        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") > A4WidthPoints);
+        Assert.True(XOf(RawRender.Pdf(docx), "RIGHT") > A4WidthPoints);
 
         Assert.True(TableWidths(WideTableScale.Apply(docx), "tblW").Single() <= 9026);
     }
@@ -636,7 +608,7 @@ public class DocxPdfRepairTests
     public void WideTableScale_AFixedTableWithNoWidthButAWideGrid_IsScaled()
     {
         var docx = WideTablePage(TwoColumnTable(true, null, null, [6000, 6000], [6000, 6000]));
-        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") > A4WidthPoints);
+        Assert.True(XOf(RawRender.Pdf(docx), "RIGHT") > A4WidthPoints);
 
         Assert.True(TableWidths(WideTableScale.Apply(docx), "gridCol").Sum() <= 9026);
     }
@@ -648,7 +620,7 @@ public class DocxPdfRepairTests
         foreach (var fixedLayout in new[] { false, true })
         {
             var docx = WideTablePage(TwoColumnTable(fixedLayout, "pct", 5000, [6000, 6000], [6000, 6000]));
-            Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+            Assert.True(XOf(RawRender.Pdf(docx), "RIGHT") < A4WidthPoints);
 
             Assert.Same(docx, WideTableScale.Apply(docx));
         }
@@ -658,7 +630,7 @@ public class DocxPdfRepairTests
     public void WideTableScale_AnAutofitTableWithAWideGridOnly_IsUntouched()
     {
         var docx = WideTablePage(TwoColumnTable(false, null, null, [6000, 6000], [6000, 6000]));
-        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+        Assert.True(XOf(RawRender.Pdf(docx), "RIGHT") < A4WidthPoints);
 
         Assert.Same(docx, WideTableScale.Apply(docx));
     }
@@ -667,7 +639,7 @@ public class DocxPdfRepairTests
     public void WideTableScale_ADxaWidthThatFitsOverAWiderGrid_IsUntouched()
     {
         var docx = WideTablePage(TwoColumnTable(true, "dxa", 9000, [6000, 6000], [6000, 6000]));
-        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+        Assert.True(XOf(RawRender.Pdf(docx), "RIGHT") < A4WidthPoints);
 
         Assert.Same(docx, WideTableScale.Apply(docx));
     }
@@ -706,7 +678,7 @@ public class DocxPdfRepairTests
     public void WideTableScale_NarrowTable_ReturnsTheSameArray()
     {
         var docx = WideTablePage(TwoColumnTable(true, "dxa", 8000, [4000, 4000], [4000, 4000]));
-        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+        Assert.True(XOf(RawRender.Pdf(docx), "RIGHT") < A4WidthPoints);
 
         Assert.Same(docx, WideTableScale.Apply(docx));
     }

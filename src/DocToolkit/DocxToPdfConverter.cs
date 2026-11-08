@@ -75,7 +75,7 @@ public static class DocxToPdfConverter
             var current = prepared ?? docx;
             var used = new HashSet<int>();
             var failure = ex;
-            while (DocxPdfRefusalLadder.NextOrNull(failure, current, used) is { } next)
+            while (NextRepair(failure, current, used) is { } next)
             {
                 current = next;
                 try
@@ -182,6 +182,25 @@ public static class DocxToPdfConverter
 
         using var scratch = new MemoryStream(pdf, writable: false);
         await StreamPipeline.EmitAsync(scratch, destination, FailureMessage, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The next ladder repair, or null when there is none. <b>A step that throws ends the ladder
+    /// instead of escaping</b>: it runs inside a catch block, where no later catch of this method
+    /// applies, so an <see cref="InvalidDataException"/> from a corrupt part would otherwise reach the
+    /// caller as something other than <see cref="DocumentConversionException"/>. The renderer's
+    /// refusal is the better answer and is the one reported; the step's own exception is dropped.
+    /// </summary>
+    private static byte[]? NextRepair(Exception refusal, byte[] current, HashSet<int> used)
+    {
+        try
+        {
+            return DocxPdfRefusalLadder.NextOrNull(refusal, current, used);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>Loads a package and renders it. The one place the renderer is actually called.</summary>

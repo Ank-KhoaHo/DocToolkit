@@ -129,27 +129,23 @@ public class DocxPdfRefusalLadderTests
             + Cell(Para("tiny percent table")) + "</w:tr></w:tbl>" + Para("after the nested one"))
         + "</w:tr></w:tbl>" + Para("end");
 
-    /// <summary>What the renderer says about these bytes as they are, or null if it renders them.</summary>
-    private static Exception? RawRefusal(byte[] docx)
-    {
-        using var input = new MemoryStream();
-        input.Write(docx, 0, docx.Length);
-        input.Position = 0;
-        using var word = WordDocument.Load(input);
-        try
-        {
-            word.ToPdfBytes(new WordToPdfOptions());
-            return null;
-        }
-        catch (Exception ex)
-        {
-            return ex;
-        }
-    }
-
     private static void AssertRefused(byte[] docx, string message)
     {
-        var refusal = RawRefusal(docx);
+        var refusal = RawRender.Refusal(docx);
+        Assert.IsType<ArgumentException>(refusal);
+        Assert.Contains(message, refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Asserts the refusal where this host reproduces it. R11 and R13 sit on a font-metrics edge (the
+    /// measured Windows host, with Arial and Calibri, and both Linux test images refuse these
+    /// fixtures; a host with other fonts may not), so the refusal is checked when it happens and the
+    /// repair is asserted unconditionally either way.
+    /// </summary>
+    private static void AssertRefusedWhereItReproduces(byte[] docx, string message)
+    {
+        if (RawRender.Refusal(docx) is not { } refusal) return;
+
         Assert.IsType<ArgumentException>(refusal);
         Assert.Contains(message, refusal.Message, StringComparison.Ordinal);
     }
@@ -178,12 +174,12 @@ public class DocxPdfRefusalLadderTests
     {
         var docx = Package(NineColumnsWithAnEmptyOne());
         // Raw 3.5.3: "Table horizontal cell padding must leave a positive text width."
-        AssertRefused(docx, PaddingRefusal);
+        AssertRefusedWhereItReproduces(docx, PaddingRefusal);
 
         var repaired = EmptyCellMinWidth.Apply(docx);
 
         Assert.NotSame(docx, repaired);
-        Assert.Null(RawRefusal(repaired));
+        Assert.Null(RawRender.Refusal(repaired));
         // The padding is exactly what it was: this step gives a width and touches no margin.
         Assert.Equal(
             Between(Part(docx, "word/document.xml"), "<w:tblCellMar>", "</w:tblCellMar>"),
@@ -250,7 +246,7 @@ public class DocxPdfRefusalLadderTests
 
         var repaired = CellPaddingZero.Apply(docx);
 
-        Assert.Null(RawRefusal(repaired));
+        Assert.Null(RawRender.Refusal(repaired));
         var margins = Between(Part(repaired, "word/document.xml"), "<w:tblCellMar>", "</w:tblCellMar>");
         Assert.Contains("<w:left w:w=\"0\" w:type=\"dxa\"", margins);
         Assert.Contains("<w:right w:w=\"0\" w:type=\"dxa\"", margins);
@@ -305,7 +301,7 @@ public class DocxPdfRefusalLadderTests
 
         var repaired = IndentFitToColumn.Apply(docx);
 
-        Assert.Null(RawRefusal(repaired));
+        Assert.Null(RawRender.Refusal(repaired));
         // 4752 - 720 = 4032 (the negative right indent counts as zero); the hanging indent follows.
         var indent = Between(Part(repaired, "word/document.xml"), "<w:ind", "/>");
         Assert.Contains("w:left=\"4032\"", indent);
@@ -415,11 +411,11 @@ public class DocxPdfRefusalLadderTests
     public void AListMarkerTabPastTheCellEdgeRenders(string suffix)
     {
         var docx = ListMarkerPastTheCell(suffix);
-        AssertRefused(docx, MarkerRefusal);
+        AssertRefusedWhereItReproduces(docx, MarkerRefusal);
 
         var repaired = ListMarkerSuffixSpace.Apply(docx);
 
-        Assert.Null(RawRefusal(repaired));
+        Assert.Null(RawRender.Refusal(repaired));
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
         Assert.Contains("Petition for determination", text);
         Assert.Contains("after the table", text);
@@ -461,9 +457,9 @@ public class DocxPdfRefusalLadderTests
         var docx = Package(
             NineColumnsWithAnEmptyOne() + IndentedParagraph("w:left=\"6480\" w:right=\"-576\" w:hanging=\"6480\""),
             section: TwoColumns);
-        AssertRefused(docx, PaddingRefusal);
+        AssertRefusedWhereItReproduces(docx, PaddingRefusal);
         AssertRefused(EmptyCellMinWidth.Apply(docx), IndentRefusal);
-        AssertRefused(IndentFitToColumn.Apply(docx), PaddingRefusal);
+        AssertRefusedWhereItReproduces(IndentFitToColumn.Apply(docx), PaddingRefusal);
 
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
 
@@ -494,11 +490,9 @@ public class DocxPdfRefusalLadderTests
         var docx = Package(
             "<w:tbl><w:tblPr><w:tblW w:w=\"50\" w:type=\"pct\"/></w:tblPr><w:tblGrid><w:gridCol/></w:tblGrid><w:tr>"
             + Cell(Para("sliver")) + "</w:tr></w:tbl>" + Para("end"));
-        Assert.Null(RawRefusal(docx));
+        Assert.Null(RawRender.Refusal(docx));
 
-        using var input = new MemoryStream(docx);
-        using var word = WordDocument.Load(input);
-        var raw = word.ToPdfBytes(new WordToPdfOptions());
+        var raw = RawRender.Pdf(docx);
 
         // Every text run, in order, at the same place: the 1% cell wraps the words one to a line,
         // and the repair (automatic width) would put them on one.
@@ -579,8 +573,62 @@ public class DocxPdfRefusalLadderTests
     {
         // The ladder runs after a refusal and not before: nothing here may reach a repair.
         var docx = Package(AutoTable(3, SideMargins(108), (_, _) => Cell(Para("x"))));
-        Assert.Null(RawRefusal(docx));
+        Assert.Null(RawRender.Refusal(docx));
 
         Assert.Contains("x", PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx)));
+    }
+
+    // ---- a step that fails -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Adds a styles part that no relationship points at, so the renderer never reads it, whose
+    /// compressed data is invalid: only a repair that opens <c>word/styles.xml</c> meets it.
+    /// </summary>
+    private static byte[] WithCorruptUnreferencedStyles(byte[] docx)
+    {
+        using var ms = new MemoryStream();
+        ms.Write(docx, 0, docx.Length);
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            using var writer = new StreamWriter(zip.CreateEntry("word/styles.xml").Open(), new UTF8Encoding(false));
+            writer.Write("<w:styles " + Ns + ">" + string.Concat(Enumerable.Repeat("<w:style/>", 50)) + "</w:styles>");
+        }
+
+        var bytes = ms.ToArray();
+        var name = "word/styles.xml"u8;
+        // The entry's local header: 30 fixed bytes, then the name, then the extra field, then data.
+        var at = bytes.AsSpan().IndexOf(name);
+        var headerStart = at - 30;
+        Assert.Equal(0x04034b50u, BitConverter.ToUInt32(bytes, headerStart));
+        var dataStart = at + name.Length + BitConverter.ToUInt16(bytes, headerStart + 28);
+        bytes[dataStart] = 0x07; // final block, block type 3: not a valid deflate block
+        return bytes;
+    }
+
+    [Fact]
+    public void AStepThatThrows_EndsTheLadderAsADocumentConversionException()
+    {
+        var docx = WithCorruptUnreferencedStyles(Package(FiftyNarrowColumns(SideMargins(108))));
+        AssertRefused(docx, PaddingRefusal);
+        // The empty-cell step has nothing to change; the next step opens the corrupt part and throws.
+        Assert.Throws<InvalidDataException>(() => CellPaddingZero.Apply(docx));
+
+        var failure = Assert.Throws<DocumentConversionException>(() => DocxToPdfConverter.Convert(docx));
+
+        // The renderer's refusal is what is reported, not the step's own failure.
+        Assert.IsType<ArgumentException>(failure.InnerException);
+        Assert.Contains(PaddingRefusal, failure.InnerException!.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExtremeMarginsDoNotOverflowTheColumnMeasure()
+    {
+        // Math.Abs(int.MinValue) throws; the margins are untrusted input.
+        var section = "<w:sectPr><w:pgSz w:w=\"2147483647\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" "
+            + "w:right=\"-2147483648\" w:bottom=\"1440\" w:left=\"-2147483648\" w:header=\"720\" "
+            + "w:footer=\"720\" w:gutter=\"0\"/><w:cols w:num=\"2147483647\" w:space=\"2147483647\"/></w:sectPr>";
+        var docx = Package(IndentedParagraph("w:left=\"6480\""), section: section);
+
+        Assert.Same(docx, IndentFitToColumn.Apply(docx));
     }
 }
