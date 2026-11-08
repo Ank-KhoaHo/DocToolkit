@@ -1,5 +1,7 @@
 using System.IO.Compression;
 using System.Text;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace DocToolkit;
 
@@ -83,7 +85,7 @@ internal static class ListMarkerSubstitution
                 using (var reader = new StreamReader(entry.Open(), Encoding.UTF8))
                     xml = reader.ReadToEnd();
 
-                var replaced = Substitute(xml);
+                var replaced = Substitute(ArialForSymbolBullets(xml));
                 if (!ReferenceEquals(replaced, xml))
                 {
                     // Rewritten rather than edited in place: a ZipArchiveEntry cannot be resized
@@ -98,6 +100,76 @@ internal static class ListMarkerSubstitution
         }
 
         return rewritten is null ? docx : buffer.ToArray();
+    }
+
+    /// <summary>
+    /// Gives every level whose marker is about to be substituted an explicit Arial font in place of
+    /// its Symbol or Wingdings one, or returns the same string when no level needs it.
+    /// </summary>
+    /// <remarks>
+    /// <b>Substituting the character is not enough on OfficeIMO 3.5.3.</b> The level keeps naming
+    /// Symbol or Wingdings, those faces have no glyph for U+2022 or U+00B7, and the marker then fails
+    /// to encode - the same refusal the substitution exists to avoid, one step later.
+    ///
+    /// <b>Explicit Arial, not "remove the font".</b> Measured on doc-000966: with the <c>rFonts</c>
+    /// removed the marker inherits the font of the paragraph mark, and that can be Wingdings too.
+    /// All four slots (<c>ascii</c>, <c>hAnsi</c>, <c>cs</c>, <c>eastAsia</c>) are set so no slot
+    /// falls back, and a theme font attribute is dropped because it would override the name.
+    ///
+    /// <b>It costs the marker its face.</b> The bullet is drawn in Arial instead of Symbol; the shape
+    /// is the same. Only levels whose own text holds a private-use glyph are touched, so a level that
+    /// already carries a real bullet keeps its font. A part this parser rejects is left to the
+    /// character substitution alone.
+    /// </remarks>
+    private static string ArialForSymbolBullets(string xml)
+    {
+        if (!ContainsPrivateUse(xml)) return xml;
+
+        XDocument doc;
+        try
+        {
+            using var reader = XmlReader.Create(new StringReader(xml), new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null,
+            });
+            doc = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+        }
+        catch (XmlException)
+        {
+            return xml;
+        }
+
+        XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        var changed = false;
+        foreach (var level in doc.Descendants(w + "lvl"))
+        {
+            var marker = (string?)level.Element(w + "lvlText")?.Attribute(w + "val");
+            if (marker is null || !ContainsPrivateUse(marker)) continue;
+
+            var fonts = level.Element(w + "rPr")?.Element(w + "rFonts");
+            if (fonts is null || !fonts.Attributes().Any(a => IsSymbolFace(a.Value))) continue;
+
+            fonts.ReplaceAttributes(
+                new XAttribute(w + "ascii", "Arial"), new XAttribute(w + "hAnsi", "Arial"),
+                new XAttribute(w + "cs", "Arial"), new XAttribute(w + "eastAsia", "Arial"));
+            changed = true;
+        }
+
+        if (!changed) return xml;
+        var declaration = doc.Declaration is null ? "" : doc.Declaration + "\n";
+        return declaration + doc.ToString(SaveOptions.DisableFormatting);
+
+        static bool IsSymbolFace(string name) =>
+            name.StartsWith("Symbol", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("Wingdings", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsPrivateUse(string text)
+    {
+        foreach (var c in text)
+            if (c >= PrivateUseStart && c <= PrivateUseEnd) return true;
+        return false;
     }
 
     /// <summary>Replaces every private-use character, or returns the same string when there are none.</summary>
