@@ -53,6 +53,7 @@ public static class DocxToPdfConverter
             prepared = HyperlinkBlankRunSplit.Apply(prepared);
             prepared = ControlCharacterStrip.Apply(prepared);
             prepared = TinyPercentWidthRepair.Apply(prepared);
+            prepared = HeaderOffsetRepair.Apply(prepared);
             return Render(prepared, fonts);
         }
         catch (DocumentConversionException) { throw; }

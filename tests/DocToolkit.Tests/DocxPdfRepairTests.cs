@@ -414,4 +414,128 @@ public class DocxPdfRepairTests
 
         Assert.Same(docx, TinyPercentWidthRepair.Apply(docx));
     }
+
+    // ---- R6: a top margin under 360 twips under a header --------------------------------------------
+
+    /// <summary>
+    /// <paramref name="docx"/> with its last section given these margins (twips) and an A4 page. The
+    /// fixture builder writes the header and footer references but no <c>w:pgMar</c>.
+    /// </summary>
+    private static byte[] WithMargins(byte[] docx, int top, uint header, int bottom, uint footer)
+    {
+        using var ms = new MemoryStream();
+        ms.Write(docx);
+        using (var doc = WordprocessingDocument.Open(ms, true))
+        {
+            var body = doc.MainDocumentPart!.Document!.Body!;
+            var section = body.Elements<SectionProperties>().LastOrDefault() ?? body.AppendChild(new SectionProperties());
+            section.RemoveAllChildren<PageMargin>();
+            section.AppendChild(new PageSize { Width = 11906U, Height = 16838U });
+            section.AppendChild(new PageMargin
+            {
+                Top = top, Bottom = bottom, Header = header, Footer = footer, Left = 1440U, Right = 1440U, Gutter = 0U,
+            });
+            doc.MainDocumentPart.Document.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    private static byte[] HeaderPage(int top, uint header = 0, string? headerText = "Header words") =>
+        WithMargins(Build(headerText, null, P(R("Body words"))), top, header, 1440, 720);
+
+    private static string MarginAttribute(byte[] docx, string name)
+    {
+        var xml = Part(docx, "word/document.xml");
+        var margin = xml[xml.IndexOf("<w:pgMar", StringComparison.Ordinal)..];
+        margin = margin[..margin.IndexOf("/>", StringComparison.Ordinal)];
+        var start = margin.IndexOf($"w:{name}=\"", StringComparison.Ordinal) + name.Length + 4;
+        return margin[start..margin.IndexOf('"', start)];
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_TopMarginUnder360WithAHeader_RefusedBefore_IsRaisedTo360()
+    {
+        var docx = HeaderPage(288);
+        // Raw 3.5.3: ArgumentException "PDF header offset must not exceed the top margin when header
+        // content is enabled", with a header distance of 0.
+        var refusal = RawRefusal(docx);
+        Assert.IsType<ArgumentException>(refusal);
+        Assert.Contains("header offset must not exceed the top margin", refusal.Message, StringComparison.Ordinal);
+
+        var repaired = HeaderOffsetRepair.Apply(docx);
+
+        Assert.Equal("360", MarginAttribute(repaired, "top"));
+        Assert.Null(RawRefusal(repaired));
+        var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
+        Assert.Contains("Body words", text);
+        Assert.Contains("Header words", text);
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_TheFloorIs360_359IsRefused_360IsNot()
+    {
+        Assert.Contains("header offset", RawRefusal(HeaderPage(359))!.Message, StringComparison.Ordinal);
+
+        var accepted = HeaderPage(360);
+
+        Assert.Null(RawRefusal(accepted));
+        Assert.Same(accepted, HeaderOffsetRepair.Apply(accepted));
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_ATopMarginOfZero_IsRaisedToo()
+    {
+        var docx = HeaderPage(0);
+        Assert.Contains("header offset", RawRefusal(docx)!.Message, StringComparison.Ordinal);
+
+        Assert.Equal("360", MarginAttribute(HeaderOffsetRepair.Apply(docx), "top"));
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_NoHeaderNoChange()
+    {
+        // A small top margin is fine without a header: measured, raw 3.5.3 renders it.
+        var docx = WithMargins(Build(P(R("Body words"))), 288, 0, 288, 0);
+        Assert.Null(RawRefusal(docx));
+
+        Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_AnEmptyHeader_IsLeftAlone()
+    {
+        // Measured: "header content is enabled" is about content. A header holding no text renders
+        // on raw 3.5.3 with a top margin of 288, so it must not be edited.
+        var docx = HeaderPage(288, 0, headerText: "");
+        Assert.Null(RawRefusal(docx));
+
+        Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_AHeaderDistanceAboveTheTopMargin_IsLeftAlone()
+    {
+        // The plan expected 3.5 to refuse this; measured on raw 3.5.3 it renders (even 8000 over
+        // 1440), so editing it would change a document that renders today.
+        var docx = HeaderPage(576, 720);
+        Assert.Null(RawRefusal(docx));
+
+        Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
+        var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
+        Assert.Contains("Header words", text);
+        Assert.Contains("Body words", text);
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_ANegativeTopMargin_IsLeftAlone()
+    {
+        // 3.5 refuses a negative margin at any size and for another reason, so -360 would not help.
+        var docx = HeaderPage(-288);
+        var refusal = RawRefusal(docx);
+        Assert.IsType<ArgumentOutOfRangeException>(refusal);
+        Assert.Contains("must be a finite non-negative number", refusal.Message, StringComparison.Ordinal);
+
+        Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
+    }
 }
