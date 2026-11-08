@@ -90,7 +90,9 @@ Check(PresentationEditor.SlideCount(pptx) == 1, "PresentationEditor round-trip")
 
 // The PDF renderer, and DocToolkit.Pdf reading it back.
 byte[] pdf = DocxToPdfConverter.Convert(docx);
-Check(pdf.Length > 1000 && pdf[0] == (byte)'%', "DocxToPdfConverter produces a PDF");
+// The text, not a byte count: OfficeIMO 3.5 compresses, and this one-line PDF is 868 bytes.
+Check(pdf[0] == (byte)'%' && string.Concat(PdfEditor.ExtractText(pdf)).Contains("packed install"),
+      "DocxToPdfConverter produces a PDF holding the text");
 Check(PdfEditor.PageCount(pdf) >= 1, "PdfEditor reads it back");
 
 // DocToolkit.Html, through the converter that composes it. ConvertAsync, not Convert: the HTML
