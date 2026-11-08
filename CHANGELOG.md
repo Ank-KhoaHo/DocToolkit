@@ -12,16 +12,53 @@ repo-wide tooling (CI, release pipeline).
 
 ## [0.60.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.59.0...v0.60.0) (2026-11-08)
 
+The renderer beneath every PDF converter moves from OfficeIMO 3.2.6 to 3.5.3. **On a public test
+corpus, 1,083 of 1,126 conversions now succeed, up from 1,017, and none that succeeded on 0.59.0
+fails.** No public type changes.
 
 ### Added
 
-* Arabic, Persian and Urdu letters join in PDF when fonts are supplied (A124) ([#545](https://github.com/Ank-KhoaHo/DocToolkit/issues/545)) ([2f2e8a8](https://github.com/Ank-KhoaHo/DocToolkit/commit/2f2e8a8a47e9b96f04bb04f631d8c6acd6a16832))
-* render through OfficeIMO 3.5.3, with repairs for what it refuses (A123) ([#541](https://github.com/Ank-KhoaHo/DocToolkit/issues/541)) ([6afb4e6](https://github.com/Ank-KhoaHo/DocToolkit/commit/6afb4e67459f02acc9b9d540a41715ad46a2badc))
-
+* **Core: Arabic, Persian and Urdu letters take their joined forms in PDF when you pass
+  `PdfFontOptions`**, in DOCX, XLSX and PPTX to PDF (HTML to PDF goes through DOCX). DocToolkit now
+  rewrites each letter into its Unicode presentation form before rendering, so the result no longer
+  depends on the renderer's own shaping. Without fonts nothing changes.
+  - The supplied font must cover Arabic Presentation Forms-B (and -A for Persian letters). The
+    Windows versions of Arial, Tahoma, Segoe UI and Times New Roman do.
+  - A few letters, such as ۃ and ە, have no presentation form, so joining stops next to them.
+  - Copy and search return the base letters, and a word with a lam-alef ligature can come back in
+    visual order.
+  - In XLSX, formulas are calculated before shaping, so `=LEN(A1)` and `=IF(A1="…",…)` see the
+    original text.
+  - A worksheet's right-to-left direction is still ignored.
 
 ### Changed
 
-* give both packages a NuGet title carrying their task words ([#546](https://github.com/Ank-KhoaHo/DocToolkit/issues/546)) ([93cdfd5](https://github.com/Ank-KhoaHo/DocToolkit/commit/93cdfd585b1329379787d04612f174dd514a31c7))
+* **Core: with `PdfFontOptions`, a Hebrew line now comes out in reading order** in DOCX, XLSX and
+  PPTX to PDF. Before, each word was right but a line of several words printed them in reverse.
+* **Core: `DocxToPdfPreflight` reports one kind of finding, not three.** Footnotes and content
+  controls in a table cell render since OfficeIMO 3.5, so the `Footnote` and `ControlInCell`
+  findings are gone; `NestedTable` stays. Code that checks a finding's code for those two strings no
+  longer sees them.
+* **Core: a watermark on a merged document now stamps every section.**
+* **Core: documents OfficeIMO 3.5.3 refuses are repaired and rendered again.** A document that
+  renders as it is never takes these repairs. The causes covered: empty hyperlink text, a header
+  taller than a small top margin, tiny percentage table widths, empty table columns, cell padding
+  wider than its column, indents wider than their column, and list-marker tabs past the cell edge.
+* **Core: two repairs run on every DOCX to PDF conversion.** A bullet level that substitutes a
+  Symbol or Wingdings glyph is drawn in Arial, which has the bullet, and C0/C1 control characters
+  are removed from text.
+* **Core: a fixed-width table wider than its section's text area is scaled to fit.** A few wide
+  tables still run off the page.
+* **Core: each DOCX render runs on its own thread with a 16 MB stack**, so the depth a document
+  needs no longer depends on the caller's thread. OfficeIMO 3.5.3's frames are large (about 4 KB each), and
+  .NET 8 on macOS gives a secondary thread only 512 KB; a stack overflow cannot be caught.
+* **Both packages carry a NuGet title** that names their task: "DocToolkit - HTML to PDF and DOCX
+  to PDF converter for .NET (also XLSX, PPTX, Markdown)" and "DocToolkit dependency injection -
+  HTML to PDF and DOCX to PDF for ASP.NET Core".
+* **Dependencies:** OfficeIMO 3.5.3 brings `OfficeIMO.Html.AngleSharp`, `OfficeIMO.Html.Core` and
+  `System.Text.Encoding.CodePages`, and AngleSharp 1.8.3. OfficeIMO.Core's licence is now
+  "MIT AND Apache-2.0 AND BSD-3-Clause". `THIRD-PARTY-NOTICES.txt` lists them, and a new
+  *Vendored code* section carries the MIT notice for the Arabic forms table copied from OfficeIMO.
 
 ## [0.59.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.58.0...v0.59.0) (2026-11-03)
 
