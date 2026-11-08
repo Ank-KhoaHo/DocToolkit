@@ -286,6 +286,83 @@ public class ArabicPreShaperTests
         Assert.Same(junk, ArabicPreShaper.Apply(junk));
     }
 
+    [Theory]
+    [InlineData(new byte[] { 0x41, 0x4B, 3, 4 })] // first byte is not 'P'
+    [InlineData(new byte[] { 0x50, 0x58, 3, 4 })] // second byte is not 'K'
+    public void FourBytesThatAreNotAZip_ReturnTheSameArray(byte[] junk)
+        => Assert.Same(junk, ArabicPreShaper.Apply(junk));
+
+    [Theory]
+    [InlineData("<w:br/>")]
+    [InlineData("<w:cr/>")]
+    [InlineData("<w:tab/>")]
+    [InlineData("<w:ptab w:relativeTo=\"margin\" w:alignment=\"left\" w:leader=\"none\"/>")]
+    [InlineData("<w:noBreakHyphen/>")]
+    [InlineData("<w:softHyphen/>")]
+    [InlineData("<w:sym w:font=\"Wingdings\" w:char=\"F0FC\"/>")]
+    [InlineData("<w:fldChar w:fldCharType=\"begin\"/>")]
+    [InlineData("<w:drawing/>")]
+    [InlineData("<w:object/>")]
+    [InlineData("<w:pict/>")]
+    public void LettersDoNotJoinAcrossBreaksTabsOrInlineObjects(string between)
+    {
+        var docx = Zip(("word/document.xml", Doc(
+            $"<w:p><w:r><w:t>بب</w:t></w:r><w:r>{between}</w:r><w:r><w:t>بب</w:t></w:r></w:p>")));
+        Assert.Equal(new[] { "ﺑﺐ", "ﺑﺐ" }, WTexts(ArabicPreShaper.Apply(docx)));
+    }
+
+    [Fact]
+    public void LettersDoNotJoinAcrossADrawingMLLineBreak()
+    {
+        string slide = $"<p:sld xmlns:p=\"urn:p\" xmlns:a=\"{ANs}\"><a:p><a:r><a:t>بب</a:t></a:r><a:br/><a:r><a:t>بب</a:t></a:r></a:p></p:sld>";
+        var result = ArabicPreShaper.Apply(Zip(("ppt/slides/slide1.xml", slide)));
+        var ts = XDocument.Parse(Part(result, "ppt/slides/slide1.xml")).Descendants(XName.Get("t", ANs)).Select(t => t.Value);
+        Assert.Equal(new[] { "ﺑﺐ", "ﺑﺐ" }, ts);
+    }
+
+    [Fact]
+    public void ALatinOnlyNodeBesideAnArabicNodeIsLeftExactly()
+    {
+        var docx = Zip(("word/document.xml", Doc(
+            "<w:p><w:r><w:t xml:space=\"preserve\">Hi </w:t></w:r><w:r><w:t>بب</w:t></w:r><w:r><w:t xml:space=\"preserve\">   </w:t></w:r></w:p>")));
+        Assert.Equal(new[] { "Hi ", "ﺑﺐ", "   " }, WTexts(ArabicPreShaper.Apply(docx)));
+    }
+
+    [Fact]
+    public void TextElementsOfAnotherNamespaceBelongToNoContainer()
+    {
+        // An s:t under a w:p, a w:t under an a:p and a w:t under an unrelated p are not that
+        // container's text, so none is shaped. The w:p's own w:t is.
+        string doc = $"<w:document xmlns:w=\"{WNs}\" xmlns:s=\"{SNs}\" xmlns:a=\"{ANs}\" xmlns:x=\"urn:x\"><w:body>" +
+            "<w:p><w:r><s:t>بب</s:t></w:r><w:r><w:t>بب</w:t></w:r></w:p>" +
+            "<a:p><w:t>بب</w:t></a:p>" +
+            "<x:p><w:t>بب</w:t></x:p>" +
+            "</w:body></w:document>";
+        var xml = XDocument.Parse(Part(ArabicPreShaper.Apply(Zip(("word/document.xml", doc))), "word/document.xml"));
+        var ts = xml.Descendants().Where(e => e.Name.LocalName == "t").Select(t => t.Value).ToArray();
+        Assert.Equal(new[] { "بب", "ﺑﺐ", "بب", "بب" }, ts);
+    }
+
+    [Fact]
+    public void AParagraphOfAnotherNamespaceIsNotAContainer()
+    {
+        var docx = Zip(("word/document.xml",
+            $"<w:document xmlns:w=\"{WNs}\" xmlns:x=\"urn:x\"><w:body><x:p><w:r><w:t>بب</w:t></w:r></x:p></w:body></w:document>"));
+        Assert.Same(docx, ArabicPreShaper.Apply(docx));
+    }
+
+    [Fact]
+    public void PartNamesAreMatchedWithoutCase_AndRelsEntriesAreNotParts()
+    {
+        string header = $"<w:hdr xmlns:w=\"{WNs}\"><w:p><w:r><w:t>بب</w:t></w:r></w:p></w:hdr>";
+        var result = ArabicPreShaper.Apply(Zip(
+            ("word/document.xml", Doc("<w:p/>")),
+            ("Word/Header1.xml", header),
+            ("word/header1.xml.rels", header)));
+        Assert.Contains("ﺑﺐ", Part(result, "Word/Header1.xml"));
+        Assert.Equal(header, Part(result, "word/header1.xml.rels"));
+    }
+
     [Fact]
     public void AlreadyShapedText_ReturnsTheSameArray()
     {

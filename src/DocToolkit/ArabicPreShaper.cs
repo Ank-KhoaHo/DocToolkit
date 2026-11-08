@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Xml.Linq;
 
 namespace DocToolkit;
@@ -72,7 +73,7 @@ internal static class ArabicPreShaper
 
     // "<prefix>*.xml" in that folder only: header1.xml yes, _rels/header1.xml.rels and slideLayouts no.
     private static bool IsNumbered(string name, string prefix) =>
-        name.StartsWith(prefix, StringComparison.Ordinal) && name.EndsWith(".xml", StringComparison.Ordinal)
+        name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
         && name.IndexOf('/', prefix.Length) < 0;
 
     private static bool ShapeDocument(XDocument doc)
@@ -80,21 +81,36 @@ internal static class ArabicPreShaper
         var changed = false;
         foreach (var container in doc.Descendants().Where(IsContainer).ToList())
         {
-            var nodes = container.Descendants().Where(e => IsTextNode(e, container)).ToList();
-            if (nodes.Count == 0) continue;
-            var originals = nodes.Select(n => n.Value).ToList();
-            var logical = string.Concat(originals);
-            if (!ContainsArabicLetter(logical)) continue;
-
-            var shaped = Shape(logical);
-            var offset = 0;
-            for (var i = 0; i < nodes.Count; i++)
+            // Text nodes in document order, with the logical string they are shaped as. A line
+            // break, tab or inline object between two text nodes becomes one space in that string,
+            // which does not join, so letters never join across it. Separators belong to no node.
+            var nodes = new List<(XElement Node, string Original, int Start)>();
+            var logical = new StringBuilder();
+            var separate = false;
+            foreach (var e in container.Descendants())
             {
-                var length = originals[i].Length;
-                var text = string.Concat(shaped.Skip(offset).Take(length));
-                offset += length;
-                if (text == originals[i]) continue;
-                nodes[i].Value = text;
+                if (IsTextNode(e, container))
+                {
+                    if (separate && nodes.Count > 0) logical.Append(' ');
+                    separate = false;
+                    nodes.Add((e, e.Value, logical.Length));
+                    logical.Append(e.Value);
+                }
+                else if (IsNonTextContent(e) && e.Ancestors().First(IsContainer) == container)
+                {
+                    separate = true;
+                }
+            }
+
+            var text = logical.ToString();
+            if (!ContainsArabicLetter(text)) continue;
+
+            var shaped = Shape(text);
+            foreach (var (node, original, start) in nodes)
+            {
+                var replacement = string.Concat(shaped.Skip(start).Take(original.Length));
+                if (replacement == original) continue;
+                node.Value = replacement;
                 changed = true;
             }
         }
@@ -111,20 +127,21 @@ internal static class ArabicPreShaper
         (e.Name.LocalName == "p" && (e.Name.Namespace == W || e.Name.Namespace == A))
         || (e.Name.Namespace == S && e.Name.LocalName is "si" or "is");
 
+    // Content that sits between text nodes and breaks a word visually: line and page breaks, tabs,
+    // hyphens, fields and inline objects. Their text, if any, is not this container's text.
+    private static bool IsNonTextContent(XElement e) =>
+        (e.Name.Namespace == W && e.Name.LocalName is "br" or "cr" or "tab" or "ptab" or "noBreakHyphen"
+            or "softHyphen" or "drawing" or "object" or "pict" or "fldChar" or "sym")
+        || (e.Name.Namespace == A && e.Name.LocalName == "br");
+
     // A text node belongs to its NEAREST container: a text box's paragraph inside a run of another
     // paragraph is shaped on its own. In si/is only the item's own text counts (directly, or in an
     // r run), so phonetic text (rPh) is skipped.
     private static bool IsTextNode(XElement e, XElement container)
     {
-        if (e.Name.LocalName != "t") return false;
-        if (e.Name.Namespace == S)
-        {
-            if (container.Name.Namespace != S) return false;
-            var parent = e.Parent;
-            return parent == container || (parent?.Name == S + "r" && parent.Parent == container);
-        }
-        if (e.Name.Namespace != W && e.Name.Namespace != A) return false;
-        if (e.Name.Namespace != container.Name.Namespace) return false;
+        if (e.Name.LocalName != "t" || e.Name.Namespace != container.Name.Namespace) return false;
+        if (container.Name.Namespace == S)
+            return e.Parent == container || (e.Parent!.Name == S + "r" && e.Parent.Parent == container);
         return e.Ancestors().First(IsContainer) == container;
     }
 
