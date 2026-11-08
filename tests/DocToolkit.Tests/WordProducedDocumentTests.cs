@@ -249,6 +249,15 @@ public class WordProducedDocumentTests
     }
 
     [Fact]
+    public void ListMarkerSubstitution_NoSymbolBullet_ReturnsTheSameArray()
+    {
+        // A numbering part whose marker is an ordinary U+2022: no private-use character, nothing to do.
+        var docx = SymbolBulletList("•");
+
+        Assert.Same(docx, ListMarkerSubstitution.Apply(docx));
+    }
+
+    [Fact]
     public void ASubstitutedBullet_RefusedBeforeTheFontFix_RendersAfter()
     {
         // Raw 3.5.3, the character substituted but the Symbol font kept - what this class did before.
