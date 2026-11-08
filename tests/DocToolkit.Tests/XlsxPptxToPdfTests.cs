@@ -409,6 +409,13 @@ public class XlsxPptxToPdfTests
     private static PdfFontOptions? HostFonts() =>
         PdfFontOptionsTests.FindFont() is { } font ? new PdfFontOptions("Supplied", font) : null;
 
+    /// <summary>
+    /// Like <see cref="HostFonts"/>, but a font whose cmap covers the Arabic presentation forms: the
+    /// joining tests need glyphs to draw (see <see cref="ArabicFontTests"/>).
+    /// </summary>
+    private static PdfFontOptions? ArabicHostFonts() =>
+        ArabicFontTests.FindArabicFont() is { } font ? new PdfFontOptions("Supplied", font) : null;
+
     /// <summary>The host-independent proof the bytes reach the renderer: its own refusal.</summary>
     [Theory]
     [InlineData(3)]
@@ -604,7 +611,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public void XlsxConvert_WithARealFont_ArabicIsPreShaped()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
         var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
 
@@ -615,7 +622,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public async Task XlsxConvertAsync_WithARealFont_ArabicIsPreShaped()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
         var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
         using var destination = new MemoryStream();
@@ -628,7 +635,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public void PptxConvert_WithARealFont_ArabicIsPreShaped()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
         var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
 
@@ -639,7 +646,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public async Task PptxConvertAsync_WithARealFont_ArabicIsPreShaped()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
         var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
         using var destination = new MemoryStream();
@@ -685,7 +692,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public void XlsxConvert_WithARealFont_LenOfAnArabicCellCountsTheUnjoinedLetters()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
 
         var runs = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts));
@@ -696,7 +703,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public void XlsxConvert_WithARealFont_ACompareAgainstAnArabicLiteralStillMatches()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
 
         var runs = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts));
@@ -707,7 +714,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public void XlsxConvert_WithARealFont_AFormulasArabicTextResultIsJoined()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
 
         var formulas = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts)).Where(r => r.Text.Trim().Length > 0);
@@ -719,7 +726,7 @@ public class XlsxPptxToPdfTests
     [Fact]
     public async Task XlsxConvertAsync_WithARealFont_FormulaResultsAreCalculatedBeforeJoining()
     {
-        if (HostFonts() is not { } fonts)
+        if (ArabicHostFonts() is not { } fonts)
             return;
         using var destination = new MemoryStream();
 

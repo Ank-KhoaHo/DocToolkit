@@ -352,7 +352,7 @@ public class PdfFontOptionsTests
     [Fact]
     public void WithFonts_ArabicDocxIsPreShaped()
     {
-        var font = FindFont();
+        var font = ArabicFontTests.FindArabicFont();
         if (font is null)
             return;
         var fonts = new PdfFontOptions("Supplied", font);
@@ -369,7 +369,7 @@ public class PdfFontOptionsTests
     [Fact]
     public async Task WithFonts_ArabicDocxThroughAStreamOverloadIsPreShaped()
     {
-        var font = FindFont();
+        var font = ArabicFontTests.FindArabicFont();
         if (font is null)
             return;
         var fonts = new PdfFontOptions("Supplied", font);
@@ -385,7 +385,7 @@ public class PdfFontOptionsTests
     [Fact]
     public async Task WithFonts_ArabicHtmlIsPreShaped()
     {
-        var font = FindFont();
+        var font = ArabicFontTests.FindArabicFont();
         if (font is null)
             return;
         var fonts = new PdfFontOptions("Supplied", font);
