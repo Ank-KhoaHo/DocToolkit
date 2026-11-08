@@ -87,6 +87,19 @@ internal static class ArabicPreShaper
         return DocxPartRewrite.Apply(package, IsTargetPart, ShapeDocument, requireWordMain: false);
     }
 
+    /// <summary>
+    /// Whether the text of a workbook's shared strings or sheets (formula text included) holds an
+    /// Arabic-script letter. Reads the package; never modifies it.
+    /// </summary>
+    internal static bool HasArabicLetter(byte[] package)
+    {
+        if (package.Length < 4 || package[0] != (byte)'P' || package[1] != (byte)'K') return false;
+        var found = false;
+        DocxPartRewrite.Apply(
+            package, IsTargetPart, doc => { found |= ContainsArabicLetter(doc.Root!.Value); return false; }, requireWordMain: false);
+        return found;
+    }
+
     private static bool IsTargetPart(string name) =>
         name is "word/document.xml" or "word/footnotes.xml" or "word/endnotes.xml" or "xl/sharedStrings.xml"
         || IsNumbered(name, "word/header") || IsNumbered(name, "word/footer")
@@ -144,9 +157,11 @@ internal static class ArabicPreShaper
         return false;
     }
 
+    // A formula cell's text result (t="str") is one string in its v, so that is a container too.
     private static bool IsContainer(XElement e) =>
         (e.Name.LocalName == "p" && (e.Name.Namespace == W || e.Name.Namespace == A))
-        || (e.Name.Namespace == S && e.Name.LocalName is "si" or "is");
+        || (e.Name.Namespace == S && e.Name.LocalName is "si" or "is")
+        || (e.Name == S + "c" && (string?)e.Attribute("t") == "str");
 
     // Content that sits between text nodes and breaks a word visually: line and page breaks, tabs,
     // hyphens, fields and inline objects. Their text, if any, is not this container's text.
@@ -160,6 +175,7 @@ internal static class ArabicPreShaper
     // r run), so phonetic text (rPh) is skipped.
     private static bool IsTextNode(XElement e, XElement container)
     {
+        if (container.Name == S + "c") return e.Name == S + "v" && e.Parent == container;
         if (e.Name.LocalName != "t" || e.Name.Namespace != container.Name.Namespace) return false;
         if (container.Name.Namespace == S)
             return e.Parent == container || (e.Parent!.Name == S + "r" && e.Parent.Parent == container);

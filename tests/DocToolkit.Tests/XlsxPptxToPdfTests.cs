@@ -463,7 +463,7 @@ public class XlsxPptxToPdfTests
         Assert.Contains("Invoice", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
     }
 
-    /// <summary>Persian's own letters are not shaped (A124), but must still render, not throw.</summary>
+    /// <summary>Persian text, with its own letters, is joined (A124) and must render, not throw.</summary>
     [Fact]
     public void XlsxConvert_WithARealFont_PersianRendersWithoutThrowing()
     {
@@ -647,6 +647,85 @@ public class XlsxPptxToPdfTests
         await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
 
         PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), UnshapedRender.Pptx(pptx, fonts));
+    }
+
+    // ---- Formulas are calculated BEFORE the letters are joined ---------------------------------------
+
+    private const string Salam = "سلام";   // seen (sin lam alef mim): lam-alef is one glyph
+    private const string Paid = "مدفوع";
+
+    /// <summary>A1 text, B1 its length, C1 a comparison against an Arabic literal, D1 an Arabic text result.</summary>
+    private static byte[] FormulaSheet() =>
+        WorkbookEditor.Create("Sheet", new object?[][]
+        {
+            new object?[]
+            {
+                Salam,
+                XlsxFormula.From("LEN(A1)"),
+                XlsxFormula.From($"IF(A1=\"{Salam}\",\"ok\",\"no\")"),
+                XlsxFormula.From($"IF(TRUE,\"{Paid}\",\"\")"),
+            },
+        });
+
+    /// <summary>The same sheet holding the results as plain values: what the formulas should render as.</summary>
+    private static byte[] ValueSheet() =>
+        WorkbookEditor.Create("Sheet", new object?[][] { new object?[] { Salam, 4, "ok", Paid } });
+
+    private static void AssertFormulaResultsRender(byte[] pdf, PdfFontOptions fonts)
+    {
+        var runs = PdfProbe.TextRuns(pdf).Where(r => r.Text.Trim().Length > 0).ToList();
+
+        Assert.Contains(runs, r => r.Text == "4");
+        Assert.Contains(runs, r => r.Text == "ok");
+        Assert.Equal(
+            PdfProbe.TextRuns(XlsxToPdfConverter.Convert(ValueSheet(), fonts)).Where(r => r.Text.Trim().Length > 0),
+            runs);
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_LenOfAnArabicCellCountsTheUnjoinedLetters()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        var runs = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts));
+
+        Assert.Contains(runs, r => r.Text == "4");
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_ACompareAgainstAnArabicLiteralStillMatches()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        var runs = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts));
+
+        Assert.Contains(runs, r => r.Text == "ok");
+    }
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_AFormulasArabicTextResultIsJoined()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        var formulas = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(FormulaSheet(), fonts)).Where(r => r.Text.Trim().Length > 0);
+        var values = PdfProbe.TextRuns(XlsxToPdfConverter.Convert(ValueSheet(), fonts)).Where(r => r.Text.Trim().Length > 0);
+
+        Assert.Equal(values, formulas);
+    }
+
+    [Fact]
+    public async Task XlsxConvertAsync_WithARealFont_FormulaResultsAreCalculatedBeforeJoining()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        using var destination = new MemoryStream();
+
+        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(FormulaSheet()), destination, fonts);
+
+        AssertFormulaResultsRender(destination.ToArray(), fonts);
     }
 
     /// <summary>

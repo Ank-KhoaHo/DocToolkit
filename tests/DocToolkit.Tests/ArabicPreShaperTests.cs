@@ -110,13 +110,11 @@ public class ArabicPreShaperTests
     }
 
     [Fact]
-    public void A_word_joins_across_what_were_run_boundaries()
+    public void A_persian_kaf_joins_and_a_lam_alef_after_an_alef_still_ligates()
     {
-        // kaf-alef split across two runs would be shaped as one container string by the caller.
+        // kaf (U+06A9) takes its Persian form, the alef breaks the chain, the next lam-alef is a ligature.
         var shaped = Shape("\u06A9\u0627" + "\u0644\u0627");
         Assert.Equal(new[] { "\uFB90", "\uFE8E", "\uFEFB", "" }, shaped);
-        // Same chars, ba + ba as two "runs": the join crosses the boundary.
-        Assert.Equal(new[] { "\uFE91", "\uFE90" }, Shape(Ba + Ba));
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -368,5 +366,32 @@ public class ArabicPreShaperTests
     {
         var docx = Zip(("word/document.xml", Doc("<w:p><w:r><w:t>\uFE91\uFE90</w:t></w:r></w:p>")));
         Assert.Same(docx, ArabicPreShaper.Apply(docx));
+    }
+
+    [Fact]
+    public void AFormulaCellsTextResultIsShapedAsOneString()
+    {
+        string sheet = $"<worksheet xmlns=\"{SNs}\"><sheetData><row r=\"1\">"
+            + "<c r=\"A1\" t=\"str\"><f>IF(TRUE,\"x\",\"\")</f><v>\u0628\u0628</v></c>"
+            + "<c r=\"B1\" t=\"n\"><f>1+1</f><v>2</v></c></row></sheetData></worksheet>";
+        var result = ArabicPreShaper.Apply(Zip(("xl/worksheets/sheet1.xml", sheet)));
+
+        var doc = XDocument.Parse(Part(result, "xl/worksheets/sheet1.xml"));
+        Assert.Equal(new[] { "\uFE91\uFE90", "2" }, doc.Descendants(XName.Get("v", SNs)).Select(v => v.Value));
+        Assert.Equal("IF(TRUE,\"x\",\"\")", doc.Descendants(XName.Get("f", SNs)).First().Value);
+    }
+
+    [Fact]
+    public void HasArabicLetter_FindsArabicInSharedStringsAndInFormulaTextOnly()
+    {
+        string shared = $"<sst xmlns=\"{SNs}\"><si><t>\u0628</t></si></sst>";
+        string latinShared = $"<sst xmlns=\"{SNs}\"><si><t>abc</t></si></sst>";
+        string formula = $"<worksheet xmlns=\"{SNs}\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"str\"><f>IF(B1=\"\u0628\",1,2)</f><v>1</v></c></row></sheetData></worksheet>";
+        string latinSheet = $"<worksheet xmlns=\"{SNs}\"><sheetData><row r=\"1\"><c r=\"A1\"><v>1</v></c></row></sheetData></worksheet>";
+
+        Assert.True(ArabicPreShaper.HasArabicLetter(Zip(("xl/sharedStrings.xml", shared))));
+        Assert.True(ArabicPreShaper.HasArabicLetter(Zip(("xl/worksheets/sheet1.xml", formula))));
+        Assert.False(ArabicPreShaper.HasArabicLetter(Zip(("xl/sharedStrings.xml", latinShared), ("xl/worksheets/sheet1.xml", latinSheet))));
+        Assert.False(ArabicPreShaper.HasArabicLetter(new byte[] { 1, 2, 3 }));
     }
 }
