@@ -48,7 +48,7 @@ namespace DocToolkit;
 /// renderer lays the line out, and a lam followed by an alef becomes one ligature. A few letters
 /// have no such forms (Urdu U+06C3 and Kurdish or Uyghur U+06D5 are two), so joining stops next to
 /// them. The supplied font must cover the Arabic Presentation Forms-B block, and Forms-A for
-/// Persian letters; the Windows versions of Arial, Tahoma, Segoe UI and Times New Roman do. A font without those forms renders the letters unjoined, with no error. On one Persian invoice, the words ran right
+/// Persian letters; the Windows versions of Arial, Tahoma, Segoe UI and Times New Roman do. On one Persian invoice, the words ran right
 /// to left in the extracted text. Copy and search return the base letters, and a word with a
 /// lam-alef ligature can come back in visual order, so a search for it can miss. A worksheet's
 /// right-to-left direction is not applied. Latin text is unaffected, measured byte for byte. Without fonts no
