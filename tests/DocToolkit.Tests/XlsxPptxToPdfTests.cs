@@ -431,7 +431,7 @@ public class XlsxPptxToPdfTests
             XlsxToPdfConverter.Convert(SheetWith(string.Join(" ", PdfFontOptionsTests.HebrewLine)), fonts));
     }
 
-    [Theory(Skip = "A124: needs pre-shaping, lands in PR 2")]
+    [Theory]
     [InlineData("فاتورة ضريبية رقم 12")]
     public void XlsxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
     {
@@ -531,7 +531,7 @@ public class XlsxPptxToPdfTests
                 PresentationEditor.Create([PptxSlide.Titled(string.Join(" ", PdfFontOptionsTests.HebrewLine))]), fonts));
     }
 
-    [Theory(Skip = "A124: needs pre-shaping, lands in PR 2")]
+    [Theory]
     [InlineData("فاتورة ضريبية رقم 12")]
     public void PptxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
     {
@@ -595,5 +595,74 @@ public class XlsxPptxToPdfTests
         await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
 
         Assert.Equal(PptxToPdfConverter.Convert(pptx, fonts), destination.ToArray());
+    }
+
+    // =====================================================================================
+    // A124 - Arabic letters join when fonts are supplied
+    // =====================================================================================
+
+    [Fact]
+    public void XlsxConvert_WithARealFont_ArabicIsPreShaped()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(
+            XlsxToPdfConverter.Convert(xlsx, fonts), UnshapedRender.Xlsx(xlsx, fonts));
+    }
+
+    [Fact]
+    public async Task XlsxConvertAsync_WithARealFont_ArabicIsPreShaped()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
+        using var destination = new MemoryStream();
+
+        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(xlsx), destination, fonts);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), UnshapedRender.Xlsx(xlsx, fonts));
+    }
+
+    [Fact]
+    public void PptxConvert_WithARealFont_ArabicIsPreShaped()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(
+            PptxToPdfConverter.Convert(pptx, fonts), UnshapedRender.Pptx(pptx, fonts));
+    }
+
+    [Fact]
+    public async Task PptxConvertAsync_WithARealFont_ArabicIsPreShaped()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+        var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
+        using var destination = new MemoryStream();
+
+        await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
+
+        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), UnshapedRender.Pptx(pptx, fonts));
+    }
+
+    /// <summary>
+    /// No fonts: Arabic is refused as it is today (measured 2026-11-09, on hosts with and without
+    /// fonts), and nothing changes it. The refusal is the pinned behaviour; that the pre-shaper is
+    /// not reached is the DOCX counterpart's job, where the outcome can differ.
+    /// </summary>
+    [Fact]
+    public void WithoutFonts_ArabicXlsxAndPptxStillRefuseAsToday()
+    {
+        var xlsx = Assert.Throws<DocumentConversionException>(
+            () => XlsxToPdfConverter.Convert(SheetWith(PdfFontOptionsTests.ArabicLine)));
+        var pptx = Assert.Throws<DocumentConversionException>(
+            () => PptxToPdfConverter.Convert(SlideWith(PdfFontOptionsTests.ArabicLine)));
+
+        Assert.Contains("WinAnsi", xlsx.InnerException!.Message, StringComparison.Ordinal);
+        Assert.Contains("WinAnsi", pptx.InnerException!.Message, StringComparison.Ordinal);
     }
 }

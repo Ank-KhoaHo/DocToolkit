@@ -66,8 +66,11 @@ public static class PptxToPdfConverter
         {
             // Expandable copy: the loader opens the package read/write, exactly as
             // DocxToPdfConverter.Convert has to.
+            //
+            // With fonts, Arabic-script letters are first rewritten into their joined forms (A124).
+            var package = fonts is null ? pptx : ArabicPreShaper.Apply(pptx);
             using var input = new MemoryStream();
-            input.Write(pptx, 0, pptx.Length);
+            input.Write(package, 0, package.Length);
             input.Position = 0;
 
             using var presentation = PowerPointPresentation.Load(input);
@@ -149,6 +152,9 @@ public static class PptxToPdfConverter
 
         try
         {
+            // With fonts, Arabic-script letters are first joined (A124); same as Convert(byte[]).
+            if (fonts is not null)
+                ArabicPreShaper.ApplyInPlace(pptx);
             using var presentation = PowerPointPresentation.Load(pptx);
             await presentation
                 .SaveAsPdfAsync(destination, PdfRenderPolicy.ForPresentation(fonts), ct)

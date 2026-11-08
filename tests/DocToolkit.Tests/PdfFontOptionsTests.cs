@@ -316,4 +316,110 @@ public class PdfFontOptionsTests
 
         Assert.Equal(UnshapedRender.Docx(docx, fonts), DocxToPdfConverter.Convert(docx, fonts));
     }
+
+    // ---- Arabic joins when fonts are supplied (A124) ------------------------------------------------
+
+    internal const string ArabicLine = "فاتورة ضريبية";
+
+    /// <summary>
+    /// Asserts <paramref name="pdf"/> is the Arabic line drawn JOINED, given the same document drawn
+    /// unshaped.
+    /// </summary>
+    /// <remarks>
+    /// <b>Measured 2026-11-09 (OfficeIMO 3.5.3, DejaVu), and this is why the assertion is on glyph
+    /// positions.</b> The decoded text is identical shaped or not: the ToUnicode map gives the base
+    /// letters back for presentation forms, so a text comparison cannot tell. And the renderer emits
+    /// no <c>/ActualText</c> at all, so there is no logical string to compare. What changes is the
+    /// advance of each glyph, so where the run starts: 132.0 unshaped, 109.2 shaped, for the first
+    /// DOCX word.
+    /// </remarks>
+    internal static void AssertArabicLineIsJoined(byte[] pdf, byte[] unshapedPdf)
+    {
+        var words = PdfProbe.TextRuns(pdf).Where(r => r.Text.Trim().Length > 0).Take(2).ToList();
+        var unshaped = PdfProbe.TextRuns(unshapedPdf).Where(r => r.Text.Trim().Length > 0).Take(2).ToList();
+
+        // Same two words, in the same code points (a word's run is its letters backwards)...
+        Assert.Equal(unshaped.Select(r => r.Text), words.Select(r => r.Text));
+        Assert.Equal(
+            ArabicLine.Split(' ').Select(w => new string(w.Reverse().ToArray())).ToArray(),
+            words.Select(r => r.Text).ToArray());
+        // ...but the first starts somewhere else, because its glyphs are wider or narrower.
+        Assert.NotEqual(unshaped[0].X, words[0].X);
+    }
+
+    private static byte[] ArabicDocx() => DocxEditor.Create([DocxBlock.Paragraph(ArabicLine)]);
+
+    [Fact]
+    public void WithFonts_ArabicDocxIsPreShaped()
+    {
+        var font = FindFont();
+        if (font is null)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var docx = ArabicDocx();
+
+        var pdf = DocxToPdfConverter.Convert(docx, fonts);
+
+        AssertArabicLineIsJoined(pdf, UnshapedRender.Docx(docx, fonts));
+        // And it is exactly the render of the pre-shaped package, so nothing else changed.
+        Assert.Equal(UnshapedRender.Docx(ArabicPreShaper.Apply(docx), fonts), pdf);
+    }
+
+    /// <summary>The stream overload reaches the same call site as the byte[] one.</summary>
+    [Fact]
+    public async Task WithFonts_ArabicDocxThroughAStreamOverloadIsPreShaped()
+    {
+        var font = FindFont();
+        if (font is null)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var docx = ArabicDocx();
+        using var destination = new MemoryStream();
+
+        await DocxToPdfConverter.ConvertAsync(new MemoryStream(docx), destination, fonts);
+
+        AssertArabicLineIsJoined(destination.ToArray(), UnshapedRender.Docx(docx, fonts));
+    }
+
+    /// <summary>HTML reaches the renderer through DOCX but not through Convert; it joins too.</summary>
+    [Fact]
+    public async Task WithFonts_ArabicHtmlIsPreShaped()
+    {
+        var font = FindFont();
+        if (font is null)
+            return;
+        var fonts = new PdfFontOptions("Supplied", font);
+        var html = $"<html><body><p>{ArabicLine}</p></body></html>";
+
+        var pdf = await HtmlToPdfConverter.ConvertAsync(html, fonts);
+
+        var unshapedDocx = await HtmlToDocxConverter.ConvertAsync(html, PageSetup.A4);
+        AssertArabicLineIsJoined(pdf, UnshapedRender.Docx(unshapedDocx, fonts));
+    }
+
+    /// <summary>
+    /// No fonts: the pre-shaper is never reached. Rendering the pre-shaped package gives a different
+    /// outcome (here a refusal naming the first shaped letter, or a different PDF on a host whose own
+    /// fonts cover Arabic), so a converter that shaped without fonts would make the two equal.
+    /// </summary>
+    [Fact]
+    public void WithoutFonts_ArabicDocxIsNotPreShaped()
+    {
+        var docx = ArabicDocx();
+
+        Assert.NotEqual(Outcome(ArabicPreShaper.Apply(docx)), Outcome(docx));
+    }
+
+    /// <summary>What the no-fonts render of this package does on this host: the PDF, or its refusal.</summary>
+    private static string Outcome(byte[] docx)
+    {
+        try
+        {
+            return System.Convert.ToBase64String(DocxToPdfConverter.Convert(docx));
+        }
+        catch (DocumentConversionException ex)
+        {
+            return "refused: " + (ex.InnerException?.Message ?? ex.Message);
+        }
+    }
 }

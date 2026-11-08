@@ -92,8 +92,11 @@ public static class XlsxToPdfConverter
         {
             // Expandable copy: the loader opens the package read/write, exactly as
             // DocxToPdfConverter.Convert has to.
+            //
+            // With fonts, Arabic-script letters are first rewritten into their joined forms (A124).
+            var package = fonts is null ? xlsx : ArabicPreShaper.Apply(xlsx);
             using var input = new MemoryStream();
-            input.Write(xlsx, 0, xlsx.Length);
+            input.Write(package, 0, package.Length);
             input.Position = 0;
 
             using var workbook = ExcelDocument.Load(input);
@@ -203,6 +206,9 @@ public static class XlsxToPdfConverter
 
         try
         {
+            // With fonts, Arabic-script letters are first joined (A124); same as Convert(byte[]).
+            if (fonts is not null)
+                ArabicPreShaper.ApplyInPlace(xlsx);
             xlsx.Position = 0;
             using var workbook = ExcelDocument.Load(xlsx);
 

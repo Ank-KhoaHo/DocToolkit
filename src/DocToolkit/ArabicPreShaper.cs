@@ -49,6 +49,27 @@ internal static class ArabicPreShaper
     private static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
     /// <summary>
+    /// <see cref="Apply(byte[])"/> for a package already sitting in an expandable stream: the
+    /// stream is rewritten in place, and only when the package held Arabic. Position is left at 0.
+    /// </summary>
+    /// <remarks>
+    /// For the stream paths, which read a package into a scratch <see cref="MemoryStream"/> and
+    /// render it from there rather than through the <c>byte[]</c> overloads.
+    /// </remarks>
+    internal static void ApplyInPlace(MemoryStream package)
+    {
+        var bytes = package.ToArray();
+        var shaped = Apply(bytes);
+        if (!ReferenceEquals(shaped, bytes))
+        {
+            package.SetLength(0);
+            package.Write(shaped, 0, shaped.Length);
+        }
+
+        package.Position = 0;
+    }
+
+    /// <summary>
     /// Rewrites the Arabic-script text of a Word, Excel or PowerPoint package into presentation
     /// forms, and returns <paramref name="package"/> itself when no text changes.
     /// </summary>
