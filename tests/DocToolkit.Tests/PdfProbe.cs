@@ -150,7 +150,8 @@ public static class PdfProbe
     private static readonly Regex KidsArray = new(@"/Kids\s*\[([^\]]*)\]", RegexOptions.Compiled);
     private static readonly Regex ContentsArray = new(@"/Contents\s*\[([^\]]*)\]", RegexOptions.Compiled);
     private static readonly Regex TextOps = new(
-        @"/(?<font>[^\s/\[\]<>()]+)\s+[-\d.]+\s+Tf|\[(?<arr>[^\]]*)\]\s*TJ|<(?<hex>[0-9A-Fa-f]*)>\s*Tj",
+        @"/(?<font>[^\s/\[\]<>()]+)\s+[-\d.]+\s+Tf|\[(?<arr>[^\]]*)\]\s*TJ|<(?<hex>[0-9A-Fa-f]*)>\s*Tj"
+        + @"|(?<![-\d.])1(?:\.0+)? 0(?:\.0+)? 0(?:\.0+)? 1(?:\.0+)? (?<tmx>[-\d.]+) [-\d.]+ Tm|(?<![-\d.])(?<tdx>[-\d.]+) [-\d.]+ Td",
         RegexOptions.Compiled);
     private static readonly Regex HexInArray = new(@"<([0-9A-Fa-f]*)>", RegexOptions.Compiled);
 
@@ -178,7 +179,7 @@ public static class PdfProbe
         return r.Success && r.Index == rest && bodies.TryGetValue(r.Groups[1].Value, out var target) ? target : null;
     }
 
-    private static string? ExtractPerFont(string raw)
+    private static string? ExtractPerFont(string raw, List<(string Text, double X)>? runs = null)
     {
         var bodies = new Dictionary<string, string>();
         var order = new List<string>();
@@ -238,20 +239,26 @@ public static class PdfProbe
             else if (ValueOf(page, "/Contents", bodies) is { } single) streams.Add(single);
 
             (bool TwoByte, Dictionary<int, string>? Map) current = (false, null);
+            var x = 0.0; // x of the current text line: Tm sets it, Td moves it
             foreach (var body in streams)
                 foreach (Match op in TextOps.Matches(body))
                 {
                     if (op.Groups["font"].Success) { fonts.TryGetValue(op.Groups["font"].Value, out current); continue; }
+                    if (op.Groups["tmx"].Success) { x = double.Parse(op.Groups["tmx"].Value, CultureInfo.InvariantCulture); continue; }
+                    if (op.Groups["tdx"].Success) { x += double.Parse(op.Groups["tdx"].Value, CultureInfo.InvariantCulture); continue; }
                     var hexes = op.Groups["hex"].Success
                         ? new[] { op.Groups["hex"].Value }
                         : HexInArray.Matches(op.Groups["arr"].Value).Select(h => h.Groups[1].Value).ToArray();
-                    foreach (var hex in hexes) Decode(hex, current, sb);
+                    var run = new StringBuilder();
+                    foreach (var hex in hexes) Decode(hex, current, run);
+                    sb.Append(run);
+                    runs?.Add((run.ToString(), x));
                 }
         }
 
         // Only taken over from the single-map path when that could go wrong: composite fonts (glyph
         // ids), more than one font in play, or TJ arrays (which the single-map path does not read).
-        return fontIds.Count > 1 || anyIdentity || raw.Contains(" TJ", StringComparison.Ordinal) ? sb.ToString() : null;
+        return runs is not null || fontIds.Count > 1 || anyIdentity || raw.Contains(" TJ", StringComparison.Ordinal) ? sb.ToString() : null;
     }
 
     private static void Decode(string hex, (bool TwoByte, Dictionary<int, string>? Map) font, StringBuilder sb)
@@ -263,6 +270,21 @@ public static class PdfProbe
             if (font.Map is not null && font.Map.TryGetValue(code, out var text)) sb.Append(text);
             else if (!font.TwoByte) sb.Append(DecodeWinAnsiByte(code));
         }
+    }
+
+    /// <summary>
+    /// Every text-showing operator (Tj, or a whole TJ array) with its decoded text and the x of the
+    /// line it starts on, in content-stream order. For judging right-to-left text by POSITION: a
+    /// run's text is in the order its glyphs are drawn (left to right), which for a right-to-left
+    /// word is the word backwards. x is the start of the operator; numbers inside a TJ array shift
+    /// the strings after the first, and are not folded in. Runs with no decodable text (spaces
+    /// included) are returned too, so filter on <c>Text.Trim()</c>.
+    /// </summary>
+    public static IReadOnlyList<(string Text, double X)> TextRuns(byte[] pdf)
+    {
+        var runs = new List<(string Text, double X)>();
+        ExtractPerFont(Raw(pdf), runs);
+        return runs;
     }
 
     public static bool IsPdf(byte[] pdf) =>

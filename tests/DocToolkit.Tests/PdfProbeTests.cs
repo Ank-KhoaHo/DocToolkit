@@ -282,4 +282,19 @@ public class PdfProbeTests
 
         Assert.Equal("AX", PdfProbe.ExtractText(pdf));
     }
+
+    /// <summary>x comes from Tm, then Td moves it; TJ is one run; a font switch keeps its own glyph map.</summary>
+    [Fact]
+    public void TextRuns_PairsEachOperatorWithItsLineX()
+    {
+        var pdf = Build(
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            (3, "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 8 0 R >>"),
+            (4, Type0(6)), (5, Type0(7)),
+            (6, Stream(Cmap("0001", "0041"))), (7, Stream(Cmap("0001", "0058"))),
+            (8, Stream("BT /F1 12 Tf 1 0 0 1 141.5 758.74 Tm <0001> Tj /F2 12 Tf 1 0 0 1 72 758.74 Tm [<0001> 278] TJ 10 0 Td <0001> Tj ET")));
+
+        Assert.Equal([("A", 141.5), ("X", 72.0), ("X", 82.0)], PdfProbe.TextRuns(pdf));
+    }
 }

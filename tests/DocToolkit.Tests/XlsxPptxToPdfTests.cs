@@ -421,8 +421,17 @@ public class XlsxPptxToPdfTests
         Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void XlsxConvert_WithARealFont_HebrewIsInReadingOrder()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        PdfFontOptionsTests.AssertHebrewLineIsInReadingOrder(
+            XlsxToPdfConverter.Convert(SheetWith(string.Join(" ", PdfFontOptionsTests.HebrewLine)), fonts));
+    }
+
     [Theory]
-    [InlineData("חשבונית מס מספר 12")]
     [InlineData("فاتورة ضريبية رقم 12")]
     public void XlsxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
     {
@@ -511,8 +520,18 @@ public class XlsxPptxToPdfTests
         Assert.Contains("TrueType", ex.InnerException!.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void PptxConvert_WithARealFont_HebrewIsInReadingOrder()
+    {
+        if (HostFonts() is not { } fonts)
+            return;
+
+        PdfFontOptionsTests.AssertHebrewLineIsInReadingOrder(
+            PptxToPdfConverter.Convert(
+                PresentationEditor.Create([PptxSlide.Titled(string.Join(" ", PdfFontOptionsTests.HebrewLine))]), fonts));
+    }
+
     [Theory]
-    [InlineData("חשבונית מס מספר 12")]
     [InlineData("فاتورة ضريبية رقم 12")]
     public void PptxConvert_WithARealFont_RightToLeftTextIsShaped(string text)
     {

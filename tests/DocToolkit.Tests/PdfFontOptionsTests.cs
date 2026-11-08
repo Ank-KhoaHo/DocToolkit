@@ -224,21 +224,52 @@ public class PdfFontOptionsTests
         Assert.NotNull(options.TextShapingProvider);
     }
 
-    /// <summary>Hebrew rendered with a supplied font is shaped, not left in reversed order.</summary>
+    /// <summary>The words of the Hebrew test line, in the order a reader meets them (right to left).</summary>
+    internal static readonly string[] HebrewLine = ["חשבונית", "מס", "מספר", "12"];
+
+    /// <summary>
+    /// Asserts the PDF draws <see cref="HebrewLine"/> as a right-to-left line: the first word is the
+    /// rightmost run, the last the leftmost. Judged by run x position, never by eye.
+    /// </summary>
     /// <remarks>
-    /// Same environment rule as the test above - see <see cref="FindFont"/>. Measured 2026-11-02: unshaped Hebrew renders right-to-left text reversed.
+    /// Measured 2026-11-08 (OfficeIMO 3.5.3, DejaVu): Hebrew needs no letter joining, so shaped and
+    /// unshaped bytes are equal and "bytes differ" can no longer be the test. The line is drawn
+    /// visually: each word is one run whose glyphs run left to right, so its text is the word
+    /// backwards. The runs sit at x 141.5, 122.2, 88.7 and 72.0 (חשבונית, מס, מספר, 12). The same
+    /// words fed in reversed order land the other way round (12 at 170.1), so x order tells the two apart.
+    /// A run may hold a word forwards or backwards; both count, so a logical-order writer passes too.
+    /// </remarks>
+    internal static void AssertHebrewLineIsInReadingOrder(byte[] pdf)
+    {
+        var drawn = PdfProbe.TextRuns(pdf)
+            .Where(r => r.Text.Trim().Length > 0)
+            .OrderByDescending(r => r.X)
+            .ToArray();
+        var seen = string.Join(" | ", drawn.Select(r => $"{r.Text} @{r.X}"));
+
+        Assert.True(drawn.Length == HebrewLine.Length, $"expected {HebrewLine.Length} word runs, got: {seen}");
+        for (var i = 0; i < HebrewLine.Length; i++)
+        {
+            var backwards = new string(HebrewLine[i].Reverse().ToArray());
+            Assert.True(drawn[i].Text.Trim() == HebrewLine[i] || drawn[i].Text.Trim() == backwards,
+                $"word {i} (from the right) should be {HebrewLine[i]}, runs by x descending: {seen}");
+        }
+    }
+
+    /// <summary>Hebrew rendered with a supplied font reads right to left, in word order.</summary>
+    /// <remarks>
+    /// Same environment rule as the test above - see <see cref="FindFont"/>.
     /// </remarks>
     [Fact]
-    public void WithARealFont_HebrewDocxIsShaped()
+    public void WithARealFont_HebrewDocxIsInReadingOrder()
     {
         var font = FindFont();
         if (font is null)
             return;
 
-        var fonts = new PdfFontOptions("Supplied", font);
-        var docx = DocxEditor.Create([DocxBlock.Paragraph("חשבונית מס מספר 12")]);
+        var docx = DocxEditor.Create([DocxBlock.Paragraph(string.Join(" ", HebrewLine))]);
 
-        Assert.NotEqual(UnshapedRender.Docx(docx, fonts), DocxToPdfConverter.Convert(docx, fonts));
+        AssertHebrewLineIsInReadingOrder(DocxToPdfConverter.Convert(docx, new PdfFontOptions("Supplied", font)));
     }
 
     /// <summary>Shaping leaves Latin text byte-for-byte as it was - measured, and pinned here.</summary>
