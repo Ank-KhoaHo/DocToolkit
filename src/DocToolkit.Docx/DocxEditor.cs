@@ -3079,12 +3079,9 @@ public static class DocxEditor
     /// document.
     /// </summary>
     /// <remarks>
-    /// <b>Applied to every section the document reports</b>, which is not always one per
-    /// <c>w:sectPr</c> in the body. Measured: a document produced by
-    /// <see cref="Merge(IEnumerable{byte[]})"/> carries <b>two</b> <c>w:sectPr</c> elements but
-    /// reports a <b>single</b> section, so it receives one watermark rather than one per merged
-    /// document. Pages belonging to the later part may therefore be unmarked — see the package
-    /// README's Known Limitations.
+    /// <b>Applied to every section the document reports.</b> Since OfficeIMO 3.5 a document produced by
+    /// <see cref="Merge(IEnumerable{byte[]})"/> reports one section per merged part, so each part
+    /// receives its own watermark.
     ///
     /// This is <b>not</b> the PDF watermarking the backlog declined. That would have put a third
     /// PDF library inside <c>PdfEditor</c>; this is <c>OfficeIMO.Word</c>, already the package

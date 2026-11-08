@@ -1350,7 +1350,8 @@ public class WorkbookEditorTests
         // Without this, the test's own name promises columnFields coverage that nothing above
         // actually checks - a dropped or misrouted columnFields argument would still pass every
         // other assertion here. "Product" is column index 1 (0-based), confirmed by probe.
-        Assert.Contains("<colFields count=\"1\">", pivotXml);
+        // A123: 3.5 also writes the Values pseudo-field (x="-2") that two data fields need.
+        Assert.Contains("<colFields count=\"2\"><field x=\"1\" /><field x=\"-2\" /></colFields>", pivotXml);
         Assert.Contains("<field x=\"1\" />", pivotXml);
     }
 

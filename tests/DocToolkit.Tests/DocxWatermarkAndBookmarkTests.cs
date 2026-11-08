@@ -44,22 +44,16 @@ public class DocxWatermarkAndBookmarkTests
     }
 
     [Fact]
-    public void AddWatermark_OnAMergedDocument_StampsTheOneSectionOfficeIMOReports()
+    public void AddWatermark_OnAMergedDocument_StampsBothSections()
     {
-        // A DOCUMENTED LIMITATION, pinned. Measured: a merged document's body carries TWO w:sectPr
-        // elements, but OfficeIMO's section model reports ONE section - so the loop over
-        // document.Sections applies a single watermark, not one per sectPr.
-        //
-        // An earlier version of this test asserted 2 and failed, because the "applied to every
-        // section" claim was written before it was measured. The claim is now what the code
-        // actually does, and the consequence a caller needs - a merged document may not be marked
-        // on every page - is in the README's Known Limitations rather than left to be discovered.
+        // OfficeIMO 3.5 reports both of a merged document's sections (3.2 reported one), so the loop
+        // over document.Sections stamps one watermark per merged part. Measured on 3.5.3.
         var merged = DocxEditor.Merge(new[] { Doc("FIRST"), Doc("SECOND") });
-        Assert.Equal(1, SectionCount(merged));
+        Assert.Equal(2, SectionCount(merged));
 
         var stamped = DocxEditor.AddWatermark(merged, "DRAFT");
 
-        Assert.Equal(1, WatermarkCount(stamped));
+        Assert.Equal(2, WatermarkCount(stamped));
         Assert.Equal(SectionCount(merged), WatermarkCount(stamped));
     }
 
