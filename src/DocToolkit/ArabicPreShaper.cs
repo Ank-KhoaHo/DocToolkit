@@ -6,7 +6,7 @@ namespace DocToolkit;
 
 // The forms table and the ArabicForms struct below are copied from OfficeIMO.Drawing/Shaper.cs,
 // OfficeIMO version 3.5.3, repository github.com/EvotecIT/OfficeIMO.
-// MIT License, Copyright (c) Przemyslaw Klys / Evotec. See THIRD-PARTY-NOTICES.txt.
+// MIT License, Copyright (c) 2022 Evotec. See THIRD-PARTY-NOTICES.txt.
 
 /// <summary>
 /// Swaps Arabic-script letters (Arabic, Persian, Urdu and their relatives) for their contextual

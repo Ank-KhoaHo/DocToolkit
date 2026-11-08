@@ -48,6 +48,42 @@ EXTENSIONS = REPO / "src" / "DocToolkit.Extensions.DependencyInjection"
 BEGIN = "--- BEGIN GENERATED (scripts/gen-third-party-notices.py) - do not edit by hand ---"
 END = "--- END GENERATED ---"
 
+VENDORED_BEGIN = "--- BEGIN GENERATED VENDORED (scripts/gen-third-party-notices.py) - do not edit by hand ---"
+VENDORED_END = "--- END GENERATED VENDORED ---"
+
+# Code copied into this repository rather than referenced as a package. It cannot come from
+# packages.lock.json, so it is declared here, once, and the notices file is generated from it.
+# The copyright line is copied verbatim from the upstream LICENSE at the pinned tag.
+VENDORED = """- Arabic presentation-forms table in src/DocToolkit/ArabicPreShaper.cs, copied from
+  OfficeIMO 3.5.3, OfficeIMO.Drawing/Shaper.cs
+  https://github.com/EvotecIT/OfficeIMO
+  MIT License
+  Copyright (c) 2022 Evotec
+
+The full MIT License text, which applies to the entry above:
+
+MIT License
+
+Copyright (c) 2022 Evotec
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE."""
+
 
 def nuget_cache() -> Path:
     """The global packages folder, honouring NUGET_PACKAGES as `dotnet` does."""
@@ -200,12 +236,15 @@ def check_readme(names: dict[str, set[str]]) -> list[str]:
 
 
 def splice(path: Path, block: str) -> str:
-    text = path.read_text(encoding="utf-8")
-    if BEGIN not in text or END not in text:
+    return splice_text(path.read_text(encoding="utf-8"), block, BEGIN, END, path)
+
+
+def splice_text(text: str, block: str, begin: str, end: str, path: Path) -> str:
+    if begin not in text or end not in text:
         sys.exit(f"error: {path} is missing the BEGIN/END GENERATED markers.")
-    head, rest = text.split(BEGIN, 1)
-    _, tail = rest.split(END, 1)
-    return f"{head}{BEGIN}\n{block}\n{END}{tail}"
+    head, rest = text.split(begin, 1)
+    _, tail = rest.split(end, 1)
+    return f"{head}{begin}\n{block}\n{end}{tail}"
 
 
 def main() -> int:
@@ -241,6 +280,8 @@ def main() -> int:
     for path, block in targets:
         current = path.read_text(encoding="utf-8")
         updated = splice(path, block)
+        if path.parent == CORE:
+            updated = splice_text(updated, VENDORED, VENDORED_BEGIN, VENDORED_END, path)
         if current == updated:
             print(f"up to date: {path.relative_to(REPO)}")
             continue
