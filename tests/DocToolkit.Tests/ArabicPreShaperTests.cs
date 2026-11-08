@@ -80,6 +80,10 @@ public class ArabicPreShaperTests
         => Assert.Equal(new[] { "\uFE8F", "\u200C", "\uFE8F" }, Shape(Ba + "\u200C" + Ba));
 
     [Fact]
+    public void Zero_width_non_joiner_breaks_a_lam_alef_ligature()
+        => Assert.Equal(new[] { "\uFEDD", "\u200C", "\uFE8D" }, Shape(Lam + "\u200C" + Alef));
+
+    [Fact]
     public void Tatweel_joins_and_stays_in_the_text()
         => Assert.Equal(new[] { "\uFE91", "\u0640", "\uFE90" }, Shape(Ba + "\u0640" + Ba));
 

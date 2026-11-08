@@ -56,6 +56,7 @@ internal static class ArabicPreShaper
     {
         for (var k = i + 1; k < s.Length; k++)
         {
+            if (s[k] == '\u200C') return null;
             if (IsTransparent(s[k])) continue;
             return k;
         }
