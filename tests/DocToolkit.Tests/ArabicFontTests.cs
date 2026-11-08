@@ -129,6 +129,17 @@ public class ArabicFontTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Cmap_GlyphIds_AreTheIdsTheTablesGive()
+    {
+        var f4 = FontCmap.GlyphIds(FontCmap.BuildFormat4(0xFE90, 0xFE91));
+        Assert.Equal(1, f4(0xFE90));
+        Assert.Equal(2, f4(0xFE91));
+        Assert.Equal(0, f4(0xFE92));
+        Assert.Equal(1, FontCmap.GlyphIds(FontCmap.BuildFormat12(0xFEFB, 0xFEFB))(0xFEFB));
+        Assert.Equal(0, FontCmap.GlyphIds([])(0x41));
+    }
+
+    [Fact]
     public void Cmap_Format12_ReportsMappedAndUnmappedCodePoints()
     {
         var covers = FontCmap.Covers(FontCmap.BuildFormat12(0xFEFB, 0xFEFB));
@@ -156,7 +167,7 @@ public class ArabicFontTests(ITestOutputHelper output)
     }
 }
 
-/// <summary>A minimal TrueType <c>cmap</c> reader (formats 4 and 12), enough to ask "is this code point mapped".</summary>
+/// <summary>A minimal TrueType <c>cmap</c> reader (formats 4 and 12): is a code point mapped, and to which glyph id.</summary>
 internal static class FontCmap
 {
     private static ushort U16(byte[] b, int o) => BinaryPrimitives.ReadUInt16BigEndian(b.AsSpan(o, 2));
@@ -166,20 +177,30 @@ internal static class FontCmap
     /// <summary>A predicate over code points; false for everything when the data is not a readable font.</summary>
     internal static Func<int, bool> Covers(byte[] font)
     {
+        var glyph = GlyphIds(font);
+        return cp => glyph(cp) != 0;
+    }
+
+    /// <summary>
+    /// The glyph id the font's cmap gives a code point; 0 (the missing glyph) when it maps none, or
+    /// when the data is not a readable font. The first subtable that maps the code point wins.
+    /// </summary>
+    internal static Func<int, int> GlyphIds(byte[] font)
+    {
         try
         {
             var tables = Subtables(font);
-            return cp => tables.Any(t => t(cp));
+            return cp => tables.Select(t => t(cp)).FirstOrDefault(g => g != 0);
         }
         catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentException)
         {
-            return _ => false;
+            return _ => 0;
         }
     }
 
-    private static List<Func<int, bool>> Subtables(byte[] font)
+    private static List<Func<int, int>> Subtables(byte[] font)
     {
-        var result = new List<Func<int, bool>>();
+        var result = new List<Func<int, int>>();
         if (font.Length < 12)
             return result;
         var start = 0;
@@ -206,7 +227,7 @@ internal static class FontCmap
         return result;
     }
 
-    private static Func<int, bool> Format4(byte[] f, int t)
+    private static Func<int, int> Format4(byte[] f, int t)
     {
         var segCount = U16(f, t + 6) / 2;
         var endCodes = t + 14;
@@ -216,25 +237,25 @@ internal static class FontCmap
         return cp =>
         {
             if (cp > 0xFFFF)
-                return false;
+                return 0;
             for (var s = 0; s < segCount; s++)
             {
                 if (cp > U16(f, endCodes + 2 * s))
                     continue;
                 if (cp < U16(f, startCodes + 2 * s))
-                    return false;
+                    return 0;
                 var ro = U16(f, rangeOffsets + 2 * s);
                 if (ro == 0)
-                    return ((cp + S16(f, deltas + 2 * s)) & 0xFFFF) != 0;
+                    return (cp + S16(f, deltas + 2 * s)) & 0xFFFF;
                 var glyphAt = rangeOffsets + 2 * s + ro + 2 * (cp - U16(f, startCodes + 2 * s));
                 var glyph = U16(f, glyphAt);
-                return glyph != 0 && ((glyph + S16(f, deltas + 2 * s)) & 0xFFFF) != 0;
+                return glyph == 0 ? 0 : (glyph + S16(f, deltas + 2 * s)) & 0xFFFF;
             }
-            return false;
+            return 0;
         };
     }
 
-    private static Func<int, bool> Format12(byte[] f, int t)
+    private static Func<int, int> Format12(byte[] f, int t)
     {
         var groups = (int)U32(f, t + 12);
         return cp =>
@@ -243,9 +264,9 @@ internal static class FontCmap
             {
                 var o = t + 16 + 12 * g;
                 if (cp >= U32(f, o) && cp <= U32(f, o + 4))
-                    return U32(f, o + 8) + (uint)cp - U32(f, o) != 0;
+                    return (int)(U32(f, o + 8) + (uint)cp - U32(f, o));
             }
-            return false;
+            return 0;
         };
     }
 

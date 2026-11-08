@@ -611,49 +611,51 @@ public class XlsxPptxToPdfTests
     [Fact]
     public void XlsxConvert_WithARealFont_ArabicIsPreShaped()
     {
-        if (ArabicHostFonts() is not { } fonts)
+        if (ArabicFontTests.FindArabicFont() is not { } font)
             return;
+        var fonts = new PdfFontOptions("Supplied", font);
         var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
 
-        PdfFontOptionsTests.AssertArabicLineIsJoined(
-            XlsxToPdfConverter.Convert(xlsx, fonts), UnshapedRender.Xlsx(xlsx, fonts));
+        PdfFontOptionsTests.AssertArabicLineIsJoined(XlsxToPdfConverter.Convert(xlsx, fonts), font);
     }
 
     [Fact]
     public async Task XlsxConvertAsync_WithARealFont_ArabicIsPreShaped()
     {
-        if (ArabicHostFonts() is not { } fonts)
+        if (ArabicFontTests.FindArabicFont() is not { } font)
             return;
+        var fonts = new PdfFontOptions("Supplied", font);
         var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
         using var destination = new MemoryStream();
 
         await XlsxToPdfConverter.ConvertAsync(new MemoryStream(xlsx), destination, fonts);
 
-        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), UnshapedRender.Xlsx(xlsx, fonts));
+        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), font);
     }
 
     [Fact]
     public void PptxConvert_WithARealFont_ArabicIsPreShaped()
     {
-        if (ArabicHostFonts() is not { } fonts)
+        if (ArabicFontTests.FindArabicFont() is not { } font)
             return;
+        var fonts = new PdfFontOptions("Supplied", font);
         var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
 
-        PdfFontOptionsTests.AssertArabicLineIsJoined(
-            PptxToPdfConverter.Convert(pptx, fonts), UnshapedRender.Pptx(pptx, fonts));
+        PdfFontOptionsTests.AssertArabicLineIsJoined(PptxToPdfConverter.Convert(pptx, fonts), font);
     }
 
     [Fact]
     public async Task PptxConvertAsync_WithARealFont_ArabicIsPreShaped()
     {
-        if (ArabicHostFonts() is not { } fonts)
+        if (ArabicFontTests.FindArabicFont() is not { } font)
             return;
+        var fonts = new PdfFontOptions("Supplied", font);
         var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
         using var destination = new MemoryStream();
 
         await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
 
-        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), UnshapedRender.Pptx(pptx, fonts));
+        PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), font);
     }
 
     // ---- Formulas are calculated BEFORE the letters are joined ---------------------------------------

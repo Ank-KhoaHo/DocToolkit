@@ -324,32 +324,46 @@ public class PdfFontOptionsTests
     internal const string ArabicLine = "فاتورة ضريبية";
 
     /// <summary>
-    /// Asserts <paramref name="pdf"/> is the Arabic line drawn JOINED, given the same document drawn
-    /// unshaped.
+    /// Asserts <paramref name="pdf"/> draws the Arabic line JOINED: each of its first two words is drawn
+    /// with the glyphs that <paramref name="font"/> has for the word's joined presentation forms, in
+    /// visual order.
     /// </summary>
     /// <remarks>
-    /// <b>Measured 2026-11-09 (OfficeIMO 3.5.3, DejaVu), and this is why the assertion is on glyph
-    /// positions.</b> The decoded text is identical shaped or not: the ToUnicode map gives the base
-    /// letters back for presentation forms, so a text comparison cannot tell. And the renderer emits
-    /// no <c>/ActualText</c> at all, so there is no logical string to compare. What changes is the
-    /// advance of each glyph, so where the run starts: 132.0 unshaped, 109.2 shaped, for the first
-    /// DOCX word.
+    /// <b>Why glyph codes, not positions (measured 2026-11-09, OfficeIMO 3.5.3).</b> The decoded text
+    /// is the same shaped or not: the ToUnicode map gives the base letters back for presentation forms,
+    /// and the renderer emits no <c>/ActualText</c>. A comparison with an unshaped render worked on
+    /// Windows and Linux (first word at x 132.0 unshaped, 109.2 shaped) but not on macOS, where
+    /// OfficeIMO joins the letters itself and both renders drew the same glyphs. The glyph codes are
+    /// the one thing that is right on every host: the expected codes come from the supplied font's own
+    /// cmap, and the PDF keeps the font's glyph ids as its Identity-H codes (confirmed against Tahoma
+    /// and DejaVu Sans). A render that does not join draws the isolated forms, whose ids differ.
     /// </remarks>
-    internal static void AssertArabicLineIsJoined(byte[] pdf, byte[] unshapedPdf)
+    internal static void AssertArabicLineIsJoined(byte[] pdf, byte[] font)
     {
-        var words = PdfProbe.TextRuns(pdf).Where(r => r.Text.Trim().Length > 0).Take(2).ToList();
-        var unshaped = PdfProbe.TextRuns(unshapedPdf).Where(r => r.Text.Trim().Length > 0).Take(2).ToList();
+        var glyphOf = FontCmap.GlyphIds(font);
+        var runs = PdfProbe.TextRuns(pdf);
+        var codes = PdfProbe.GlyphCodeRuns(pdf);
+        var words = Enumerable.Range(0, runs.Count)
+            .Where(i => runs[i].Text.Trim().Length > 0)
+            .Take(2)
+            .ToList();
 
-        // Same two words, in the same code points (a word's run is its letters backwards)...
-        Assert.Equal(unshaped.Select(r => r.Text), words.Select(r => r.Text));
-        Assert.Equal(
-            ArabicLine.Split(' ').Select(w => new string(w.Reverse().ToArray())).ToArray(),
-            words.Select(r => r.Text).ToArray());
-        // ...but the first starts somewhere else, because its glyphs are wider or narrower.
+        // The decoded text: the words' base letters, each backwards (a run is drawn left to right).
+        var expectedText = ArabicLine.Split(' ').Select(w => new string(w.Reverse().ToArray())).ToArray();
+        Assert.Equal(expectedText, words.Select(i => runs[i].Text).ToArray());
+
+        // The drawn glyphs: each word's joined forms, reversed into visual order, through the font's cmap.
+        var expected = ArabicLine.Split(' ')
+            .Select(w => string.Concat(
+                string.Concat(ArabicPreShaper.Shape(w)).Reverse().Select(c => glyphOf(c).ToString("X4"))))
+            .ToArray();
+        var drawn = words.Select(i => codes[i].ToUpperInvariant()).ToArray();
+
         Assert.True(
-            unshaped[0].X != words[0].X,
-            $"The first word starts at {words[0].X} shaped and unshaped alike, so pre-shaping changed no glyph."
-            + $"\nShaped:   {TextEvidence(pdf)}\nUnshaped: {TextEvidence(unshapedPdf)}");
+            expected.SequenceEqual(drawn),
+            $"The first two words should be drawn with glyphs {string.Join(" ", expected)} (the font's joined forms),"
+            + $" but the PDF draws {string.Join(" ", drawn)}."
+            + Environment.NewLine + TextEvidence(pdf));
     }
 
     /// <summary>
@@ -379,7 +393,7 @@ public class PdfFontOptionsTests
 
         var pdf = DocxToPdfConverter.Convert(docx, fonts);
 
-        AssertArabicLineIsJoined(pdf, UnshapedRender.Docx(docx, fonts));
+        AssertArabicLineIsJoined(pdf, font);
         // And it is exactly the render of the pre-shaped package, so nothing else changed.
         Assert.Equal(UnshapedRender.Docx(ArabicPreShaper.Apply(docx), fonts), pdf);
     }
@@ -397,7 +411,7 @@ public class PdfFontOptionsTests
 
         await DocxToPdfConverter.ConvertAsync(new MemoryStream(docx), destination, fonts);
 
-        AssertArabicLineIsJoined(destination.ToArray(), UnshapedRender.Docx(docx, fonts));
+        AssertArabicLineIsJoined(destination.ToArray(), font);
     }
 
     /// <summary>HTML reaches the renderer through DOCX but not through Convert; it joins too.</summary>
@@ -412,8 +426,7 @@ public class PdfFontOptionsTests
 
         var pdf = await HtmlToPdfConverter.ConvertAsync(html, fonts);
 
-        var unshapedDocx = await HtmlToDocxConverter.ConvertAsync(html, PageSetup.A4);
-        AssertArabicLineIsJoined(pdf, UnshapedRender.Docx(unshapedDocx, fonts));
+        AssertArabicLineIsJoined(pdf, font);
     }
 
     /// <summary>
