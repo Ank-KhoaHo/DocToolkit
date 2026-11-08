@@ -213,7 +213,7 @@ public class DocxPdfRepairTests
     [Fact]
     public void DocxPartRewrite_ADoctypeIsNotParsed_AndTheSameArrayComesBack()
     {
-        var plain = Build(P(R("AB")));
+        var plain = Build(P(R("A\u009DB")));
         using var ms = new MemoryStream();
         ms.Write(plain);
         ms.Position = 0;
@@ -233,7 +233,7 @@ public class DocxPdfRepairTests
 
         var docx = ms.ToArray();
         var before = Part(docx, "word/document.xml");
-        Assert.Contains("", before, StringComparison.Ordinal);
+        Assert.Contains("\u009D", before, StringComparison.Ordinal);
         Assert.Contains("&boom;", before, StringComparison.Ordinal);
 
         // A parser that allows DTDs would expand the entity, strip the control character and return

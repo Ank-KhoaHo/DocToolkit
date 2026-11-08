@@ -62,7 +62,7 @@ public class DocxToMarkdownConverterTests
         using var word = WordDocument.Load(ms);
         var raw = word.ToMarkdown(TextExportOptions.ForMarkdown());
 
-        Assert.Single(Images(raw));
+        Assert.True(Images(raw).Length == 1, "OfficeIMO fixed this upstream; retire DrawingRunSplit");
     }
 
     [Fact]
