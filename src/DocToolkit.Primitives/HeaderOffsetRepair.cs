@@ -6,8 +6,9 @@ using System.Xml.Linq;
 namespace DocToolkit;
 
 /// <summary>
-/// Raises a top margin of under 360 twips to 360 when the document has a header with content, so
-/// OfficeIMO 3.5 will lay the page out.
+/// Raises every top margin of under 360 twips to 360 when the document has a header with content, so
+/// OfficeIMO 3.5 will lay the page out. Runs only after 3.5 refuses ("header offset must not exceed
+/// the top margin"), from <see cref="DocxPdfRefusalLadder"/>.
 /// </summary>
 /// <remarks>
 /// <b>OfficeIMO 3.5 floors its own header offset at 18 pt (360 twips), and refuses the page when the
@@ -16,11 +17,14 @@ namespace DocToolkit;
 /// of 359 is refused with a header distance of 0, 360 renders. Word and OfficeIMO 3.2.6 accepted such
 /// pages (doc-000111).
 ///
-/// <b>Measured on raw 3.5.3, and the conditions are what keep this from touching documents that
-/// render today.</b> The refusal needs all of: the LAST body section (the one that sets the page),
-/// a <c>default</c> header reference, and a part with content - text that is not whitespace, a
-/// field or a picture. An empty header, a space-only header, a <c>first</c> or <c>even</c> header and
-/// a header on an earlier section all render as they are, so none of them is edited.
+/// <b>The rule is deliberately wide, because it runs only on a refusal.</b> The first version
+/// repaired just the last section, and doc-000111 showed why that is not enough: its sections
+/// inherit the header of the first one (a section with no <c>headerReference</c> of its own uses the
+/// previous section's), so a middle section with a top margin of 288 is refused too. Any header part
+/// with content - text that is not whitespace, a field or a picture - means every section's top
+/// margin under 360 is raised. Nothing is repaired in a document that renders: this is not an
+/// up-front repair, so a refusal-free document is never edited. An empty or space-only header has no
+/// content and leaves the document alone, as does a document with no header part at all.
 ///
 /// <b>What it costs.</b> The body starts up to 0.25 inch lower than the document asked for.
 ///
@@ -100,29 +104,32 @@ internal static class HeaderOffsetRepair
     /// <summary>
     /// Text that is not whitespace, a field or a picture. An empty paragraph or a run of spaces is
     /// what 3.5 treats as "no header content" (measured); text, a page-number field and a picture
-    /// each count as content (measured). Other constructs are not counted, so a header made only of
-    /// one is left as it is.
+    /// each count as content (measured), and so does the legacy page-number element <c>w:pgNum</c>
+    /// that a document converted from .doc carries (doc-000111). Other constructs are not counted, so
+    /// a header made only of one is left as it is.
     /// </summary>
     private static bool HasContent(XDocument part) =>
         part.Descendants().Any(e =>
             (e.Name == W + "t" && !string.IsNullOrWhiteSpace(e.Value))
-            || e.Name == W + "fldChar" || e.Name == W + "drawing");
+            || e.Name == W + "fldChar" || e.Name == W + "drawing"
+            || e.Name == W + "pgNum");
 
     private static bool RaiseMargins(XDocument doc, HashSet<string> withContent)
     {
-        // The last body-level sectPr is the section that sets the page. Earlier ones sit in a
-        // paragraph's properties and render with any margin (measured).
-        var section = doc.Root?.Element(W + "body")?.Elements(W + "sectPr").LastOrDefault();
-        var margins = section?.Element(W + "pgMar");
-        if (section is null || margins is null) return false;
+        var sections = doc.Descendants(W + "sectPr").ToList();
+        // Sections inherit headers, so a header reference anywhere puts a header on later sections.
+        if (!sections.Any(s => HasContentHeader(s, withContent))) return false;
 
-        return HasDefaultHeader(section, withContent) && Raise(margins);
+        var changed = false;
+        foreach (var margins in sections.Select(s => s.Element(W + "pgMar")))
+            if (margins is not null && Raise(margins)) changed = true;
+
+        return changed;
     }
 
-    private static bool HasDefaultHeader(XElement section, HashSet<string> withContent) =>
+    private static bool HasContentHeader(XElement section, HashSet<string> withContent) =>
         section.Elements(W + "headerReference").Any(e =>
-            ((string?)e.Attribute(W + "type") ?? "default") == "default"
-            && (string?)e.Attribute(R + "id") is { } id && withContent.Contains(id));
+            (string?)e.Attribute(R + "id") is { } id && withContent.Contains(id));
 
     private static bool Raise(XElement margins)
     {

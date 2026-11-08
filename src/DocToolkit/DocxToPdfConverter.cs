@@ -52,9 +52,7 @@ public static class DocxToPdfConverter
             // rewritten, and `prepared` stays the array that was rendered (A123). Repairs that would
             // change a layout 3.5 renders as it stands are not here; they wait for the refusal, in
             // DocxPdfRefusalLadder below.
-            prepared = HyperlinkBlankRunSplit.Apply(prepared);
             prepared = ControlCharacterStrip.Apply(prepared);
-            prepared = HeaderOffsetRepair.Apply(prepared);
             prepared = WideTableScale.Apply(prepared);
             return Render(prepared, fonts);
         }

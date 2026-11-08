@@ -4,19 +4,20 @@ using System.Xml.Linq;
 namespace DocToolkit;
 
 /// <summary>
-/// Moves runs with no visible text out of a hyperlink that sits in a table cell, splitting the link
-/// around them, so the document can be rendered.
+/// Moves runs with no visible text out of a hyperlink, splitting the link around them, so the
+/// document can be rendered. Runs only after 3.5 refuses ("cannot be empty or whitespace"), from
+/// <see cref="DocxPdfRefusalLadder"/>.
 /// </summary>
 /// <remarks>
-/// <b>OfficeIMO 3.5 refuses a hyperlink in a table cell that holds a run with no text</b>
+/// <b>OfficeIMO 3.5 refuses some hyperlinks that hold a run with no text</b>
 /// (ArgumentException "Parameter 'text' cannot be empty or whitespace."). A break, a tab or spaces
 /// inside the link is the usual shape - Word writes it when a line break sits inside a link. 3.2.6
-/// rendered it. Measured on 3.5.3, the same link in a body paragraph renders, and a cell link is
-/// refused in the body, headers, footers and footnotes alike (endnotes share the code path and are
-/// covered on that basis, not measured).
+/// rendered it. The first version assumed only links in a table cell were refused; the corpus
+/// (html-000214, html-000438) showed body-paragraph links are refused too, and a link with a break
+/// next to text can render, so whether a link is refused is not a function of where it sits.
 ///
-/// <b>Only links with a <c>w:tc</c> ancestor are touched,</b> so a link that renders today is never
-/// rewritten.
+/// <b>Every link in the document, headers, footers, footnotes and endnotes is considered,</b> and
+/// that is safe only because this runs after the refusal: a document that renders never reaches it.
 ///
 /// <b>A run is blank only when nothing in it can be seen or means something.</b> Its content is a
 /// break, a tab, a carriage return, a hyphen or whitespace-only text - nothing else. A run with a
@@ -30,8 +31,8 @@ namespace DocToolkit;
 /// link no longer spans the break. If every child is blank the link is unwrapped, since it had no
 /// text to click on.
 ///
-/// <b>It cannot change a document that renders today</b>: a cell link with a blank run is the
-/// refused shape, so a document without one is returned by reference.
+/// <b>A document with no link holding a blank run is returned by reference</b>, which the ladder
+/// reads as "this step has nothing to do".
 /// </remarks>
 internal static partial class HyperlinkBlankRunSplit
 {
@@ -45,7 +46,7 @@ internal static partial class HyperlinkBlankRunSplit
     [GeneratedRegex(@"^word/(document|footnotes|endnotes|header\d*|footer\d*)\.xml$")]
     private static partial Regex Parts();
 
-    /// <summary>The repaired package, or the same array when no cell link holds a blank run.</summary>
+    /// <summary>The repaired package, or the same array when no link holds a blank run.</summary>
     internal static byte[] Apply(byte[] docx) =>
         DocxPartRewrite.Apply(docx, name => Parts().IsMatch(name), Split);
 
@@ -54,7 +55,6 @@ internal static partial class HyperlinkBlankRunSplit
         var changed = false;
         foreach (var link in doc.Descendants(W + "hyperlink").ToList())
         {
-            if (!link.Ancestors(W + "tc").Any()) continue;
             if (link.Descendants().Any(e => e.Name == W + "fldChar" || e.Name == W + "instrText" || e.Name == W + "fldSimple")) continue;
 
             var children = link.Elements().ToList();

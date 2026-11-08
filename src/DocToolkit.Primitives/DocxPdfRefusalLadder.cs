@@ -31,6 +31,10 @@ internal static class DocxPdfRefusalLadder
     // contract), which NextOrNull turns into "skip this step".
     private static readonly Step[] Steps =
     [
+        // R1 and R6 come first: they answer refusals that stop the render before layout reaches the
+        // padding checks, and both look at the whole document because they run only on a refusal.
+        new("cannot be empty or whitespace", HyperlinkBlankRunSplit.Apply),
+        new("header offset must not exceed the top margin", HeaderOffsetRepair.Apply),
         new("preferred width must be a positive finite value", TinyPercentWidthRepair.Apply),
         new("cell padding must leave a positive text width", EmptyCellMinWidth.Apply),
         new("cell padding must leave a positive text width", CellPaddingZero.Apply),

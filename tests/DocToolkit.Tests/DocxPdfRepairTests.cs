@@ -13,7 +13,7 @@ using static DocToolkit.Tests.DocxFixtures;
 namespace DocToolkit.Tests;
 
 /// <summary>
-/// The up-front DOCX repairs for constructs OfficeIMO 3.5 refuses and Word accepts (A123).
+/// The DOCX repairs (up front, or on refusal through DocxPdfRefusalLadder, as each class says) for constructs OfficeIMO 3.5 refuses and Word accepts (A123).
 ///
 /// <b>Every "refused before" test calls the renderer directly on the unrepaired bytes first.</b> A
 /// fixture the renderer already accepts would prove nothing about the repair, and the test would
@@ -151,14 +151,40 @@ public class DocxPdfRepairTests
         Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
     }
 
-    [Fact]
-    public void HyperlinkBlankRunSplit_ABodyParagraphLinkWithABreak_ReturnsTheSameArray()
-    {
-        // Renders on raw 3.5.3, so it must not be rewritten.
-        var docx = LinkDocument(false, false, R("linked words"), new Run(new Break()));
-        Assert.Null(RawRender.Refusal(docx));
+    /// <summary>
+    /// The shape html-000214 and html-000438 carry, x-ified: a BODY paragraph link whose first run is
+    /// only a no-break space and a space. Raw 3.5.3 refuses it, so the repair is not limited to
+    /// table cells.
+    /// </summary>
+    private static byte[] BodyLinkStartingWithBlankRun() =>
+        LinkDocument(false, false, new Run(new Text("  ") { Space = SpaceProcessingModeValues.Preserve }), R("x."));
 
-        Assert.Same(docx, HyperlinkBlankRunSplit.Apply(docx));
+    [Fact]
+    public void HyperlinkBlankRunSplit_ABodyParagraphLink_RefusedBefore_RendersAfter()
+    {
+        var docx = BodyLinkStartingWithBlankRun();
+        AssertEmptyTextRefusal(RawRender.Refusal(docx));
+
+        var repaired = HyperlinkBlankRunSplit.Apply(docx);
+
+        Assert.NotSame(docx, repaired);
+        Assert.Null(RawRender.Refusal(repaired));
+        var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
+        Assert.Contains("x.", text);
+        Assert.Contains("after the link", text);
+    }
+
+    [Fact]
+    public void HyperlinkBlankRunSplit_IsAStepOfTheLadder_AndNothingToDoGivesNull()
+    {
+        var refusal = new ArgumentException("Parameter 'text' cannot be empty or whitespace.");
+        Assert.True(DocxPdfRefusalLadder.Knows(refusal));
+
+        var docx = BodyLinkStartingWithBlankRun();
+        Assert.NotNull(DocxPdfRefusalLadder.NextOrNull(refusal, docx, new HashSet<int>()));
+
+        var plain = LinkDocument(false, false, R("just a link"));
+        Assert.Null(DocxPdfRefusalLadder.NextOrNull(refusal, plain, new HashSet<int>()));
     }
 
     [Fact]
@@ -451,6 +477,80 @@ public class DocxPdfRepairTests
         var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
         Assert.Contains("Body words", text);
         Assert.Contains("Header words", text);
+    }
+
+    /// <summary>
+    /// doc-000111's shape: the header is declared on the FIRST section (top 576, fine), and the last
+    /// section declares none, inherits it, and has a top margin of 288.
+    /// </summary>
+    private static byte[] HeaderOnFirstSectionOnly_LastSectionTop288()
+    {
+        var docx = HeaderPage(576);
+        using var ms = new MemoryStream();
+        ms.Write(docx);
+        using (var doc = WordprocessingDocument.Open(ms, true))
+        {
+            var body = doc.MainDocumentPart!.Document!.Body!;
+            var last = body.Elements<SectionProperties>().Last();
+            var first = new Paragraph(
+                new ParagraphProperties((SectionProperties)last.CloneNode(true)),
+                new Run(new Text("First section words")));
+            body.InsertAt(first, 0);
+            last.RemoveAllChildren<HeaderReference>();
+            last.GetFirstChild<PageMargin>()!.Top = 288;
+            doc.MainDocumentPart.Document.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_ASectionInheritingTheHeader_RefusedBefore_IsRaised()
+    {
+        var docx = HeaderOnFirstSectionOnly_LastSectionTop288();
+        var refusal = RawRender.Refusal(docx);
+        Assert.IsType<ArgumentException>(refusal);
+        Assert.Contains("header offset must not exceed the top margin", refusal.Message, StringComparison.Ordinal);
+
+        var repaired = HeaderOffsetRepair.Apply(docx);
+
+        Assert.NotSame(docx, repaired);
+        Assert.Null(RawRender.Refusal(repaired));
+        var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
+        Assert.Contains("First section words", text);
+        Assert.Contains("Body words", text);
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_AHeaderOfOnlyALegacyPageNumber_RefusedBefore_IsRaised()
+    {
+        // doc-000111's headers hold only <w:pgNum/>, which a document converted from .doc carries.
+        var docx = HeaderPage(288, 0, headerText: "");
+        using var ms = new MemoryStream();
+        ms.Write(docx);
+        using (var doc = WordprocessingDocument.Open(ms, true))
+        {
+            var header = doc.MainDocumentPart!.HeaderParts.Single();
+            header.Header!.RemoveAllChildren();
+            header.Header.AppendChild(new Paragraph(new Run(new PageNumber())));
+            header.Header.Save();
+        }
+
+        var legacy = ms.ToArray();
+        Assert.Contains("header offset must not exceed the top margin", RawRender.Refusal(legacy)!.Message, StringComparison.Ordinal);
+
+        Assert.Equal("360", MarginAttribute(HeaderOffsetRepair.Apply(legacy), "top"));
+        Assert.Contains("Body words", PdfProbe.ExtractText(DocxToPdfConverter.Convert(legacy)));
+    }
+
+    [Fact]
+    public void HeaderOffsetRepair_IsAStepOfTheLadder_AndNothingToDoGivesNull()
+    {
+        var refusal = new ArgumentException("PDF header offset must not exceed the top margin when header content is enabled.");
+        Assert.True(DocxPdfRefusalLadder.Knows(refusal));
+
+        Assert.NotNull(DocxPdfRefusalLadder.NextOrNull(refusal, HeaderPage(288), new HashSet<int>()));
+        Assert.Null(DocxPdfRefusalLadder.NextOrNull(refusal, HeaderPage(576), new HashSet<int>()));
     }
 
     [Fact]
