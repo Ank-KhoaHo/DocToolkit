@@ -1,39 +1,27 @@
 namespace DocToolkit;
 
 /// <summary>
-/// Names the two most common reasons a real Word document cannot be rendered to PDF.
+/// Names the reasons a real Word document cannot be rendered to PDF that a reader can act on.
 /// </summary>
 /// <remarks>
 /// <b>Measured 2026-08-18 over 99 documents carrying real content</b> - govdocs1 predates
-/// <c>.docx</c>, so these are the corpus's 111 genuine <c>.doc</c> files converted first.
-/// <b>DOCX to PDF succeeded on 71.7% of them</b>, and 15 of the 28 failures are the two causes named
-/// here: 8 for a negative paragraph indent and 7 for header or footer content wider than the page.
+/// <c>.docx</c>, so these are the corpus's 111 genuine <c>.doc</c> files converted first, on
+/// OfficeIMO 3.2.6. <b>DOCX to PDF succeeded on 71.7% of them</b>, and 15 of the 28 failures were a
+/// negative paragraph indent (8) or header or footer content wider than the page (7).
 ///
-/// <b>Both are legal in Word, which is the part worth telling somebody.</b> The renderer's own
-/// messages are accurate - <i>"Paragraph right indent must be a non-negative finite value"</i> - and
-/// leave a reader looking for a mistake in a document that does not contain one. Content set outside
-/// the margin, and a wide header, are ordinary things to find in a letterhead or a report.
+/// <b>Both were legal in Word, which is the part worth telling somebody.</b> The renderer's own
+/// messages were accurate and left a reader looking for a mistake in a document that does not
+/// contain one. <b>OfficeIMO 3.5 renders a negative indent</b> (measured: 300+ negative right
+/// indents in the corpus convert), so that message and its retry are gone; the header and footer
+/// message remains.
 ///
-/// <b>Nothing here is repaired.</b> Clamping a negative indent to zero pulls content back inside a
-/// margin the author deliberately put it outside of, and shrinking a header changes a layout
-/// somebody chose - unlike the HTML repairs, where a browser's own behaviour said what the right
-/// answer was. Those are decisions rather than measurements, and they are filed rather than taken.
-///
-/// <b>An ordinary hanging indent is unaffected</b>, which was measured before this message was
-/// written so it could say so: <c>w:hanging</c> and a negative <c>w:firstLine</c> both convert. Only
-/// a negative <c>w:left</c> or <c>w:right</c> is refused, at any magnitude.
+/// <b>Nothing here is repaired by this class.</b> It only describes. Shrinking a header changes a
+/// layout somebody chose - unlike the HTML repairs, where a browser's own behaviour said what the
+/// right answer was. Those are decisions rather than measurements, and they are filed rather than
+/// taken. The refusals that do have a repair are answered by <see cref="DocxPdfRefusalLadder"/>.
 /// </remarks>
 internal static class DocxPdfFailureDiagnosis
 {
-    /// <summary>Whether this is the negative-indent refusal, which is repairable.</summary>
-    /// <remarks>
-    /// Exposed separately from <see cref="Describe"/> because the caller needs to act on this one
-    /// rather than only report it - it is the single failure here with a repair, and matching it in
-    /// two places would be two things to keep in step.
-    /// </remarks>
-    internal static bool IsNegativeIndent(Exception ex) =>
-        (ex.Message ?? string.Empty).Contains("indent must be a non-negative", StringComparison.OrdinalIgnoreCase);
-
     /// <summary>
     /// Returns a message naming the cause, or <see langword="null"/> when the failure is not one of
     /// the recognised shapes and the caller should use its generic wrapper.
@@ -48,9 +36,6 @@ internal static class DocxPdfFailureDiagnosis
     {
         var message = ex.Message ?? string.Empty;
 
-        if (message.Contains("indent must be a non-negative", StringComparison.OrdinalIgnoreCase))
-            return NegativeIndentMessage;
-
         if (message.Contains("must fit inside the page content width", StringComparison.OrdinalIgnoreCase)
             || message.Contains("header zones must not overlap", StringComparison.OrdinalIgnoreCase))
             return HeaderFooterMessage;
@@ -60,14 +45,6 @@ internal static class DocxPdfFailureDiagnosis
 
         return null;
     }
-
-    private const string NegativeIndentMessage =
-        "Failed to convert DOCX to PDF: a paragraph has a negative left or right indent, and the "
-        + "PDF renderer this package uses requires both to be zero or more. The document is not "
-        + "invalid - Word allows a paragraph to be set outside the margin, which is how a letterhead "
-        + "or a pull-quote is often laid out. An ordinary hanging indent is unaffected and converts "
-        + "normally. To render this document, set the negative indent to 0. See the inner exception "
-        + "for the renderer's own error.";
 
     /// <summary>
     /// A character no font on this machine can encode.

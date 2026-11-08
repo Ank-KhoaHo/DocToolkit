@@ -4,25 +4,25 @@ using System.Text;
 namespace DocToolkit.Tests;
 
 /// <summary>
-/// The two commonest reasons a real Word document will not render to PDF.
+/// The reasons a real Word document will not render to PDF that a reader can act on.
 ///
 /// <b>Measured 2026-08-18 over 99 documents carrying real content</b> — the corpus's 111 genuine
 /// <c>.doc</c> files converted first, since govdocs1 predates <c>.docx</c>. <b>DOCX → PDF succeeded
-/// on 71.7%</b>, and 15 of the 28 failures are these two: 8 for a negative paragraph indent, 7 for
-/// header or footer content wider than the page.
+/// on 71.7%</b> (OfficeIMO 3.2.6), and 15 of the 28 failures were a negative paragraph indent (8) or
+/// header or footer content wider than the page (7). <b>3.5 renders a negative indent</b>, so the
+/// first is no longer a refusal and its message and retry were removed (A123).
 ///
-/// <b>Both are legal in Word, which is the thing worth saying.</b> The renderer's own messages are
+/// <b>Both were legal in Word, which is the thing worth saying.</b> The renderer's own messages are
 /// accurate and leave a reader hunting for a mistake in a document that does not contain one.
 ///
-/// <b>Neither is repaired.</b> Clamping a negative indent pulls content back inside a margin the
-/// author put it outside of; shrinking a header changes a layout somebody chose. Unlike the HTML
-/// repairs, no browser behaviour says what the right answer is — these are decisions, and they are
-/// filed rather than taken.
+/// <b>The header message is not repaired.</b> Shrinking a header changes a layout somebody chose.
+/// Unlike the HTML repairs, no browser behaviour says what the right answer is — that is a
+/// decision, and it is filed rather than taken.
 ///
 /// <b>A third message was added later, and it is the one with a remedy.</b> A character no font on
 /// the machine can encode now says so, says that this DEPENDS ON THE MACHINE — the same document
 /// renders on a host whose fonts cover the script, so it can pass in development and fail in
-/// production — and points at <see cref="PdfFontOptions"/>, which did not exist when the other two
+/// production — and points at <see cref="PdfFontOptions"/>, which did not exist when the first two
 /// were written.
 /// </summary>
 public class DocxPdfFailureDiagnosisTests
@@ -56,7 +56,7 @@ public class DocxPdfFailureDiagnosisTests
         return ms.ToArray();
     }
 
-    // ---- the negative indent: now CLAMPED, so these documents render ------------------------------
+    // ---- the negative indent: 3.5 renders it, with no retry --------------------------------------
 
     [Theory]
     [InlineData("w:left=\"-360\"")]
@@ -65,33 +65,19 @@ public class DocxPdfFailureDiagnosisTests
     [InlineData("w:left=\"-360\" w:right=\"-360\"")]
     public void ANegativeIndentNowRenders(string attributes)
     {
-        // These asserted the DIAGNOSIS until the clamp shipped. The message was right and the
-        // document still did not render; now it does, so the assertion moves from "says why it
-        // failed" to "did not fail". Measured across the corpus: 71/99 to 75/99.
+        // These asserted the DIAGNOSIS, then a clamp-and-retry made them render on 3.2.6 (71/99 to
+        // 75/99). OfficeIMO 3.5 renders them as they stand, so the retry and the message are gone
+        // and the assertion is the same: it did not fail.
         Assert.True(PdfProbe.IsPdf(DocxToPdfConverter.Convert(WithIndent(attributes))));
     }
 
     [Fact]
-    public void TheClampKeepsTheDocumentsText()
+    public void ANegativeIndentKeepsTheDocumentsText()
     {
-        // A clamp that rendered by dropping the paragraph would satisfy the theory above. What is
-        // given up is the overhang past the margin, not the content.
+        // A render that dropped the paragraph would satisfy the theory above.
         var pdf = DocxToPdfConverter.Convert(WithIndent("w:right=\"-720\""));
 
         Assert.Contains("second line", PdfProbe.ExtractText(pdf), StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void TheDiagnosisIsKeptAsASafetyNet()
-    {
-        // Unreachable from ordinary input now, and kept for the same reason as the rowspan one: the
-        // clamp rewrites a package, and input it cannot rewrite - or a shape it does not match -
-        // should still say what happened rather than surfacing a bare renderer error.
-        var described = DocxPdfFailureDiagnosis.Describe(
-            new ArgumentException("Paragraph right indent must be a non-negative finite value."));
-
-        Assert.NotNull(described);
-        Assert.Contains("not invalid", described, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -101,9 +87,8 @@ public class DocxPdfFailureDiagnosisTests
     [InlineData("w:left=\"720\" w:firstLine=\"-360\"")]   // the other ordinary form
     public void OrdinaryIndentsStillConvert(string attributes)
     {
-        // Measured, and the message claims it - so this is what stops that claim going stale. A
-        // hanging indent is the commonest indent in real documents; if it ever started failing, the
-        // message would be telling people something false at the worst moment.
+        // A hanging indent is the commonest indent in real documents; if an ordinary indent ever
+        // started failing, every other test here would be explaining the wrong cause.
         Assert.NotEmpty(DocxToPdfConverter.Convert(WithIndent(attributes)));
     }
 
@@ -120,8 +105,6 @@ public class DocxPdfFailureDiagnosisTests
     }
 
     [Theory]
-    [InlineData("Paragraph right indent must be a non-negative finite value.", "negative left or right indent")]
-    [InlineData("Paragraph left indent must be a non-negative finite value.", "negative left or right indent")]
     [InlineData("PDF footer zone content must fit inside the page content width.", "wider than the page content area")]
     [InlineData("Combined PDF header/footer content must fit inside the page content width.", "wider than the page content area")]
     [InlineData("PDF header zones must not overlap.", "wider than the page content area")]
@@ -140,11 +123,13 @@ public class DocxPdfFailureDiagnosisTests
     [InlineData("Something else entirely.")]
     [InlineData("PDF bookmark link target 'appendix' was not found.")]
     [InlineData("Table horizontal cell padding must leave a positive text width.")]
+    // The old negative-indent message: 3.5 never says it, and the retry that answered it is gone.
+    [InlineData("Paragraph right indent must be a non-negative finite value.")]
     [InlineData("")]
     // A message that mentions an indent for a DIFFERENT reason. Without these, matching the whole
     // word "indent" was indistinguishable from matching the specific phrase - mutation testing found
-    // that, and it matters because the remedy this class prints ("set the negative indent to 0")
-    // would be actively wrong advice for any of them.
+    // that, and it matters because a diagnosis that names the wrong cause would be actively wrong
+    // advice for any of them.
     [InlineData("Paragraph indent could not be applied to this style.")]
     [InlineData("List indent level is out of range.")]
     [InlineData("Table cell indent exceeds the column width.")]

@@ -49,14 +49,12 @@ Roughly in order of how often the gap has actually been hit. None is scheduled.
   `PresentationEditor.AddChart`: it renders correctly in XLSX → PDF and PPTX → PDF, measured
   directly.
 
-  **Two of those silent drops are now measured rather than assumed**, and both lose content rather
-  than styling: **an unstyled footnote reference loses its text** — the renderer keys on the
-  character style Word and `DocxEditor.AddFootnote` both apply to a footnote reference, so a
-  footnote authored either way survives; only a reference missing that style is lost — and **a
-  table nested inside a table cell loses its content entirely**. Measured 2026-08-25, reading the
-  PDF back, with a sibling paragraph in each fixture so a missing token could not be mistaken for an
-  empty render. Content controls and text boxes were measured to *survive*, so neither is on that
-  list.
+  **One of those silent drops is measured rather than assumed**, and it loses content rather than
+  styling: **a table nested inside a table cell loses its content entirely**. Measured 2026-08-25,
+  reading the PDF back, with a sibling paragraph in each fixture so a missing token could not be
+  mistaken for an empty render. Footnotes (including a reference without the footnote character
+  style) and content controls in a table were also lost on OfficeIMO 3.2.6; they render since
+  OfficeIMO 3.5, so neither is on that list. Text boxes were measured to *survive* too.
 
   The loss is upstream: `DocxToPdfConverter` is a pass-through to the renderer, so this package
   cannot fix it — only report it and say so.

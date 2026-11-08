@@ -92,7 +92,7 @@ public static class MarkdownToPdfConverter
         // THROUGH Convert - this converter's own byte[] path, not a re-composition of the stages.
         //
         // This used to hand the package to OfficeIMO's writer, which skipped ListMarkerSubstitution
-        // and the negative-indent clamp. Same divergence measured across the DOCX and HTML paths on
+        // and the retries. Same divergence measured across the DOCX and HTML paths on
         // 2026-08-20; see HtmlToPdfConverter.EmitAsync for the numbers.
         //
         // AND CALLING Convert(markdown) IS THE POINT, rather than composing

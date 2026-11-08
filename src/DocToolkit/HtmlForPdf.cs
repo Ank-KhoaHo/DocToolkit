@@ -15,7 +15,10 @@ namespace DocToolkit;
 /// <list type="number">
 /// <item><description><b>Applied up front</b>, when every document they touch is already known to
 /// fail. <see cref="HtmlAnchorRepair"/> qualifies: it changes nothing unless a link resolves
-/// nowhere, and such a document always fails to render.</description></item>
+/// nowhere, and such a document always fails to render. <see cref="ImageLinkRepair"/> joined it with
+/// OfficeIMO 3.5: every document it touches failed on 3.2, but 3.5 renders an image-only link in a
+/// cell without failing and drops its alt text, so a retry would never fire. It changes nothing
+/// unless a cell holds such a link.</description></item>
 /// <item><description><b>Applied only after a failure</b>, when the repair cannot tell in advance
 /// whether the document needed it. <see cref="EmptyTableCellRepair"/> is this: a table cell with no
 /// text is completely ordinary and usually renders perfectly well, so filling every one of them up
@@ -34,7 +37,7 @@ namespace DocToolkit;
 internal static class HtmlForPdf
 {
     /// <summary>Repairs that are safe to apply before knowing whether the document would fail.</summary>
-    internal static string Prepare(string html) => HtmlAnchorRepair.Apply(html);
+    internal static string Prepare(string html) => ImageLinkRepair.Apply(HtmlAnchorRepair.Apply(html));
 
     /// <summary>
     /// Repairs applied only when the render fails in the way each one addresses.
@@ -47,7 +50,6 @@ internal static class HtmlForPdf
     private static readonly (Func<Exception, bool> Matches, Func<string, string> Repair)[] Retryable =
     [
         (EmptyTableCellRepair.WouldHelp, EmptyTableCellRepair.Apply),
-        (ImageLinkRepair.WouldHelp, ImageLinkRepair.Apply),
     ];
 
     /// <summary>

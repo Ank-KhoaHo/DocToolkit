@@ -1,5 +1,7 @@
 using System.IO.Compression;
 using System.Text;
+using OfficeIMO.Word;
+using OfficeIMO.Word.Pdf;
 
 namespace DocToolkit.Tests;
 
@@ -175,5 +177,154 @@ public class WordProducedDocumentTests
 
         Assert.Contains("Smart quotes", text, StringComparison.Ordinal);
         Assert.Contains("em dash", text, StringComparison.Ordinal);
+    }
+
+    // ---- A123 R2: a substituted bullet must not keep Word's Symbol font -----------------------------
+
+    /// <summary>
+    /// A bulleted list as Word writes it: the level's marker is U+F0B7 in Symbol, and the paragraph
+    /// mark of the list item is in Wingdings.
+    /// </summary>
+    private static byte[] SymbolBulletList(string marker = "")
+    {
+        using var ms = new MemoryStream();
+        using (var doc = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Create(
+                   ms, DocumentFormat.OpenXml.WordprocessingDocumentType.Document))
+        {
+            var main = doc.AddMainDocumentPart();
+            var numbering = main.AddNewPart<DocumentFormat.OpenXml.Packaging.NumberingDefinitionsPart>();
+            var symbol = new DocumentFormat.OpenXml.Wordprocessing.RunFonts { Ascii = "Symbol", HighAnsi = "Symbol", ComplexScript = "Symbol" };
+            numbering.Numbering = new DocumentFormat.OpenXml.Wordprocessing.Numbering(
+                new DocumentFormat.OpenXml.Wordprocessing.AbstractNum(
+                    new DocumentFormat.OpenXml.Wordprocessing.Level(
+                        new DocumentFormat.OpenXml.Wordprocessing.StartNumberingValue { Val = 1 },
+                        new DocumentFormat.OpenXml.Wordprocessing.NumberingFormat { Val = DocumentFormat.OpenXml.Wordprocessing.NumberFormatValues.Bullet },
+                        new DocumentFormat.OpenXml.Wordprocessing.LevelText { Val = marker },
+                        new DocumentFormat.OpenXml.Wordprocessing.PreviousParagraphProperties(
+                            new DocumentFormat.OpenXml.Wordprocessing.Indentation { Left = "720", Hanging = "360" }),
+                        new DocumentFormat.OpenXml.Wordprocessing.NumberingSymbolRunProperties(symbol))
+                    { LevelIndex = 0 })
+                { AbstractNumberId = 0 },
+                new DocumentFormat.OpenXml.Wordprocessing.NumberingInstance(
+                    new DocumentFormat.OpenXml.Wordprocessing.AbstractNumId { Val = 0 })
+                { NumberID = 1 });
+            numbering.Numbering.Save();
+
+            var item = new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                new DocumentFormat.OpenXml.Wordprocessing.ParagraphProperties(
+                    new DocumentFormat.OpenXml.Wordprocessing.NumberingProperties(
+                        new DocumentFormat.OpenXml.Wordprocessing.NumberingLevelReference { Val = 0 },
+                        new DocumentFormat.OpenXml.Wordprocessing.NumberingId { Val = 1 }),
+                    new DocumentFormat.OpenXml.Wordprocessing.ParagraphMarkRunProperties(
+                        new DocumentFormat.OpenXml.Wordprocessing.RunFonts { Ascii = "Wingdings", HighAnsi = "Wingdings" })),
+                new DocumentFormat.OpenXml.Wordprocessing.Run(
+                    new DocumentFormat.OpenXml.Wordprocessing.Text("Bread and milk")));
+            main.Document = new DocumentFormat.OpenXml.Wordprocessing.Document(
+                new DocumentFormat.OpenXml.Wordprocessing.Body(item));
+            main.Document.Save();
+        }
+
+        return ms.ToArray();
+    }
+
+    private static string NumberingPart(byte[] docx)
+    {
+        using var zip = new ZipArchive(new MemoryStream(docx, writable: false), ZipArchiveMode.Read);
+        using var reader = new StreamReader(zip.GetEntry("word/numbering.xml")!.Open(), Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    [Fact]
+    public void ASubstitutedBulletGetsArialNotTheParagraphMarksSymbolFont()
+    {
+        var docx = SymbolBulletList();
+
+        var level = System.Xml.Linq.XDocument.Parse(NumberingPart(ListMarkerSubstitution.Apply(docx)));
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        var fonts = level.Descendants(w + "lvl").Single().Element(w + "rPr")!.Element(w + "rFonts")!;
+
+        Assert.Equal("•", (string?)level.Descendants(w + "lvlText").Single().Attribute(w + "val"));
+        foreach (var slot in new[] { "ascii", "hAnsi", "cs", "eastAsia" })
+            Assert.Equal("Arial", (string?)fonts.Attribute(w + slot));
+    }
+
+    [Fact]
+    public void ListMarkerSubstitution_NoSymbolBullet_ReturnsTheSameArray()
+    {
+        // A numbering part whose marker is an ordinary U+2022: no private-use character, nothing to do.
+        var docx = SymbolBulletList("•");
+
+        Assert.Same(docx, ListMarkerSubstitution.Apply(docx));
+    }
+
+    [Fact]
+    public void ASubstitutedBullet_RefusedBeforeTheFontFix_RendersAfter()
+    {
+        // Raw 3.5.3, the character substituted but the Symbol font kept - what this class did before.
+        // Measured on a Windows host: a PdfTextEncodingPreflightException, "Text contains character
+        // U+2022 ... cannot be encoded with embedded TrueType font 'Symbol-Regular'", on the DEFAULT
+        // path (no fonts supplied). HOST-DEPENDENT: the refusal comes from the system's own Symbol
+        // face, so the Linux images, which have none, render this document without the repair. The
+        // refusal is therefore asserted where it occurs, and the font fix is pinned deterministically
+        // by the Arial test above; the conversion below must succeed on every host.
+        var refusal = Record.Exception(() => RenderRaw(SymbolBulletList("•"), null));
+        if (refusal is not null)
+        {
+            Assert.Equal("PdfTextEncodingPreflightException", refusal.GetType().Name);
+            Assert.Contains("U+2022", refusal.Message, StringComparison.Ordinal);
+            Assert.Contains("Symbol", refusal.Message, StringComparison.Ordinal);
+        }
+
+        var pdf = DocxToPdfConverter.Convert(SymbolBulletList());
+
+        Assert.Contains("Bread and milk", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASubstitutedBullet_WithFontsSupplied_StillRenders()
+    {
+        var font = PdfFontOptionsTests.FindFont();
+        if (font is null) return;
+
+        var pdf = DocxToPdfConverter.Convert(SymbolBulletList(), new PdfFontOptions("Supplied", font));
+
+        Assert.Contains("Bread and milk", PdfProbe.ExtractText(pdf), StringComparison.Ordinal);
+    }
+
+    private static void RenderRaw(byte[] docx, PdfFontOptions? fonts)
+    {
+        using var input = new MemoryStream();
+        input.Write(docx, 0, docx.Length);
+        input.Position = 0;
+        using var word = WordDocument.Load(input);
+        word.ToPdfBytes(new WordToPdfOptions { PdfOptions = fonts?.ToPdfOptions() });
+    }
+
+    [Fact]
+    public void ABulletLevelWithoutSymbolFonts_KeepsItsFont()
+    {
+        var level = System.Xml.Linq.XDocument.Parse(NumberingPart(ListMarkerSubstitution.Apply(
+            ReplaceFont(SymbolBulletList(), "Symbol", "Calibri"))));
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+        Assert.Equal("Calibri", (string?)level.Descendants(w + "rFonts").Single().Attribute(w + "ascii"));
+    }
+
+    private static byte[] ReplaceFont(byte[] docx, string from, string to)
+    {
+        using var ms = new MemoryStream();
+        ms.Write(docx);
+        ms.Position = 0;
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var entry = zip.GetEntry("word/numbering.xml")!;
+            string xml;
+            using (var reader = new StreamReader(entry.Open(), Encoding.UTF8)) xml = reader.ReadToEnd();
+            entry.Delete();
+            using var writer = new StreamWriter(zip.CreateEntry("word/numbering.xml").Open(), new UTF8Encoding(false));
+            writer.Write(xml.Replace(from, to, StringComparison.Ordinal));
+        }
+
+        return ms.ToArray();
     }
 }

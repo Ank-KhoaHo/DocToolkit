@@ -40,7 +40,7 @@ internal static class PdfRenderPolicy
     // The cause is not the flag values. Measured over the same 99 documents:
     //
     //     no options at all                71/99
-    //     empty WordPdfSaveOptions         71/99
+    //     empty WordToPdfOptions         71/99
     //     ResourcePolicy, both flags TRUE  57/99
     //     ResourcePolicy, default-built    57/99
     //     ResourcePolicy, both flags FALSE 57/99
@@ -58,9 +58,9 @@ internal static class PdfRenderPolicy
     // encodes this exemption so the absence reads as a decision rather than an omission, and
     // DocxToPdfResourcePolicyTests pins the regression itself.
 
-    public static ExcelPdfSaveOptions ForWorkbook() => new() { ResourcePolicy = Policy() };
+    public static ExcelToPdfOptions ForWorkbook() => new() { ResourcePolicy = Policy() };
 
-    public static PowerPointPdfSaveOptions ForPresentation() => new() { ResourcePolicy = Policy() };
+    public static PowerPointToPdfOptions ForPresentation() => new() { ResourcePolicy = Policy() };
 
     // THE FONT OVERLOADS ARE SEPARATE METHODS, NOT AN OPTIONAL PARAMETER, and that is deliberate.
     //
@@ -69,10 +69,10 @@ internal static class PdfRenderPolicy
     // factories also keeps EveryRenderPolicyFactorySetsThePolicy reaching them, and
     // EveryFontTakingRenderPolicyFactoryKeepsThePolicyAndShapes reaches these.
 
-    public static ExcelPdfSaveOptions ForWorkbook(PdfFontOptions? fonts) =>
+    public static ExcelToPdfOptions ForWorkbook(PdfFontOptions? fonts) =>
         fonts is null ? ForWorkbook() : new() { ResourcePolicy = Policy(), PdfOptions = fonts.ToPdfOptions() };
 
-    public static PowerPointPdfSaveOptions ForPresentation(PdfFontOptions? fonts) =>
+    public static PowerPointToPdfOptions ForPresentation(PdfFontOptions? fonts) =>
         fonts is null ? ForPresentation() : new() { ResourcePolicy = Policy(), PdfOptions = fonts.ToPdfOptions() };
 
     /// <summary>

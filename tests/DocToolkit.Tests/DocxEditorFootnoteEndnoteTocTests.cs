@@ -311,7 +311,8 @@ public class DocxEditorFootnoteEndnoteTocTests
         // A83: the measurement AddEndnote's own doc comment now states, pinned rather than only
         // observed once. Endnote content survives DocxToPdfConverter -- confirmed by measuring the
         // real API end to end, not by inference from the footnote case. DocxToPdfPreflight has no
-        // Endnote finding, deliberately: there is nothing lost to report.
+        // Endnote finding, deliberately: there is nothing lost to report (and since OfficeIMO 3.5
+        // it has no Footnote finding either, because footnotes render too).
         var docx = DocxFixtures.Build(DocxFixtures.P(DocxFixtures.R("See the note{{note}} here.")));
 
         var withEndnote = DocxEditor.AddEndnote(docx, "{{note}}", "The endnote text itself.");

@@ -75,9 +75,9 @@ measured over 99 real documents, one font rendered 63 where none rendered 71, an
 as your page setup and remote-image settings. `IMarkdownToPdfConverter` is the exception: the core
 Markdown converter takes no fonts.
 
-**Supplying fonts also turns on Hebrew and Arabic shaping.** Each word comes out in the right letter
-order and Arabic letters join, but a line of several right-to-left words still prints them in
-reverse order, and Persian letters are not shaped. See the core package's README for the detail.
+**Supplying fonts also turns on right-to-left shaping.** Since OfficeIMO 3.5 a Hebrew line comes
+out in reading order, but Arabic letters do not join yet and Persian letters are not shaped. See the
+core package's README for the detail.
 
 > **If you already set `Fonts` and convert XLSX or PPTX to PDF, this changes your output.** Before
 > 0.59.0 those two converters ignored the setting, because the core gained the overloads only in

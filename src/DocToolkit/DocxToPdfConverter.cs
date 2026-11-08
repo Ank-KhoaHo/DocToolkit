@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Runtime.ExceptionServices;
 using OfficeIMO.Word;
 using OfficeIMO.Word.Pdf;
 
@@ -40,47 +42,53 @@ public static class DocxToPdfConverter
         // all. Substituted before loading; see ListMarkerSubstitution for why the replacements are
         // measured rather than chosen, and why this is a deliberate trade.
         //
-        // HELD IN A LOCAL because the retry below needs THIS array, not a second substitution of
+        // HELD IN A LOCAL because the ladder below needs THIS array, not a second substitution of
         // the same input. See the comment there.
         byte[]? prepared = null;
 
         try
         {
             prepared = ListMarkerSubstitution.Apply(docx);
+            // Constructs Word accepts and OfficeIMO 3.5 refuses, repaired on every conversion. Each
+            // returns the SAME array when it finds nothing, so a document that renders today is never
+            // rewritten, and `prepared` stays the array that was rendered (A123). Repairs that would
+            // change a layout 3.5 renders as it stands are not here; they wait for the refusal, in
+            // DocxPdfRefusalLadder below.
+            prepared = ControlCharacterStrip.Apply(prepared);
+            prepared = WideTableScale.Apply(prepared);
             return Render(prepared, fonts);
         }
         catch (DocumentConversionException) { throw; }
-        catch (Exception ex) when (DocxPdfFailureDiagnosis.IsNegativeIndent(ex))
+        catch (Exception ex) when (DocxPdfRefusalLadder.Knows(ex))
         {
-            // A negative paragraph indent is refused at any magnitude and is legal in Word, so it
-            // is clamped and retried - on the maintainer's decision, and see NegativeIndentClamp
-            // for what that costs and buys.
+            // 3.5 refused with a message a ladder step answers. Each step runs only now, so a
+            // document that renders as it stands pays nothing and is never changed.
             //
-            // ON FAILURE ONLY, so the ordinary path never pays for it. The clamp has to open the
-            // package to find out whether there is anything to clamp, and doing that on every
-            // conversion would tax the 71 documents in 99 that never needed it. The retry costs a
-            // second render, and only a document that already failed pays it - the same shape as
-            // HtmlForPdf's repairs, for the same reason.
+            // A LOOP, because one document can hit several refusals in turn: the next refusal only
+            // appears once the earlier one is out of the way (html-000079 needs padding zeroed, and
+            // then its 1% width repaired). Every step runs at most once, so it ends; a step that
+            // changes nothing is skipped inside NextOrNull.
             //
-            // ClampOrNull takes the array that was actually rendered and answers about THAT one,
-            // so there is no second array here to compare against by mistake. See its remarks for
-            // what the mistake was and why no test can see it from outside.
-            //
-            // Reusing `prepared` also drops a second full ZIP rewrite: this line used to run
-            // ListMarkerSubstitution.Apply again, on every negative-indent retry.
-            var clamped = NegativeIndentClamp.ClampOrNull(prepared ?? docx);
-            if (clamped is null) throw new DocumentConversionException(
-                DocxPdfFailureDiagnosis.Describe(ex) ?? FailureMessage, ex);
+            // Starts from `prepared`, the array that was actually refused, so a step answers about
+            // THAT array and not a second substitution of the input (which would also be a second
+            // full ZIP rewrite).
+            var current = prepared ?? docx;
+            var used = new HashSet<int>();
+            var failure = ex;
+            while (NextRepair(failure, current, used) is { } next)
+            {
+                current = next;
+                try
+                {
+                    return Render(current, fonts);
+                }
+                catch (Exception again)
+                {
+                    failure = again;
+                }
+            }
 
-            try
-            {
-                return Render(clamped, fonts);
-            }
-            catch (Exception second)
-            {
-                throw new DocumentConversionException(
-                    DocxPdfFailureDiagnosis.Describe(second) ?? FailureMessage, second);
-            }
+            throw new DocumentConversionException(DocxPdfFailureDiagnosis.Describe(failure) ?? FailureMessage, failure);
         }
         catch (Exception ex)
         {
@@ -162,9 +170,10 @@ public static class DocxToPdfConverter
         //
         // RenderAsync writes onto the caller's stream as OfficeIMO lays the PDF out, which reads
         // like a virtue and cost correctness: it applies neither ListMarkerSubstitution nor the
-        // negative-indent clamp, because a clamp-and-retry cannot un-write bytes already sent.
-        // Measured 2026-08-20 over 99 real Word documents: FOUR converted through Convert(byte[])
-        // and were refused here, every one of them a negative indent the clamp recovers.
+        // refusal ladder, because a repair-and-retry cannot un-write bytes already sent.
+        // Measured 2026-08-20 over 99 real Word documents on OfficeIMO 3.2.6: FOUR converted
+        // through Convert(byte[]) and were refused here, every one of them a negative indent that a
+        // retry then recovered (3.5 renders those as they stand; the lesson is the one that holds).
         //
         // Buffering costs one PDF of memory. It is not a memory regression against the array path -
         // DrainAsync above has already buffered the source - and it means a failure now leaves
@@ -175,8 +184,90 @@ public static class DocxToPdfConverter
         await StreamPipeline.EmitAsync(scratch, destination, FailureMessage, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// The next ladder repair, or null when there is none. <b>A step that throws ends the ladder
+    /// instead of escaping</b>: it runs inside a catch block, where no later catch of this method
+    /// applies, so an <see cref="InvalidDataException"/> from a corrupt part would otherwise reach the
+    /// caller as something other than <see cref="DocumentConversionException"/>. The renderer's
+    /// refusal is the better answer and is the one reported; the step's own exception is dropped.
+    /// </summary>
+    private static byte[]? NextRepair(Exception refusal, byte[] current, HashSet<int> used)
+    {
+        try
+        {
+            return DocxPdfRefusalLadder.NextOrNull(refusal, current, used);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Renders on a thread of its own with <see cref="RenderStackSize"/> of stack, so the depth of a
+    /// render never depends on the caller's thread.
+    /// </summary>
+    /// <remarks>
+    /// <b>A stack overflow cannot be caught: it ends the caller's whole process</b>, and the depth a
+    /// render needs is not the caller's to know. OfficeIMO's frames are large (~4 KB each), nested
+    /// tables recurse, and a refusal doubles it: the ladder in <see cref="Convert(byte[], PdfFontOptions)"/>
+    /// retries inside a catch block, which runs on top of the failed render's frames. A cell
+    /// hyperlink that 3.5 refuses then needed ~225 KB on Linux x64, and macOS net8.0 gives a
+    /// secondary thread only 512 KB (net9+ raised it to 1.5 MB), so the test host died there (A123).
+    /// </remarks>
+    private static byte[] Render(byte[] docx, PdfFontOptions? fonts) =>
+        OnRenderThread(() => RenderHere(docx, fonts));
+
+    /// <summary>
+    /// The render thread's stack: 16 MB. Measured 2026-11-08 on Linux x64 (A123): a flat document
+    /// needs 64-130 KB, the refused-then-repaired cell link ~225 KB, and tables nested 32 deep
+    /// ~1.5 MB, growing ~43 KB a level. 16 MB is over 10x the worst case seen, room for arm64's
+    /// larger frames. It is reserved address space, committed only as the render uses it.
+    /// </summary>
+    internal const int RenderStackSize = 16 * 1024 * 1024;
+
+    /// <summary>
+    /// Runs <paramref name="work"/> on a new thread with <see cref="RenderStackSize"/> of stack and
+    /// waits for it. Its exception is rethrown here unchanged (same instance, original stack trace
+    /// kept), so the refusal ladder and <see cref="DocxPdfFailureDiagnosis"/> see what they always
+    /// saw. The caller's culture goes with it explicitly, because the execution context that would
+    /// otherwise carry it can be suppressed.
+    /// </summary>
+    internal static T OnRenderThread<T>(Func<T> work)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        var uiCulture = CultureInfo.CurrentUICulture;
+        T result = default!;
+        ExceptionDispatchInfo? failure = null;
+
+        var thread = new Thread(
+            () =>
+            {
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = uiCulture;
+                try
+                {
+                    result = work();
+                }
+                catch (Exception ex)
+                {
+                    failure = ExceptionDispatchInfo.Capture(ex);
+                }
+            },
+            RenderStackSize)
+        {
+            IsBackground = true,
+            Name = "DocToolkit PDF render",
+        };
+        thread.Start();
+        thread.Join();
+
+        failure?.Throw();
+        return result;
+    }
+
     /// <summary>Loads a package and renders it. The one place the renderer is actually called.</summary>
-    private static byte[] Render(byte[] docx, PdfFontOptions? fonts)
+    private static byte[] RenderHere(byte[] docx, PdfFontOptions? fonts)
     {
         // Copy into an expandable stream: OfficeIMO opens the package read/write.
         using var input = new MemoryStream();
@@ -186,7 +277,7 @@ public static class DocxToPdfConverter
         using var word = WordDocument.Load(input);
         // NO ResourcePolicy, and that is measured rather than an oversight. See PdfRenderPolicy.
         var options = SaveOptions(fonts);
-        return options is null ? word.ToPdf() : word.ToPdf(options);
+        return options is null ? word.ToPdfBytes() : word.ToPdfBytes(options);
     }
 
     /// <summary>
@@ -200,8 +291,8 @@ public static class DocxToPdfConverter
     /// but "measured equivalent today" is exactly the assumption that failed last time, so the
     /// no-fonts path stays literally the call it always was.
     /// </remarks>
-    private static WordPdfSaveOptions? SaveOptions(PdfFontOptions? fonts) =>
-        fonts is null ? null : new WordPdfSaveOptions { PdfOptions = fonts.ToPdfOptions() };
+    private static WordToPdfOptions? SaveOptions(PdfFontOptions? fonts) =>
+        fonts is null ? null : new WordToPdfOptions { PdfOptions = fonts.ToPdfOptions() };
 
     /// <summary>
     /// Renders an already-buffered .docx package onto <paramref name="destination"/>.

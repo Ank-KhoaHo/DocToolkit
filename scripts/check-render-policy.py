@@ -15,7 +15,7 @@ This check originally required DocxToPdfConverter to pass a policy too, and that
 requirement was measurably wrong. Over 99 documents carrying real content:
 
     no options at all                71/99
-    empty WordPdfSaveOptions         71/99
+    empty WordToPdfOptions           71/99
     ResourcePolicy, both flags TRUE  57/99
     ResourcePolicy, default-built    57/99
     ResourcePolicy, both flags FALSE 57/99
@@ -32,7 +32,7 @@ change that costs 14 of 99 real documents.
 
 WHAT IT CHECKS
 
-  1. Every public factory in PdfRenderPolicy returning *PdfSaveOptions sets ResourcePolicy.
+  1. Every public factory in PdfRenderPolicy returning *ToPdfOptions sets ResourcePolicy.
   2. Every render call in the converters passes one - except the exempt paths above.
 
 DERIVED, NOT LISTED. Both come from reading the source, so a fourth converter or a
@@ -58,14 +58,14 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 SRC = REPO / "src" / "DocToolkit"
 POLICY = SRC / "PdfRenderPolicy.cs"
 
-# A factory is a public static method returning something ending in PdfSaveOptions.
+# A factory is a public static method returning something ending in ToPdfOptions.
 FACTORY = re.compile(
-    r"public\s+static\s+(\w*PdfSaveOptions)\s+(\w+)\s*\([^)]*\)\s*=>\s*(.+?);",
+    r"public\s+static\s+(\w*ToPdfOptions)\s+(\w+)\s*\([^)]*\)\s*=>\s*(.+?);",
     re.S,
 )
 
 # The render calls this package makes. Each must be handed a policy.
-RENDER_CALL = re.compile(r"\.(ToPdf|SaveAsPdf|SaveAsPdfAsync)\s*\(([^;]*?)\)\s*[;.]", re.S)
+RENDER_CALL = re.compile(r"\.(ToPdfBytes|SaveAsPdf|SaveAsPdfAsync)\s*\(([^;]*?)\)\s*[;.]", re.S)
 
 
 def check_factories(text: str) -> list[str]:
@@ -127,12 +127,12 @@ def self_test() -> int:
     print(f"{'PASS' if ok else 'FAIL'}  the real tree is clean" + ("" if ok else f": {real}"))
     failures += 0 if ok else 1
 
-    forgetful = "public static WordPdfSaveOptions ForDocument() => new();"
+    forgetful = "public static WordToPdfOptions ForDocument() => new();"
     caught = bool(check_factories(forgetful))
     print(f"{'PASS' if caught else 'FAIL'}  a factory that forgets ResourcePolicy is caught")
     failures += 0 if caught else 1
 
-    stated = "public static WordPdfSaveOptions ForDocument() => new() { ResourcePolicy = Policy() };"
+    stated = "public static WordToPdfOptions ForDocument() => new() { ResourcePolicy = Policy() };"
     quiet = not check_factories(stated)
     print(f"{'PASS' if quiet else 'FAIL'}  a factory that states it is not flagged")
     failures += 0 if quiet else 1

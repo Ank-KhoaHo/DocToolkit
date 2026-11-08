@@ -32,25 +32,13 @@ namespace DocToolkit;
 ///
 /// <b>What is deliberately absent is decided by measurement, because a report that fires on
 /// constructs the renderer handles teaches a caller to ignore it.</b> A text box
-/// (<c>w:txbxContent</c>) renders, and so does a content control (<c>w:sdt</c>) at body level — so
-/// neither is reported there, and a control inside a text box's table is not reported either.
+/// (<c>w:txbxContent</c>) renders, and so does a content control (<c>w:sdt</c>), at body level and
+/// in a table.
 ///
-/// <b>A content control in a TABLE is the exception, and it was found by re-measuring.</b> The same
-/// construct that survives at body level loses its text inside a cell, or wrapping a cell or a row.
-/// This class excluded content controls outright until 2026-08-27, on the body-level evidence
-/// alone — correct for what had been measured, and incomplete.
-///
-/// <b>A footnote is reported only when its BODY reference is missing the run style Word itself
-/// always applies.</b> Neither the footnote's own definition, nor anything about the
-/// separator/continuation-separator boilerplate a <c>FootnotesPart</c> always carries, has any
-/// bearing on whether its text reaches the PDF — measured, not assumed, across four fixture shapes.
-/// A footnote authored by Word, or by <see cref="DocxEditor.AddFootnote(byte[], string, string)"/>,
-/// always carries that style on its reference and is never reported; only a reference built by hand
-/// or by another tool without it is. This is why the count reads
-/// <c>body.Descendants&lt;FootnoteReference&gt;()</c> rather than the footnotes part: a footnote
-/// referenced only from a header or footer, or one defined but never referenced at all, is
-/// therefore not counted either — consistent with this class's own "detection is limited to the
-/// main document body" scope above, not a separate carve-out.
+/// <b>Footnotes and content controls in tables are no longer reported.</b> The renderer in
+/// OfficeIMO 3.2.6 lost both and this class said so. Since OfficeIMO 3.5 both render: a footnote
+/// whose reference run lacks the footnote style, a footnote styled only in its definition, and a
+/// control inside a cell or wrapping a cell or a row. Reporting them would be a false alarm.
 /// </remarks>
 public static class DocxToPdfPreflight
 {
@@ -98,9 +86,7 @@ public static class DocxToPdfPreflight
         "Failed to inspect the document. See the inner exception for details.";
 
     /// <summary>Stable codes, so a caller can branch on one without matching prose.</summary>
-    internal const string FootnoteCode = "Footnote";
     internal const string NestedTableCode = "NestedTable";
-    internal const string ControlInCellCode = "ControlInCell";
 
     private static DocxToPdfPreflightReport InspectCore(Stream source)
     {
@@ -114,37 +100,6 @@ public static class DocxToPdfPreflight
             // Read the PACKAGE, never ExtractText. That method has its own blind spots - measured
             // 2026-08-25, it returns nothing for content-control text that IS in the PDF - and a
             // detector built on it would inherit them.
-
-            // Measured (A94): survival is decided entirely by the BODY's own FootnoteReference
-            // run, never by anything in the footnote's own definition inside FootnotesPart. A
-            // reference is lost from the render specifically when its run lacks
-            // RunStyle="FootnoteReference" - confirmed against OfficeIMO.Word's own footnote
-            // authoring (which always applies it) and against DocxEditor.AddFootnote's real
-            // output (same). No id filter is needed here, unlike the old definition-scanning
-            // version: the separator/continuation-separator entries a FootnotesPart always
-            // carries are never themselves referenced from the body, so they can never appear in
-            // this scan regardless of id. Two consequences of scanning references rather than
-            // definitions, both deliberate rather than accidental - see this class's own remarks:
-            // a footnote defined but never referenced is not counted (nothing to lose - it never
-            // rendered), and a footnote referenced only from a header or footer is not counted
-            // either (consistent with "detection is limited to the main document body", not a new
-            // carve-out). Do not "fix" this back to a per-definition count.
-            int footnotes = body is null ? 0 : body.Descendants<FootnoteReference>()
-                .Count(r => (r.Parent as Run)?.RunProperties?.RunStyle?.Val?.Value != "FootnoteReference");
-
-            if (footnotes > 0)
-            {
-                findings.Add(new DocxToPdfPreflightFinding(
-                    FootnoteCode,
-                    "Footnotes",
-                    $"{footnotes} footnote reference(s) without the character style a "
-                    + "normally-authored footnote carries. Their text does not reach the PDF - "
-                    + "measured. Word itself, and this library's own AddFootnote, always apply "
-                    + "that style, so this fires only for a footnote built by hand or by another "
-                    + "tool without it.",
-                    footnotes,
-                    DocxToPdfRisk.Known));
-            }
 
             // A table that is a DIRECT child of a cell, at any depth of nesting. Descendants finds
             // the cells at every level; ContentControls.Tables keeps the table bound to the cell
@@ -165,37 +120,6 @@ public static class DocxToPdfPreflight
                     $"{nested} table(s) nested inside a table cell. Their content is lost on render "
                     + "- measured. Tables used for page layout are the common case.",
                     nested,
-                    DocxToPdfRisk.Known));
-            }
-
-            // A content control that wraps, or sits inside, part of a TABLE. NOT content
-            // controls in general: A67 measured a body-level w:sdt SURVIVING the render and
-            // excluded controls on that evidence, correctly for what it measured. Re-measured
-            // 2026-08-27, the same construct one level in is lost while the body-level one still
-            // renders, so the finding is scoped to the table cases.
-            //
-            // ALL THREE table wrapper positions, because a code review measured that the first
-            // version reported only one of them and stayed silent on the other two:
-            //
-            //     w:tc > w:sdt        a control inside a cell        was reported
-            //     w:tr > w:sdt > w:tc a cell wrapped in a control    was SILENT, and is lost
-            //     w:tbl > w:sdt > w:tr a row wrapped in a control    was SILENT, and is lost
-            //
-            // The neighbouring plain cell renders in both silent cases, so this is a real loss
-            // rather than a broken fixture - and a Word form laid out in a table, which is what
-            // the finding's own message advertises, is usually built from cell-level controls.
-            int controlsInTables = body is null ? 0 : ControlsInTables(body);
-
-            if (controlsInTables > 0)
-            {
-                findings.Add(new DocxToPdfPreflightFinding(
-                    ControlInCellCode,
-                    "Content controls in tables",
-                    $"{controlsInTables} content control(s) in a table - inside a cell, or wrapping "
-                    + "a cell or a row. Their text does not reach the PDF - measured, while the "
-                    + "same control at body level renders normally. A form or template laid out in "
-                    + "a table is the common case.",
-                    controlsInTables,
                     DocxToPdfRisk.Known));
             }
 
@@ -224,48 +148,4 @@ public static class DocxToPdfPreflight
     /// </remarks>
     private static IEnumerable<TableCell> Cells(Body body) =>
         body.Descendants<TableCell>().Where(c => !c.Ancestors<TextBoxContent>().Any());
-
-    /// <summary>
-    /// How many content controls sit in a table position the renderer drops, counting the
-    /// OUTERMOST one at each site.
-    /// </summary>
-    /// <remarks>
-    /// Outermost wins because that is what the render does: measured, a control nested inside
-    /// another in the same cell loses its text exactly once — the outer one is dropped whole and
-    /// takes the inner with it. Counting both would inflate a number a caller uses to decide
-    /// whether the document is worth opening.
-    /// </remarks>
-    private static int ControlsInTables(Body body)
-    {
-        int count = 0;
-
-        foreach (var table in body.Descendants<Table>().Where(t => !t.Ancestors<TextBoxContent>().Any()))
-        {
-            foreach (var child in table.Elements())
-            {
-                if (child is SdtRow)
-                {
-                    // The whole row is wrapped. Nothing inside it renders, so nothing inside it
-                    // is counted again.
-                    count++;
-                    continue;
-                }
-
-                if (child is not TableRow row) continue;
-
-                foreach (var cell in row.Elements())
-                {
-                    if (cell is SdtCell)
-                    {
-                        count++;
-                        continue;
-                    }
-
-                    if (cell is TableCell plain) count += plain.Elements<SdtBlock>().Count();
-                }
-            }
-        }
-
-        return count;
-    }
 }

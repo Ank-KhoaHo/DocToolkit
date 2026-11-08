@@ -180,10 +180,11 @@ Worth knowing before you design around it:
   cannot encode a character it throws a `DocumentConversionException` naming it; where the host
   has a covering font, DOCX and HTML to PDF use it, unshaped. `PdfFontOptions` takes the host out
   of the answer on DOCX, HTML, XLSX and PPTX to PDF. Markdown to PDF does not accept it.
-- **Right-to-left support is partial.** With fonts supplied, each Hebrew and Arabic word is
-  spelled correctly and Arabic joins, but a line of several words still prints its words in
-  reverse order. Persian and Urdu letters (`پ چ ژ گ ک ی`) are not shaped, and a worksheet's
-  right-to-left direction is ignored: column A prints on the left. Merged cells are supported.
+- **Right-to-left support is partial.** With fonts supplied, a Hebrew line comes out in reading
+  order in DOCX, XLSX and PPTX to PDF. Arabic letters do not join yet, and no test measures the
+  word order of an Arabic line. Persian and Urdu letters (`پ چ ژ گ ک ی`) are not shaped, and a
+  worksheet's right-to-left direction is ignored: column A prints on the left. Merged cells are
+  supported.
 - **HTML → PDF goes through Word**, so CSS layout — flexbox, grid, floats, absolute positioning —
   does not survive. Text, headings, tables, lists, inline styling and images do.
 - **DOCX → HTML returns a full document**, not a fragment. Extract the body with a parser.

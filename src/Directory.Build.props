@@ -114,14 +114,14 @@
     it references the PUBLISHED core as a PackageReference, never these.
   -->
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'DocToolkit.Extensions.DependencyInjection'">
-    <PackageReference Include="AngleSharp" Version="1.7.2" />
+    <PackageReference Include="AngleSharp" Version="1.8.3" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageReference Include="HtmlToOpenXml.dll" Version="3.5.0" />
-    <PackageReference Include="OfficeIMO.Excel.Pdf" Version="3.2.6" />
-    <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.2.6" />
-    <PackageReference Include="OfficeIMO.Word.Html" Version="3.2.6" />
-    <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.2.6" />
+    <PackageReference Include="OfficeIMO.Excel.Pdf" Version="3.5.3" />
+    <PackageReference Include="OfficeIMO.PowerPoint.Pdf" Version="3.5.3" />
+    <PackageReference Include="OfficeIMO.Word.Html" Version="3.5.3" />
+    <PackageReference Include="OfficeIMO.Word.Markdown" Version="3.5.3" />
 
     <!--
       Promoted from TRANSITIVE to direct alongside OfficeIMO.Word, for the Protect/Unprotect
@@ -135,8 +135,8 @@
       workbook's CONTENT and OfficeIMO.Excel owns only the encrypted CONTAINER around it, which is
       the same structure/content split E6 draws for PDF.
     -->
-    <PackageReference Include="OfficeIMO.Excel" Version="3.2.6" />
-    <PackageReference Include="OfficeIMO.PowerPoint" Version="3.2.6" />
+    <PackageReference Include="OfficeIMO.Excel" Version="3.5.3" />
+    <PackageReference Include="OfficeIMO.PowerPoint" Version="3.5.3" />
 
     <!--
       Digital-signature inspection and validation (A99). The abstractions (IOfficeSecurityProvider,
@@ -148,7 +148,7 @@
       session via `dotnet list package` with the include-transitive flag on a throwaway probe
       project.
     -->
-    <PackageReference Include="OfficeIMO.Security" Version="3.2.6" />
+    <PackageReference Include="OfficeIMO.Security" Version="3.5.3" />
 
     <!--
       Promoted from TRANSITIVE to direct to lift a vulnerable version (C43). OfficeIMO.Security
@@ -173,7 +173,7 @@
       stop being pulled in by a minor bump of whatever pulled it, and nothing would say why the
       build broke.
     -->
-    <PackageReference Include="OfficeIMO.Word" Version="3.2.6" />
+    <PackageReference Include="OfficeIMO.Word" Version="3.5.3" />
     <!--
       PDF text extraction only. PDFsharp owns the document's STRUCTURE (pages, merge, rotate,
       metadata); PdfPig owns its CONTENT. Neither does the other's job - see the E6 decision.
@@ -235,7 +235,7 @@
     -->
     <PackageReference Include="PDFsharp" Version="6.2.4" />
 
-    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.2.6" />
+    <PackageReference Include="OfficeIMO.Word.Pdf" Version="3.5.3" />
 
     <!--
       Pinned deliberately, not incidentally. OfficeIMO.Word asks for SixLabors.Fonts

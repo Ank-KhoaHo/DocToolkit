@@ -72,7 +72,7 @@ public sealed class DocxToPdfPreflightFinding
     public string Message { get; }
 
     /// <summary>
-    /// How many were found, so a caller can triage by volume: one footnote in a memo is not the
+    /// How many were found, so a caller can triage by volume: one nested table in a memo is not the
     /// same problem as ninety in a contract.
     /// </summary>
     public int Count { get; }

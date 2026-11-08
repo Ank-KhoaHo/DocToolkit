@@ -38,7 +38,7 @@ internal static class UnshapedRender
     {
         using var input = Expandable(ListMarkerSubstitution.Apply(docx));
         using var word = WordDocument.Load(input);
-        return word.ToPdf(new WordPdfSaveOptions { PdfOptions = FontsOnly(fonts) });
+        return word.ToPdfBytes(new WordToPdfOptions { PdfOptions = FontsOnly(fonts) });
     }
 
     public static byte[] Xlsx(byte[] xlsx, PdfFontOptions fonts)
@@ -46,13 +46,13 @@ internal static class UnshapedRender
         using var input = Expandable(xlsx);
         using var workbook = ExcelDocument.Load(input);
         workbook.Calculate();
-        return workbook.ToPdf(new ExcelPdfSaveOptions { ResourcePolicy = Policy(), PdfOptions = FontsOnly(fonts) });
+        return workbook.ToPdfBytes(new ExcelToPdfOptions { ResourcePolicy = Policy(), PdfOptions = FontsOnly(fonts) });
     }
 
     public static byte[] Pptx(byte[] pptx, PdfFontOptions fonts)
     {
         using var input = Expandable(pptx);
         using var presentation = PowerPointPresentation.Load(input);
-        return presentation.ToPdf(new PowerPointPdfSaveOptions { ResourcePolicy = Policy(), PdfOptions = FontsOnly(fonts) });
+        return presentation.ToPdfBytes(new PowerPointToPdfOptions { ResourcePolicy = Policy(), PdfOptions = FontsOnly(fonts) });
     }
 }

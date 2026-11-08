@@ -106,7 +106,7 @@ public static class XlsxToPdfConverter
             // round trip - which ToPdf then reads directly.
             workbook.Calculate();
 
-            return workbook.ToPdf(PdfRenderPolicy.ForWorkbook(fonts));
+            return workbook.ToPdfBytes(PdfRenderPolicy.ForWorkbook(fonts));
         }
         catch (Exception ex)
         {

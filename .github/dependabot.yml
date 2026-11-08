@@ -121,6 +121,8 @@ updates:
       # hidden and non-bumping. A consumer would have restored four patch versions of the
       # engine behind every DOCX, XLSX, PPTX and PDF path with nothing in the changelog. It
       # truncated all eight lockfiles too, exactly as the /src/ blocks predict.
+      # The deliberate manual bump that followed is A123: OfficeIMO 3.2.6 -> 3.5.3 and AngleSharp
+      # 1.7.2 -> 1.8.3, a breaking API change, made by hand with the renames it needs.
       #
       # check-dependabot-scoping.py DERIVES this list from src/Directory.Build.props, so a
       # sixteenth package joins by being added and deleting a line here fails the build.
@@ -227,6 +229,8 @@ updates:
       # hidden and non-bumping. A consumer would have restored four patch versions of the
       # engine behind every DOCX, XLSX, PPTX and PDF path with nothing in the changelog. It
       # truncated all eight lockfiles too, exactly as the /src/ blocks predict.
+      # The deliberate manual bump that followed is A123: OfficeIMO 3.2.6 -> 3.5.3 and AngleSharp
+      # 1.7.2 -> 1.8.3, a breaking API change, made by hand with the renames it needs.
       #
       # check-dependabot-scoping.py DERIVES this list from src/Directory.Build.props, so a
       # sixteenth package joins by being added and deleting a line here fails the build.

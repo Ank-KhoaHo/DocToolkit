@@ -69,6 +69,21 @@ public class DocxFormLockTests
     }
 
     /// <summary>
+    /// On OfficeIMO 3.5 the library refuses first; DocToolkit's message replaces its text and the
+    /// upstream exception stays reachable for diagnosis.
+    /// </summary>
+    [Fact]
+    public void RefusalKeepsUpstreamAsInnerException()
+    {
+        var docx = Locked(DocxFormFixtures.Form(), LockingValues.SdtContentLocked);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => DocxForm.Fill(docx, Name("OVERWRITTEN")));
+
+        Assert.NotNull(ex.InnerException);
+    }
+
+    /// <summary>
     /// The positive control, and it is load-bearing rather than decorative: a <c>Fill</c> that threw
     /// on EVERY input would satisfy every assertion above and nothing else here would notice.
     /// </summary>

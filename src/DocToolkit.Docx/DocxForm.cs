@@ -397,7 +397,13 @@ public static class DocxForm
             source.Position = 0;
             using (var document = OfficeIMOWordDocument.Load(source))
             {
-                document.FillContentControlValues(Upstream(values), Upstream(key));
+                // OfficeIMO 3.5 refuses a locked control itself, before the check below, with its own
+                // text; surface DocToolkit's message and keep the upstream one as the inner exception.
+                try { document.FillContentControlValues(Upstream(values), Upstream(key)); }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("locked", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(LockedMessage, ex);
+                }
                 document.Save(result);
             }
 
@@ -464,12 +470,14 @@ public static class DocxForm
     {
         if (before.Count == after.Count && before.SequenceEqual(after, StringComparer.Ordinal)) return;
 
-        throw new InvalidOperationException(
-            "The fill would change a content control the document locks against editing, so nothing "
-            + "was written. A w:lock is the author's instruction about their own document, and "
-            + "writing through it produces a file that still declares the control locked while its "
-            + "content has changed. Remove the lock in Word, or leave that control out of the values.");
+        throw new InvalidOperationException(LockedMessage);
     }
+
+    private const string LockedMessage =
+        "The fill would change a content control the document locks against editing, so nothing "
+        + "was written. A w:lock is the author's instruction about their own document, and "
+        + "writing through it produces a file that still declares the control locked while its "
+        + "content has changed. Remove the lock in Word, or leave that control out of the values.";
 
     private static Dictionary<string, object?> Upstream(
         IReadOnlyDictionary<string, DocxFormValue> values)

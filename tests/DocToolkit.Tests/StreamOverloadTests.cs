@@ -1018,7 +1018,7 @@ public class StreamOverloadTests
         var sink = new ForwardOnlySink();
         await DocxToPdfConverter.ConvertAsync(source, sink);
 
-        Assert.True(sink.ToArray().Length > 100_000, $"expected a sizeable PDF, got {sink.ToArray().Length} bytes");
+        Assert.True(sink.ToArray().Length > 30_000, $"expected a sizeable PDF (3.5 compresses streams), got {sink.ToArray().Length} bytes");
         Assert.True(PdfProbe.IsPdf(sink.ToArray()));
         Assert.False(sink.IsDisposed, "ConvertAsync disposed a destination it does not own");
     }

@@ -107,7 +107,7 @@ public class MarkdownToPdfConverterTests
 
         var written = sink.ToArray();
         Assert.True(PdfProbe.IsPdf(written));
-        Assert.True(written.Length > 100_000, $"expected a sizeable PDF, got {written.Length} bytes");
+        Assert.True(written.Length > 30_000, $"expected a sizeable PDF (3.5 compresses streams), got {written.Length} bytes");
         Assert.False(sink.IsDisposed, "ConvertAsync disposed a destination it does not own");
     }
 

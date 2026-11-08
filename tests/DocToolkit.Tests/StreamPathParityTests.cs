@@ -17,7 +17,8 @@ namespace DocToolkit.Tests;
 /// <see cref="HtmlAnchorRepair"/>'s own count - converted through <c>ConvertAsync(html)</c> and was
 /// refused through <c>ConvertAsync(html, destination)</c>;</item>
 /// <item><b>4 of 99 real Word documents</b> converted through <c>DocxToPdfConverter.Convert</c> and
-/// were refused through its stream overload, every one a negative indent the clamp recovers.</item>
+/// were refused through its stream overload, every one a negative indent. 3.5 renders those as they stand, so the DOCX test below uses a
+/// document that only the refusal ladder can repair.</item>
 /// </list>
 ///
 /// <b>The fix buffers, on the maintainer's decision, and that is the trade this file pins.</b> One
@@ -74,39 +75,16 @@ public class StreamPathParityTests
 
     // ---- DOCX to PDF --------------------------------------------------------------------------------
 
-    /// <summary>A .docx carrying the negative indent the renderer refuses and the clamp repairs.</summary>
-    private static byte[] NegativeIndentDocument()
-    {
-        var docx = DocxEditor.Create([DocxBlock.Paragraph("Text long enough to wrap onto a second line.")]);
-
-        using var ms = new MemoryStream();
-        ms.Write(docx, 0, docx.Length);
-        ms.Position = 0;
-
-        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Update, leaveOpen: true))
-        {
-            var entry = zip.GetEntry("word/document.xml")!;
-            string xml;
-            using (var reader = new StreamReader(entry.Open(), System.Text.Encoding.UTF8)) xml = reader.ReadToEnd();
-
-            var paragraph = xml.IndexOf("<w:p ", StringComparison.Ordinal);
-            if (paragraph < 0) paragraph = xml.IndexOf("<w:p>", StringComparison.Ordinal);
-            var afterOpen = xml.IndexOf('>', paragraph) + 1;
-            xml = xml[..afterOpen] + "<w:pPr><w:ind w:right=\"-720\"/></w:pPr>" + xml[afterOpen..];
-
-            entry.Delete();
-            var fresh = zip.CreateEntry("word/document.xml", System.IO.Compression.CompressionLevel.Optimal);
-            using var writer = new StreamWriter(fresh.Open(), new System.Text.UTF8Encoding(false));
-            writer.Write(xml);
-        }
-
-        return ms.ToArray();
-    }
-
     [Fact]
-    public async Task DocxToPdf_StreamAgreesWithBytes_OnADocumentNeedingTheClamp()
+    public async Task DocxToPdf_StreamAgreesWithBytes_OnADocumentOnlyTheLadderCanRepair()
     {
-        var docx = NegativeIndentDocument();
+        // Raw 3.5.3 refuses this document (cell padding wider than its column), so a path that skips
+        // the refusal ladder cannot convert it. A fixture 3.5 renders as it stands would let the
+        // stream overload skip every repair and still pass.
+        var docx = DocxPdfRefusalLadderTests.PaddingRefusedDocument();
+        var refusal = RawRender.Refusal(docx);
+        Assert.NotNull(refusal);
+        Assert.Contains("cell padding must leave a positive text width", refusal.Message, StringComparison.Ordinal);
 
         var viaBytes = DocxToPdfConverter.Convert(docx);
         var viaStream = await ViaStream(async d =>
@@ -117,7 +95,9 @@ public class StreamPathParityTests
 
         Assert.True(PdfProbe.IsPdf(viaBytes));
         Assert.True(PdfProbe.IsPdf(viaStream));
-        Assert.Contains("second line", PdfProbe.ExtractText(viaStream), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("after the table", PdfProbe.ExtractText(viaBytes), StringComparison.Ordinal);
+        Assert.Contains("after the table", PdfProbe.ExtractText(viaStream), StringComparison.Ordinal);
+        Assert.Equal(PdfProbe.MediaBoxes(viaBytes).Count, PdfProbe.MediaBoxes(viaStream).Count);
     }
 
     // ---- what buffering bought ----------------------------------------------------------------------

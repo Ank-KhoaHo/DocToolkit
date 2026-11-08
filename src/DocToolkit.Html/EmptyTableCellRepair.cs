@@ -24,7 +24,7 @@ namespace DocToolkit;
 /// <b>Nothing about width or padding avoids it, which was measured before choosing this repair.</b>
 /// <c>width="20"</c> on the spacer, <c>width="1"</c>, <c>style="padding:0"</c>,
 /// <c>cellpadding="0"</c> on the table and <c>width="100%"</c> on the table all still fail - and the
-/// renderer's padding is not reachable from this package at all, since <c>WordPdfSaveOptions</c>
+/// renderer's padding is not reachable from this package at all, since <c>WordToPdfOptions</c>
 /// exposes no cell-padding knob.
 ///
 /// <b>What does work is giving the cell a non-breaking space</b>, which is what authors of that era

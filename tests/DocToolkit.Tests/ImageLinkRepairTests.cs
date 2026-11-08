@@ -119,10 +119,21 @@ public class ImageLinkRepairTests
     }
 
     [Fact]
-    public void ItIsNotAppliedUpFront()
+    public void ItIsAppliedUpFront()
     {
-        // Same discipline as EmptyTableCellRepair: only a document that has already failed is edited.
+        // Inverted for OfficeIMO 3.5: it renders these without failing and loses the alt text, so a
+        // retry never fires. Every document the repair touches failed on 3.2.
         var html = Table("<a href=\"https://e.com\"><img alt=\"Logo\"></a>");
+
+        Assert.Equal(ImageLinkRepair.Apply(html), HtmlForPdf.Prepare(html));
+        Assert.NotEqual(html, HtmlForPdf.Prepare(html));
+    }
+
+    [Fact]
+    public void AnOrdinaryLinkIsUntouchedUpFront()
+    {
+        // The up-front run must not edit a document that has no image-only link.
+        var html = Table("<a href=\"https://e.com\">Read more</a>");
 
         Assert.Same(html, HtmlForPdf.Prepare(html));
     }

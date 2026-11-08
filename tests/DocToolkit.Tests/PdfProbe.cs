@@ -8,10 +8,10 @@ namespace DocToolkit.Tests;
 /// <summary>
 /// Reads facts out of a generated PDF for assertions.
 ///
-/// IMPORTANT: OfficeIMO writes content streams UNCOMPRESSED (no /Filter) and emits text as
-/// hex-string operators, e.g. "&lt;41636D65&gt; Tj" == "Acme". So neither inflating the streams
-/// nor substring-searching the raw bytes finds any text - both return nothing and look exactly
-/// like a broken converter. Always go through this helper.
+/// IMPORTANT: OfficeIMO emits text as hex-string operators, e.g. "&lt;41636D65&gt; Tj" == "Acme",
+/// and from 3.5 deflates the content streams as well. So substring-searching the file finds no
+/// text - it returns nothing and looks exactly like a broken converter. Always go through this
+/// helper, which inflates the streams (<see cref="Raw"/>) and decodes each font on its own.
 /// </summary>
 public static class PdfProbe
 {
@@ -87,7 +87,205 @@ public static class PdfProbe
     private static char DecodeWinAnsiByte(int b) =>
         b is >= 0x80 and <= 0x9F ? WinAnsiHighRange[b - 0x80] : (char)b;
 
-    private static string Raw(byte[] pdf) => Encoding.Latin1.GetString(pdf);
+    // OfficeIMO 3.5 deflates its content streams; Raw (below) inflates each by its /Length.
+    private static readonly Regex FlateStream = new(
+        @"<<((?:[^<>]|<<[^<>]*>>|<[0-9A-Fa-f]*>)*?/FlateDecode(?:[^<>]|<<[^<>]*>>|<[0-9A-Fa-f]*>)*?)>>\s*stream\r?\n",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+    // "/Length 12 0 R" is an indirect length: group 2 is then set, and group 1 names the object holding the number.
+    private static readonly Regex LengthField = new(@"/Length\s+(\d+)(\s+\d+\s+R)?", RegexOptions.Compiled);
+
+    /// <summary>
+    /// The PDF as text with every <c>/FlateDecode</c> content stream inflated in place, so the rest of
+    /// this class can keep reading operators straight out of the bytes. Font files (<c>/Length1</c>)
+    /// and images are left compressed: they are binary and nothing here reads them.
+    /// </summary>
+    public static string Raw(byte[] pdf)
+    {
+        var raw = Encoding.Latin1.GetString(pdf);
+        if (!raw.Contains("/FlateDecode", StringComparison.Ordinal)) return raw;
+        var sb = new StringBuilder(raw.Length * 2);
+        var at = 0;
+        foreach (Match m in FlateStream.Matches(raw))
+        {
+            if (m.Index < at) continue;
+            var len = LengthField.Match(m.Groups[1].Value);
+            if (!len.Success || m.Groups[1].Value.Contains("/Length1", StringComparison.Ordinal)
+                || m.Groups[1].Value.Contains("/Image", StringComparison.Ordinal)) continue;
+            var start = m.Index + m.Length;
+            var n = int.Parse(len.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (len.Groups[2].Success)
+            {
+                var target = Regex.Match(raw, @"(?<!\d)" + n + @"\s+\d+\s+obj\s+(\d+)\s+endobj");
+                if (!target.Success) continue;
+                n = int.Parse(target.Groups[1].Value, CultureInfo.InvariantCulture);
+            }
+            if (start + n > pdf.Length) continue;
+            string body;
+            try
+            {
+                using var z = new System.IO.Compression.ZLibStream(new MemoryStream(pdf, start, n), System.IO.Compression.CompressionMode.Decompress);
+                using var o = new MemoryStream();
+                z.CopyTo(o);
+                body = Encoding.Latin1.GetString(o.ToArray());
+            }
+            catch (InvalidDataException) { continue; }
+            sb.Append(raw, at, start - at).Append(body).Append('\n');
+            at = start + n;
+        }
+        sb.Append(raw, at, raw.Length - at);
+        return sb.ToString();
+    }
+
+    // OfficeIMO 3.5 mixes several subset fonts per page, each with its own glyph ids, and writes
+    // kerned text as TJ arrays. So the font names are resolved PER PAGE (/F1 can mean a different
+    // font on the next page), and each string is decoded with the font the last Tf selected.
+    //
+    // Still assumed: text is in hex strings (as OfficeIMO writes it), and the page tree is a plain
+    // /Kids tree. Anything else decodes as WinAnsi or is skipped, never as another font's map.
+    private static readonly Regex ObjectBody = new(@"(?<![\d])(\d+)\s+0\s+obj\b(.*?)endobj", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex IndirectRef = new(@"(\d+)\s+0\s+R", RegexOptions.Compiled);
+    private static readonly Regex NamedRef = new(@"/([^\s/\[\]<>()]+)\s+(\d+)\s+0\s+R", RegexOptions.Compiled);
+    private static readonly Regex ToUnicodeRef = new(@"/ToUnicode\s+(\d+)\s+0\s+R", RegexOptions.Compiled);
+    private static readonly Regex TypeIsPage = new(@"/Type\s*/Page(?![s\w])", RegexOptions.Compiled);
+    private static readonly Regex KidsArray = new(@"/Kids\s*\[([^\]]*)\]", RegexOptions.Compiled);
+    private static readonly Regex ContentsArray = new(@"/Contents\s*\[([^\]]*)\]", RegexOptions.Compiled);
+    private static readonly Regex TextOps = new(
+        @"/(?<font>[^\s/\[\]<>()]+)\s+[-\d.]+\s+Tf|\[(?<arr>[^\]]*)\]\s*TJ|<(?<hex>[0-9A-Fa-f]*)>\s*Tj"
+        + @"|(?<![-\d.])1(?:\.0+)? 0(?:\.0+)? 0(?:\.0+)? 1(?:\.0+)? (?<tmx>[-\d.]+) [-\d.]+ Tm|(?<![-\d.])(?<tdx>[-\d.]+) [-\d.]+ Td",
+        RegexOptions.Compiled);
+    private static readonly Regex HexInArray = new(@"<([0-9A-Fa-f]*)>", RegexOptions.Compiled);
+
+    /// <summary>The value of <paramref name="key"/> in <paramref name="body"/>: a dictionary or object, direct or via "N 0 R".</summary>
+    private static string? ValueOf(string body, string key, Dictionary<string, string> bodies)
+    {
+        var at = Regex.Match(body, Regex.Escape(key) + @"(?![\w])\s*");
+        if (!at.Success) return null;
+        var rest = at.Index + at.Length;
+        if (string.CompareOrdinal(body, rest, "<<", 0, 2) == 0)
+        {
+            var depth = 0;
+            for (var i = rest; i + 1 < body.Length; i++)
+            {
+                if (body[i] == '<' && body[i + 1] == '<') { depth++; i++; }
+                else if (body[i] == '>' && body[i + 1] == '>')
+                {
+                    if (--depth == 0) return body.Substring(rest, i + 2 - rest);
+                    i++;
+                }
+            }
+            return null;
+        }
+        var r = IndirectRef.Match(body, rest);
+        return r.Success && r.Index == rest && bodies.TryGetValue(r.Groups[1].Value, out var target) ? target : null;
+    }
+
+    private static string? ExtractPerFont(string raw, List<(string Text, double X)>? runs = null)
+    {
+        var bodies = new Dictionary<string, string>();
+        var order = new List<string>();
+        foreach (Match m in ObjectBody.Matches(raw))
+            if (bodies.TryAdd(m.Groups[1].Value, m.Groups[2].Value)) order.Add(m.Groups[1].Value);
+
+        // Pages in page-tree order, each with its (possibly inherited) /Resources; in file order if there is no tree.
+        var pages = new List<(string Body, string? Resources)>();
+        var root = order.FirstOrDefault(n => TypeIsPages.IsMatch(bodies[n]) && !bodies[n].Contains("/Parent", StringComparison.Ordinal));
+        void Walk(string num, string? inherited, int depth)
+        {
+            if (depth > 32 || !bodies.TryGetValue(num, out var body)) return;
+            var own = ValueOf(body, "/Resources", bodies) ?? inherited;
+            if (TypeIsPage.IsMatch(body)) { pages.Add((body, own)); return; }
+            var kids = KidsArray.Match(body);
+            if (kids.Success)
+                foreach (Match k in IndirectRef.Matches(kids.Groups[1].Value)) Walk(k.Groups[1].Value, own, depth + 1);
+        }
+        if (root is not null) Walk(root, null, 0);
+        else
+            foreach (var n in order.Where(n => TypeIsPage.IsMatch(bodies[n])))
+                pages.Add((bodies[n], ValueOf(bodies[n], "/Resources", bodies)));
+
+        var cmaps = new Dictionary<string, Dictionary<int, string>>();
+        var fontIds = new HashSet<string>();
+        var anyIdentity = false;
+        var sb = new StringBuilder();
+        foreach (var (page, resources) in pages)
+        {
+            var fonts = new Dictionary<string, (bool TwoByte, Dictionary<int, string>? Map)>();
+            var fontDict = resources is null ? null : ValueOf(resources, "/Font", bodies);
+            if (fontDict is not null)
+                foreach (Match r in NamedRef.Matches(fontDict))
+                {
+                    if (!bodies.TryGetValue(r.Groups[2].Value, out var font)) continue;
+                    fontIds.Add(r.Groups[2].Value);
+                    Dictionary<int, string>? map = null;
+                    var tu = ToUnicodeRef.Match(font);
+                    if (tu.Success && bodies.TryGetValue(tu.Groups[1].Value, out var cmap))
+                    {
+                        if (!cmaps.TryGetValue(tu.Groups[1].Value, out map))
+                            cmaps[tu.Groups[1].Value] = map = ToUnicodeMap(cmap);
+                    }
+                    var twoByte = font.Contains("/Identity-H", StringComparison.Ordinal);
+                    anyIdentity |= twoByte;
+                    fonts[r.Groups[1].Value] = (twoByte, map);
+                }
+
+            // /Contents is one stream or an array of them.
+            var streams = new List<string>();
+            var array = ContentsArray.Match(page);
+            if (array.Success)
+            {
+                foreach (Match c in IndirectRef.Matches(array.Groups[1].Value))
+                    if (bodies.TryGetValue(c.Groups[1].Value, out var cb)) streams.Add(cb);
+            }
+            else if (ValueOf(page, "/Contents", bodies) is { } single) streams.Add(single);
+
+            (bool TwoByte, Dictionary<int, string>? Map) current = (false, null);
+            var x = 0.0; // x of the current text line: Tm sets it, Td moves it
+            foreach (var body in streams)
+                foreach (Match op in TextOps.Matches(body))
+                {
+                    if (op.Groups["font"].Success) { fonts.TryGetValue(op.Groups["font"].Value, out current); continue; }
+                    if (op.Groups["tmx"].Success) { x = double.Parse(op.Groups["tmx"].Value, CultureInfo.InvariantCulture); continue; }
+                    if (op.Groups["tdx"].Success) { x += double.Parse(op.Groups["tdx"].Value, CultureInfo.InvariantCulture); continue; }
+                    var hexes = op.Groups["hex"].Success
+                        ? new[] { op.Groups["hex"].Value }
+                        : HexInArray.Matches(op.Groups["arr"].Value).Select(h => h.Groups[1].Value).ToArray();
+                    var run = new StringBuilder();
+                    foreach (var hex in hexes) Decode(hex, current, run);
+                    sb.Append(run);
+                    runs?.Add((run.ToString(), x));
+                }
+        }
+
+        // Only taken over from the single-map path when that could go wrong: composite fonts (glyph
+        // ids), more than one font in play, or TJ arrays (which the single-map path does not read).
+        return runs is not null || fontIds.Count > 1 || anyIdentity || raw.Contains(" TJ", StringComparison.Ordinal) ? sb.ToString() : null;
+    }
+
+    private static void Decode(string hex, (bool TwoByte, Dictionary<int, string>? Map) font, StringBuilder sb)
+    {
+        var step = font.TwoByte ? 4 : 2;
+        for (var i = 0; i + step <= hex.Length; i += step)
+        {
+            var code = Convert.ToInt32(hex.Substring(i, step), 16);
+            if (font.Map is not null && font.Map.TryGetValue(code, out var text)) sb.Append(text);
+            else if (!font.TwoByte) sb.Append(DecodeWinAnsiByte(code));
+        }
+    }
+
+    /// <summary>
+    /// Every text-showing operator (Tj, or a whole TJ array) with its decoded text and the x of the
+    /// line it starts on, in content-stream order. For judging right-to-left text by POSITION: a
+    /// run's text is in the order its glyphs are drawn (left to right), which for a right-to-left
+    /// word is the word backwards. x is the start of the operator; numbers inside a TJ array shift
+    /// the strings after the first, and are not folded in. Runs with no decodable text (spaces
+    /// included) are returned too, so filter on <c>Text.Trim()</c>.
+    /// </summary>
+    public static IReadOnlyList<(string Text, double X)> TextRuns(byte[] pdf)
+    {
+        var runs = new List<(string Text, double X)>();
+        ExtractPerFont(Raw(pdf), runs);
+        return runs;
+    }
 
     public static bool IsPdf(byte[] pdf) =>
         pdf.Length >= 5 && Encoding.ASCII.GetString(pdf, 0, 5) == "%PDF-";
@@ -110,6 +308,11 @@ public static class PdfProbe
     public static string ExtractText(byte[] pdf)
     {
         var raw = Raw(pdf);
+
+        // 3.5 writes kerned text as TJ arrays through several subset fonts, each with its own glyph
+        // ids and its own /ToUnicode, so a single document-wide map would mix them up.
+        if (ExtractPerFont(raw) is { } perFont)
+            return perFont;
 
         // /Identity-H is the signal that codes are two-byte glyph IDs. Keyed on that rather than on
         // "a ToUnicode exists", so a simple-encoded PDF that happens to carry one still decodes the
