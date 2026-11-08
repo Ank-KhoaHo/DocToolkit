@@ -231,29 +231,60 @@ public class PdfFontOptionsTests
     /// Asserts the PDF draws <see cref="HebrewLine"/> as a right-to-left line: the first word is the
     /// rightmost run, the last the leftmost. Judged by run x position, never by eye.
     /// </summary>
-    /// <remarks>
-    /// Measured 2026-11-08 (OfficeIMO 3.5.3, DejaVu): Hebrew needs no letter joining, so shaped and
-    /// unshaped bytes are equal and "bytes differ" can no longer be the test. The line is drawn
-    /// visually: each word is one run whose glyphs run left to right, so its text is the word
-    /// backwards. The runs sit at x 141.5, 122.2, 88.7 and 72.0 (חשבונית, מס, מספר, 12). The same
-    /// words fed in reversed order land the other way round (12 at 170.1), so x order tells the two apart.
-    /// A run may hold a word forwards or backwards; both count, so a logical-order writer passes too.
-    /// </remarks>
-    internal static void AssertHebrewLineIsInReadingOrder(byte[] pdf)
+    internal static void AssertHebrewLineIsInReadingOrder(byte[] pdf) =>
+        AssertRunsAreTheHebrewLine(PdfProbe.TextRuns(pdf));
+
+    /// <summary>
+    /// The exact run strings, by x descending. Measured 2026-11-08 (OfficeIMO 3.5.3, DejaVu): Hebrew
+    /// needs no letter joining, so shaped and unshaped bytes are equal and "bytes differ" can no
+    /// longer be the test. The line is drawn visually: one run per word, glyphs left to right, so a
+    /// Hebrew word's run text is the word BACKWARDS (תינובשח, סמ, רפסמ) and digits stay as they are
+    /// (12). The runs sit at x 141.5, 122.2, 88.7 and 72.0. The same words fed in reversed order land
+    /// the other way round (12 at 170.1). A Hebrew word reading forwards in a run would have its first
+    /// letter leftmost - the letters-reversed defect - so it is rejected, as is "21".
+    /// </summary>
+    internal static void AssertRunsAreTheHebrewLine(IEnumerable<(string Text, double X)> runs)
     {
-        var drawn = PdfProbe.TextRuns(pdf)
+        var drawn = runs
             .Where(r => r.Text.Trim().Length > 0)
             .OrderByDescending(r => r.X)
             .ToArray();
         var seen = string.Join(" | ", drawn.Select(r => $"{r.Text} @{r.X}"));
+        var expected = HebrewLine
+            .Select(w => w.All(char.IsAsciiDigit) ? w : new string(w.Reverse().ToArray()))
+            .ToArray();
 
-        Assert.True(drawn.Length == HebrewLine.Length, $"expected {HebrewLine.Length} word runs, got: {seen}");
-        for (var i = 0; i < HebrewLine.Length; i++)
-        {
-            var backwards = new string(HebrewLine[i].Reverse().ToArray());
-            Assert.True(drawn[i].Text.Trim() == HebrewLine[i] || drawn[i].Text.Trim() == backwards,
-                $"word {i} (from the right) should be {HebrewLine[i]}, runs by x descending: {seen}");
-        }
+        Assert.True(drawn.Select(r => r.Text.Trim()).SequenceEqual(expected),
+            $"runs by x descending should read {string.Join(" | ", expected)}, got: {seen}");
+    }
+
+    [Fact]
+    public void HebrewLineAssertion_AcceptsTheMeasuredRuns()
+    {
+        AssertRunsAreTheHebrewLine([("תינובשח", 141.5), (" ", 138.2), ("סמ", 122.2), ("רפסמ", 88.7), ("12", 72.0)]);
+    }
+
+    [Fact]
+    public void HebrewLineAssertion_RejectsWordsInReversedOrder()
+    {
+        // Measured: the reversed input lands 12 rightmost (170.1) and חשבונית leftmost (72.0).
+        Assert.ThrowsAny<Exception>(() => AssertRunsAreTheHebrewLine(
+            [("12", 170.1), ("רפסמ", 136.5), ("סמ", 117.3), ("תינובשח", 72.0)]));
+    }
+
+    [Fact]
+    public void HebrewLineAssertion_RejectsLettersInLogicalOrder()
+    {
+        // Right word order, but each Hebrew word reads forwards: first letter leftmost.
+        Assert.ThrowsAny<Exception>(() => AssertRunsAreTheHebrewLine(
+            [("חשבונית", 141.5), ("מס", 122.2), ("מספר", 88.7), ("12", 72.0)]));
+    }
+
+    [Fact]
+    public void HebrewLineAssertion_RejectsReversedDigits()
+    {
+        Assert.ThrowsAny<Exception>(() => AssertRunsAreTheHebrewLine(
+            [("תינובשח", 141.5), ("סמ", 122.2), ("רפסמ", 88.7), ("21", 72.0)]));
     }
 
     /// <summary>Hebrew rendered with a supplied font reads right to left, in word order.</summary>
