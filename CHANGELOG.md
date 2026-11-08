@@ -10,6 +10,19 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.60.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.59.0...v0.60.0) (2026-11-08)
+
+
+### Added
+
+* Arabic, Persian and Urdu letters join in PDF when fonts are supplied (A124) ([#545](https://github.com/Ank-KhoaHo/DocToolkit/issues/545)) ([2f2e8a8](https://github.com/Ank-KhoaHo/DocToolkit/commit/2f2e8a8a47e9b96f04bb04f631d8c6acd6a16832))
+* render through OfficeIMO 3.5.3, with repairs for what it refuses (A123) ([#541](https://github.com/Ank-KhoaHo/DocToolkit/issues/541)) ([6afb4e6](https://github.com/Ank-KhoaHo/DocToolkit/commit/6afb4e67459f02acc9b9d540a41715ad46a2badc))
+
+
+### Changed
+
+* give both packages a NuGet title carrying their task words ([#546](https://github.com/Ank-KhoaHo/DocToolkit/issues/546)) ([93cdfd5](https://github.com/Ank-KhoaHo/DocToolkit/commit/93cdfd585b1329379787d04612f174dd514a31c7))
+
 ## [0.59.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.58.0...v0.59.0) (2026-11-03)
 
 
