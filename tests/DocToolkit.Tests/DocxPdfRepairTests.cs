@@ -199,45 +199,76 @@ public class DocxPdfRepairTests
         Assert.Same(docx, ControlCharacterStrip.Apply(docx));
     }
 
-    // ---- R7: a cell width of a few fiftieths of a percent -----------------------------------------
+    // ---- R7: a percentage width of a few fiftieths of a percent ------------------------------------
 
     /// <summary>
-    /// A 100% table whose first cell is <c>tcW w="50" type="pct"</c> - what HtmlToDocx writes for
-    /// <c>&lt;td width="1%"&gt;</c>.
+    /// A 1% table (<c>tblW w="50" type="pct"</c>) with cell spacing, nested in a cell of a 100% table.
     /// </summary>
     /// <remarks>
-    /// <b>Raw 3.5.3 renders this fixture and every variant tried</b> (cell or table width, 108-twip
-    /// padding, fixed layout, explicit grid), so these tests cannot assert a refusal. The refusal is
-    /// recorded only against the corpus (html-000079); the corpus gate is the proof for this repair.
+    /// <b>Minimal shape, bisected from a real document (html-000079) down to this.</b> Both parts are
+    /// needed: the 1% width alone renders, and so does cell spacing alone. Nesting is needed too, as
+    /// a top-level 1% table with spacing renders. Cell margins do not matter - the real document had
+    /// them zeroed, this fixture does not.
     /// </remarks>
-    private static byte[] TinyPercentCell()
+    private static byte[] TinyPercentSpacedTableInCell()
+    {
+        var inner = Tbl(Row(R("tiny percent table")));
+        var properties = inner.GetFirstChild<TableProperties>()!;
+        properties.TableWidth = new TableWidth { Width = "50", Type = TableWidthUnitValues.Pct };
+        properties.TableCellSpacing = new TableCellSpacing { Width = "90", Type = TableWidthUnitValues.Dxa };
+
+        var outer = Tbl(new TableRow(new TableCell(P(R("before")), inner, P(R("after")))));
+        outer.GetFirstChild<TableProperties>()!.TableWidth =
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct };
+        return Build(outer);
+    }
+
+    [Fact]
+    public void TinyPercentWidthRepair_RefusedBefore_RendersAfter()
+    {
+        var docx = TinyPercentSpacedTableInCell();
+        // Raw 3.5.3: ArgumentException "Table preferred width must be a positive finite value.
+        // (Parameter 'PreferredWidth')".
+        var refusal = RawRefusal(docx);
+        Assert.IsType<ArgumentException>(refusal);
+        Assert.Contains("preferred width must be a positive finite value", refusal.Message, StringComparison.Ordinal);
+
+        // The repair alone is enough here; a document that ALSO trips the cell-padding refusal (the
+        // real html-000079 does) needs the padding ladder as well.
+        Assert.Null(RawRefusal(TinyPercentWidthRepair.Apply(docx)));
+        var text = PdfProbe.ExtractText(DocxToPdfConverter.Convert(docx));
+        Assert.Contains("tiny percent table", text);
+        Assert.Contains("after", text);
+    }
+
+    [Fact]
+    public void TinyPercentWidthRepair_TurnsTheTableWidthAuto()
+    {
+        var xml = Part(TinyPercentWidthRepair.Apply(TinyPercentSpacedTableInCell()), "word/document.xml");
+
+        var tblW = xml[xml.IndexOf("<w:tblW", StringComparison.Ordinal)..];
+        tblW = tblW[..tblW.IndexOf("/>", StringComparison.Ordinal)];
+        Assert.Contains("w:type=\"pct\"", tblW); // the 100% outer table is first and untouched
+        var inner = xml[(xml.IndexOf("<w:tblW", StringComparison.Ordinal) + 1)..];
+        inner = inner[inner.IndexOf("<w:tblW", StringComparison.Ordinal)..];
+        inner = inner[..inner.IndexOf("/>", StringComparison.Ordinal)];
+        Assert.Contains("w:w=\"0\"", inner);
+        Assert.Contains("w:type=\"auto\"", inner);
+    }
+
+    [Fact]
+    public void TinyPercentWidthRepair_AlsoFixesACell()
     {
         var table = Tbl(new TableRow(
             new TableCell(new TableCellProperties(new TableCellWidth { Width = "50", Type = TableWidthUnitValues.Pct }), P(R("tiny percent cell"))),
             new TableCell(P(R("the rest")))));
-        table.GetFirstChild<TableProperties>()!.TableWidth =
-            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct };
-        return Build(table);
-    }
 
-    [Fact]
-    public void TinyPercentWidthRepair_StillRendersAfter()
-    {
-        var pdf = DocxToPdfConverter.Convert(TinyPercentCell());
-
-        Assert.Contains("tiny percent cell", PdfProbe.ExtractText(pdf));
-    }
-
-    [Fact]
-    public void TinyPercentWidthRepair_TurnsTheCellWidthAuto()
-    {
-        var xml = Part(TinyPercentWidthRepair.Apply(TinyPercentCell()), "word/document.xml");
+        var xml = Part(TinyPercentWidthRepair.Apply(Build(table)), "word/document.xml");
 
         var tcW = xml[xml.IndexOf("<w:tcW", StringComparison.Ordinal)..];
         tcW = tcW[..tcW.IndexOf("/>", StringComparison.Ordinal)];
         Assert.Contains("w:w=\"0\"", tcW);
         Assert.Contains("w:type=\"auto\"", tcW);
-        Assert.Contains("w:type=\"pct\"", xml); // the 100% table width is not touched
     }
 
     [Fact]
