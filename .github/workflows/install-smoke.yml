@@ -347,7 +347,9 @@ jobs:
           Check(PresentationEditor.SlideCount(pptx) == 1, "PresentationEditor.Create");
 
           byte[] pdf = DocxToPdfConverter.Convert(docx);
-          Check(pdf.Length > 1000 && pdf[0] == (byte)'%', "DocxToPdfConverter.Convert");
+          // The text, not a byte count: OfficeIMO 3.5 compresses, and a one-line PDF is under 1 KB.
+          Check(pdf[0] == (byte)'%' && string.Concat(PdfEditor.ExtractText(pdf)).Contains("fresh install"),
+                "DocxToPdfConverter.Convert");
 
           // The DI package, through a real container.
           var provider = new ServiceCollection().AddDocToolkit().BuildServiceProvider();
