@@ -47,6 +47,12 @@ public static class DocxToPdfConverter
         try
         {
             prepared = ListMarkerSubstitution.Apply(docx);
+            // Constructs Word accepts and OfficeIMO 3.5 refuses, repaired on every conversion. Each
+            // returns the SAME array when it finds nothing, so a document that renders today is never
+            // rewritten, and `prepared` stays the array that was rendered (A123).
+            prepared = HyperlinkBlankRunSplit.Apply(prepared);
+            prepared = ControlCharacterStrip.Apply(prepared);
+            prepared = TinyPercentWidthRepair.Apply(prepared);
             return Render(prepared, fonts);
         }
         catch (DocumentConversionException) { throw; }
