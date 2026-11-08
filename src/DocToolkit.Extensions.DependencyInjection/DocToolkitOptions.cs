@@ -115,10 +115,10 @@ public sealed class DocToolkitOptions
     /// whose converters take them.
     ///
     /// <b>Supplying fonts also turns on right-to-left shaping</b> - a Hebrew line comes out in
-    /// reading order, and Arabic, Persian and Urdu letters take their contextual (joined) forms. A
-    /// worksheet's right-to-left
-    /// direction is still ignored. See
-    /// <see cref="PdfFontOptions"/>.
+    /// reading order, and Arabic-script letters that have Unicode presentation forms take their
+    /// contextual (joined) forms; a few letters have none, so joining stops next to them. The font
+    /// must cover Arabic Presentation Forms-B (and -A for Persian letters). A worksheet's
+    /// right-to-left direction is still ignored. See <see cref="PdfFontOptions"/>.
     ///
     /// HTML was reached only from core 0.34.0, because
     /// no core overload carried fonts alongside page setup and the remote-image settings; wiring it

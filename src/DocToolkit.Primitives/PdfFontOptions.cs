@@ -42,10 +42,13 @@ namespace DocToolkit;
 /// <b>3. It turns on right-to-left shaping</b>, on the DOCX, XLSX and PPTX converters, and on HTML,
 /// which reaches PDF through DOCX (Markdown to PDF takes no fonts). <b>A Hebrew line comes out in
 /// reading order</b>: the words follow each other from right to left, each word's letters are right
-/// and a number sits on the correct side. <b>Arabic, Persian and Urdu letters take their
-/// contextual (joined) forms</b>, joining with their neighbours as the script allows: the converter
-/// swaps each letter for its joined form, in logical order, before the renderer lays the line out,
-/// and a lam followed by an alef becomes one ligature. On one Persian invoice, the words ran right
+/// and a number sits on the correct side. <b>Arabic-script letters that have Unicode presentation
+/// forms take their contextual (joined) forms</b>, joining with their neighbours as the script
+/// allows: the converter swaps each letter for its joined form, in logical order, before the
+/// renderer lays the line out, and a lam followed by an alef becomes one ligature. A few letters
+/// have no such forms (Urdu U+06C3 and Kurdish or Uyghur U+06D5 are two), so joining stops next to
+/// them. The supplied font must cover the Arabic Presentation Forms-B block, and Forms-A for
+/// Persian letters; Arial, Tahoma, Segoe UI and Times New Roman do. On one Persian invoice, the words ran right
 /// to left in the extracted text. Copy and search return the base letters, and a word with a
 /// lam-alef ligature can come back in visual order, so a search for it can miss. A worksheet's
 /// right-to-left direction is not applied. Latin text is unaffected, measured byte for byte. Without fonts no
