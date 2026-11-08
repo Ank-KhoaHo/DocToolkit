@@ -37,17 +37,6 @@ public class DocxToPdfPreflightTests
     // ---- reported when present ---------------------------------------------------------------
 
     [Fact]
-    public void Inspect_ReportsFootnotes()
-    {
-        var report = DocxToPdfPreflight.Inspect(WithFootnote());
-
-        var finding = Assert.Single(report.Findings, f => f.Code == "Footnote");
-        Assert.Equal(1, finding.Count);
-        Assert.Equal(DocxToPdfRisk.Known, finding.Risk);
-        Assert.True(report.HasFindings);
-    }
-
-    [Fact]
     public void Inspect_ReportsNestedTables()
     {
         var report = DocxToPdfPreflight.Inspect(WithNestedTable());
@@ -69,27 +58,6 @@ public class DocxToPdfPreflightTests
 
         Assert.Empty(report.Findings);
         Assert.False(report.HasFindings);
-    }
-
-    [Fact]
-    public void Inspect_DoesNotReportAFootnotesPartThatHoldsOnlySeparators()
-    {
-        // Word writes the separator (id -1) and continuation separator (id 0) into any document it
-        // has touched, whether or not the author wrote a footnote. Counting every Footnote element
-        // would report almost every real document - the loudest possible false positive.
-        var report = DocxToPdfPreflight.Inspect(WithSeparatorsOnly());
-
-        Assert.DoesNotContain(report.Findings, f => f.Code == "Footnote");
-    }
-
-    [Fact]
-    public void Inspect_DoesNotReportAStyledFootnote()
-    {
-        // A94: the finding must NOT fire for a footnote shaped the way AddFootnote (and Word)
-        // actually produce one — only for the unstyled shape WithFootnote() deliberately is.
-        var report = DocxToPdfPreflight.Inspect(WithStyledFootnote());
-
-        Assert.DoesNotContain(report.Findings, f => f.Code == "Footnote");
     }
 
     [Fact]
@@ -117,15 +85,13 @@ public class DocxToPdfPreflightTests
     // ---- the loss is real, and these FAIL IF THE RENDERER IMPROVES ---------------------------
 
     [Fact]
-    public void TheFootnoteLossIsReal_AndThisFailsIfTheRendererStartsCarryingThem()
+    public void AFootnoteNowRenders_AndTheFindingWasRemovedBecauseOfIt()
     {
-        byte[] docx = WithFootnote();
-        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+        // 3.5 renders a footnote whose reference run lacks the style; 3.2.6 lost it.
+        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(WithFootnote())));
 
-        // The sibling proves the document rendered at all. Without it, an empty PDF would satisfy
-        // the assertion below and this test would "pass" while proving nothing.
         Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
-        Assert.DoesNotContain("FOOTTOKEN", pdf, StringComparison.Ordinal);
+        Assert.Contains("FOOTTOKEN", pdf, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -162,9 +128,6 @@ public class DocxToPdfPreflightTests
     [Fact]
     public void AStyledFootnoteSurvivesTheRender()
     {
-        // The mirror of TheFootnoteLossIsReal... — this is the shape that is now measured NOT to
-        // be lost, so this fails if a future change reintroduces the old blanket "any footnote"
-        // count.
         byte[] docx = WithStyledFootnote();
         string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
 
@@ -172,36 +135,14 @@ public class DocxToPdfPreflightTests
         Assert.Contains("STYLEDFOOTTOKEN", pdf, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// A94's own measurement, pinned rather than left only in a probe: the finding condition reads
-    /// the BODY reference run's style, never the footnote's own definition. Without this pair, a
-    /// predicate rewritten to read the definition's style instead would pass every other test in
-    /// this file.
-    /// </summary>
     [Fact]
-    public void Inspect_StillReportsAFootnoteStyledOnlyInItsDefinition()
+    public void ADefinitionOnlyStyledFootnoteNowRenders()
     {
-        var report = DocxToPdfPreflight.Inspect(WithStyledFootnoteDefinitionOnly());
-
-        Assert.Single(report.Findings, f => f.Code == "Footnote");
-    }
-
-    [Fact]
-    public void TheDefinitionOnlyStyleLossIsReal()
-    {
-        byte[] docx = WithStyledFootnoteDefinitionOnly();
-        string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
+        string pdf = string.Join(" ", PdfEditor.ExtractText(
+            DocxToPdfConverter.Convert(WithStyledFootnoteDefinitionOnly())));
 
         Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
-        Assert.DoesNotContain("DEFONLYTOKEN", pdf, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Inspect_DoesNotReportAFootnoteStyledOnlyOnItsBodyReference()
-    {
-        var report = DocxToPdfPreflight.Inspect(WithStyledFootnoteReferenceOnly());
-
-        Assert.DoesNotContain(report.Findings, f => f.Code == "Footnote");
+        Assert.Contains("DEFONLYTOKEN", pdf, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -228,11 +169,11 @@ public class DocxToPdfPreflightTests
     [Fact]
     public async Task InspectAsync_ReadsTheSameStateAndLeavesTheStreamOpen()
     {
-        using var source = new MemoryStream(WithFootnote());
+        using var source = new MemoryStream(WithNestedTable());
 
         var report = await DocxToPdfPreflight.InspectAsync(source);
 
-        Assert.Single(report.Findings, f => f.Code == "Footnote");
+        Assert.Single(report.Findings, f => f.Code == "NestedTable");
         source.Position = 0;
         Assert.True(source.ReadByte() >= 0, "the caller's stream must not be closed");
     }
@@ -273,9 +214,9 @@ public class DocxToPdfPreflightTests
         // words fails on every rewrite while proving nothing. What must hold is that a caller
         // rendering the report to a human gets something in every field, and that Count is not
         // silently disagreeing with the message it appears in.
-        var finding = Assert.Single(DocxToPdfPreflight.Inspect(WithFootnote()).Findings);
+        var finding = Assert.Single(DocxToPdfPreflight.Inspect(WithNestedTable()).Findings);
 
-        Assert.Equal("Footnote", finding.Code);
+        Assert.Equal("NestedTable", finding.Code);
         Assert.False(string.IsNullOrWhiteSpace(finding.Construct));
         Assert.False(string.IsNullOrWhiteSpace(finding.Message));
         Assert.Contains(finding.Count.ToString(), finding.Message, StringComparison.Ordinal);
@@ -473,31 +414,36 @@ public class DocxToPdfPreflightTests
         new SdtContentBlock(inner));
 
     [Fact]
-    public void AControlInsideATableCellIsReportedAsAKnownLoss()
+    public void AControlInsideATableCellNowRenders()
     {
-        var report = DocxToPdfPreflight.Inspect(WithControlInACell());
-
-        var finding = Assert.Single(report.Findings);
-        Assert.Equal("ControlInCell", finding.Code);
-        Assert.Equal(DocxToPdfRisk.Known, finding.Risk);
-        Assert.Equal(1, finding.Count);
-    }
-
-    [Fact]
-    public void TheControlInCellLossIsREAL_AndThisFailsIfTheRendererImproves()
-    {
-        // The evidence bar the other two Known findings meet, applied to this one. A `Known` risk
-        // is a promise that the loss was MEASURED, not inferred - so if OfficeIMO ever starts
-        // rendering these, this test goes red and the finding must come out rather than quietly
-        // warning about something that no longer happens.
-        //
-        // The sibling paragraph is what makes the assertion readable: without it, "the token is
-        // missing" and "the whole render came out empty" are the same observation.
         string pdf = string.Join(" ", PdfEditor.ExtractText(
             DocxToPdfConverter.Convert(WithControlInACell())));
 
         Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
-        Assert.DoesNotContain("INCELLTOKEN", pdf, StringComparison.Ordinal);
+        Assert.Contains("INCELLTOKEN", pdf, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AFootnoteAndAControlInACellAreNotReported_BecauseBothRenderOn35()
+    {
+        // Every shape the two removed findings keyed on, and the shapes they excluded.
+        // "Not reported" alone would also pass for a broken detector, so the last line proves
+        // the report still speaks.
+        byte[][] fixtures =
+        [
+            WithFootnote(), WithStyledFootnote(), WithStyledFootnoteDefinitionOnly(),
+            WithStyledFootnoteReferenceOnly(), WithSeparatorsOnly(), WithControlInACell(),
+            CellWrappedInControl(), RowWrappedInControl(),
+        ];
+
+        foreach (var docx in fixtures)
+        {
+            Assert.DoesNotContain(DocxToPdfPreflight.Inspect(docx).Findings,
+                f => f.Code is "Footnote" or "ControlInCell");
+            Assert.Empty(DocxToPdfPreflight.Inspect(docx).Findings);
+        }
+
+        Assert.Single(DocxToPdfPreflight.Inspect(WithNestedTable()).Findings);
     }
 
     [Fact]
@@ -592,68 +538,29 @@ public class DocxToPdfPreflightTests
         Assert.Contains("BOXNEST", pdf, StringComparison.Ordinal);
     }
 
+    private static byte[] CellWrappedInControl() => DocxFixtures.Build(
+        DocxFixtures.Tbl(new TableRow(
+            new TableCell(DocxFixtures.P(Text_("LEFTOK"))),
+            CellControl(new TableCell(DocxFixtures.P(Text_("RIGHTNOW")))))),
+        DocxFixtures.P(Text_(Sibling)));
+
+    private static byte[] RowWrappedInControl() => DocxFixtures.Build(
+        DocxFixtures.Tbl(
+            new TableRow(new TableCell(DocxFixtures.P(Text_("LEFTOK")))),
+            RowControl(new TableRow(new TableCell(DocxFixtures.P(Text_("RIGHTNOW")))))),
+        DocxFixtures.P(Text_(Sibling)));
+
     [Theory]
     [InlineData("cell")]
     [InlineData("row")]
-    public void ACellOrRowWRAPPEDInAControlIsReported_AndIsGenuinelyLost(string position)
+    public void ACellOrRowWrappedInAControlNowRenders(string position)
     {
-        // The two silent losses. The first version of this finding reported only w:tc > w:sdt and
-        // said nothing about a cell or a row that is ITSELF wrapped - which is how Word builds a
-        // form laid out in a table, the exact case the finding's message advertises.
-        //
-        // Two columns, so the neighbouring PLAIN cell proves the render worked and only the
-        // wrapped half went missing. A one-column fixture could not tell those apart.
-        var left = new TableCell(DocxFixtures.P(Text_("LEFTOK")));
-        var right = new TableCell(DocxFixtures.P(Text_("RIGHTGONE")));
-
-        byte[] docx = position == "cell"
-            ? DocxFixtures.Build(
-                DocxFixtures.Tbl(new TableRow(left, CellControl(right))),
-                DocxFixtures.P(Text_(Sibling)))
-            : DocxFixtures.Build(
-                DocxFixtures.Tbl(new TableRow(left), RowControl(new TableRow(right))),
-                DocxFixtures.P(Text_(Sibling)));
-
-        var finding = Assert.Single(DocxToPdfPreflight.Inspect(docx).Findings);
-        Assert.Equal("ControlInCell", finding.Code);
-        Assert.Equal(1, finding.Count);
+        byte[] docx = position == "cell" ? CellWrappedInControl() : RowWrappedInControl();
 
         string pdf = string.Join(" ", PdfEditor.ExtractText(DocxToPdfConverter.Convert(docx)));
         Assert.Contains(Sibling, pdf, StringComparison.Ordinal);
         Assert.Contains("LEFTOK", pdf, StringComparison.Ordinal);
-        Assert.DoesNotContain("RIGHTGONE", pdf, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void TheCountIsACOUNT_NotAPresenceFlag()
-    {
-        // Kills `.Count()` -> `.Take(1).Count()`, which survived the whole suite because no fixture
-        // had more than one control. The number is what a caller uses to decide whether to open the
-        // document, so one and five must not read the same.
-        var cell = new TableCell(
-            ControlHolding(DocxFixtures.P(Text_("ONE"))),
-            ControlHolding(DocxFixtures.P(Text_("TWO"))),
-            ControlHolding(DocxFixtures.P(Text_("THREE"))));
-
-        byte[] docx = DocxFixtures.Build(
-            DocxFixtures.Tbl(new TableRow(cell)), DocxFixtures.P(Text_(Sibling)));
-
-        Assert.Equal(3, Assert.Single(DocxToPdfPreflight.Inspect(docx).Findings).Count);
-    }
-
-    [Fact]
-    public void AControlInsideAControlInTheSameCellCountsONCE()
-    {
-        // Kills `c.Elements<SdtBlock>()` -> `c.Descendants<SdtBlock>()`, which also survived the
-        // whole suite. Measured: w:tc > w:sdt > w:sdt > w:p loses its token exactly ONCE - the
-        // outer control is dropped whole and takes the inner with it - so counting two would
-        // inflate a number a caller reads as "how many things will go missing".
-        var cell = new TableCell(ControlHolding(ControlHolding(DocxFixtures.P(Text_("DEEPTOKEN")))));
-
-        byte[] docx = DocxFixtures.Build(
-            DocxFixtures.Tbl(new TableRow(cell)), DocxFixtures.P(Text_(Sibling)));
-
-        Assert.Equal(1, Assert.Single(DocxToPdfPreflight.Inspect(docx).Findings).Count);
+        Assert.Contains("RIGHTNOW", pdf, StringComparison.Ordinal);
     }
 
     [Fact]
