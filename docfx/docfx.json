@@ -28,7 +28,8 @@
       {
         "files": [
           "images/**",
-          "robots.txt"
+          "robots.txt",
+          "google*.html"
         ]
       }
     ],
