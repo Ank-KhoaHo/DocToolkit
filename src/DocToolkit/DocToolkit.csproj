@@ -7,6 +7,12 @@
   <PropertyGroup>
     <PackageId>Ank.DocToolkit</PackageId>
     <!--
+      NuGet search weighs the id and the title far above the description and tags: on 2026-11-08 the
+      package was ABSENT from the results for "html to pdf" and "docx to pdf", its own task words,
+      while the id alone carries none of them. The title puts those phrases where search looks.
+    -->
+    <Title>DocToolkit - HTML to PDF and DOCX to PDF converter for .NET (also XLSX, PPTX, Markdown)</Title>
+    <!--
       THE FIRST THING A CONSUMER READS on nuget.org, and nothing checks it. This text described a
       smaller library than shipped for four releases - it named only HTML to DOCX/PDF while
       Markdown import, the DOCX text exporters, XLSX export and PDF text extraction had all

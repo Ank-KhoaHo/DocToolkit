@@ -7,6 +7,12 @@
   <PropertyGroup>
     <PackageId>Ank.DocToolkit.Extensions.DependencyInjection</PackageId>
     <!--
+      NuGet search weighs the id and the title far above the description and tags: on 2026-11-08 the
+      package was ABSENT from the results for "html to pdf" and "docx to pdf", its own task words,
+      while the id alone carries none of them. The title puts those phrases where search looks.
+    -->
+    <Title>DocToolkit dependency injection - HTML to PDF and DOCX to PDF for ASP.NET Core</Title>
+    <!--
       NO NAMES AND NO COUNT IN HERE, deliberately, and it cost a stale nuget.org page to learn.
       This field said "six injectable interfaces" and then listed those six by name, while FIFTEEN
       shipped - so the package page advertised a smaller library than the one a consumer got, and
