@@ -538,4 +538,185 @@ public class DocxPdfRepairTests
 
         Assert.Same(docx, HeaderOffsetRepair.Apply(docx));
     }
+
+    // ---- R9: a fixed-width table wider than the text area ------------------------------------------
+
+    private const double A4WidthPoints = 595.3;
+
+    /// <summary>
+    /// A one-row, two-column table on an A4 page with 1440 twip side margins (text area 9026). The
+    /// second cell is right-aligned, so its text sits at the right edge of the table: a table drawn
+    /// off the page puts that text off the page.
+    /// </summary>
+    private static Table TwoColumnTable(bool fixedLayout, string? widthType, int? width, int[] grid, int?[] cellWidths)
+    {
+        var properties = new TableProperties();
+        if (widthType is not null)
+            properties.TableWidth = new TableWidth { Width = (width ?? 0).ToString(), Type = widthType == "pct" ? TableWidthUnitValues.Pct : TableWidthUnitValues.Dxa };
+        if (fixedLayout) properties.TableLayout = new TableLayout { Type = TableLayoutValues.Fixed };
+
+        var tableGrid = new TableGrid();
+        foreach (var column in grid) tableGrid.AppendChild(new GridColumn { Width = column.ToString() });
+
+        var row = new TableRow();
+        for (var i = 0; i < cellWidths.Length; i++)
+        {
+            var paragraph = P(R(i == 0 ? "LEFT" : "RIGHT"));
+            if (i == cellWidths.Length - 1)
+                paragraph.PrependChild(new ParagraphProperties(new Justification { Val = JustificationValues.Right }));
+            var cell = new TableCell(paragraph);
+            if (cellWidths[i] is { } w)
+                cell.PrependChild(new TableCellProperties(new TableCellWidth { Width = w.ToString(), Type = TableWidthUnitValues.Dxa }));
+            row.AppendChild(cell);
+        }
+
+        return new Table(properties, tableGrid, row);
+    }
+
+    private static byte[] WideTablePage(params OpenXmlElement[] body) =>
+        WithMargins(Build(body), 1440, 720, 1440, 720);
+
+    /// <summary>The wide table of the plan: fixed layout, 12000 twips over a 9026 twip text area.</summary>
+    private static byte[] TwelveThousandTwipTable() =>
+        WideTablePage(TwoColumnTable(true, "dxa", 12000, [8000, 4000], [8000, 4000]));
+
+    private static byte[] RenderRawBytes(byte[] docx)
+    {
+        using var input = new MemoryStream();
+        input.Write(docx, 0, docx.Length);
+        input.Position = 0;
+        using var word = WordDocument.Load(input);
+        return word.ToPdfBytes(new WordToPdfOptions());
+    }
+
+    private static double XOf(byte[] pdf, string text) =>
+        PdfProbe.TextRuns(pdf).Single(r => r.Text.Contains(text, StringComparison.Ordinal)).X;
+
+    private static List<int> TableWidths(byte[] docx, string element)
+    {
+        var xml = System.Xml.Linq.XDocument.Parse(Part(docx, "word/document.xml"));
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        var table = xml.Descendants(w + "tbl").First();
+        return table.Descendants(w + element)
+            .Where(e => element == "gridCol" || (string?)e.Attribute(w + "type") == "dxa")
+            .Select(e => int.Parse((string)e.Attribute(w + "w")!)).ToList();
+    }
+
+    [Fact]
+    public void WideTableScale_AFixedTableWiderThanTheTextAreaIsScaledToIt()
+    {
+        var docx = TwelveThousandTwipTable();
+        // Not a refusal: raw 3.5.3 renders it, and draws the right-aligned text outside the page.
+        Assert.Null(RawRefusal(docx));
+        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") > A4WidthPoints);
+
+        var repaired = WideTableScale.Apply(docx);
+
+        var grid = TableWidths(repaired, "gridCol");
+        Assert.True(grid.Sum() <= 9026, $"grid {string.Join("+", grid)}");
+        Assert.True(TableWidths(repaired, "tcW").Sum() <= 9026);
+        Assert.True(TableWidths(repaired, "tblW").Single() <= 9026);
+        // The ratio of the columns is kept (8000:4000 = 2:1), to within truncation.
+        Assert.InRange((double)grid[0] / grid[1], 1.99, 2.01);
+
+        Assert.True(XOf(DocxToPdfConverter.Convert(docx), "RIGHT") < A4WidthPoints);
+    }
+
+    [Fact]
+    public void WideTableScale_ADxaWidthAloneIsEnough_WhateverTheGrid()
+    {
+        // Measured: a dxa table width of 12000 over a grid of 3000 + 3000 is drawn 12000 wide.
+        var docx = WideTablePage(TwoColumnTable(false, "dxa", 12000, [3000, 3000], [3000, 3000]));
+        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") > A4WidthPoints);
+
+        Assert.True(TableWidths(WideTableScale.Apply(docx), "tblW").Single() <= 9026);
+    }
+
+    [Fact]
+    public void WideTableScale_AFixedTableWithNoWidthButAWideGrid_IsScaled()
+    {
+        var docx = WideTablePage(TwoColumnTable(true, null, null, [6000, 6000], [6000, 6000]));
+        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") > A4WidthPoints);
+
+        Assert.True(TableWidths(WideTableScale.Apply(docx), "gridCol").Sum() <= 9026);
+    }
+
+    [Fact]
+    public void WideTableScale_APercentTableIsUntouched()
+    {
+        // Measured: a 100% table with a wide grid renders inside the page, with or without a fixed layout.
+        foreach (var fixedLayout in new[] { false, true })
+        {
+            var docx = WideTablePage(TwoColumnTable(fixedLayout, "pct", 5000, [6000, 6000], [6000, 6000]));
+            Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+
+            Assert.Same(docx, WideTableScale.Apply(docx));
+        }
+    }
+
+    [Fact]
+    public void WideTableScale_AnAutofitTableWithAWideGridOnly_IsUntouched()
+    {
+        var docx = WideTablePage(TwoColumnTable(false, null, null, [6000, 6000], [6000, 6000]));
+        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+
+        Assert.Same(docx, WideTableScale.Apply(docx));
+    }
+
+    [Fact]
+    public void WideTableScale_ADxaWidthThatFitsOverAWiderGrid_IsUntouched()
+    {
+        var docx = WideTablePage(TwoColumnTable(true, "dxa", 9000, [6000, 6000], [6000, 6000]));
+        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+
+        Assert.Same(docx, WideTableScale.Apply(docx));
+    }
+
+    [Fact]
+    public void WideTableScale_ANestedTableIsUntouched()
+    {
+        // Only top-level body tables are scaled. The outer table fits; the wide one is inside a cell.
+        var inner = TwoColumnTable(true, "dxa", 12000, [6000, 6000], [6000, 6000]);
+        var outer = new Table(new TableProperties(), new TableGrid(new GridColumn { Width = "9000" }),
+            new TableRow(new TableCell(P(R("outer")), inner, P())));
+        var docx = WideTablePage(outer);
+
+        Assert.Same(docx, WideTableScale.Apply(docx));
+    }
+
+    [Fact]
+    public void WideTableScale_OnlyTheOuterTableChanges_WhenBothAreWide()
+    {
+        var inner = TwoColumnTable(true, "dxa", 12000, [6000, 6000], [6000, 6000]);
+        var outer = new Table(
+            new TableProperties(new TableWidth { Width = "12000", Type = TableWidthUnitValues.Dxa }),
+            new TableGrid(new GridColumn { Width = "12000" }),
+            new TableRow(new TableCell(new TableCellProperties(new TableCellWidth { Width = "12000", Type = TableWidthUnitValues.Dxa }),
+                P(R("outer")), inner, P())));
+        var docx = WideTablePage(outer);
+
+        var xml = System.Xml.Linq.XDocument.Parse(Part(WideTableScale.Apply(docx), "word/document.xml"));
+        System.Xml.Linq.XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        var tables = xml.Descendants(w + "tbl").ToList();
+        Assert.Equal("9026", (string?)tables[0].Element(w + "tblPr")!.Element(w + "tblW")!.Attribute(w + "w"));
+        Assert.Equal("12000", (string?)tables[1].Element(w + "tblPr")!.Element(w + "tblW")!.Attribute(w + "w"));
+    }
+
+    [Fact]
+    public void WideTableScale_NarrowTable_ReturnsTheSameArray()
+    {
+        var docx = WideTablePage(TwoColumnTable(true, "dxa", 8000, [4000, 4000], [4000, 4000]));
+        Assert.True(XOf(RenderRawBytes(docx), "RIGHT") < A4WidthPoints);
+
+        Assert.Same(docx, WideTableScale.Apply(docx));
+    }
+
+    [Fact]
+    public void WideTableScale_NoSectionProperties_ReturnsTheSameArray()
+    {
+        // Without a page size there is no text area to scale to.
+        var docx = Build(TwoColumnTable(true, "dxa", 12000, [6000, 6000], [6000, 6000]));
+
+        Assert.Same(docx, WideTableScale.Apply(docx));
+    }
 }
