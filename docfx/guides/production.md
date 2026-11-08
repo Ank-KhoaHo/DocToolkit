@@ -181,9 +181,11 @@ Worth knowing before you design around it:
   has a covering font, DOCX and HTML to PDF use it, unshaped. `PdfFontOptions` takes the host out
   of the answer on DOCX, HTML, XLSX and PPTX to PDF. Markdown to PDF does not accept it.
 - **Right-to-left support is partial.** With fonts supplied, a Hebrew line comes out in reading
-  order, and Arabic, Persian and Urdu letters (`پ چ ژ گ ک ی` included) join, in DOCX, HTML, XLSX
-  and PPTX to PDF. Copy and search return the base letters, and a word that holds a lam-alef
-  ligature extracts in left-to-right order. A worksheet's right-to-left direction is ignored:
+  order, and Arabic, Persian and Urdu letters take their contextual (joined) forms, joining with
+  their neighbours as the script allows, in DOCX, XLSX and PPTX to PDF (HTML reaches PDF through
+  DOCX). On one Persian invoice the words ran right to left in the extracted text. Copy and search
+  return the base letters, and a word with a lam-alef ligature can come back in visual order, so a
+  search for it can miss. A worksheet's right-to-left direction is ignored:
   column A prints on the left. Merged cells are supported.
 - **HTML → PDF goes through Word**, so CSS layout — flexbox, grid, floats, absolute positioning —
   does not survive. Text, headings, tables, lists, inline styling and images do.

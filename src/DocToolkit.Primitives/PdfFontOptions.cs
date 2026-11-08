@@ -39,14 +39,16 @@ namespace DocToolkit;
 /// varying PDF size a hundredfold. Both render correctly; the smaller leans on the standard fonts
 /// every reader has.
 ///
-/// <b>3. It turns on right-to-left shaping</b>, on the DOCX, HTML, XLSX and PPTX converters (Markdown
-/// to PDF takes no fonts). <b>A Hebrew line comes out in reading order</b>: the words follow each
-/// other from right to left, each word's letters are right and a number sits on the correct side.
-/// <b>Arabic, Persian and Urdu letters join</b>: the converter swaps each letter for its joined
-/// form, in logical order, before the renderer lays the line out, and a lam followed by an alef
-/// becomes one ligature. Copy and search return the base letters, not the joined forms, and a word
-/// that holds a lam-alef ligature extracts in left-to-right order. A worksheet's right-to-left
-/// direction is not applied. Latin text is unaffected, measured byte for byte. Without fonts no
+/// <b>3. It turns on right-to-left shaping</b>, on the DOCX, XLSX and PPTX converters, and on HTML,
+/// which reaches PDF through DOCX (Markdown to PDF takes no fonts). <b>A Hebrew line comes out in
+/// reading order</b>: the words follow each other from right to left, each word's letters are right
+/// and a number sits on the correct side. <b>Arabic, Persian and Urdu letters take their
+/// contextual (joined) forms</b>, joining with their neighbours as the script allows: the converter
+/// swaps each letter for its joined form, in logical order, before the renderer lays the line out,
+/// and a lam followed by an alef becomes one ligature. On one Persian invoice, the words ran right
+/// to left in the extracted text. Copy and search return the base letters, and a word with a
+/// lam-alef ligature can come back in visual order, so a search for it can miss. A worksheet's
+/// right-to-left direction is not applied. Latin text is unaffected, measured byte for byte. Without fonts no
 /// shaping happens at all.
 ///
 /// <b>There is deliberately no compiled example for this type</b>, which is worth explaining

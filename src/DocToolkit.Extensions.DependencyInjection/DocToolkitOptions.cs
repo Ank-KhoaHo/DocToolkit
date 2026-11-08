@@ -115,7 +115,8 @@ public sealed class DocToolkitOptions
     /// whose converters take them.
     ///
     /// <b>Supplying fonts also turns on right-to-left shaping</b> - a Hebrew line comes out in
-    /// reading order, and Arabic, Persian and Urdu letters join. A worksheet's right-to-left
+    /// reading order, and Arabic, Persian and Urdu letters take their contextual (joined) forms. A
+    /// worksheet's right-to-left
     /// direction is still ignored. See
     /// <see cref="PdfFontOptions"/>.
     ///

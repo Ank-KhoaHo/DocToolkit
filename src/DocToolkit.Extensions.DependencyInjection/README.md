@@ -76,8 +76,8 @@ as your page setup and remote-image settings. `IMarkdownToPdfConverter` is the e
 Markdown converter takes no fonts.
 
 **Supplying fonts also turns on right-to-left shaping.** A Hebrew line comes out in reading order,
-and Arabic, Persian and Urdu letters join. A worksheet's right-to-left direction is still ignored.
-See the core package's README for the detail.
+and Arabic, Persian and Urdu letters take their contextual (joined) forms. A worksheet's
+right-to-left direction is still ignored. See the core package's README for the detail.
 
 > **If you already set `Fonts` and convert XLSX or PPTX to PDF, this changes your output.** Before
 > 0.59.0 those two converters ignored the setting, because the core gained the overloads only in
