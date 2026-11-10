@@ -131,7 +131,11 @@ BLOCKS = [
         "sample": "MarkdownConversion",
         # A blank line separates the warning table from the summary in the guide - reproduced
         # literally below rather than modelled as a third "label", since it carries none.
-        "lines": [line("  Approximation"), line(""), line("HasLoss"), line("What it says")],
+        # The warning label names its code: the round trip later in the same run prints its own
+        # Approximation row (WordToMarkdownWarning, table borders), so "  Approximation" alone
+        # matches two lines.
+        "lines": [line("  Approximation MarkdownToWordWarning"), line(""), line("HasLoss"),
+                  line("What it says")],
     },
     {
         "guide": "docfx/guides/editing/spreadsheets-and-presentations.md",
