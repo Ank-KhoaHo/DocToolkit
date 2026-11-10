@@ -443,3 +443,15 @@ date,workflow,runs
 2026-11-08,Release curation state,5
 2026-11-08,nuget stats,1
 2026-11-08,release-please,5
+2026-11-09,CI,5
+2026-11-09,CodeQL,3
+2026-11-09,Dependabot Updates,6
+2026-11-09,Dependabot auto-merge,1
+2026-11-09,Dependency report,1
+2026-11-09,Docs,2
+2026-11-09,Install smoke test,3
+2026-11-09,Mutation testing,1
+2026-11-09,Release,2
+2026-11-09,Release PR automerge guard,1
+2026-11-09,nuget stats,1
+2026-11-09,release-please,1
