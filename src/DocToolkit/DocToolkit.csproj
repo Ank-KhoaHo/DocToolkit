@@ -166,8 +166,16 @@
       UNVERIFIED UNTIL RE-MEASURED, same as the block above: re-run
       artifacts/discoverability/nuget-rank.py once the next release indexes, and cut back rather
       than add more if the F13 words show no movement.
+
+      `to` ADDED 2026-11-10 (F17). Measured on the search API after 0.60.0 shipped its Title: every
+      query word is required, and the title and description analysers drop "to" as a stopword, so
+      "to" can only match a camel-case id token (`HtmlToPdf`) or a tag that is exactly `to`. Of 280
+      packages tagged `html-to-pdf`, the 90 with such a token or tag all appear for `to pdf`; the
+      190 with only hyphenated tags never do. That is why `html to pdf`, `docx to pdf` and the other
+      task queries miss this package, and it explains the `pptx to pdf` miss noted above.
+      UNVERIFIED UNTIL RE-MEASURED after the next release indexes.
     -->
-    <PackageTags>docx;pdf;xlsx;pptx;word;excel;powerpoint;openxml;html-to-docx;html-to-pdf;html2pdf;docx-to-pdf;pdf-generation;document-conversion;mail-merge;browserless;no-chromium;no-native-binaries;air-gapped;linux;cross-platform;offline;csharp;dotnet;conversion;generation;merge;platform;chromium;binaries;template;footnotes;revisions;formatting;validation;markdown;csv;protect;digital-signature</PackageTags>
+    <PackageTags>docx;pdf;xlsx;pptx;word;excel;powerpoint;openxml;html-to-docx;html-to-pdf;html2pdf;docx-to-pdf;pdf-generation;document-conversion;mail-merge;browserless;no-chromium;no-native-binaries;air-gapped;linux;cross-platform;offline;csharp;dotnet;conversion;generation;merge;platform;chromium;binaries;template;footnotes;revisions;formatting;validation;markdown;csv;protect;digital-signature;to</PackageTags>
   </PropertyGroup>
 
 
