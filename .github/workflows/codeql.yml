@@ -55,7 +55,7 @@ jobs:
 
       # Both SDKs: the projects multi-target net8.0;net10.0, and a manual build below
       # needs to resolve both.
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: |
             8.0.x
@@ -65,7 +65,7 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: csharp
           # Manual rather than build-mode: none. Buildless C# analysis skips code it
@@ -90,6 +90,6 @@ jobs:
           dotnet build "$SOLUTION" -c Release --no-restore
 
       - name: Analyze
-        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: "/language:csharp"
