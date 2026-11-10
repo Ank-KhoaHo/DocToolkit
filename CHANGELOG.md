@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.60.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.60.0...v0.60.1) (2026-11-10)
+
+
+### Changed
+
+* add a standalone to tag so NuGet task searches can match (F17) ([#547](https://github.com/Ank-KhoaHo/DocToolkit/issues/547)) ([b8f8162](https://github.com/Ank-KhoaHo/DocToolkit/commit/b8f8162beaf15db7906780a5ca5c765c1aca0447))
+
 ## [0.60.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.59.0...v0.60.0) (2026-11-08)
 
 The renderer beneath every PDF converter moves from OfficeIMO 3.2.6 to 3.5.3. **On a public test
