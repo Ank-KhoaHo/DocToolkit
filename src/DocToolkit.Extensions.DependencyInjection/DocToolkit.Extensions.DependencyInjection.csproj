@@ -51,8 +51,12 @@
          are added as explicit tags for concepts this package already implies in prose
          (`Dependency-injection registration`, and IDocxEditor/IWorkbookEditor/... mirroring
          Protect) - not chasing the core package's wider F13 list, since footnotes, mail-merge
-         templates and conditional formatting are not this package's differentiator. -->
-    <PackageTags>dependency-injection;aspnetcore;docx;pdf;xlsx;pptx;word;excel;openxml;html-to-docx;html-to-pdf;docx-to-pdf;browserless;no-native-binaries;linux;cross-platform;offline;csharp;dotnet;platform;binaries;injection;protect</PackageTags>
+         templates and conditional formatting are not this package's differentiator.
+
+         `to` ADDED 2026-11-10 (F17): NuGet search drops "to" from titles and descriptions and
+         keeps hyphenated tags whole, so `html to pdf` can only match an id token or a tag that is
+         exactly `to`. The core csproj has the measurement. -->
+    <PackageTags>dependency-injection;aspnetcore;docx;pdf;xlsx;pptx;word;excel;openxml;html-to-docx;html-to-pdf;docx-to-pdf;browserless;no-native-binaries;linux;cross-platform;offline;csharp;dotnet;platform;binaries;injection;protect;to</PackageTags>
   </PropertyGroup>
 
   <!-- README.md, THIRD-PARTY-NOTICES.txt and the shared icon are packed by src/Directory.Build.props. -->
