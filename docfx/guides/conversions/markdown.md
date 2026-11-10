@@ -88,9 +88,10 @@ can. The same `ConvertWithReport` pair exists on @DocToolkit.DocxToHtmlConverter
 @DocToolkit.DocxToMarkdownConverter, taking `byte[]` and returning a
 `ConversionResult<string>`.
 
-The sample's round trip reports **zero** warnings, which is worth reading carefully. It means
-nothing was lost *that the converter knows about* — not that nothing was lost. An empty
-`Warnings` list is a statement about the converter's coverage as much as about your document.
+The sample's round trip reports **one** warning, an `Approximation`: the table's borders, which a
+Markdown table cannot carry. Read a short list carefully. It names what was lost *that the
+converter knows about* — not everything that was lost. A short or empty `Warnings` list is a
+statement about the converter's coverage as much as about your document.
 
 > [!IMPORTANT]
 > **The PDF renderers have no report to give.** `DocxToPdfConverter`, `HtmlToPdfConverter`,
