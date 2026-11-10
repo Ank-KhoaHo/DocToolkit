@@ -12,10 +12,14 @@ repo-wide tooling (CI, release pipeline).
 
 ## [0.60.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.60.0...v0.60.1) (2026-11-10)
 
+A packaging-only release: the library code is the same as 0.60.0.
 
 ### Changed
 
-* add a standalone to tag so NuGet task searches can match (F17) ([#547](https://github.com/Ank-KhoaHo/DocToolkit/issues/547)) ([b8f8162](https://github.com/Ank-KhoaHo/DocToolkit/commit/b8f8162beaf15db7906780a5ca5c765c1aca0447))
+* Both packages gain the NuGet tag `to`. NuGet search requires every word of a query, and it
+  ignores "to" in a title or description, so searches such as `html to pdf` and `docx to pdf`
+  could not find either package. Only a package id or a tag that is exactly `to` can match that
+  word. ([#547](https://github.com/Ank-KhoaHo/DocToolkit/issues/547))
 
 ## [0.60.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.59.0...v0.60.0) (2026-11-08)
 
