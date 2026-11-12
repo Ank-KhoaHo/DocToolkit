@@ -1,6 +1,9 @@
-# Guides come first: search is disabled on this site (enabling it would pull a ~109 MB Chromium
-# download into the docs build), so the navigation IS how anything is found here.
+# Guides come first in the navigation; search is on since D45 and needs no browser
+# download (measured 2026-11-11: docfx uses Chromium only for PDF output, which is
+# off in docfx.json).
 - name: Guides
   href: guides/
 - name: API
   href: api/
+- name: Release notes
+  href: release-notes.md

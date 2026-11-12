@@ -47,7 +47,7 @@
       "_appName": "DocToolkit",
       "_appTitle": "DocToolkit",
       "_appFooter": "DocToolkit is maintained by <a href=\"https://wanksolution.com/\">WillowAnk Solution</a>. Product page: <a href=\"https://wanksolution.com/doctoolkit/\">wanksolution.com/doctoolkit</a>.",
-      "_enableSearch": false,
+      "_enableSearch": true,
       "pdf": false
     }
   }
