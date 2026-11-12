@@ -786,6 +786,14 @@ jobs:
       - name: Assert every guide snippet resolves to a real region
         run: python3 scripts/check-doc-snippets.py
 
+      # The landing page's task cards show their calls as text, which nothing compiles (D45).
+      # This holds each one to the approved API, so a rename cannot leave the first page a
+      # visitor reads advertising a method that no longer exists.
+      - name: Assert every landing-page card call exists in the approved API
+        run: |
+          python3 scripts/check-landing-calls.py --self-test
+          python3 scripts/check-landing-calls.py
+
       # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
       # documentation tag, so the build stays green under -warnaserror while DocFX renders
       # whichever block it picks and the API site describes the wrong member. Three instances
