@@ -89,10 +89,9 @@ internal static class IndentFitToColumn
             var room = (int)Math.Max(0L, column - (long)TextRoom - Math.Max(right, 0));
 
             var fitted = false;
-            foreach (var name in new[] { "left", "start" })
+            foreach (var name in new[] { "left", "start" }
+                         .Where(name => indent.Attribute(W + name) is not null && Number(indent, name) > room))
             {
-                if (indent.Attribute(W + name) is null || Number(indent, name) <= room) continue;
-
                 indent.SetAttributeValue(W + name, room.ToString(CultureInfo.InvariantCulture));
                 fitted = true;
             }

@@ -502,9 +502,9 @@ public class XlsxPptxToPdfTests
         if (HostFonts() is not { } fonts)
             return;
         var xlsx = SheetWith("חשבונית מס מספר 12");
-
+        using var input = new MemoryStream(xlsx);
         using var destination = new MemoryStream();
-        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(xlsx), destination, fonts);
+        await XlsxToPdfConverter.ConvertAsync(input, destination, fonts);
 
         Assert.Equal(XlsxToPdfConverter.Convert(xlsx, fonts), destination.ToArray());
     }
@@ -597,9 +597,9 @@ public class XlsxPptxToPdfTests
         if (HostFonts() is not { } fonts)
             return;
         var pptx = SlideWith("חשבונית מס מספר 12");
-
+        using var input = new MemoryStream(pptx);
         using var destination = new MemoryStream();
-        await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
+        await PptxToPdfConverter.ConvertAsync(input, destination, fonts);
 
         Assert.Equal(PptxToPdfConverter.Convert(pptx, fonts), destination.ToArray());
     }
@@ -626,9 +626,10 @@ public class XlsxPptxToPdfTests
             return;
         var fonts = new PdfFontOptions("Supplied", font);
         var xlsx = SheetWith(PdfFontOptionsTests.ArabicLine);
+        using var input = new MemoryStream(xlsx);
         using var destination = new MemoryStream();
 
-        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(xlsx), destination, fonts);
+        await XlsxToPdfConverter.ConvertAsync(input, destination, fonts);
 
         PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), font);
     }
@@ -651,9 +652,10 @@ public class XlsxPptxToPdfTests
             return;
         var fonts = new PdfFontOptions("Supplied", font);
         var pptx = SlideWith(PdfFontOptionsTests.ArabicLine);
+        using var input = new MemoryStream(pptx);
         using var destination = new MemoryStream();
 
-        await PptxToPdfConverter.ConvertAsync(new MemoryStream(pptx), destination, fonts);
+        await PptxToPdfConverter.ConvertAsync(input, destination, fonts);
 
         PdfFontOptionsTests.AssertArabicLineIsJoined(destination.ToArray(), font);
     }
@@ -730,9 +732,10 @@ public class XlsxPptxToPdfTests
     {
         if (ArabicHostFonts() is not { } fonts)
             return;
+        using var input = new MemoryStream(FormulaSheet());
         using var destination = new MemoryStream();
 
-        await XlsxToPdfConverter.ConvertAsync(new MemoryStream(FormulaSheet()), destination, fonts);
+        await XlsxToPdfConverter.ConvertAsync(input, destination, fonts);
 
         AssertFormulaResultsRender(destination.ToArray(), fonts);
     }

@@ -121,8 +121,9 @@ internal static class HeaderOffsetRepair
         if (!sections.Any(s => HasContentHeader(s, withContent))) return false;
 
         var changed = false;
-        foreach (var margins in sections.Select(s => s.Element(W + "pgMar")))
-            if (margins is not null && Raise(margins)) changed = true;
+        // Non-short-circuit |=: Raise must run on every section, not stop at the first change.
+        foreach (var margins in sections.Select(s => s.Element(W + "pgMar")).OfType<XElement>())
+            changed |= Raise(margins);
 
         return changed;
     }

@@ -970,9 +970,8 @@ public static class DocxEditor
         var marker = "{{" + collection + ".";
         var leftovers = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        foreach (var paragraph in clone.Descendants<Paragraph>())
+        foreach (var merged in clone.Descendants<Paragraph>().Select(p => p.InnerText))
         {
-            var merged = paragraph.InnerText;
             var at = merged.IndexOf(marker, StringComparison.Ordinal);
             while (at >= 0)
             {
@@ -1225,13 +1224,14 @@ public static class DocxEditor
     {
         var inserted = 0;
 
-        foreach (var paragraph in root.Descendants<Paragraph>().ToList())
+        // Same scoping as ReplaceInParagraph: only the text this paragraph directly owns, so a
+        // text box nested in one of its runs is visited on its own rather than folded in here.
+        foreach (var texts in root.Descendants<Paragraph>()
+                                  .ToList()
+                                  .Select(paragraph => paragraph.Descendants<Text>()
+                                                                .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
+                                                                .ToList()))
         {
-            // Same scoping as ReplaceInParagraph: only the text this paragraph directly owns, so a
-            // text box nested in one of its runs is visited on its own rather than folded in here.
-            var texts = paragraph.Descendants<Text>()
-                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
-                                 .ToList();
             if (texts.Count == 0) continue;
 
             var merged = string.Concat(texts.Select(t => t.Text));

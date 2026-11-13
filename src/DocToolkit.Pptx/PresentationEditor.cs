@@ -395,9 +395,9 @@ public static class PresentationEditor
                              .Select(p => p.Slide).Where(s => s is not null).Select(s => s!))
                 {
 
-                    foreach (var paragraph in slide.Descendants<A.Paragraph>())
+                    foreach (var texts in slide.Descendants<A.Paragraph>()
+                                 .Select(paragraph => paragraph.Descendants<A.Text>().ToList()))
                     {
-                        var texts = paragraph.Descendants<A.Text>().ToList();
                         if (texts.Count == 0) continue;
 
                         RunTextSplicer.Apply(
@@ -733,12 +733,11 @@ public static class PresentationEditor
                 var toRemove = indices.Select(i => slideParts[i - 1]).ToList();
                 var idsToRemove = toRemove.Select(part => presentationPart.GetIdOfPart(part)).ToHashSet();
 
-                foreach (var slideId in slideIdList.Elements<P.SlideId>().ToList())
+                foreach (var slideId in slideIdList.Elements<P.SlideId>()
+                             .Where(slideId => idsToRemove.Contains(slideId.RelationshipId!.Value!))
+                             .ToList())
                 {
-                    if (idsToRemove.Contains(slideId.RelationshipId!.Value!))
-                    {
-                        slideId.Remove();
-                    }
+                    slideId.Remove();
                 }
 
                 foreach (var part in toRemove)

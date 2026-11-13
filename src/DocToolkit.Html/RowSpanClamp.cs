@@ -88,9 +88,8 @@ internal static class RowSpanClamp
     private static bool ClampTable(IHtmlTableElement table)
     {
         var clamped = false;
-        foreach (var section in Sections(table))
+        foreach (var rows in Sections(table).Select(section => section.ToList()))
         {
-            var rows = section.ToList();
             for (var i = 0; i < rows.Count; i++)
             {
                 var remaining = rows.Count - i;

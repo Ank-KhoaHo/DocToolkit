@@ -105,9 +105,10 @@ public static class PdfProbe
         if (!raw.Contains("/FlateDecode", StringComparison.Ordinal)) return raw;
         var sb = new StringBuilder(raw.Length * 2);
         var at = 0;
-        foreach (Match m in FlateStream.Matches(raw))
+        // `at` moves forward inside the loop, and the filter reads it as each match comes up. That
+        // works only because Where is lazy: a .ToList() here would freeze `at` at 0.
+        foreach (Match m in FlateStream.Matches(raw).Cast<Match>().Where(m => m.Index >= at))
         {
-            if (m.Index < at) continue;
             var len = LengthField.Match(m.Groups[1].Value);
             if (!len.Success || m.Groups[1].Value.Contains("/Length1", StringComparison.Ordinal)
                 || m.Groups[1].Value.Contains("/Image", StringComparison.Ordinal)) continue;
@@ -183,8 +184,8 @@ public static class PdfProbe
     {
         var bodies = new Dictionary<string, string>();
         var order = new List<string>();
-        foreach (Match m in ObjectBody.Matches(raw))
-            if (bodies.TryAdd(m.Groups[1].Value, m.Groups[2].Value)) order.Add(m.Groups[1].Value);
+        foreach (Match m in ObjectBody.Matches(raw).Cast<Match>().Where(m => bodies.TryAdd(m.Groups[1].Value, m.Groups[2].Value)))
+            order.Add(m.Groups[1].Value);
 
         // Pages in page-tree order, each with its (possibly inherited) /Resources; in file order if there is no tree.
         var pages = new List<(string Body, string? Resources)>();
@@ -212,16 +213,16 @@ public static class PdfProbe
             var fonts = new Dictionary<string, (bool TwoByte, Dictionary<int, string>? Map)>();
             var fontDict = resources is null ? null : ValueOf(resources, "/Font", bodies);
             if (fontDict is not null)
-                foreach (Match r in NamedRef.Matches(fontDict))
+                foreach (Match r in NamedRef.Matches(fontDict).Cast<Match>().Where(r => bodies.ContainsKey(r.Groups[2].Value)))
                 {
-                    if (!bodies.TryGetValue(r.Groups[2].Value, out var font)) continue;
+                    var font = bodies[r.Groups[2].Value];
                     fontIds.Add(r.Groups[2].Value);
                     Dictionary<int, string>? map = null;
                     var tu = ToUnicodeRef.Match(font);
-                    if (tu.Success && bodies.TryGetValue(tu.Groups[1].Value, out var cmap))
+                    if (tu.Success && bodies.TryGetValue(tu.Groups[1].Value, out var cmap)
+                        && !cmaps.TryGetValue(tu.Groups[1].Value, out map))
                     {
-                        if (!cmaps.TryGetValue(tu.Groups[1].Value, out map))
-                            cmaps[tu.Groups[1].Value] = map = ToUnicodeMap(cmap);
+                        cmaps[tu.Groups[1].Value] = map = ToUnicodeMap(cmap);
                     }
                     var twoByte = font.Contains("/Identity-H", StringComparison.Ordinal);
                     anyIdentity |= twoByte;
@@ -233,8 +234,10 @@ public static class PdfProbe
             var array = ContentsArray.Match(page);
             if (array.Success)
             {
-                foreach (Match c in IndirectRef.Matches(array.Groups[1].Value))
-                    if (bodies.TryGetValue(c.Groups[1].Value, out var cb)) streams.Add(cb);
+                foreach (Match c in IndirectRef.Matches(array.Groups[1].Value)
+                             .Cast<Match>()
+                             .Where(c => bodies.ContainsKey(c.Groups[1].Value)))
+                    streams.Add(bodies[c.Groups[1].Value]);
             }
             else if (ValueOf(page, "/Contents", bodies) is { } single) streams.Add(single);
 

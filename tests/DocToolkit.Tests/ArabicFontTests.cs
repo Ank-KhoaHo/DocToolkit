@@ -42,9 +42,8 @@ public class ArabicFontTests(ITestOutputHelper output)
         var forms = new SortedSet<int> { 0xFE91, 0xFE90, 0xFEFB };
         foreach (var sample in Samples)
             foreach (var piece in ArabicPreShaper.Shape(sample))
-                foreach (var c in piece)
-                    if (c is >= '\uFB50' and <= '\uFEFC')
-                        forms.Add(c);
+                foreach (var c in piece.Where(c => c is >= '\uFB50' and <= '\uFEFC'))
+                    forms.Add(c);
         return forms;
     }
 

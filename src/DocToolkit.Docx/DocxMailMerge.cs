@@ -1850,10 +1850,9 @@ public static class DocxMailMerge
         foreach (KeyValuePair<string, IEnumerable<DocxMailMergeBlockData>> pair in regions)
         {
             names.Add(pair.Key);
-            foreach (DocxMailMergeBlockData row in pair.Value)
+            foreach (DocxMailMergeBlockData row in pair.Value.Where(row => row.Regions is not null))
             {
-                if (row.Regions is not null)
-                    CollectNamesRecursively(row.Regions, names);
+                CollectNamesRecursively(row.Regions!, names);
             }
         }
     }
@@ -1881,10 +1880,9 @@ public static class DocxMailMerge
         foreach (KeyValuePair<string, IEnumerable<DocxMailMergeBlockData>> pair in regions)
             result[pair.Key] = pair.Value.Select(row => ToEngineBlockData(row, padNames)).ToList();
 
-        foreach (string name in padNames)
+        foreach (string name in padNames.Where(name => !result.ContainsKey(name)))
         {
-            if (!result.ContainsKey(name))
-                result[name] = Array.Empty<OfficeIMOBlockData>();
+            result[name] = Array.Empty<OfficeIMOBlockData>();
         }
 
         return result;

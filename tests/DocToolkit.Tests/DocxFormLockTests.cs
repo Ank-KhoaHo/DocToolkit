@@ -20,7 +20,7 @@ public class DocxFormLockTests
 {
     internal static byte[] Locked(byte[] docx, LockingValues how, string tag = "FullName")
     {
-        var ms = new MemoryStream();
+        using var ms = new MemoryStream();
         ms.Write(docx, 0, docx.Length);
         ms.Position = 0;
 

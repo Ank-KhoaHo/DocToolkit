@@ -113,9 +113,9 @@ public class ActionableExceptionMessageTests
     public void Docx_NoMainPartMessageIsExact()
     {
         using var ms = new MemoryStream();
-        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        using (WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
         {
-            // Deliberately never call doc.AddMainDocumentPart() - a package that opens fine but
+            // Deliberately never call AddMainDocumentPart() - a package that opens fine but
             // owns no main document part at all.
         }
 
@@ -137,7 +137,7 @@ public class ActionableExceptionMessageTests
     public void Docx_NoMainPartMessageIsExact_ViaReplaceImage()
     {
         using var ms = new MemoryStream();
-        using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
+        using (WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
         {
         }
 
@@ -176,9 +176,9 @@ public class ActionableExceptionMessageTests
     public void Presentation_NoPresentationPartMessageIsExact()
     {
         using var ms = new MemoryStream();
-        using (var doc = PresentationDocument.Create(ms, PresentationDocumentType.Presentation))
+        using (PresentationDocument.Create(ms, PresentationDocumentType.Presentation))
         {
-            // Deliberately never call doc.AddPresentationPart().
+            // Deliberately never call AddPresentationPart().
         }
 
         var ex = Assert.Throws<DocumentConversionException>(
