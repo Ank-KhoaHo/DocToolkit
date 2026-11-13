@@ -13,9 +13,19 @@ repo-wide tooling (CI, release pipeline).
 ## [0.61.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.60.1...v0.61.0) (2026-11-13)
 
 
+A Word form can now say which of its fields are locked before you fill it. The package page on
+nuget.org also gets a short front page; the full reference moved, unchanged, to the
+[Reference](https://ank-khoaho.github.io/DocToolkit/guides/reference.html) page of the docs site.
+
 ### Added
 
-* report a content control's lock on DocxFormField (A120) ([#551](https://github.com/Ank-KhoaHo/DocToolkit/issues/551)) ([1a6e405](https://github.com/Ank-KhoaHo/DocToolkit/commit/1a6e4052cb5c45d00fb94911a66b3789bd3ddea1))
+* **Core:** `DocxFormField.IsLocked` is true when a content control's content is locked (`w:lock` set to `contentLocked` or `sdtContentLocked`), which is exactly when `DocxForm.Fill` refuses to write it. A form UI can grey the field out instead of finding out from an exception. ([#551](https://github.com/Ank-KhoaHo/DocToolkit/issues/551)) ([1a6e405](https://github.com/Ank-KhoaHo/DocToolkit/commit/1a6e4052cb5c45d00fb94911a66b3789bd3ddea1))
+* **Core:** `DocxFormIssueKind.LockedControl` (value 10). ([#551](https://github.com/Ank-KhoaHo/DocToolkit/issues/551)) ([1a6e405](https://github.com/Ank-KhoaHo/DocToolkit/commit/1a6e4052cb5c45d00fb94911a66b3789bd3ddea1))
+
+### Changed
+
+* **Core:** `DocxForm.Fill` now writes a control locked only against deletion (`sdtLocked`), as Word does, and keeps the lock. Since 0.54.0 it refused all three lock kinds alike. ([#551](https://github.com/Ank-KhoaHo/DocToolkit/issues/551)) ([1a6e405](https://github.com/Ank-KhoaHo/DocToolkit/commit/1a6e4052cb5c45d00fb94911a66b3789bd3ddea1))
+* **Core:** `DocxForm.Validate` reports a value aimed at a content-locked control as `DocxFormIssueKind.LockedControl`; it reported `Other` before. A consumer that switched on `Other` for locks needs the new case. ([#551](https://github.com/Ank-KhoaHo/DocToolkit/issues/551)) ([1a6e405](https://github.com/Ank-KhoaHo/DocToolkit/commit/1a6e4052cb5c45d00fb94911a66b3789bd3ddea1))
 
 ## [0.60.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.60.0...v0.60.1) (2026-11-10)
 
