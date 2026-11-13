@@ -90,7 +90,7 @@ public class DocxFormTests
         Assert.Equal(
             ["Other", "MissingValue", "UnusedValue", "DuplicateKey", "UnmappedControl",
              "InvalidBoolean", "InvalidDate", "InvalidChoice", "InvalidImage",
-             "InvalidRepeatingSection"],
+             "InvalidRepeatingSection", "LockedControl"],
             Enum.GetNames<DocxFormIssueKind>());
     }
 

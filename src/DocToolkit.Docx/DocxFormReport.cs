@@ -52,11 +52,12 @@ public sealed class DocxFormReport
 /// <summary>One content control, and its current content.</summary>
 public sealed class DocxFormField
 {
-    internal DocxFormField(string key, DocxFormValue value, string alias)
+    internal DocxFormField(string key, DocxFormValue value, string alias, bool isLocked)
     {
         Key = key;
         Value = value;
         Alias = alias;
+        IsLocked = isLocked;
     }
 
     /// <summary>The name this control answers to.</summary>
@@ -77,12 +78,20 @@ public sealed class DocxFormField
     /// <see cref="DocxFormValidation"/> reports that case as
     /// <see cref="DocxFormIssueKind.DuplicateKey"/>.
     ///
-    /// <b>Whether the control is LOCKED is still not reported.</b> Measured 2026-09-03: OfficeIMO
-    /// exposes the alias but neither the lock nor the element to read one from. Since 0.54.0
-    /// <c>Fill</c> refuses to write a locked control, so the lock is at least safe to discover by
-    /// attempting the fill.
+    /// Whether the control is locked against editing is reported by <see cref="IsLocked"/> (A120).
     /// </remarks>
     public string Alias { get; }
+
+    /// <summary>
+    /// True when the control's content is locked (<c>w:lock</c> <c>sdtContentLocked</c> or
+    /// <c>contentLocked</c>), which is exactly when <see cref="DocxForm.Fill"/> refuses to write it.
+    /// </summary>
+    /// <remarks>
+    /// <c>sdtLocked</c> only stops the control being deleted, so it is not locked here and fills
+    /// normally (A120). Read through OfficeIMO's own key resolution, so it can never disagree with
+    /// which control a key names.
+    /// </remarks>
+    public bool IsLocked { get; }
 
     /// <summary>
     /// What the control holds now — the same type <c>DocxForm.Fill</c> takes, so a round trip
@@ -206,4 +215,9 @@ public enum DocxFormIssueKind
 
     /// <summary>The value does not fit the control's repeating section.</summary>
     InvalidRepeatingSection = 9,
+
+    /// <summary>
+    /// The control's content is locked, so a fill will refuse it (see <see cref="DocxFormField.IsLocked"/>).
+    /// </summary>
+    LockedControl = 10,
 }
