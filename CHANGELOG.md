@@ -10,6 +10,13 @@ version, from a single tag (see README.md > Releasing). Entries below are prefix
 **Extensions:** when they apply to only one package; unprefixed entries apply to both or to
 repo-wide tooling (CI, release pipeline).
 
+## [0.61.0](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.60.1...v0.61.0) (2026-11-13)
+
+
+### Added
+
+* report a content control's lock on DocxFormField (A120) ([#551](https://github.com/Ank-KhoaHo/DocToolkit/issues/551)) ([1a6e405](https://github.com/Ank-KhoaHo/DocToolkit/commit/1a6e4052cb5c45d00fb94911a66b3789bd3ddea1))
+
 ## [0.60.1](https://github.com/Ank-KhoaHo/DocToolkit/compare/v0.60.0...v0.60.1) (2026-11-10)
 
 A packaging-only release: the library code is the same as 0.60.0.
