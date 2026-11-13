@@ -12,6 +12,12 @@
 # Noise is the failure mode this repository already paid for once. Anything the scan reports
 # should be something a person can act on.
 #
+# FOR C# THESE LINES DO NOT WORK, AND THAT WAS LEARNED LATE (C47, 2026-11-14). GitHub applies
+# paths-ignore only to languages it analyses without building; C# here is built
+# (build-mode: manual), so two alerts still landed in obj/.../RegexGenerator.g.cs. codeql.yml now
+# drops bin/ and obj/ results from the SARIF itself (scripts/filter-codeql-sarif.py). The lines
+# stay because they are correct for any interpreted language added later, and harmless here.
+#
 # NOT a security narrowing. bin/ and obj/ contain compiler output and generated partials; every
 # line of hand-written source in src/, tests/ and samples/ is still analysed. The default query
 # pack is unchanged - this file scopes WHERE it looks, never WHAT it looks for.
