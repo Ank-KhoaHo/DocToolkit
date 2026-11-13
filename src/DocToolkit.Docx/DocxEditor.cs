@@ -1230,10 +1230,9 @@ public static class DocxEditor
                                   .ToList()
                                   .Select(paragraph => paragraph.Descendants<Text>()
                                                                 .Where(t => t.Ancestors<Paragraph>().FirstOrDefault() == paragraph)
-                                                                .ToList()))
+                                                                .ToList())
+                                  .Where(texts => texts.Count > 0))
         {
-            if (texts.Count == 0) continue;
-
             var merged = string.Concat(texts.Select(t => t.Text));
 
             var offsets = new List<int>();

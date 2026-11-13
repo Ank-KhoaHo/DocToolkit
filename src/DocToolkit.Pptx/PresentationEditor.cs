@@ -396,10 +396,9 @@ public static class PresentationEditor
                 {
 
                     foreach (var texts in slide.Descendants<A.Paragraph>()
-                                 .Select(paragraph => paragraph.Descendants<A.Text>().ToList()))
+                                 .Select(paragraph => paragraph.Descendants<A.Text>().ToList())
+                                 .Where(texts => texts.Count > 0))
                     {
-                        if (texts.Count == 0) continue;
-
                         RunTextSplicer.Apply(
                             texts, static t => t.Text, static (t, v) => t.Text = v, replacements);
                     }
