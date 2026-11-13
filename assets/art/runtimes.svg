@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="320" viewBox="0 0 880 320" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <!-- D46 chart. Source for runtimes.png. The numbers are the README's measured table
+       (2026-08-09): runtimes/ MB and native .so/.dylib count after one dotnet add package. -->
+  <rect width="880" height="320" rx="18" fill="#FFFFFF" stroke="#D0D7DE"/>
+  <text x="40" y="52" fill="#1B2A4E" font-size="24" font-weight="700">What lands in your container: runtimes/ after one package</text>
+  <text x="40" y="80" fill="#57606A" font-size="15">An empty net8.0 console app, dotnet build -c Release, measured 2026-08-09. Reproduce any bar in a minute.</text>
+  <g font-size="16">
+    <text x="40" y="128" fill="#1B2A4E" font-weight="700">Ank.DocToolkit</text>
+    <rect x="200" y="112" width="4" height="24" fill="#F0B429"/>
+    <text x="214" y="130" fill="#1B2A4E" font-weight="700">0 MB · 0 native files</text>
+
+    <text x="40" y="170" fill="#24292F">EPPlus</text>
+    <rect x="200" y="154" width="2" height="24" fill="#8C959F"/>
+    <text x="214" y="172" fill="#57606A">1 MB · 0 native files</text>
+
+    <text x="40" y="212" fill="#24292F">QuestPDF</text>
+    <rect x="200" y="196" width="65" height="24" rx="3" fill="#8C959F"/>
+    <text x="275" y="214" fill="#57606A">83 MB · 10 native files</text>
+
+    <text x="40" y="254" fill="#24292F">NPOI</text>
+    <rect x="200" y="238" width="326" height="24" rx="3" fill="#8C959F"/>
+    <text x="536" y="256" fill="#57606A">416 MB · 12</text>
+
+    <text x="40" y="296" fill="#24292F">ShapeCrawler</text>
+    <rect x="200" y="280" width="520" height="24" rx="3" fill="#8C959F"/>
+    <text x="730" y="298" fill="#57606A">664 MB · 19</text>
+  </g>
+</svg>

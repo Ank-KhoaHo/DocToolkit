@@ -815,7 +815,7 @@ public class XlsxPresentationTests
     [Fact]
     public void TheChainTheNugetReadmeShows_ActuallyCompilesAndRuns()
     {
-        // src/DocToolkit/README.md is what nuget.org renders, so its snippets are the first code
+        // docfx/guides/reference.md (the package README until D46) holds these snippets, the first code
         // a consumer copies. Its "Usage" fence says outright that it is a connected walkthrough
         // rather than a script that compiles as pasted - placeholders like logoBytes stand in for
         // the reader's own data - so gen-readme-snippets.py does not manage it and nothing

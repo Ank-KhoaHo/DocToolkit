@@ -57,6 +57,8 @@ READMES = [
     "README.md",
     "src/DocToolkit/README.md",
     "src/DocToolkit.Extensions.DependencyInjection/README.md",
+    # The package README's reference moved here verbatim in D46.
+    "docfx/guides/reference.md",
 ]
 
 # Same map as gen-capability-matrix.py and check-package-description.py: what a reader calls

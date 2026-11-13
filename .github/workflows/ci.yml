@@ -794,6 +794,19 @@ jobs:
           python3 scripts/check-landing-calls.py --self-test
           python3 scripts/check-landing-calls.py
 
+      # The two README front pages (D46): short enough to read, and the NuGet one free of the HTML
+      # and relative images nuget.org cannot render. The type index on the NuGet page is generated
+      # from the approved API, so --check fails when a release adds a type and the page lags.
+      - name: Assert both README front pages keep their measured shape
+        run: |
+          python3 scripts/check-readme-shape.py --self-test
+          python3 scripts/check-readme-shape.py
+
+      - name: Assert the NuGet README type index matches the approved API
+        run: |
+          python3 scripts/gen-type-index.py --self-test
+          python3 scripts/gen-type-index.py --check
+
       # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
       # documentation tag, so the build stays green under -warnaserror while DocFX renders
       # whichever block it picks and the API site describes the wrong member. Three instances

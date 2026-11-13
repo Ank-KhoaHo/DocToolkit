@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="330" viewBox="0 0 880 330" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <!-- D46 hero. Source for hero.png (render with assets/render-art.py). Every number is measured:
+       0 native .so/.dylib files and 0 MB runtimes/ in a plain build (2026-08-09, README "Numbers"),
+       40 air-gap tests, the 4 CI platforms (ci.yml). -->
+  <rect width="880" height="330" rx="18" fill="#1B2A4E"/>
+  <text x="44" y="62" fill="#FFFFFF" font-size="30" font-weight="700">The four numbers this library exists for</text>
+  <text x="44" y="96" fill="#AFC0DD" font-size="17">Measured in CI on every push, not promised.</text>
+  <g font-weight="700">
+    <rect x="44" y="124" width="188" height="150" rx="12" fill="#24365F"/>
+    <text x="64" y="190" fill="#F0B429" font-size="56">0</text>
+    <text x="64" y="224" fill="#FFFFFF" font-size="17">native binaries</text>
+    <text x="64" y="250" fill="#AFC0DD" font-size="14" font-weight="400">in any build output</text>
+
+    <rect x="244" y="124" width="188" height="150" rx="12" fill="#24365F"/>
+    <text x="264" y="190" fill="#F0B429" font-size="56">0 MB</text>
+    <text x="264" y="224" fill="#FFFFFF" font-size="17">runtimes/ folder</text>
+    <text x="264" y="250" fill="#AFC0DD" font-size="14" font-weight="400">QuestPDF adds 83 MB</text>
+
+    <rect x="444" y="124" width="188" height="150" rx="12" fill="#24365F"/>
+    <text x="464" y="190" fill="#F0B429" font-size="56">0</text>
+    <text x="464" y="224" fill="#FFFFFF" font-size="17">network calls</text>
+    <text x="464" y="250" fill="#AFC0DD" font-size="14" font-weight="400">held by 40 air-gap tests</text>
+
+    <rect x="644" y="124" width="192" height="150" rx="12" fill="#24365F"/>
+    <text x="664" y="190" fill="#F0B429" font-size="56">4</text>
+    <text x="664" y="224" fill="#FFFFFF" font-size="17">platforms in CI</text>
+    <text x="664" y="248" fill="#AFC0DD" font-size="14" font-weight="400">Linux, arm64,</text>
+    <text x="664" y="266" fill="#AFC0DD" font-size="14" font-weight="400">Windows, macOS</text>
+  </g>
+  <text x="44" y="306" fill="#7F93B8" font-size="13">MIT · net8.0 and net10.0 · trim-safe and native-AOT tested · runtimes/ measured 2026-08-09 in an empty net8.0 app</text>
+</svg>

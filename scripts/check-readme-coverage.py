@@ -57,7 +57,9 @@ EXTENSIONS_APPROVED = [
 
 # (approved API files, the README that package publishes, label)
 TARGETS = [
-    (CORE_APPROVED, "src/DocToolkit/README.md", "Ank.DocToolkit"),
+    # D46 (2026-11-13): the prose that names each core type moved verbatim from the package
+    # README to the docs site's Reference page; the README keeps a generated type index.
+    (CORE_APPROVED, "docfx/guides/reference.md", "Ank.DocToolkit"),
     (EXTENSIONS_APPROVED,
      "src/DocToolkit.Extensions.DependencyInjection/README.md",
      "Ank.DocToolkit.Extensions.DependencyInjection"),

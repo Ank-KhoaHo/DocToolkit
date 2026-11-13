@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif">
+  <!-- D46 social preview (GitHub link card). Source for social-preview.png; the maintainer uploads
+       the PNG under Settings > General > Social preview, since GitHub has no API for it.
+       The page shapes are assets/icon.png's, scaled. -->
+  <rect width="1280" height="640" fill="#1B2A4E"/>
+  <g transform="translate(96 108) scale(1.6)">
+    <rect width="128" height="128" rx="26" fill="#24365F"/>
+    <rect x="34" y="20" width="60" height="88" rx="6" fill="#fff"/>
+    <path d="M78 20 H88 a6 6 0 0 1 6 6 V36 Z" fill="#C6D4E8"/>
+    <path d="M50 52 H86 V60 H44 Z" fill="#3D7EBF"/>
+    <path d="M48 66 H86 V74 H42 Z" fill="#3D7EBF"/>
+    <rect x="42" y="82" width="22" height="8" fill="#F0B429"/>
+  </g>
+  <text x="354" y="186" fill="#FFFFFF" font-size="88" font-weight="700" letter-spacing="-1">DocToolkit</text>
+  <text x="358" y="252" fill="#F0B429" font-size="36" font-style="italic">HTML in. Word and PDF out. Nothing else installed.</text>
+  <text x="358" y="300" fill="#C9D6EE" font-size="26">Pure managed .NET · net8.0 and net10.0 · MIT</text>
+  <g font-weight="700">
+    <text x="96" y="470" fill="#F0B429" font-size="72">0</text>
+    <text x="96" y="514" fill="#FFFFFF" font-size="24">native binaries</text>
+    <text x="376" y="470" fill="#F0B429" font-size="72">0 MB</text>
+    <text x="376" y="514" fill="#FFFFFF" font-size="24">runtimes/ folder</text>
+    <text x="656" y="470" fill="#F0B429" font-size="72">0</text>
+    <text x="656" y="514" fill="#FFFFFF" font-size="24">network calls</text>
+    <text x="936" y="470" fill="#F0B429" font-size="72">4</text>
+    <text x="936" y="514" fill="#FFFFFF" font-size="24">platforms in CI</text>
+  </g>
+  <text x="96" y="584" fill="#7F93B8" font-size="22">dotnet add package Ank.DocToolkit</text>
+</svg>

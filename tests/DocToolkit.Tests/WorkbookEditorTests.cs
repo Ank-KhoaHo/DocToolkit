@@ -1806,7 +1806,7 @@ public class WorkbookEditorTests
     }
 
     /// <summary>
-    /// PINS A KNOWN, MEASURED LIMITATION - see src/DocToolkit/README.md's "Known limitations"
+    /// PINS A KNOWN, MEASURED LIMITATION - see docfx/guides/reference.md's "Known limitations"
     /// table, the row about ClosedXML-backed WorkbookEditor operations and embedded objects. This
     /// is not an oversight: SetCell (like Create, AppendRows, and every other ClosedXML-backed
     /// method) opens the package through ClosedXML's XLWorkbook, which reconstructs the package
