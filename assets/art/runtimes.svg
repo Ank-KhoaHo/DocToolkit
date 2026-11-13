@@ -14,15 +14,15 @@
     <text x="214" y="172" fill="#57606A">1 MB · 0 native files</text>
 
     <text x="40" y="212" fill="#24292F">QuestPDF</text>
-    <rect x="200" y="196" width="78" height="24" rx="3" fill="#8C959F"/>
-    <text x="288" y="214" fill="#57606A">83 MB · 10 native files</text>
+    <rect x="200" y="196" width="65" height="24" rx="3" fill="#8C959F"/>
+    <text x="275" y="214" fill="#57606A">83 MB · 10 native files</text>
 
     <text x="40" y="254" fill="#24292F">NPOI</text>
-    <rect x="200" y="238" width="391" height="24" rx="3" fill="#8C959F"/>
-    <text x="601" y="256" fill="#57606A">416 MB · 12</text>
+    <rect x="200" y="238" width="326" height="24" rx="3" fill="#8C959F"/>
+    <text x="536" y="256" fill="#57606A">416 MB · 12</text>
 
     <text x="40" y="296" fill="#24292F">ShapeCrawler</text>
-    <rect x="200" y="280" width="590" height="24" rx="3" fill="#8C959F"/>
-    <text x="800" y="298" fill="#57606A">664 MB · 19</text>
+    <rect x="200" y="280" width="520" height="24" rx="3" fill="#8C959F"/>
+    <text x="730" y="298" fill="#57606A">664 MB · 19</text>
   </g>
 </svg>

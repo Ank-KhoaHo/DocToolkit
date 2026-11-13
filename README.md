@@ -1,37 +1,33 @@
-![DocToolkit - convert HTML to PDF and DOCX in C#, no browser, no native binaries](assets/banner.png)
+<p align="center">
+  <img src="assets/icon.png" width="128" alt="DocToolkit">
+</p>
 
-# DocToolkit
+<h1 align="center">DocToolkit</h1>
 
-[![CI](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Ank-KhoaHo/DocToolkit/branch/main/graph/badge.svg)](https://codecov.io/gh/Ank-KhoaHo/DocToolkit)
-[![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.svg?label=Ank.DocToolkit)](https://www.nuget.org/packages/Ank.DocToolkit/)
-[![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.svg)](https://www.nuget.org/packages/Ank.DocToolkit/)
-[![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg?label=Ank.DocToolkit.Extensions.DependencyInjection)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
+<p align="center">
+  <em>HTML in. Word and PDF out. Nothing else installed.</em>
+</p>
 
-**Convert HTML to PDF in C# — without a headless browser.** Pure managed code: no native
-binaries, no browser, no LibreOffice, no Office interop. Runs on Linux, macOS, Windows and arm64,
-and makes **no network calls at runtime**.
+<p align="center">
+  <a href="https://www.nuget.org/packages/Ank.DocToolkit/"><img src="https://img.shields.io/nuget/v/Ank.DocToolkit?style=flat-square&color=1B2A4E&label=nuget" alt="NuGet"></a>
+  <a href="https://www.nuget.org/packages/Ank.DocToolkit/"><img src="https://img.shields.io/nuget/dt/Ank.DocToolkit?style=flat-square&color=1B2A4E&label=downloads" alt="Downloads"></a>
+  <a href="https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/runs%20on-Linux%20%C2%B7%20arm64%20%C2%B7%20Windows%20%C2%B7%20macOS-1B2A4E?style=flat-square" alt="Runs on Linux, arm64, Windows and macOS"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1B2A4E?style=flat-square" alt="MIT"></a>
+</p>
 
-<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
+<p align="center">
+  <img src="assets/art/hero.png" width="880" alt="The four numbers this library exists for, measured in CI on every push: 0 native binaries in any build output, a 0 MB runtimes folder where QuestPDF adds 83 MB, 0 network calls held by 40 air-gap tests, and 4 platforms in CI: Linux, arm64, Windows and macOS.">
+</p>
 
-| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
-|---|---|---|---|---|---|---|---|---|
-| **CSV** | — | · | · | · | · | · | · | · |
-| **DOC** | · | — | **✅** | · | · | · | · | · |
-| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
-| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
-| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
-| **PDF** | · | · | · | · | · | — | · | · |
-| **PPTX** | · | · | · | · | · | **✅** | — | · |
-| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
+---
 
-A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
+You have a Linux container, a Word template and a PDF due on Friday. The usual answers are a
+headless Chrome, LibreOffice, or a licence with a revenue threshold.
 
-<!-- END GENERATED -->
+DocToolkit is one NuGet package instead. It is pure managed code. It restores, builds and runs the
+same on your laptop and in the container.
 
-Generated from the shipped API, not written by hand — [full grid, plus every edit/read
-operation](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html). Also: open, edit and
-**password-protect** DOCX, XLSX and PPTX, and read PDF text.
+## Install
 
 ```bash
 dotnet add package Ank.DocToolkit
@@ -51,44 +47,20 @@ byte[] locked = PdfEditor.Protect(pdf, new PdfProtection { UserPassword = "s3cre
 
 <!-- END SNIPPET -->
 
-Targets `net8.0` and `net10.0`. MIT licensed.
+That is the whole setup: no browser download, no `apt-get`, no config file. It targets `net8.0` and
+`net10.0`.
 
-📖 [Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html) ·
-🔎 [API reference](https://ank-khoaho.github.io/DocToolkit/) · 🗺️ [Roadmap](ROADMAP.md) · 📦
-[package README](src/DocToolkit/README.md) · 📝 [CHANGELOG](CHANGELOG.md)
+## Numbers
 
-> **Contributing?** Branch from `main` and open a pull request back into it — `main` itself cannot
-> be pushed directly. See [CONTRIBUTING.md](CONTRIBUTING.md) for the build, the commit-message
-> rules, and the four constraints that will get a pull request rejected.
+<p align="center">
+  <img src="assets/art/runtimes.png" width="880" alt="What lands in your container: the runtimes folder after one dotnet add package, in an empty net8.0 app. Ank.DocToolkit 0 MB and 0 native files; EPPlus 1 MB and 0; QuestPDF 83 MB and 10; NPOI 416 MB and 12; ShapeCrawler 664 MB and 19.">
+</p>
 
-## Measured against the alternatives
+Every bar takes a minute to reproduce. The licence column and the method sit beside the chart in
+[Measured against the alternatives](https://ank-khoaho.github.io/DocToolkit/guides/reference.html#measured-against-the-alternatives).
 
-Most .NET document stacks fail one of three things: a licence with a revenue threshold, a native
-binary that breaks on Linux, or a claim nobody re-checked. This package is built to fail none of
-them, and the numbers below are how that gets verified rather than asserted.
-
-```mermaid
-xychart-beta
-    title "runtimes/ folder in a plain build (MB)"
-    x-axis ["Ank.DocToolkit", "EPPlus", "QuestPDF", "NPOI", "ShapeCrawler"]
-    y-axis "MB in build output" 0 --> 700
-    bar [0, 1, 83, 416, 664]
-```
-
-Those bars are the `runtimes/` column below, which is **not** the same measurement as the native-file
-count beside it: EPPlus's 1 MB contains **zero** `.so`/`.dylib` files. Both are in the table.
-
-| package | native `.so`/`.dylib` in build output | `runtimes/` | licence in NuGet metadata |
-|---|---|---|---|
-| **Ank.DocToolkit** | **0** | **0 MB** | **`MIT`**, as an SPDX expression |
-| EPPlus | 0 | 1 MB | ships `license.md` — read it |
-| QuestPDF | 10 | 83 MB | ships `LICENSE.md` — read it |
-| NPOI | 12 | 416 MB | ships `OSMFEULA.txt` — read it |
-| ShapeCrawler | 19 | 664 MB | none declared |
-
-Every number was measured on 2026-08-09 by adding the package to an empty `net8.0` console app and
-building it. **Reproduce any row in under a minute** — that is the point of publishing the method
-rather than a conclusion:
+<details>
+<summary>Reproduce a bar</summary>
 
 ```bash
 dotnet new console && dotnet add package <name> && dotnet build -c Release
@@ -96,15 +68,7 @@ find bin -path '*runtimes*' \( -name '*.so' -o -name '*.dylib' \) | wc -l
 du -sm bin/Release/net8.0/runtimes
 ```
 
-**Two things this table deliberately does not do.** It does not tell you what those licences say —
-they are linked from each package's own page and are the authors' to describe, not ours. And it does
-not claim native payload is everyone's problem: **EPPlus carries essentially none**, so if that is
-your only concern it is not a reason to switch. Where the payload does appear it comes from
-SkiaSharp and Magick.NET, pulled in transitively for image rendering.
-
-What the table is for is the case where **both** columns matter at once — a Linux container that has
-to stay small, with a licence you can clear without asking anybody. That combination is the whole
-reason this package exists, and all four constraints below are re-checked by CI on every push.
+</details>
 
 ## What it does
 
@@ -115,49 +79,35 @@ reason this package exists, and all four constraints below are re-checked by CI 
 | **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
 | **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
 
-The full grid is generated from the shipped API rather than written by hand:
-**[what it can convert](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html)**.
+<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
 
-Task-shaped walkthroughs, one per format, start at
-**[Getting started](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html)** for the
-install-to-first-conversion path, or jump straight to the page for the format you need.
+| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
+|---|---|---|---|---|---|---|---|---|
+| **CSV** | — | · | · | · | · | · | · | · |
+| **DOC** | · | — | **✅** | · | · | · | · | · |
+| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
+| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
+| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
+| **PDF** | · | · | · | · | · | — | · | · |
+| **PPTX** | · | · | · | · | · | **✅** | — | · |
+| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
 
-## Why this exists
+A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
 
-Most .NET document stacks fail at least one of these. This one satisfies all four:
+<!-- END GENERATED -->
 
-| Constraint | How |
-|---|---|
-| **Free for commercial use** | 38 dependencies: 35 MIT, 2 Apache-2.0, and OfficeIMO.Core (MIT AND Apache-2.0 AND BSD-3-Clause). No revenue thresholds, no per-seat fees. |
-| **NuGet only** | No Chromium download, no LibreOffice install, no native binaries. |
-| **Targets `net8.0` and `net10.0`** | Two LTS targets, one public API surface. `net9.0` is deliberately absent — a `net9.0` app already consumes the `net8.0` build, so it would add no reach. `netstandard2.0` is deliberately absent too: every dependency supports it, but the bounded-fetch guarantee on remote images cannot be expressed there, and `DateOnly`/`TimeOnly` would make the API differ per target. |
-| **Runs everywhere .NET does** | The full suite runs in CI on Linux, Windows, macOS and **arm64** (`ubuntu-24.04` x64, `windows-latest`, `macos-latest` Apple Silicon, `ubuntu-24.04-arm`). Not inferred from "pure managed" - measured on each. |
-| **Works offline** | No runtime network I/O. Proven by 40 air-gap tests. |
-
-All four are properties of the *resolved dependency graph*, so a single upstream bump can break
-them silently — which is why CI re-checks every one on every push.
-
-**That has happened once already.** PowerPoint support originally used ShapeCrawler, whose *API*
-was checked and whose *dependencies* were not. It pulls in SkiaSharp and Magick.NET, which put
-**38 native `.so`/`.dylib` files and 664 MB of `runtimes/`** into build output — breaking two of
-the four constraints at once, on a package that restored and built perfectly well. It was replaced
-with raw `DocumentFormat.OpenXml`, and the check that would have caught it now runs on every push.
-The [comparison table](#measured-against-the-alternatives) above is the same measurement, applied
-to the alternatives.
-
-### Trust, verification and limits
+## Proof
 
 | | |
 |---|---|
-| **Trimmable / native AOT** | Both packages marked, and both **run-tested** in CI — not just published warning-free. One caveat: ClosedXML emits trim warning `IL2090`. → [Trimming and native AOT](https://ank-khoaho.github.io/DocToolkit/guides/production.html#trimming-and-native-aot) |
-| **Provenance attestation** | Every `.nupkg` and SBOM is signed, naming the workflow, commit and runner. → [Verifying a release](https://ank-khoaho.github.io/DocToolkit/guides/production.html#verifying-a-release) |
-| **SBOM** | CycloneDX per package, attached to every [GitHub Release](https://github.com/Ank-KhoaHo/DocToolkit/releases) |
-| **Offline, enforced not intended** | 40 guard tests assert **zero** socket connections against 16 ways markup can name a host; mutation-tested weekly. → [Nothing reaches the network unless you ask](https://ank-khoaho.github.io/DocToolkit/guides/production.html#nothing-reaches-the-network-unless-you-ask) |
-| **Fidelity, on real files** | 88–98% success across 500+ real `.gov` documents, monthly. → [Measured on documents nobody here wrote](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html#measured-on-documents-nobody-here-wrote) |
-| **What this won't do** | CSS layout, mixed page setups, multi-line headers — the bounded list. → [Known limitations](https://ank-khoaho.github.io/DocToolkit/guides/production.html#what-this-library-will-not-do) |
+| **Every push** | [![CI](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/Ank-KhoaHo/DocToolkit/branch/main/graph/badge.svg)](https://codecov.io/gh/Ank-KhoaHo/DocToolkit) on Linux, arm64, Windows and macOS |
+| **Trimmable / native AOT** | both packages run-tested in CI, not just published. ClosedXML emits `IL2090`. → [Trimming and native AOT](https://ank-khoaho.github.io/DocToolkit/guides/production.html#trimming-and-native-aot) |
+| **Provenance and SBOM** | every `.nupkg` and CycloneDX SBOM is attested to the workflow, commit and runner. → [Verifying a release](https://ank-khoaho.github.io/DocToolkit/guides/production.html#verifying-a-release) |
+| **Offline, enforced** | 40 guard tests assert zero socket connections against 16 ways markup can name a host. → [Nothing reaches the network unless you ask](https://ank-khoaho.github.io/DocToolkit/guides/production.html#nothing-reaches-the-network-unless-you-ask) |
+| **Real files** | 88–98% success across 500+ real `.gov` documents, monthly. → [Measured on documents nobody here wrote](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html#measured-on-documents-nobody-here-wrote) |
+| **Free for commercial use** | 38 dependencies: 35 MIT, 2 Apache-2.0, and OfficeIMO.Core (MIT AND Apache-2.0 AND BSD-3-Clause) |
 
-Offline is the default everywhere; remote images are the one opt-in, and it stays bounded rather
-than wide open:
+Remote images are the one network opt-in, and it stays bounded:
 
 <!-- BEGIN SNIPPET: readme-remote-opt-in -->
 
@@ -166,37 +116,42 @@ byte[] docx = await HtmlToDocxConverter.ConvertAsync(html, allowRemoteImageDownl
 
 // Bounded instead of wide open: timeout, byte cap, host allow-list and a block on
 // loopback/private/link-local addresses, all on by default. Not a complete SSRF defence — see
-// the package README.
+// the Reference page.
 byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
 ```
 
 <!-- END SNIPPET -->
 
+## FAQ
+
+**Does it need Chrome or LibreOffice?**
+No. Every PDF is rendered from a real Word document, in managed code.
+
+**Can I use it at work?**
+Yes. It is MIT licensed, and every dependency is MIT, Apache-2.0 or BSD.
+
+**Which .NET versions?**
+`net8.0` and `net10.0`, the two LTS releases. A `net9.0` app uses the `net8.0` build.
+
+**What will it not do?**
+CSS layout, mixed page setups and multi-line headers, among a few others. The list is in
+[Known limitations](https://ank-khoaho.github.io/DocToolkit/guides/reference.html#known-limitations).
+
 ## Documentation
 
-The **[package README](src/DocToolkit/README.md)** is the reference: every capability, every
-overload, and the caveats that matter. It is also what nuget.org renders, so it is what you get on
-the package page.
-
-| | |
-|---|---|
-| **[Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html)** | Task-shaped walkthroughs - getting started, HTML, Markdown, Word, spreadsheets, DI, production |
-| **[API reference](https://ank-khoaho.github.io/DocToolkit/)** | Generated from the source |
-| **[Samples](samples/)** | One runnable project per capability, each answering one question, built against the published packages |
-| **[Package README](src/DocToolkit/README.md)** | Full usage, page setup, passwords, telemetry, known limitations, and the migration notes per release |
-| **[Extensions README](src/DocToolkit.Extensions.DependencyInjection/README.md)** | `services.AddDocToolkit()` and the injectable interfaces |
-| **[CHANGELOG](CHANGELOG.md)** | What changed, per release |
-| **[PUBLIC.md](PUBLIC.md)** | Why the design docs, ADRs and backlog are **not** in your clone, and what would have to change for them to be |
-| **[CONTRIBUTING](CONTRIBUTING.md)** | Build, test, commit rules, repository layout, and the four constraints a pull request must not break |
-| **[SECURITY](SECURITY.md)** | Reporting a vulnerability, the scope, and the documented limits that are not findings |
+- [Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html): one walkthrough per format.
+- [Reference](https://ank-khoaho.github.io/DocToolkit/guides/reference.html): every capability, overload and caveat.
+- [API reference](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.html), generated from the source.
+- [Samples](samples/): one runnable project per capability, built against the published packages.
+- [Dependency injection](src/DocToolkit.Extensions.DependencyInjection/README.md): `services.AddDocToolkit()`.
+- [CHANGELOG](CHANGELOG.md) · [Roadmap](ROADMAP.md) · [Security](SECURITY.md) · [PUBLIC.md](PUBLIC.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md): the build, the commit rules and the four constraints.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
-
-DocToolkit is maintained by [WillowAnk Solution](https://wanksolution.com/). Its product page is [wanksolution.com/doctoolkit](https://wanksolution.com/doctoolkit/).
+MIT. See [LICENSE](LICENSE). Maintained by [WillowAnk Solution](https://wanksolution.com/);
+product page [wanksolution.com/doctoolkit](https://wanksolution.com/doctoolkit/).
 
 ---
 
-If this replaced a headless browser in your build, a star helps others find it — GitHub's
-repository search ranks partly on stars, and this one has three.
+If this replaced a headless browser in your build, a star helps others find it.

@@ -198,4 +198,4 @@ Worth knowing before you design around it:
 - **One page setup per document.** No mixed portrait-and-landscape sections.
 
 The full list, with the reasoning behind each, is in the
-[README](https://github.com/Ank-KhoaHo/DocToolkit#known-limitations).
+[Reference](reference.md#known-limitations).
