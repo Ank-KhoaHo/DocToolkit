@@ -394,7 +394,7 @@ public class ReadmeExamples
 
             // Bounded instead of wide open: timeout, byte cap, host allow-list and a block on
             // loopback/private/link-local addresses, all on by default. Not a complete SSRF defence — see
-            // the package README.
+            // the Reference page.
             byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOptions());
             #endregion
 
