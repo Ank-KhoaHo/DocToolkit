@@ -42,6 +42,8 @@ READMES = [
     REPO / "README.md",
     REPO / "src" / "DocToolkit" / "README.md",
     REPO / "src" / "DocToolkit.Extensions.DependencyInjection" / "README.md",
+    # The package README's reference moved here verbatim in D46, snippets included.
+    REPO / "docfx" / "guides" / "reference.md",
 ]
 
 BEGIN = "<!-- BEGIN SNIPPET: {} -->"

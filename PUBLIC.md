@@ -11,8 +11,8 @@ consumer arriving from nuget.org has no use for it.
 
 - **[README.md](README.md)** — what the package does, the constraints it holds, measured
   real-world conversion rates
-- **[package README](src/DocToolkit/README.md)** — every capability, every overload, the caveats,
-  and the migration notes per release. This is what nuget.org renders
+- **[Reference](https://ank-khoaho.github.io/DocToolkit/guides/reference.html)** — every capability, every overload, the caveats,
+  and the migration notes per release. Until D46 this was the package README that nuget.org renders
 - **[Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html)** and the
   **[API reference](https://ank-khoaho.github.io/DocToolkit/)**
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — how to build it, and what will get a pull request
