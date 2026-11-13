@@ -24,7 +24,7 @@ public class PresentationCorePropertiesTests
 
     private static byte[] WithASecondCoreRelationship(byte[] pptx)
     {
-        var ms = new MemoryStream();
+        using var ms = new MemoryStream();
         ms.Write(pptx);
         ms.Position = 0;
         using (var package = Package.Open(ms, FileMode.Open, FileAccess.ReadWrite))

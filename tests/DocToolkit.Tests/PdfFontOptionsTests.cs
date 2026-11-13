@@ -407,9 +407,10 @@ public class PdfFontOptionsTests
             return;
         var fonts = new PdfFontOptions("Supplied", font);
         var docx = ArabicDocx();
+        using var input = new MemoryStream(docx);
         using var destination = new MemoryStream();
 
-        await DocxToPdfConverter.ConvertAsync(new MemoryStream(docx), destination, fonts);
+        await DocxToPdfConverter.ConvertAsync(input, destination, fonts);
 
         AssertArabicLineIsJoined(destination.ToArray(), font);
     }

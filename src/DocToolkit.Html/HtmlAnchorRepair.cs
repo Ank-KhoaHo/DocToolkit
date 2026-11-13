@@ -207,10 +207,8 @@ internal static class HtmlAnchorRepair
         if (wanted.Count == 0) return false;
 
         var changed = false;
-        foreach (var target in wanted)
+        foreach (var target in wanted.Where(t => !satisfied.Contains(t)))
         {
-            if (satisfied.Contains(target)) continue;
-
             // The element that declares the identity, in either form. `[id]` is included because an
             // id on an inline element or a cell reads as present and produces no bookmark.
             var declaring = document.QuerySelectorAll($"a[name], [id]")

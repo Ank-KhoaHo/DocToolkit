@@ -28,10 +28,10 @@ internal static class CellPaddingZero
     {
         var changed = false;
         foreach (var margins in doc.Descendants().Where(e => e.Name == W + "tblCellMar" || e.Name == W + "tcMar"))
-            foreach (var side in margins.Elements().Where(s => s.Name.LocalName is "left" or "right" or "start" or "end"))
+            foreach (var side in margins.Elements()
+                         .Where(s => s.Name.LocalName is "left" or "right" or "start" or "end"
+                                     && !((string?)s.Attribute(W + "w") == "0" && (string?)s.Attribute(W + "type") == "dxa")))
             {
-                if ((string?)side.Attribute(W + "w") == "0" && (string?)side.Attribute(W + "type") == "dxa") continue;
-
                 side.SetAttributeValue(W + "w", "0");
                 side.SetAttributeValue(W + "type", "dxa");
                 changed = true;

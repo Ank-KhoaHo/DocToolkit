@@ -41,12 +41,12 @@ internal static class TinyPercentWidthRepair
     private static bool MarkAuto(XDocument doc)
     {
         var changed = false;
-        foreach (var width in doc.Descendants().Where(e => e.Name == W + "tblW" || e.Name == W + "tcW"))
+        foreach (var width in doc.Descendants()
+                     .Where(e => (e.Name == W + "tblW" || e.Name == W + "tcW")
+                                 && (string?)e.Attribute(W + "type") == "pct"
+                                 && int.TryParse((string?)e.Attribute(W + "w"), out var value)
+                                 && value < 100))
         {
-            if ((string?)width.Attribute(W + "type") != "pct"
-                || !int.TryParse((string?)width.Attribute(W + "w"), out var value)
-                || value >= 100) continue;
-
             width.SetAttributeValue(W + "type", "auto");
             width.SetAttributeValue(W + "w", "0");
             changed = true;

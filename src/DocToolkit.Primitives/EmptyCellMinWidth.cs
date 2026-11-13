@@ -31,11 +31,10 @@ internal static class EmptyCellMinWidth
     private static bool GiveWidth(XDocument doc)
     {
         var changed = false;
-        foreach (var cell in doc.Descendants(W + "tc"))
+        foreach (var cell in doc.Descendants(W + "tc")
+                     .Where(cell => string.IsNullOrWhiteSpace(string.Concat(cell.Descendants(W + "t").Select(t => t.Value)))
+                                    && !cell.Descendants(W + "drawing").Any()))
         {
-            if (!string.IsNullOrWhiteSpace(string.Concat(cell.Descendants(W + "t").Select(t => t.Value)))
-                || cell.Descendants(W + "drawing").Any()) continue;
-
             var properties = cell.Element(W + "tcPr");
             var width = properties?.Element(W + "tcW");
             var type = (string?)width?.Attribute(W + "type");

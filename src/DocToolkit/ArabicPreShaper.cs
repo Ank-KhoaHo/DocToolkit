@@ -113,13 +113,14 @@ internal static class ArabicPreShaper
     private static bool ShapeDocument(XDocument doc)
     {
         var changed = false;
+        var logical = new StringBuilder();
         foreach (var container in doc.Descendants().Where(IsContainer).ToList())
         {
             // Text nodes in document order, with the logical string they are shaped as. A line
             // break, tab or inline object between two text nodes becomes one space in that string,
             // which does not join, so letters never join across it. Separators belong to no node.
             var nodes = new List<(XElement Node, string Original, int Start)>();
-            var logical = new StringBuilder();
+            logical.Clear();
             var separate = false;
             foreach (var e in container.Descendants())
             {

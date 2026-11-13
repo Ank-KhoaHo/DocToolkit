@@ -172,7 +172,7 @@ internal static class PptxFixtures
                     xfrm.Offset.X = 500000; xfrm.Offset.Y = 5000000; // near the bottom
                     xfrm.Extents.Cx = 8000000; xfrm.Extents.Cy = 1000000;
                 }
-                else if (ph?.Type?.Value == P.PlaceholderValues.Body && (ph?.Index?.Value ?? 0) == 1)
+                else if (ph?.Type?.Value == P.PlaceholderValues.Body && (ph.Index?.Value ?? 0) == 1)
                 {
                     xfrm.Offset.X = 500000; xfrm.Offset.Y = 500000; // near the top
                     xfrm.Extents.Cx = 8000000; xfrm.Extents.Cy = 2000000;

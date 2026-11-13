@@ -63,7 +63,7 @@ public class DocxPdfRepairTests
         {
             var main = doc.AddMainDocumentPart();
             var rel = main.AddHyperlinkRelationship(new Uri("https://example.org/x"), true);
-            var children = linkRuns.Select(r => (OpenXmlElement)r.CloneNode(true)).ToList();
+            var children = linkRuns.Select(r => r.CloneNode(true)).ToList();
             if (withPicture)
             {
                 var image = main.AddImagePart(ImagePartType.Png);
@@ -992,7 +992,13 @@ public class DocxPdfRepairTests
         var docx = WithCorruptFooter(Build("Header", "Footer", P(R("Plain text"))));
         // The fixture is a real one: reading the part does throw.
         using (var zip = new ZipArchive(new MemoryStream(docx), ZipArchiveMode.Read))
-            Assert.Throws<InvalidDataException>(() => new StreamReader(zip.GetEntry("word/footer3.xml")!.Open()).ReadToEnd());
+        {
+            Assert.Throws<InvalidDataException>(() =>
+            {
+                using var reader = new StreamReader(zip.GetEntry("word/footer3.xml")!.Open());
+                reader.ReadToEnd();
+            });
+        }
 
         Assert.Same(docx, ControlCharacterStrip.Apply(docx));
     }

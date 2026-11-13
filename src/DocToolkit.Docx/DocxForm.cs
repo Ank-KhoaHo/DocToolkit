@@ -300,9 +300,8 @@ public static class DocxForm
         foreach (var control in document.StructuredDocumentTags)
         {
             var alias = control.Alias ?? string.Empty;
-            foreach (var name in new[] { control.Tag, control.Alias })
+            foreach (var name in new[] { control.Tag, control.Alias }.OfType<string>().Where(n => n.Length > 0))
             {
-                if (string.IsNullOrEmpty(name)) continue;
                 if (!byName.TryGetValue(name, out var found)) byName[name] = found = [];
                 found.Add(alias);
             }
@@ -329,12 +328,9 @@ public static class DocxForm
                 extracted, Upstream(key), requireAllControls: false, allowUnusedValues: true);
 
             var locked = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var issue in validation.Issues)
+            foreach (var issue in validation.Issues.Where(issue => issue.Kind == OfficeIMOIssueKind.LockedControl && issue.Key is not null))
             {
-                if (issue.Kind == OfficeIMOIssueKind.LockedControl && issue.Key is not null)
-                {
-                    locked.Add(issue.Key);
-                }
+                locked.Add(issue.Key!);
             }
 
             DocxFormField[] fields = [.. extracted

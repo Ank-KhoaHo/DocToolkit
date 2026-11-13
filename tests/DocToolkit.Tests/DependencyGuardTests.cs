@@ -42,9 +42,8 @@ public class DependencyGuardTests
 
         while (queue.Count > 0)
         {
-            foreach (var reference in queue.Dequeue().GetReferencedAssemblies())
+            foreach (var reference in queue.Dequeue().GetReferencedAssemblies().Where(reference => seen.Add(reference.Name!)))
             {
-                if (!seen.Add(reference.Name!)) continue;
                 try { queue.Enqueue(Assembly.Load(reference)); }
                 catch { /* not all references load standalone; the name check below still applies */ }
             }

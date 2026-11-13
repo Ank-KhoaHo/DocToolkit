@@ -89,7 +89,26 @@ jobs:
           dotnet restore "$SOLUTION"
           dotnet build "$SOLUTION" -c Release --no-restore
 
+      # Analyse, filter, then upload - three steps where one used to do all of it (C47).
+      # codeql-config.yml's paths-ignore does nothing for C# built with build-mode: manual
+      # (GitHub applies it only to languages analysed without a build), so alerts landed in
+      # obj/.../RegexGenerator.g.cs. The build cannot skip obj/: the [GeneratedRegex] output
+      # there is part of the library. So the results in bin/ and obj/ are dropped from the
+      # SARIF instead, by a script with its own --self-test (run in ci.yml's format job).
+      # failure-only is the analyze action's documented mode for post-processing: a failed
+      # run still uploads its debugging data.
       - name: Analyze
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
+          category: "/language:csharp"
+          output: sarif-results
+          upload: failure-only
+
+      - name: Drop results in generated bin/ and obj/ output
+        run: python3 scripts/filter-codeql-sarif.py sarif-results/csharp.sarif
+
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: sarif-results/csharp.sarif
           category: "/language:csharp"

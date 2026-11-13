@@ -79,11 +79,12 @@ internal static class RunTextSplicer
         var changed = false;
         var matchIndex = 0;
         var nodeStart = 0;
+        var rebuilt = new StringBuilder();
 
         for (var i = 0; i < nodes.Count; i++)
         {
             var nodeEnd = nodeStart + originals[i].Length;
-            var rebuilt = new StringBuilder();
+            rebuilt.Clear();
             var pos = nodeStart;
 
             while (pos < nodeEnd)
@@ -129,12 +130,12 @@ internal static class RunTextSplicer
     private static List<Match> FindRegexMatches(string merged, Regex pattern, string replacement)
     {
         var matches = new List<Match>();
-        foreach (System.Text.RegularExpressions.Match m in pattern.Matches(merged))
+        // A zero-width match consumes nothing. Splicing one inserts without advancing, so it
+        // is skipped rather than expanded - see this class's Apply(Regex) remarks.
+        foreach (System.Text.RegularExpressions.Match m in pattern.Matches(merged)
+                     .Cast<System.Text.RegularExpressions.Match>()
+                     .Where(m => m.Length > 0))
         {
-            // A zero-width match consumes nothing. Splicing one inserts without advancing, so it
-            // is skipped rather than expanded - see this class's Apply(Regex) remarks.
-            if (m.Length == 0) continue;
-
             matches.Add(new Match(m.Index, m.Index + m.Length, m.Result(replacement)));
         }
 

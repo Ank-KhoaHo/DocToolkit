@@ -125,13 +125,11 @@ internal static class WideTableScale
     private static long WidestRow(XElement table, long gridWidth)
     {
         long widest = 0;
-        foreach (var row in table.Elements(W + "tr"))
+        foreach (var widths in table.Elements(W + "tr").Select(row => row.Elements(W + "tc")
+                     .Select(c => c.Element(W + "tcPr")?.Element(W + "tcW"))
+                     .Select(w => (string?)w?.Attribute(W + "type") == "dxa" ? Twips(w, "w") : -1)
+                     .ToList()))
         {
-            var cells = row.Elements(W + "tc").ToList();
-            var widths = cells
-                .Select(c => c.Element(W + "tcPr")?.Element(W + "tcW"))
-                .Select(w => (string?)w?.Attribute(W + "type") == "dxa" ? Twips(w, "w") : -1)
-                .ToList();
             widest = Math.Max(widest, widths.Contains(-1) ? gridWidth : widths.Sum());
         }
 

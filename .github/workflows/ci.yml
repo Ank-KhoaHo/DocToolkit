@@ -807,6 +807,11 @@ jobs:
           python3 scripts/gen-type-index.py --self-test
           python3 scripts/gen-type-index.py --check
 
+      # codeql.yml runs this filter on every analysis, but only on the SARIF it produces; a
+      # filter that silently dropped real code would look exactly like a clean scan (C47).
+      - name: Self-test the CodeQL SARIF filter
+        run: python3 scripts/filter-codeql-sarif.py --self-test
+
       # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
       # documentation tag, so the build stays green under -warnaserror while DocFX renders
       # whichever block it picks and the API site describes the wrong member. Three instances

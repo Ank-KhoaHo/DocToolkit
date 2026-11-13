@@ -130,11 +130,11 @@ public class ServiceCollectionExtensionsTests
         // DocToolkit*.dll actually shipped next to the test binary is the real, ground-truth
         // list - nothing else can drift from what the package contains, because it IS what the
         // package contains.
-        foreach (var dll in Directory.GetFiles(AppContext.BaseDirectory, "DocToolkit*.dll"))
+        foreach (var name in Directory.GetFiles(AppContext.BaseDirectory, "DocToolkit*.dll")
+                     .Select(AssemblyName.GetAssemblyName)
+                     .Where(name => name.Name is { } n && !n.StartsWith("DocToolkit.Extensions", StringComparison.Ordinal)))
         {
-            var name = AssemblyName.GetAssemblyName(dll);
-            if (name.Name is { } n && !n.StartsWith("DocToolkit.Extensions", StringComparison.Ordinal))
-                Assembly.Load(name);
+            Assembly.Load(name);
         }
 
         var coreAssemblies = AppDomain.CurrentDomain.GetAssemblies()

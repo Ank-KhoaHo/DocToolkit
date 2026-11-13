@@ -1908,9 +1908,10 @@ public class DocxMailMergeTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
-            await foreach (var document in DocxMailMerge.MergeBatchAsync(
+            await foreach (var _ in DocxMailMerge.MergeBatchAsync(
                 Simple("FirstName"), countingRecords, cts.Token))
             {
+                // The loop body is intentionally empty; iterating drives enumeration to trigger cancellation.
             }
         });
 

@@ -402,6 +402,42 @@ public class DocxEditorCreateTests
     }
 
     /// <summary>
+    /// Pins <c>Format</c>'s last arm: a value that is not <see cref="IFormattable"/> renders through
+    /// its own <c>ToString()</c>, and a <c>ToString()</c> that returns <see langword="null"/> renders
+    /// as an empty cell rather than throwing or writing the type name. Neither half was tested
+    /// (C47: the arm showed 0 of 2 branches covered). Asserted on the cells, like the null-cell test
+    /// above, because an empty cell is invisible to <c>ExtractText</c>.
+    /// </summary>
+    [Fact]
+    public void Create_FormatsAnyOtherTypeThroughItsToString()
+    {
+        var docx = DocxEditor.Create(new[]
+        {
+            DocxBlock.Table(new[] { "A", "B" }, new[]
+            {
+                new object?[] { new PlainValue("plain-value"), new PlainValue(null) },
+            }),
+        });
+
+        AssertValid(docx);
+
+        using var ms = new MemoryStream(docx);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var cells = doc.MainDocumentPart!.Document!.Body!.Elements<Table>().Single()
+            .Elements<TableRow>().Last().Elements<TableCell>().ToList();
+
+        Assert.Equal(2, cells.Count);
+        Assert.Equal("plain-value", cells[0].InnerText);
+        Assert.Equal(string.Empty, cells[1].InnerText);
+    }
+
+    /// <summary>Not <see cref="IFormattable"/>, so it reaches <c>Format</c>'s default arm.</summary>
+    private sealed class PlainValue(string? text)
+    {
+        public override string? ToString() => text;
+    }
+
+    /// <summary>
     /// The Stream overload must produce the same document as the byte[] one — same content, not
     /// same bytes. An OOXML package is a ZIP whose entries carry timestamps, so byte-identity would
     /// be a flaky test wearing the costume of a strict one.

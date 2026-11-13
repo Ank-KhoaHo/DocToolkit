@@ -41,6 +41,28 @@ public class DocxEditorTests
         Assert.Contains("world", PdfProbe.ExtractText(DocxToPdfConverter.Convert(edited)));
     }
 
+    // C47: the empty-input guards of these two byte[] overloads were never reached by a test.
+    // Same wording and parameter name as every other byte[] overload's empty check.
+    [Fact]
+    public void ReplaceText_RejectsAnEmptyDocument()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => DocxEditor.ReplaceText(Array.Empty<byte>(), Map("{{a}}", "b")));
+
+        Assert.Equal("docx", ex.ParamName);
+        Assert.Contains("DOCX content was empty.", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidateSignatures_RejectsAnEmptyDocument()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => DocxEditor.ValidateSignatures(Array.Empty<byte>()));
+
+        Assert.Equal("docx", ex.ParamName);
+        Assert.Contains("DOCX content was empty.", ex.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ExtractText_ReturnsDocumentText()
     {

@@ -53,10 +53,10 @@ internal static partial class HyperlinkBlankRunSplit
     private static bool Split(XDocument doc)
     {
         var changed = false;
-        foreach (var link in doc.Descendants(W + "hyperlink").ToList())
+        foreach (var link in doc.Descendants(W + "hyperlink")
+                     .Where(link => !link.Descendants().Any(e => e.Name == W + "fldChar" || e.Name == W + "instrText" || e.Name == W + "fldSimple"))
+                     .ToList())
         {
-            if (link.Descendants().Any(e => e.Name == W + "fldChar" || e.Name == W + "instrText" || e.Name == W + "fldSimple")) continue;
-
             var children = link.Elements().ToList();
             if (!children.Any(IsBlankRun)) continue;
 
