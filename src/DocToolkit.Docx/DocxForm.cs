@@ -319,19 +319,30 @@ public static class DocxForm
         {
             using var document = OfficeIMOWordDocument.Load(source);
 
-            // The alias comes from OfficeIMO's own control collection rather than from a second
-            // walk of the OOXML (A120). Measured 2026-09-03: WordStructuredDocumentTag exposes
-            // Tag and Alias together and nothing else useful - no lock, and no route to the
-            // element underneath. So the alias is reachable without inventing a reader, and
-            // IsLocked is not reachable at all, which is why only half of A120 shipped.
+            // The alias and the lock now both come from OfficeIMO rather than from a second
+            // walk of the OOXML (A120). The alias comes from StructuredDocumentTags and the lock
+            // from its validation (measured 2026-11-13 on 3.5.3), so no second reader exists.
             var aliases = AliasesByName(document);
 
-            DocxFormField[] fields = [.. document
-                .ExtractContentControlValues(Upstream(key))
+            var extracted = document.ExtractContentControlValues(Upstream(key));
+            var validation = document.ValidateContentControlValues(
+                extracted, Upstream(key), requireAllControls: false, allowUnusedValues: true);
+
+            var locked = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var issue in validation.Issues)
+            {
+                if (issue.Kind == OfficeIMOIssueKind.LockedControl && issue.Key is not null)
+                {
+                    locked.Add(issue.Key);
+                }
+            }
+
+            DocxFormField[] fields = [.. extracted
                 .Select(pair => new DocxFormField(
                     pair.Key,
                     DocxFormValue.FromUpstream(pair.Value),
-                    aliases.TryGetValue(pair.Key, out var alias) ? alias : string.Empty))];
+                    aliases.TryGetValue(pair.Key, out var alias) ? alias : string.Empty,
+                    locked.Contains(pair.Key)))];
 
             return new DocxFormReport(fields);
         }
@@ -433,6 +444,8 @@ public static class DocxForm
     /// keying on one would silently compare the wrong pair - and this only has to answer whether
     /// anything changed, which position answers without inventing an identity scheme.
     ///
+    /// <c>sdtLocked</c> stops deletion only, so its content may change (A120, 2026-11-13).
+    ///
     /// The stream's position is restored, because the caller reads it next.
     /// </remarks>
     private static List<string> LockedContent(Stream docx)
@@ -446,7 +459,8 @@ public static class DocxForm
             if (body is null) return [];
 
             return [.. body.Descendants<SdtElement>()
-                .Where(c => c.Descendants<DocumentFormat.OpenXml.Wordprocessing.Lock>().Any())
+                .Where(c => c.Descendants<DocumentFormat.OpenXml.Wordprocessing.Lock>().Any(
+                    l => l.Val?.Value == LockingValues.SdtContentLocked || l.Val?.Value == LockingValues.ContentLocked))
                 .Select(c => string.Concat(c.Descendants<Text>().Select(t => t.Text)))];
         }
         finally
@@ -504,7 +518,7 @@ public static class DocxForm
         => new(issue.Key ?? string.Empty, Kind(issue.Kind), issue.Message ?? string.Empty);
 
     /// <summary>
-    /// All nine kinds, one for one.
+    /// All ten kinds, one for one.
     /// </summary>
     /// <remarks>
     /// An earlier version mapped six of them to <see cref="DocxFormIssueKind.Other"/> on a
@@ -523,6 +537,7 @@ public static class DocxForm
         OfficeIMOIssueKind.InvalidChoice => DocxFormIssueKind.InvalidChoice,
         OfficeIMOIssueKind.InvalidImage => DocxFormIssueKind.InvalidImage,
         OfficeIMOIssueKind.InvalidRepeatingSection => DocxFormIssueKind.InvalidRepeatingSection,
+        OfficeIMOIssueKind.LockedControl => DocxFormIssueKind.LockedControl,
         _ => DocxFormIssueKind.Other,
     };
 }

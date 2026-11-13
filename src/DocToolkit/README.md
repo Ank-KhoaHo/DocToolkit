@@ -873,6 +873,13 @@ reason to run `Validate` first - it reports all three the same way, before anyth
 **A clean `Validate` is not a promise that `Fill` will succeed.** Nothing here decodes image bytes,
 so content that is not a readable image validates clean and then throws from `Fill`.
 
+**A locked control says so before you try.** `DocxFormField.IsLocked` is true when the template
+locks the control's content (`w:lock` set to `contentLocked` or `sdtContentLocked`), which is
+exactly when `Fill` refuses to write it - so a form UI can grey the field out instead of finding out
+from an exception. `Validate` reports a value aimed at one as `DocxFormIssueKind.LockedControl`. A
+control locked only against deletion (`sdtLocked`) is not locked here: Word lets a user type into it,
+and `Fill` writes it and keeps the lock.
+
 **Images are supplied as bytes**, through `DocxFormValue.FromPicture(bytes, fileName)`. There is
 deliberately no overload taking a path: this package does not read files you did not hand it.
 

@@ -18,7 +18,7 @@ namespace DocToolkit.Tests;
 /// </summary>
 public class DocxFormLockTests
 {
-    private static byte[] Locked(byte[] docx, LockingValues how)
+    internal static byte[] Locked(byte[] docx, LockingValues how, string tag = "FullName")
     {
         var ms = new MemoryStream();
         ms.Write(docx, 0, docx.Length);
@@ -28,7 +28,7 @@ public class DocxFormLockTests
         {
             foreach (var properties in doc.MainDocumentPart!.Document!.Body!
                          .Descendants<SdtElement>()
-                         .Where(c => c.Descendants<Tag>().Any(t => t.Val?.Value == "FullName"))
+                         .Where(c => c.Descendants<Tag>().Any(t => t.Val?.Value == tag))
                          .Select(c => c.Elements<SdtProperties>().FirstOrDefault())
                          .OfType<SdtProperties>())
             {
@@ -48,25 +48,53 @@ public class DocxFormLockTests
     /// Keyed by NAME rather than by value, because <c>LockingValues</c> is a struct in OpenXML SDK
     /// 3.x rather than a C# enum, so it cannot be an <c>InlineData</c> constant.
     /// </summary>
+    /// <remarks>
+    /// <c>SdtLocked</c> is not here since A120 (2026-11-13). It means the control cannot be
+    /// DELETED; its content stays editable, in Word and in OfficeIMO 3.5's own lock check. A119
+    /// refused all three kinds alike without weighing that; <see cref="FillsAnSdtLockedControl_AndKeepsTheLock"/>
+    /// pins the corrected behaviour.
+    /// </remarks>
     [Theory]
     [InlineData("SdtContentLocked")]
-    [InlineData("SdtLocked")]
     [InlineData("ContentLocked")]
     public void RefusesToFillALockedControl(string how)
     {
-        var kind = how switch
-        {
-            "SdtContentLocked" => LockingValues.SdtContentLocked,
-            "SdtLocked" => LockingValues.SdtLocked,
-            _ => LockingValues.ContentLocked,
-        };
-        var docx = Locked(DocxFormFixtures.Form(), kind);
+        var docx = Locked(DocxFormFixtures.Form(), ByName(how));
 
         var ex = Assert.Throws<InvalidOperationException>(
             () => DocxForm.Fill(docx, Name("OVERWRITTEN")));
 
         Assert.Contains("locks against editing", ex.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// <c>SdtLocked</c> stops the control being deleted, not its content being edited — so the fill
+    /// goes through, and the lock is still there afterwards.
+    /// </summary>
+    [Fact]
+    public void FillsAnSdtLockedControl_AndKeepsTheLock()
+    {
+        var docx = Locked(DocxFormFixtures.Form(), LockingValues.SdtLocked);
+
+        var filled = DocxForm.Fill(docx, Name("Ada Lovelace"));
+
+        Assert.Equal(
+            "Ada Lovelace",
+            Assert.Single(DocxForm.Inspect(filled).Fields, f => f.Key == "FullName").Value.Text);
+        using var ms = new MemoryStream(filled);
+        using var doc = WordprocessingDocument.Open(ms, false);
+        var survivor = Assert.Single(doc.MainDocumentPart!.Document!.Body!
+            .Descendants<DocumentFormat.OpenXml.Wordprocessing.Lock>());
+        Assert.Equal(LockingValues.SdtLocked, survivor.Val!.Value);
+    }
+
+    internal static LockingValues ByName(string how) => how switch
+    {
+        "SdtContentLocked" => LockingValues.SdtContentLocked,
+        "SdtLocked" => LockingValues.SdtLocked,
+        "ContentLocked" => LockingValues.ContentLocked,
+        _ => throw new ArgumentOutOfRangeException(nameof(how), how, null),
+    };
 
     /// <summary>
     /// On OfficeIMO 3.5 the library refuses first; DocToolkit's message replaces its text and the
