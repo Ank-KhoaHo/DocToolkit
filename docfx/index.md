@@ -6,34 +6,37 @@ description: A .NET library that converts HTML and Markdown to DOCX and PDF and 
 
 # DocToolkit
 
-Convert **HTML and Markdown → DOCX and PDF**, export **DOCX → HTML/Markdown** and
-**XLSX → CSV/HTML**, read text back out of a **PDF**, and open/edit **DOCX, XLSX and PPTX**,
-from .NET.
+<p class="lead">Convert and edit Office documents and PDFs from .NET. No browser, no native binaries, runs offline.</p>
 
-**Pure managed. No native binaries, no browser, no LibreOffice, no Office interop.**
-Works after `dotnet restore` alone, runs on Linux, and makes **no network calls at runtime**.
-Verified **trim-safe and native-AOT compatible** by publishing and running the real thing in CI.
+## What do you want to do?
+
+<!-- landing-cards:start -->
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mb-4">
+<div class="col"><a class="card h-100 text-decoration-none" href="guides/conversions/html-to-word-and-pdf.md"><div class="card-body"><div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-filetype-pdf fs-4 text-primary"></i><h3 class="h6 mb-0 text-body">HTML to PDF</h3></div><code class="small d-block text-break">HtmlToPdfConverter.ConvertAsync(html)</code></div></a></div>
+<div class="col"><a class="card h-100 text-decoration-none" href="guides/conversions/html-to-word-and-pdf.md"><div class="card-body"><div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-filetype-docx fs-4 text-primary"></i><h3 class="h6 mb-0 text-body">HTML to Word</h3></div><code class="small d-block text-break">HtmlToDocxConverter.ConvertAsync(html)</code></div></a></div>
+<div class="col"><a class="card h-100 text-decoration-none" href="guides/conversions/docx-to-pdf.md"><div class="card-body"><div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-file-earmark-richtext fs-4 text-primary"></i><h3 class="h6 mb-0 text-body">DOCX to PDF</h3></div><code class="small d-block text-break">DocxToPdfConverter.Convert(docx)</code></div></a></div>
+<div class="col"><a class="card h-100 text-decoration-none" href="guides/conversions/markdown.md"><div class="card-body"><div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-markdown fs-4 text-primary"></i><h3 class="h6 mb-0 text-body">Markdown to PDF</h3></div><code class="small d-block text-break">MarkdownToPdfConverter.Convert(md)</code></div></a></div>
+<div class="col"><a class="card h-100 text-decoration-none" href="guides/editing/word-documents.md"><div class="card-body"><div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-file-earmark-word fs-4 text-primary"></i><h3 class="h6 mb-0 text-body">Fill a Word template</h3></div><code class="small d-block text-break">DocxEditor.ReplaceText(docx, values)</code></div></a></div>
+<div class="col"><a class="card h-100 text-decoration-none" href="guides/editing/spreadsheets-and-presentations.md"><div class="card-body"><div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-table fs-4 text-primary"></i><h3 class="h6 mb-0 text-body">Edit a spreadsheet</h3></div><code class="small d-block text-break">WorkbookEditor.SetCell(xlsx, "Sheet1", "B2", 42)</code></div></a></div>
+</div>
+<!-- landing-cards:end -->
+
+## Quick start
 
 ```bash
 dotnet add package Ank.DocToolkit
 ```
 
+[!code-csharp[](../samples/HtmlConversion/Program.cs#convert)]
+
 Targets `net8.0` and `net10.0`. MIT licensed.
 
-## Start here
+## More guides
 
 - **[Getting started](guides/getting-started.md)** — install, your first conversion, and the three
   conventions the whole API follows
 - **[What it can convert](guides/capabilities.md)** — the complete grid, generated from the shipped
   API rather than written by hand
-- **[HTML to Word and PDF](guides/conversions/html-to-word-and-pdf.md)** — page setup, and what happens to an
-  `<img>` that points at a URL
-- **[Markdown, and conversion loss](guides/conversions/markdown.md)** — Markdown in and out, and what
-  `ConvertWithReport` tells you
-- **[Word documents](guides/editing/word-documents.md)** — fill a template, build one from scratch, export
-  it again
-- **[Spreadsheets and presentations](guides/editing/spreadsheets-and-presentations.md)** — XLSX and PPTX,
-  report formatting, and CSV/HTML export
 - **[Dependency injection](guides/dependency-injection.md)** — `AddDocToolkit()` and the injectable
   interfaces
 - **[Running in production](guides/production.md)** — streaming, containers, fonts, trimming,
