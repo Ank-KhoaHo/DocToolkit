@@ -31,6 +31,20 @@ dotnet test  DocToolkit.sln -c Release
 
 Every test runs once per target framework, so the result count is twice the test count.
 
+### One command for every check
+
+```bash
+python scripts/check.py           # guards, format, Release build, the suite in the Linux container
+python scripts/check.py --quick   # guards and format only, in about a minute
+```
+
+It runs every check CI can run on one machine, in order, each with a time limit, and stops at the
+first failure. It needs Python 3.10 or later, and Docker for the test suite: the tests run in
+`Dockerfile.linux-test`, CI's own Linux image. `--list` prints the steps.
+
+Passing it is not passing CI. CI builds on four operating systems, and a few of its checks read
+output only a CI run makes, such as coverage; the gate names each of those and says why.
+
 ### Checking warnings the way CI does
 
 The build runs with warnings as errors and currently has none. Verify like this:

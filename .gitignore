@@ -89,3 +89,8 @@ TestResults/
 # `git add -A` would sweep five packages into a commit - the same reasoning as TestResults/
 # above. It is build-time only and reaches neither shipped package.
 node_modules/
+
+# Python bytecode and test caches, left by running scripts/*.py and their self-tests.
+__pycache__/
+*.py[cod]
+.pytest_cache/
