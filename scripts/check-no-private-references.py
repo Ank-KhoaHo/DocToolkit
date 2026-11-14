@@ -200,9 +200,11 @@ def self_test():
             handle.write("broken[\n")
         try:
             load_local_patterns(path)
-            bad.append("a line that is not a regular expression was accepted")
+            refused = False
         except SystemExit:
-            pass
+            refused = True
+        if not refused:
+            bad.append("a line that is not a regular expression was accepted")
 
     messages = [("abc1234", "docs: tidy the README\n\nNothing private here.\n"),
                 ("def5678", "fix: port the parser\n\nMoved over from Secret-Sibling.\n")]

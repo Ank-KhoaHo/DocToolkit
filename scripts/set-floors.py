@@ -66,9 +66,10 @@ def self_test():
            written == 'A = 1\nTRACKED_FLOORS = {"md_files": 28, "src_files": 309}\nB = 2\n')
     try:
         read_floors("nothing here\n", "TRACKED_FLOORS")
-        bad.append("a missing floor line was accepted")
+        refused = False
     except SystemExit:
-        pass
+        refused = True
+    expect("a missing floor line is refused, not read as no floors", refused)
     real = GUARD.read_text(encoding="utf-8")
     expect("the guard's own floor lines are readable",
            bool(read_floors(real, "TRACKED_FLOORS")) and bool(read_floors(real, "LOCAL_FLOORS")))
