@@ -58,6 +58,7 @@ STEPS = [
     _guard("check-action-pins.py", "--self-test"),
     _guard("check-changelog-curated.py", "--self-test"),
     _guard("check-doc-blocks.py", "--self-test"),
+    _guard("check-docs-layout.py", "--self-test"),
     _guard("check-landing-calls.py", "--self-test"),
     _guard("check-mutation-scope.py", "--self-test"),
     _guard("check-no-private-references.py", "--self-test"),
@@ -68,6 +69,7 @@ STEPS = [
     _guard("check-render-policy.py", "--self-test"),
     _guard("filter-codeql-sarif.py", "--self-test"),
     _guard("gen-type-index.py", "--self-test"),
+    _guard("set-floors.py", "--self-test"),
     # The guards, on this tree.
     _guard("check-action-pins.py"),
     _guard("check-configureawait.py"),
