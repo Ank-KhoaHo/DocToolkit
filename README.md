@@ -122,6 +122,44 @@ byte[] bounded = await HtmlToDocxConverter.ConvertAsync(html, new RemoteImageOpt
 
 <!-- END SNIPPET -->
 
+## Status
+
+Every push is built and tested on Linux, arm64, Windows and macOS. Every release is published to
+nuget.org from CI. A monthly run converts 500+ real `.gov` documents, and 88–98% succeed.
+
+It stays below 1.0.0 on purpose, so a minor version may change the API. Each change is listed in
+the [CHANGELOG](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/CHANGELOG.md).
+
+## Limits
+
+The ones people meet first. The full list, each one measured, is in
+[Known limitations](https://ank-khoaho.github.io/DocToolkit/guides/reference.html#known-limitations).
+
+- **HTML → PDF goes through Word.** Flexbox, grid, floats and absolute positioning do not survive.
+  Text, headings, tables, lists, inline styles and images do.
+- **No external stylesheets.** A `<link rel="stylesheet">` is never fetched. Inline `<style>` and
+  `style=` work.
+- **One page setup per document.** A header or footer is one line, with an optional distinct first
+  page.
+- **Some PDF losses are silent.** Conditional formatting and some shape effects are dropped. A table
+  nested inside a table cell loses its content.
+- **Fonts come from the machine.** A container with no fonts falls back to Helvetica. Install fonts,
+  or pass `PdfFontOptions`.
+- **Pivot table results are never computed.** Excel fills them in when it opens the file.
+
+## Alternatives
+
+DocToolkit fits when the container must stay small and the licence must be clear. Something else
+fits better when:
+
+- **You need a browser's CSS layout.** A headless Chrome renders flexbox and grid. This library
+  does not.
+- **You need every legacy format, or a right-to-left spreadsheet.** LibreOffice or Office converts
+  more faithfully, at the cost of an install.
+- **You lay out a PDF in code.** QuestPDF is built for that. Read its licence, and expect 83 MB of
+  native files.
+- **You only edit XLSX.** EPPlus carries almost no native files. Read its licence first.
+
 ## FAQ
 
 **Does it need Chrome or LibreOffice?**
@@ -132,10 +170,6 @@ Yes. It is MIT licensed, and every dependency is MIT, Apache-2.0 or BSD.
 
 **Which .NET versions?**
 `net8.0` and `net10.0`, the two LTS releases. A `net9.0` app uses the `net8.0` build.
-
-**What will it not do?**
-CSS layout, mixed page setups and multi-line headers, among a few others. The list is in
-[Known limitations](https://ank-khoaho.github.io/DocToolkit/guides/reference.html#known-limitations).
 
 ## Documentation
 

@@ -14,7 +14,14 @@ holds the shape that was measured and chosen:
     over SENTENCE_MAX words;
   - in the nuget.org front page, no HTML tag and no relative image path, because
     nuget.org renders CommonMark only and allow-listed absolute image URLs only - both
-    would show on GitHub and render as nothing on nuget.org.
+    would show on GitHub and render as nothing on nuget.org;
+  - in each front page, the four sections every public README here keeps (D48): Status,
+    Limits, Alternatives and FAQ, as level-2 headings outside code blocks;
+  - in each, a first paragraph of prose (6 words or more) before the first level-2 heading,
+    saying what this is before any instruction.
+
+ROOT_MAX_LINES was 160 for D46's front page; D48 raised it to 200, the nuget.org cap, for
+the three sections above. The public template allows 300. Raise it again only on purpose.
 
 The nuget.org front page is everything above TYPE_INDEX_MARKER; the generated type index
 below it is a list, not prose.
@@ -38,10 +45,34 @@ import sys
 ROOT = "README.md"
 NUGET = "src/DocToolkit/README.md"
 TYPE_INDEX_MARKER = "<!-- BEGIN GENERATED (scripts/gen-type-index.py) - do not edit by hand -->"
-ROOT_MAX_LINES = 160
+ROOT_MAX_LINES = 200
 NUGET_MAX_LINES = 200
 AVG_MAX = 15
 SENTENCE_MAX = 25
+REQUIRED_SECTIONS = ("Status", "Limits", "Alternatives", "FAQ")
+FIRST_PARAGRAPH_MIN_WORDS = 6
+
+
+def headings(text):
+    """Level-2 heading texts, in order, skipping fenced code blocks."""
+    found, in_fence = [], False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence and line.startswith("## "):
+            found.append(line[3:].strip())
+    return found
+
+
+def opening_words(text):
+    """Words of prose before the first level-2 heading: badges, images and HTML count as none."""
+    opening = []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            break
+        opening.append(line)
+    return sum(len(sentence.split()) for _, sentence in prose("\n".join(opening)))
 
 
 def prose(text):
@@ -141,6 +172,21 @@ def prose(text):
     return counted
 
 
+def check_sections(text):
+    """Return error lines for the sections and the opening (D48). Empty means it passes."""
+    errors = []
+    found = headings(text)
+    missing = [name for name in REQUIRED_SECTIONS if name not in found]
+    if missing:
+        errors.append(f"no '## {missing[0]}' section; every public README keeps "
+                      f"{', '.join(REQUIRED_SECTIONS)} (missing: {', '.join(missing)})")
+    words = opening_words(text)
+    if words < FIRST_PARAGRAPH_MIN_WORDS:
+        errors.append(f"the prose before the first '## ' heading has {words} words "
+                      f"(at least {FIRST_PARAGRAPH_MIN_WORDS}): say what this is before any instruction")
+    return errors
+
+
 def check(text, kind):
     """Return error lines for one README; kind is "root" or "nuget". Empty means it passes."""
     import re
@@ -225,8 +271,9 @@ _CASES = [
     ("a bullet without a full stop does not run into the next",
      # 14 words each; run together they would be one 28-word sentence and fail.
      "- **No browser** " + _words(12) + "\n- **No binaries** " + _words(12) + "\n", "root", True),
-    ("161 lines fail for the root README", "\n".join(["Short line here."] * 161) + "\n", "root", False),
-    ("160 lines pass for the root README", "\n".join(["Short line here."] * 160) + "\n", "root", True),
+    # D48 raised the root cap from 160 to 200 on purpose; these two cases moved with it.
+    ("201 lines fail for the root README", "\n".join(["Short line here."] * 201) + "\n", "root", False),
+    ("200 lines pass for the root README", "\n".join(["Short line here."] * 200) + "\n", "root", True),
     ("HTML above the marker fails on nuget",
      "<p align=\"center\">x</p>\n\n" + _SHORT + "\n\n" + TYPE_INDEX_MARKER + "\n", "nuget", False),
     ("a relative image fails on nuget",
@@ -245,11 +292,35 @@ _CASES = [
      "\n".join(["Short line here."] * 200) + "\n" + TYPE_INDEX_MARKER + "\n", "nuget", False),
 ]
 
+# D48: the sections every public README keeps, and an opening that says what this is.
+_OPENING = "# T\n\nDocToolkit turns HTML into Word and PDF files.\n\n"
+_ALL_FOUR = "## Status\n\nx\n\n## Limits\n\nx\n\n## Alternatives\n\nx\n\n## FAQ\n\nx\n"
+
+_SECTION_CASES = [
+    ("an opening and all four sections pass", _OPENING + _ALL_FOUR, True),
+    ("a missing Limits section fails", _OPENING + _ALL_FOUR.replace("## Limits", "## Caveats"), False),
+    ("a level-3 heading is not a section", _OPENING + _ALL_FOUR.replace("## Status", "### Status"), False),
+    ("a heading inside a code block is not a section",
+     _OPENING + "```\n## Status\n```\n\n" + _ALL_FOUR.replace("## Status\n\nx\n\n", ""), False),
+    ("a heading that only starts with the name is not the section",
+     _OPENING + _ALL_FOUR.replace("## FAQ", "## FAQs and more"), False),
+    ("badges and an image alone are no opening",
+     "# T\n\n[![b](https://x/b.svg)](https://x)\n\n![hero](https://x/h.png)\n\n" + _ALL_FOUR, False),
+    ("HTML alone is no opening", "<h1 align=\"center\">T</h1>\n\n<p>" + _words(9) + "</p>\n\n" + _ALL_FOUR, False),
+    ("a five-word opening is too short", "# T\n\nIt makes Word files fast.\n\n" + _ALL_FOUR, False),
+]
+
 
 def self_test():
     bad = 0
     for name, text, kind, expect_ok in _CASES:
         errors = check(text, kind)
+        if (not errors) != expect_ok:
+            bad += 1
+            print(f"::error::self-test case '{name}': expected {'pass' if expect_ok else 'fail'}, "
+                  f"got {errors or 'pass'}")
+    for name, text, expect_ok in _SECTION_CASES:
+        errors = check_sections(text)
         if (not errors) != expect_ok:
             bad += 1
             print(f"::error::self-test case '{name}': expected {'pass' if expect_ok else 'fail'}, "
@@ -271,7 +342,7 @@ def main(argv):
     failed = False
     for path, kind in ((ROOT, "root"), (NUGET, "nuget")):
         text = open(path, encoding="utf-8").read()
-        errors = check(text, kind)
+        errors = check(text, kind) + check_sections(text)
         for line in errors:
             print(f"::error file={path}::{line}")
         failed |= bool(errors)
