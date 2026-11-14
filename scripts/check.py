@@ -53,7 +53,10 @@ def _guard(script, *args, timeout=180):
 
 
 STEPS = [
-    # Self-tests first: a guard whose own test fails says nothing about the tree.
+    # The gate's own self-test first. It once passed here and failed in CI: it had last run
+    # before ci.yml began to run it, so it never saw itself in the workflows.
+    _guard("check.py", "--self-test"),
+    # Then the guards' self-tests: a guard whose own test fails says nothing about the tree.
     _guard("backup-working-half.py", "--self-test"),
     _guard("check-action-pins.py", "--self-test"),
     _guard("check-changelog-curated.py", "--self-test"),
