@@ -8,7 +8,8 @@ name: CodeQL
 # a claim resting entirely on review having been thorough. This is the cheap machine
 # check that keeps it honest between reviews.
 #
-# Scope note: CodeQL analyses THIS repository's C#. It is not a dependency scanner -
+# Scope note: CodeQL analyses THIS repository's own code - the C#, and since D48 the
+# Python under scripts/ and the workflow files themselves. It is not a dependency scanner -
 # Dependabot alerts cover the resolved graph, and ci.yml's premise guards cover
 # licensing and native binaries. Three different questions, three different tools.
 
@@ -112,3 +113,38 @@ jobs:
         with:
           sarif_file: sarif-results/csharp.sarif
           category: "/language:csharp"
+
+  # The code that is not C#, analysed without a build (D48). `actions` reads the workflow files
+  # themselves - release.yml holds the token that publishes to nuget.org, and a workflow that
+  # puts untrusted input into a shell command is the classic way to lose one. `python` reads
+  # scripts/, which every CI check runs. Neither needs the bin/obj filter above: nothing is
+  # built, so paths-ignore in codeql-config.yml applies as written.
+  analyze-other:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, python]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-and-quality
+          config-file: ./.github/codeql-config.yml
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:${{ matrix.language }}"

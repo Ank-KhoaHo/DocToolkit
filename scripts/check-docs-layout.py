@@ -73,6 +73,23 @@ problems = []
 counts = {"md_files": 0, "links": 0, "rows": 0, "src_files": 0, "path_refs": 0, "specs": 0,
           "unpublished_refs": 0, "rendered_rows": 0}
 
+# FLOORS (D48). "Found nothing" is caught above; a walk that silently found a QUARTER of the tree -
+# a skip rule widened, a directory renamed - is not, and reads as a clean pass. Each floor sits at
+# three quarters of the real count. scripts/set-floors.py sets them; never lower one by hand to
+# turn a run green - find out why the walk shrank.
+#
+# TRACKED holds in both modes: CI walks the tracked files, and a local run walks those and more.
+# LOCAL is the backlog on the maintainer's disk, which CI never sees.
+TRACKED_FLOORS = {"md_files": 28, "src_files": 309}
+LOCAL_FLOORS = {"rows": 220, "specs": 270}
+
+
+def floor_problems(found, local):
+    """One sentence per count below its floor; empty when every floor holds."""
+    floors = dict(TRACKED_FLOORS, **(LOCAL_FLOORS if local else {}))
+    return ["the walk found %d %s, below its floor of %d - did a skip rule or a move hide files?"
+            % (found[name], name, floor) for name, floor in floors.items() if found[name] < floor]
+
 
 def fail(where, what):
     problems.append((where, what))
@@ -495,6 +512,11 @@ def main():
     if local and counts["rendered_rows"] == 0:
         print("FAIL: the backlog parsed to zero rows - the render check inspected nothing")
         return 2
+    below = floor_problems(counts, local)
+    if below:
+        for what in below:
+            print("FAIL: " + what)
+        return 2
 
     print("  %d rows, %d specs, %d markdown files, %d links, %d source files, %d path refs "
           "(%d of them deliberately unpublished)"
@@ -592,15 +614,50 @@ def self_test():
             print("          " + detail)
 
     del problems[:]
+
+    # The floors: a count at its floor passes, one below fails, and the local floors apply only
+    # where the backlog is present.
+    at_floor = dict(TRACKED_FLOORS, **LOCAL_FLOORS)
+    floor_cases = [
+        ("every count at its floor passes", at_floor, True, 0),
+        ("one tracked count below its floor fails", dict(at_floor, md_files=TRACKED_FLOORS["md_files"] - 1), True, 1),
+        ("a local count below its floor fails locally", dict(at_floor, specs=LOCAL_FLOORS["specs"] - 1), True, 1),
+        ("local floors are not applied in CI", dict(at_floor, rows=0, specs=0), False, 0),
+    ]
+    for name, found, local, expected in floor_cases:
+        ok = len(floor_problems(found, local)) == expected
+        failures += 0 if ok else 1
+        print(("  ok    " if ok else "  FAIL  ") + name)
+
     print()
     if failures:
         print("%d self-test case(s) failed - do not trust this guard" % failures)
         return 1
-    print("all %d self-test cases behave as expected" % len(cases))
+    print("all %d self-test cases behave as expected" % (len(cases) + len(floor_cases)))
+    return 0
+
+
+def measure():
+    """The counts each mode's walks reach, for scripts/set-floors.py. Reports no problems."""
+    import json
+    check_markdown_links(tracked_only=True)
+    check_path_references(tracked_only=True)
+    tracked = {name: counts[name] for name in TRACKED_FLOORS}
+    local = {}
+    if os.path.exists(BACKLOG) and os.path.isdir(SPECS):
+        for name in counts:
+            counts[name] = 0
+        check_backlog()
+        check_specs()
+        local = {name: counts[name] for name in LOCAL_FLOORS}
+    del problems[:]
+    print(json.dumps({"tracked": tracked, "local": local}))
     return 0
 
 
 if "--self-test" in sys.argv:
     sys.exit(self_test())
+if "--counts" in sys.argv:
+    sys.exit(measure())
 
 sys.exit(main())

@@ -812,6 +812,32 @@ jobs:
       - name: Self-test the CodeQL SARIF filter
         run: python3 scripts/filter-codeql-sarif.py --self-test
 
+      # The working material never reaches a runner, so CI cannot back it up. It can prove the
+      # backup works, and that every path the backup takes is really gitignored here (D48).
+      - name: Self-test the working-material backup
+        run: python3 scripts/backup-working-half.py --self-test
+
+      # scripts/check.py is the one local command that runs every check this job and the others
+      # run. CI does not run the gate itself (each check has its own step here); it proves the
+      # gate's machinery, and that no script a workflow runs is missing from it (D48).
+      - name: Self-test the local gate
+        run: python3 scripts/check.py --self-test
+
+      # Every action was pinned by commit hash by hand, and nothing held it: a tag can be moved
+      # to other code after review, and release.yml holds the token that publishes (D48).
+      - name: Every action is pinned by commit hash
+        run: |
+          python3 scripts/check-action-pins.py --self-test
+          python3 scripts/check-action-pins.py
+
+      # The docs guard's floors fail a walk that silently found far fewer files than the tree
+      # holds. Its own self-test was never run here until now; set-floors.py keeps the floors
+      # near the real counts (D48).
+      - name: Self-test the docs guard and its floors
+        run: |
+          python3 scripts/check-docs-layout.py --self-test
+          python3 scripts/set-floors.py --self-test
+
       # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
       # documentation tag, so the build stays green under -warnaserror while DocFX renders
       # whichever block it picks and the API site describes the wrong member. Three instances

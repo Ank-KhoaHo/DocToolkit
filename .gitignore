@@ -57,6 +57,13 @@ BACKLOG.html
 # maintainer-only file on the next `git add -A`, on a public repo, permanently.
 DEVELOPMENT-CHECKLIST.md
 
+# Rules for an implementing agent, paired with CLAUDE.md and ignored for the same reason.
+/AGENTS.md
+
+# Private words the leak check looks for, one regular expression per line. Ignored because a
+# public file that lists private names publishes them; the check reads this file at scan time.
+/.leak-patterns.local
+
 # Mutation-testing reports. Regenerated on every run; the score is the artefact
 # that matters and CI uploads it.
 StrykerOutput/
@@ -82,3 +89,8 @@ TestResults/
 # `git add -A` would sweep five packages into a commit - the same reasoning as TestResults/
 # above. It is build-time only and reaches neither shipped package.
 node_modules/
+
+# Python bytecode and test caches, left by running scripts/*.py and their self-tests.
+__pycache__/
+*.py[cod]
+.pytest_cache/

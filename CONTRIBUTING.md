@@ -31,6 +31,20 @@ dotnet test  DocToolkit.sln -c Release
 
 Every test runs once per target framework, so the result count is twice the test count.
 
+### One command for every check
+
+```bash
+python scripts/check.py           # guards, format, Release build, the suite in the Linux container
+python scripts/check.py --quick   # guards and format only, in about a minute
+```
+
+It runs every check CI can run on one machine, in order, each with a time limit, and stops at the
+first failure. It needs Python 3.10 or later, and Docker for the test suite: the tests run in
+`Dockerfile.linux-test`, CI's own Linux image. `--list` prints the steps.
+
+Passing it is not passing CI. CI builds on four operating systems, and a few of its checks read
+output only a CI run makes, such as coverage; the gate names each of those and says why.
+
 ### Checking warnings the way CI does
 
 The build runs with warnings as errors and currently has none. Verify like this:
@@ -304,7 +318,7 @@ to be wrong, because you are reading it precisely when something has already fai
 | `a clean consumer installs the packed packages` | `ci.yml` | `check-packed-install.py` |
 | `build & test (…)` | `ci.yml` | `check-coverage.py` |
 | `build docs site` | `ci.yml` | `check-doc-snippets.py` |
-| `formatting` | `ci.yml` | `check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-guide-output.py`<br>`check-landing-calls.py`<br>`check-no-private-references.py`<br>`check-package-description.py`<br>`check-readme-conversions.py`<br>`check-readme-coverage.py`<br>`check-readme-shape.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`filter-codeql-sarif.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py`<br>`gen-repository-layout.py`<br>`gen-type-index.py` |
+| `formatting` | `ci.yml` | `backup-working-half.py`<br>`check-action-pins.py`<br>`check-changelog-curated.py`<br>`check-configureawait.py`<br>`check-core-sharing.py`<br>`check-dependabot-scoping.py`<br>`check-doc-blocks.py`<br>`check-doc-snippets.py`<br>`check-docs-layout.py`<br>`check-guide-output.py`<br>`check-landing-calls.py`<br>`check-no-private-references.py`<br>`check-package-description.py`<br>`check-readme-conversions.py`<br>`check-readme-coverage.py`<br>`check-readme-shape.py`<br>`check-render-policy.py`<br>`check-workflow-tools.py`<br>`check.py`<br>`filter-codeql-sarif.py`<br>`gen-capability-matrix.py`<br>`gen-guard-inventory.py`<br>`gen-readme-snippets.py`<br>`gen-repository-layout.py`<br>`gen-type-index.py`<br>`set-floors.py` |
 | `no native binaries / no banned packages` | `ci.yml` | `gen-third-party-notices.py`<br>`repair-lockfiles.py` |
 | `pack & verify .nupkg (…)` | `ci.yml` | `check-package-contents.py` |
 | `analyze (csharp)` | `codeql.yml` | `filter-codeql-sarif.py` |
