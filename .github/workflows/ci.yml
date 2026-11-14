@@ -823,6 +823,13 @@ jobs:
       - name: Self-test the local gate
         run: python3 scripts/check.py --self-test
 
+      # Every action was pinned by commit hash by hand, and nothing held it: a tag can be moved
+      # to other code after review, and release.yml holds the token that publishes (D48).
+      - name: Every action is pinned by commit hash
+        run: |
+          python3 scripts/check-action-pins.py --self-test
+          python3 scripts/check-action-pins.py
+
       # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
       # documentation tag, so the build stays green under -warnaserror while DocFX renders
       # whichever block it picks and the API site describes the wrong member. Three instances

@@ -55,6 +55,7 @@ def _guard(script, *args, timeout=180):
 STEPS = [
     # Self-tests first: a guard whose own test fails says nothing about the tree.
     _guard("backup-working-half.py", "--self-test"),
+    _guard("check-action-pins.py", "--self-test"),
     _guard("check-changelog-curated.py", "--self-test"),
     _guard("check-doc-blocks.py", "--self-test"),
     _guard("check-landing-calls.py", "--self-test"),
@@ -68,6 +69,7 @@ STEPS = [
     _guard("filter-codeql-sarif.py", "--self-test"),
     _guard("gen-type-index.py", "--self-test"),
     # The guards, on this tree.
+    _guard("check-action-pins.py"),
     _guard("check-configureawait.py"),
     _guard("check-core-sharing.py"),
     _guard("check-dependabot-scoping.py"),
