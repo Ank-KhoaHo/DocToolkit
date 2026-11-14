@@ -812,6 +812,11 @@ jobs:
       - name: Self-test the CodeQL SARIF filter
         run: python3 scripts/filter-codeql-sarif.py --self-test
 
+      # The working material never reaches a runner, so CI cannot back it up. It can prove the
+      # backup works, and that every path the backup takes is really gitignored here (D48).
+      - name: Self-test the working-material backup
+        run: python3 scripts/backup-working-half.py --self-test
+
       # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
       # documentation tag, so the build stays green under -warnaserror while DocFX renders
       # whichever block it picks and the API site describes the wrong member. Three instances
