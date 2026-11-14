@@ -817,6 +817,12 @@ jobs:
       - name: Self-test the working-material backup
         run: python3 scripts/backup-working-half.py --self-test
 
+      # scripts/check.py is the one local command that runs every check this job and the others
+      # run. CI does not run the gate itself (each check has its own step here); it proves the
+      # gate's machinery, and that no script a workflow runs is missing from it (D48).
+      - name: Self-test the local gate
+        run: python3 scripts/check.py --self-test
+
       # A DOUBLED <summary> IS INVISIBLE TO THE COMPILER. It does not diagnose a duplicated
       # documentation tag, so the build stays green under -warnaserror while DocFX renders
       # whichever block it picks and the API site describes the wrong member. Three instances
