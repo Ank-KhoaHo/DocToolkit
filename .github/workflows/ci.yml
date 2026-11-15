@@ -795,8 +795,10 @@ jobs:
           python3 scripts/check-landing-calls.py
 
       # The two README front pages (D46): short enough to read, and the NuGet one free of the HTML
-      # and relative images nuget.org cannot render. The type index on the NuGet page is generated
-      # from the approved API, so --check fails when a release adds a type and the page lags.
+      # and relative images nuget.org cannot render. Both keep one shape (D50): the banner first,
+      # then the sections under fixed names in one fixed order. The type index on the NuGet page
+      # is generated from the approved API, so --check fails when a release adds a type and the
+      # page lags.
       - name: Assert both README front pages keep their measured shape
         run: |
           python3 scripts/check-readme-shape.py --self-test
