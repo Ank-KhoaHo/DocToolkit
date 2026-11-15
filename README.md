@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/art/hero.png" width="880" alt="The four numbers this library exists for, measured in CI on every push: 0 native binaries in any build output, a 0 MB runtimes folder where QuestPDF adds 83 MB, 0 network calls held by 40 air-gap tests, and 4 platforms in CI: Linux, arm64, Windows and macOS.">
+  <img src="assets/art/banner.png" width="880" alt="HTML in, Word and PDF out: a real invoice page DocToolkit rendered from invoice.html, shown as a printer's proof beside the install line, dotnet add package Ank.DocToolkit.">
 </p>
 
 ---

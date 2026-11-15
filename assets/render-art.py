@@ -39,6 +39,7 @@ ITEMS = [
     ("hero.svg", "hero.png", 880, 330, 2),
     ("runtimes.svg", "runtimes.png", 880, 320, 2),
     ("social-preview.svg", "social-preview.png", 1280, 640, 1),
+    ("banner.svg", "banner.png", 960, 320, 2),          # F21; hero.* stays for outside links
 ]
 
 

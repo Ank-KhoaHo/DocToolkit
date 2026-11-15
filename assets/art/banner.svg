@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" font-family="'Segoe UI', Inter, sans-serif">
+  <!-- F21 banner (README top, all three READMEs). Source for banner.png; render with assets/render-art.py.
+       The page is REAL output: invoice-page.png is what HtmlToPdfConverter.ConvertAsync made from
+       invoice.html, rasterised at 220 dpi and cropped (PyMuPDF, outside this repository). Headlines
+       are Bahnschrift, which ships with Windows, so render on Windows. -->
+<defs>
+  <filter id="lift" x="-20%" y="-20%" width="140%" height="160%">
+    <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.35"/>
+  </filter>
+  <filter id="soft" x="-20%" y="-20%" width="140%" height="160%">
+    <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#1B2A4E" flood-opacity="0.18"/>
+  </filter>
+  <clipPath id="frame"><rect width="960" height="320" rx="18"/></clipPath>
+</defs>
+<g clip-path="url(#frame)">
+<rect width="960" height="320" fill="#E8EDF4"/>
+<text x="48" y="112" fill="#1B2A4E" font-family="Bahnschrift, 'Segoe UI', sans-serif" font-size="50" font-weight="600" letter-spacing="-1">HTML in.</text>
+<text x="48" y="168" fill="#1B2A4E" font-family="Bahnschrift, 'Segoe UI', sans-serif" font-size="50" font-weight="600" letter-spacing="-1">Word and PDF out.</text>
+<text x="50" y="212" fill="#4A5A78" font-size="17">One NuGet package. No browser, no native binaries.</text>
+<rect x="48" y="236" width="350" height="38" rx="6" fill="#1B2A4E"/>
+<text x="64" y="261" fill="#FFFFFF" font-family="'Cascadia Mono', Consolas, monospace" font-size="16">dotnet add package Ank.DocToolkit</text>
+<rect x="520" y="52" width="400" height="165" fill="#FFFFFF" filter="url(#soft)"/>
+<image href="invoice-page.png" x="534" y="66" width="372" height="137"/>
+<path d="M510 52 h-22 M520 42 v-22" stroke="#7F93B8" stroke-width="1.4"/>
+<path d="M510 217 h-22 M520 227 v22" stroke="#7F93B8" stroke-width="1.4"/>
+<path d="M930 52 h22 M920 42 v-22" stroke="#7F93B8" stroke-width="1.4"/>
+<path d="M930 217 h22 M920 227 v22" stroke="#7F93B8" stroke-width="1.4"/>
+<circle cx="720" cy="28" r="7" fill="none" stroke="#7F93B8" stroke-width="1.4"/><path d="M707 28 h26 M720 15 v26" stroke="#7F93B8" stroke-width="1.4"/>
+<text x="552" y="247" fill="#4A5A78" font-size="12">invoice.pdf, made by DocToolkit from invoice.html</text>
+</g>
+</svg>

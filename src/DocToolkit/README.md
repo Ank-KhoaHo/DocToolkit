@@ -1,4 +1,4 @@
-![The four numbers this library exists for: 0 native binaries, 0 MB runtimes folder, 0 network calls, 4 platforms in CI](https://raw.githubusercontent.com/Ank-KhoaHo/DocToolkit/main/assets/art/hero.png)
+![HTML in, Word and PDF out: a real invoice page DocToolkit rendered from invoice.html, shown as a printer's proof beside the install line, dotnet add package Ank.DocToolkit](https://raw.githubusercontent.com/Ank-KhoaHo/DocToolkit/main/assets/art/banner.png)
 
 # DocToolkit
 
