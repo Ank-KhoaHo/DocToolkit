@@ -1,25 +1,15 @@
-<p align="center">
-  <img src="assets/icon.png" width="128" alt="DocToolkit">
-</p>
+![HTML in, Word and PDF out: a real invoice page DocToolkit rendered from invoice.html, shown as a printer's proof beside the install line, dotnet add package Ank.DocToolkit.](assets/art/banner.png)
 
-<h1 align="center">DocToolkit</h1>
+# DocToolkit
 
-<p align="center">
-  <em>HTML in. Word and PDF out. Nothing else installed.</em>
-</p>
+<a href="https://www.nuget.org/packages/Ank.DocToolkit/"><img src="https://img.shields.io/nuget/v/Ank.DocToolkit?style=flat-square&color=1B2A4E&label=nuget" alt="NuGet"></a>
+<a href="https://www.nuget.org/packages/Ank.DocToolkit/"><img src="https://img.shields.io/nuget/dt/Ank.DocToolkit?style=flat-square&color=1B2A4E&label=downloads" alt="Downloads"></a>
+<a href="https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/runs%20on-Linux%20%C2%B7%20arm64%20%C2%B7%20Windows%20%C2%B7%20macOS-1B2A4E?style=flat-square" alt="Runs on Linux, arm64, Windows and macOS"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1B2A4E?style=flat-square" alt="MIT"></a>
 
-<p align="center">
-  <a href="https://www.nuget.org/packages/Ank.DocToolkit/"><img src="https://img.shields.io/nuget/v/Ank.DocToolkit?style=flat-square&color=1B2A4E&label=nuget" alt="NuGet"></a>
-  <a href="https://www.nuget.org/packages/Ank.DocToolkit/"><img src="https://img.shields.io/nuget/dt/Ank.DocToolkit?style=flat-square&color=1B2A4E&label=downloads" alt="Downloads"></a>
-  <a href="https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/runs%20on-Linux%20%C2%B7%20arm64%20%C2%B7%20Windows%20%C2%B7%20macOS-1B2A4E?style=flat-square" alt="Runs on Linux, arm64, Windows and macOS"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1B2A4E?style=flat-square" alt="MIT"></a>
-</p>
+*HTML in. Word and PDF out. Nothing else installed.*
 
-<p align="center">
-  <img src="assets/art/banner.png" width="880" alt="HTML in, Word and PDF out: a real invoice page DocToolkit rendered from invoice.html, shown as a printer's proof beside the install line, dotnet add package Ank.DocToolkit.">
-</p>
-
----
+## What it is
 
 You have a Linux container, a Word template and a PDF due on Friday. The usual answers are a
 headless Chrome, LibreOffice, or a licence with a revenue threshold.
@@ -27,7 +17,31 @@ headless Chrome, LibreOffice, or a licence with a revenue threshold.
 DocToolkit is one NuGet package instead. It is pure managed code. It restores, builds and runs the
 same on your laptop and in the container.
 
-## Install
+| | |
+|---|---|
+| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX; legacy PowerPoint 97-2003 `.ppt` to PDF ([at a measured rate](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html#legacy-binary-formats-which-the-grid-above-does-not-show)) |
+| **Edit** | create and edit DOCX, XLSX and PPTX; fill templates, including one row per record; insert images; read text back out |
+| **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
+| **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
+
+<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
+
+| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
+|---|---|---|---|---|---|---|---|---|
+| **CSV** | — | · | · | · | · | · | · | · |
+| **DOC** | · | — | **✅** | · | · | · | · | · |
+| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
+| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
+| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
+| **PDF** | · | · | · | · | · | — | · | · |
+| **PPTX** | · | · | · | · | · | **✅** | — | · |
+| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
+
+A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
+
+<!-- END GENERATED -->
+
+## Get started
 
 ```bash
 dotnet add package Ank.DocToolkit
@@ -69,32 +83,6 @@ du -sm bin/Release/net8.0/runtimes
 ```
 
 </details>
-
-## What it does
-
-| | |
-|---|---|
-| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX; legacy PowerPoint 97-2003 `.ppt` to PDF ([at a measured rate](https://ank-khoaho.github.io/DocToolkit/guides/capabilities.html#legacy-binary-formats-which-the-grid-above-does-not-show)) |
-| **Edit** | create and edit DOCX, XLSX and PPTX; fill templates, including one row per record; insert images; read text back out |
-| **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
-| **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
-
-<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
-
-| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
-|---|---|---|---|---|---|---|---|---|
-| **CSV** | — | · | · | · | · | · | · | · |
-| **DOC** | · | — | **✅** | · | · | · | · | · |
-| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
-| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
-| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
-| **PDF** | · | · | · | · | · | — | · | · |
-| **PPTX** | · | · | · | · | · | **✅** | — | · |
-| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
-
-A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
-
-<!-- END GENERATED -->
 
 ## Proof
 
