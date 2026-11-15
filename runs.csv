@@ -481,3 +481,9 @@ date,workflow,runs
 2026-11-13,Release curation state,3
 2026-11-13,nuget stats,1
 2026-11-13,release-please,5
+2026-11-14,CI,3
+2026-11-14,CodeQL,3
+2026-11-14,Dependabot auto-merge,2
+2026-11-14,Release PR automerge guard,2
+2026-11-14,nuget stats,1
+2026-11-14,release-please,1
