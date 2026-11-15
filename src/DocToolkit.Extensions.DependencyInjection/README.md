@@ -1,6 +1,6 @@
 # Ank.DocToolkit.Extensions.DependencyInjection
 
-![DocToolkit - convert HTML to PDF and DOCX in C#, no browser, no native binaries](https://raw.githubusercontent.com/Ank-KhoaHo/DocToolkit/main/assets/banner.png)
+![HTML in, Word and PDF out: a real invoice page DocToolkit rendered from invoice.html, shown as a printer's proof beside the install line, dotnet add package Ank.DocToolkit](https://raw.githubusercontent.com/Ank-KhoaHo/DocToolkit/main/assets/art/banner.png)
 
 [![NuGet](https://img.shields.io/nuget/v/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ank.DocToolkit.Extensions.DependencyInjection.svg)](https://www.nuget.org/packages/Ank.DocToolkit.Extensions.DependencyInjection/)
