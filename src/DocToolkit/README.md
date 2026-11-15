@@ -9,13 +9,39 @@
 [![Runs on Linux, arm64, Windows and macOS](https://img.shields.io/badge/runs%20on-Linux%20%C2%B7%20arm64%20%C2%B7%20Windows%20%C2%B7%20macOS-1B2A4E?style=flat-square)](https://github.com/Ank-KhoaHo/DocToolkit/actions/workflows/ci.yml)
 [![MIT](https://img.shields.io/badge/license-MIT-1B2A4E?style=flat-square)](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/LICENSE)
 
+## What it is
+
 You have a Linux container, a Word template and a PDF due on Friday. The usual answers are a
 headless Chrome, LibreOffice, or a licence with a revenue threshold.
 
 DocToolkit is one NuGet package instead. It is pure managed code. It restores, builds and runs the
 same on your laptop and in the container.
 
-## Install
+| | |
+|---|---|
+| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX; legacy PowerPoint 97-2003 `.ppt` to PDF |
+| **Edit** | create and edit DOCX, XLSX and PPTX; fill templates and forms, including one row per record; insert images; read text back out |
+| **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
+| **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
+
+<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
+
+| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
+|---|---|---|---|---|---|---|---|---|
+| **CSV** | — | · | · | · | · | · | · | · |
+| **DOC** | · | — | **✅** | · | · | · | · | · |
+| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
+| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
+| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
+| **PDF** | · | · | · | · | · | — | · | · |
+| **PPTX** | · | · | · | · | · | **✅** | — | · |
+| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
+
+A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
+
+<!-- END GENERATED -->
+
+## Get started
 
 ```bash
 dotnet add package Ank.DocToolkit
@@ -45,32 +71,6 @@ That is the whole setup: no browser download, no `apt-get`, no config file. It t
 Every bar takes a minute to reproduce. Add the package to an empty `net8.0` app, build it, and
 measure `runtimes/`. The commands are in
 [Measured against the alternatives](https://ank-khoaho.github.io/DocToolkit/guides/reference.html#measured-against-the-alternatives).
-
-## What it does
-
-| | |
-|---|---|
-| **Convert** | HTML and Markdown to DOCX and PDF; DOCX to HTML, Markdown and PDF; XLSX to CSV, HTML and PDF; PPTX to PDF; legacy Word 97-2003 `.doc` to DOCX; legacy PowerPoint 97-2003 `.ppt` to PDF |
-| **Edit** | create and edit DOCX, XLSX and PPTX; fill templates and forms, including one row per record; insert images; read text back out |
-| **PDF** | page count, merge, split, extract, rotate, reorder, insert; read text; read and stamp document information |
-| **Protect** | password-protect and unprotect PDF, DOCX, XLSX and PPTX |
-
-<!-- BEGIN GENERATED (scripts/gen-capability-matrix.py) - do not edit by hand -->
-
-| From ↓ / To → | CSV | DOC | DOCX | HTML | Markdown | PDF | PPTX | XLSX |
-|---|---|---|---|---|---|---|---|---|
-| **CSV** | — | · | · | · | · | · | · | · |
-| **DOC** | · | — | **✅** | · | · | · | · | · |
-| **DOCX** | · | · | — | **✅** | **✅** | **✅** | · | · |
-| **HTML** | · | · | **✅** | — | · | **✅** | · | · |
-| **Markdown** | · | · | **✅** | · | — | **✅** | · | · |
-| **PDF** | · | · | · | · | · | — | · | · |
-| **PPTX** | · | · | · | · | · | **✅** | — | · |
-| **XLSX** | **✅** | · | · | **✅** | · | **✅** | · | — |
-
-A **✅** is a converter that ships; **·** is a pair with no converter, not a promise about one. Read a row as "from this format, into these".
-
-<!-- END GENERATED -->
 
 ## Status
 
@@ -125,7 +125,7 @@ Not by default. Remote images are the one opt-in, and that stays bounded.
 Yes. CI publishes a trimmed and a native-AOT app and runs both. ClosedXML still emits warning
 `IL2090`.
 
-## Learn more
+## Documentation
 
 - [Guides](https://ank-khoaho.github.io/DocToolkit/guides/getting-started.html): getting started,
   HTML, Markdown, Word, spreadsheets, dependency injection and production.
@@ -135,7 +135,7 @@ Yes. CI publishes a trimmed and a native-AOT app and runs both. ClosedXML still 
   source.
 - [Source, samples and issues](https://github.com/Ank-KhoaHo/DocToolkit) on GitHub.
 
-## Every type in the package
+### Every type in the package
 
 Each name links to its API page.
 
@@ -164,3 +164,7 @@ Each name links to its API page.
 
 [`ChartData`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.ChartData.html), [`ChartSeries`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.ChartSeries.html), [`ChartType`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.ChartType.html), [`ConversionLossKind`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.ConversionLossKind.html), [`ConversionResult<T>`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.ConversionResult-1.html), [`ConversionWarning`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.ConversionWarning.html), [`DocToolkitTelemetry`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocToolkitTelemetry.html), [`DocumentConversionException`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocumentConversionException.html), [`DocumentMetadata`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocumentMetadata.html), [`DocumentSignatureInfo`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocumentSignatureInfo.html), [`DocumentSignatureStatus`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocumentSignatureStatus.html), [`DocumentSignatureValidationOptions`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocumentSignatureValidationOptions.html), [`DocumentSignatureValidationReport`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocumentSignatureValidationReport.html), [`DocumentSignatureValidationResult`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocumentSignatureValidationResult.html), [`DocxHeader`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocxHeader.html), [`DocxHeaderSegment`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.DocxHeaderSegment.html), [`HeaderAlignment`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.HeaderAlignment.html), [`HtmlToPdfOptions`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.HtmlToPdfOptions.html), [`LegacyDocOptions`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.LegacyDocOptions.html), [`PageSetup`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.PageSetup.html), [`PdfFontOptions`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.PdfFontOptions.html), [`RemoteImageOptions`](https://ank-khoaho.github.io/DocToolkit/api/DocToolkit.RemoteImageOptions.html)
 <!-- END GENERATED -->
+
+## Licence
+
+MIT. See [LICENSE](https://github.com/Ank-KhoaHo/DocToolkit/blob/main/LICENSE).
