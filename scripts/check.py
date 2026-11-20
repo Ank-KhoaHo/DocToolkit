@@ -59,6 +59,7 @@ STEPS = [
     # Then the guards' self-tests: a guard whose own test fails says nothing about the tree.
     _guard("backup-working-half.py", "--self-test"),
     _guard("check-action-pins.py", "--self-test"),
+    _guard("check-art.py", "--self-test"),
     _guard("check-changelog-curated.py", "--self-test"),
     _guard("check-doc-blocks.py", "--self-test"),
     _guard("check-docs-layout.py", "--self-test"),
@@ -75,6 +76,7 @@ STEPS = [
     _guard("set-floors.py", "--self-test"),
     # The guards, on this tree.
     _guard("check-action-pins.py"),
+    _guard("check-art.py"),
     _guard("check-configureawait.py"),
     _guard("check-core-sharing.py"),
     _guard("check-dependabot-scoping.py"),
