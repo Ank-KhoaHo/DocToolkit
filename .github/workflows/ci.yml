@@ -804,6 +804,14 @@ jobs:
           python3 scripts/check-readme-shape.py --self-test
           python3 scripts/check-readme-shape.py
 
+      # The banner is held above, by name, as the first thing in each README. The icon (the
+      # NuGet package icon) and the cover (GitHub's social preview) were held by nothing (D51):
+      # this holds all three by path, and each one's shape.
+      - name: Assert the icon, the banner and the cover exist and have the right shape
+        run: |
+          python3 scripts/check-art.py --self-test
+          python3 scripts/check-art.py
+
       - name: Assert the NuGet README type index matches the approved API
         run: |
           python3 scripts/gen-type-index.py --self-test
