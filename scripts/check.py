@@ -6,6 +6,9 @@
     python scripts/check.py --list      print the steps and run nothing
     python scripts/check.py --self-test the machinery, and that no CI guard is missing here
 
+Any other argument stops the gate with exit code 2. Each step's seconds are printed after it ends,
+and a step past its limit is stopped with everything it started, the test container included.
+
 WHY THIS EXISTS. CI splits this repository's checks across jobs and workflows, and nothing ran
 all of them locally with one command. The guards here are the ones CI runs; the self-test (run in
 CI) fails when a workflow runs a script this gate neither runs nor names, with a reason, in
@@ -23,13 +26,21 @@ depending on where it is typed, and the shell's `timeout` there is another progr
 `subprocess` gives one behaviour everywhere, and a time limit that is the same everywhere.
 """
 
+import contextlib
+import io
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
+
+# Every argument the gate takes (D52). Anything else stops it with exit code 2: a mistyped
+# '--quik' used to run the whole gate without a word.
+KNOWN_ARGS = ("--self-test", "--quick", "--list")
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -39,13 +50,18 @@ RUNNING = "DOCTOOLKIT_GATE_RUNNING"
 
 PY = sys.executable          # the interpreter running the gate, not whichever is first on PATH
 
+TEST_CONTAINER = "doctoolkit-linux-test-run"
+
 
 class Step:
     """One check: a name a person recognises, a command (a list, never a shell string), a time
     limit in seconds, and whether --quick runs it."""
 
-    def __init__(self, name, command, timeout, quick=True):
+    def __init__(self, name, command, timeout, quick=True, cleanup=None):
         self.name, self.command, self.timeout, self.quick = name, command, timeout, quick
+        # A command run before the step starts and again when it times out (D52), for what the
+        # step starts outside its own process tree: the test container.
+        self.cleanup = cleanup
 
 
 def _guard(script, *args, timeout=180):
@@ -108,8 +124,14 @@ STEPS = [
     Step("tests: build the Linux image",
          ["docker", "build", "-f", "Dockerfile.linux-test", "-t", "doctoolkit-linux-test", "."],
          1800, quick=False),
-    Step("tests: run the suite in it", ["docker", "run", "--rm", "doctoolkit-linux-test"],
-         1800, quick=False),
+    # The container has a name of its own (D52): `docker run` asks the Docker service to start
+    # it, so it is no child of this gate, and stopping the step's process tree cannot reach it.
+    # Removed by that name before the step (a container left by an earlier run would fail this
+    # one) and when it times out. ITS LIMIT: one name, so two gates running the whole suite at
+    # once on one machine would collide; the second removes the first one's container.
+    Step("tests: run the suite in it",
+         ["docker", "run", "--rm", "--name", TEST_CONTAINER, "doctoolkit-linux-test"],
+         1800, quick=False, cleanup=["docker", "rm", "-f", TEST_CONTAINER]),
 ]
 
 # Scripts a workflow runs that this gate does not, each with the reason. An entry is a hole in
@@ -148,16 +170,54 @@ def _show(line):
     sys.stdout.flush()
 
 
+def _cleanup(step, cwd):
+    """Run the step's cleanup, if it has one. It never raises, and has a limit of its own."""
+    if not step.cleanup:
+        return
+    try:
+        subprocess.run(step.cleanup, cwd=cwd, capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _stop_tree(proc):
+    """Stop a step and every process it started (D52).
+
+    The step's own process is not enough: `dotnet build` starts build servers, and a test that
+    hangs keeps its children. On Windows `taskkill /T` follows the links from parent to child;
+    elsewhere the step runs in a session of its own (see run_step), and the whole group is
+    stopped. ITS LIMIT: on Windows a process whose parent has already gone is outside the tree.
+    It never raises: the step's own process is stopped whatever else failed."""
+    if sys.platform == "win32":
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                           capture_output=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+
+
 def run_step(step, cwd=ROOT, show=True):
     """Run one step; show its whole output as it arrives. Returns (ok, reason, output).
 
     Never the last lines only: the line that explains a failure is often printed first."""
     cwd = Path(cwd)
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1", RUNNING: "1"}
+    _cleanup(step, cwd)
+    # Off Windows, a session of its own, so _stop_tree can stop the whole group.
+    session = {"start_new_session": True} if sys.platform != "win32" else {}
     try:
         proc = subprocess.Popen(step.command, cwd=cwd, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-                                errors="replace", bufsize=1)
+                                errors="replace", bufsize=1, **session)
     except OSError as exc:
         return False, f"could not start: {exc}", ""
 
@@ -178,8 +238,9 @@ def run_step(step, cwd=ROOT, show=True):
         proc.wait(timeout=step.timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        proc.kill()             # this step's own process; a step must stop what it starts
+        _stop_tree(proc)        # everything the step started, not its own process alone
         proc.wait()
+        _cleanup(step, cwd)     # and what it started outside its tree, by name
     reader.join(timeout=5.0)
     output = "".join(lines)
     if timed_out:
@@ -197,7 +258,9 @@ def run(steps, show=True, cwd=ROOT):
         return 1
     for position, step in enumerate(steps, start=1):
         print(f"\n== {position}/{len(steps)}  {step.name}", flush=True)
+        started = time.monotonic()
         ok, reason, _ = run_step(step, cwd=cwd, show=show)
+        print(f"-- {step.name}: {time.monotonic() - started:.1f} s", flush=True)
         if not ok:
             print(f"\nFAILED at step {position}, {step.name}: {reason}", flush=True)
             return 1
@@ -207,6 +270,54 @@ def run(steps, show=True, cwd=ROOT):
 
 # ---------------------------------------------------------------------------
 # Self-test: the machinery with tiny commands, then the drift check against the workflows.
+
+# The hung step (D52): it starts a child, then hangs. Both end by themselves within 40 s, so a
+# failing case cannot leave them on the machine for long.
+_CHILD = """
+import os, sys, time
+beat = sys.argv[1]
+with open(beat + '.pid', 'w') as out:
+    out.write(str(os.getpid()))
+end = time.monotonic() + 40
+while time.monotonic() < end:
+    with open(beat, 'a') as out:
+        out.write('.')
+    time.sleep(0.1)
+"""
+
+_PARENT = """
+import os, subprocess, sys, time
+with open(sys.argv[2] + '.parent', 'w') as out:
+    out.write(str(os.getpid()))
+subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]])
+print('started a child', flush=True)
+time.sleep(40)
+"""
+
+
+def _wait_for(path, seconds=20.0):
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if path.exists() and path.read_text():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _still_beating(beat):
+    time.sleep(0.5)
+    before = beat.stat().st_size
+    time.sleep(1.0)
+    return beat.stat().st_size != before
+
+
+def _stop_leftovers(beat):
+    """Whatever a failing case left running is stopped here, by its own process ID and no other."""
+    for suffix in (".pid", ".parent"):
+        try:
+            os.kill(int(Path(str(beat) + suffix).read_text()), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
 
 def self_test():
     bad = []
@@ -234,6 +345,51 @@ def self_test():
 
         ok, _, out = run_step(tiny(f"import os; print(os.environ.get('{RUNNING}'))"), cwd=tmp, show=False)
         expect("every step sees the marker that stops a nested gate", out.strip() == "1")
+
+        # D52: a step past its limit is stopped with everything it started. The step starts a
+        # child and hangs; the child writes a beat ten times a second, so the case can see
+        # whether it still runs without asking the system about a process ID.
+        beat = Path(tmp) / "beat.txt"
+        hung = Step("hangs with a child", [PY, "-c", _PARENT, _CHILD, str(beat)], 4)
+        try:
+            ok, reason, out = run_step(hung, cwd=tmp, show=False)
+            started = _wait_for(Path(str(beat) + ".pid"), seconds=1)
+            expect("the hung step's child started, so the case below proves something",
+                   started and "started a child" in out)
+            expect("a step past its time limit is stopped with the child it started",
+                   not ok and "timed out" in reason and started and not _still_beating(beat))
+        finally:
+            _stop_leftovers(beat)
+
+        # D52: a step's cleanup runs before it starts and again when it times out. The test
+        # container is not a child of the gate, so only a cleanup by its name reaches it.
+        cleaned = Path(tmp) / "cleaned.txt"
+        mark = [PY, "-c", f"open({str(cleaned)!r}, 'a').write('x')"]
+        passing = tiny("pass")
+        passing.cleanup = mark
+        run_step(passing, cwd=tmp, show=False)
+        expect("a step's cleanup runs before the step starts",
+               cleaned.exists() and cleaned.read_text() == "x")
+        cleaned.unlink(missing_ok=True)
+        slow = tiny("import time; time.sleep(30)", timeout=1)
+        slow.cleanup = mark
+        run_step(slow, cwd=tmp, show=False)
+        expect("a step's cleanup runs again when the step times out",
+               cleaned.exists() and cleaned.read_text() == "xx")
+
+        # D52: each step's seconds are printed after it ends.
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            run([tiny("pass")], show=False, cwd=tmp)
+        expect("each step's seconds are printed after it ends",
+               re.search(r"^-- tiny: \d+\.\d s$", printed.getvalue(), re.M) is not None)
+
+        # D52: an unknown argument is refused. Run as a nested gate, so the old code (which ran
+        # every step for '--quik') is refused by the marker instead, and this case still fails.
+        mistyped = subprocess.run([PY, str(Path(__file__).resolve()), "--quik"], cwd=tmp,
+                                  env={**os.environ, RUNNING: "1"}, capture_output=True, text=True)
+        expect("an unknown argument stops the gate with exit code 2 and names the three it takes",
+               mistyped.returncode == 2 and all(a in mistyped.stdout for a in KNOWN_ARGS))
 
         expect("an empty gate fails, because it checked nothing", run([], show=False, cwd=tmp) == 1)
         expect("the gate stops at the first failure",
@@ -268,6 +424,10 @@ def self_test():
 
 
 def main(argv):
+    unknown = [a for a in argv if a not in KNOWN_ARGS]
+    if unknown:
+        print(f"check: unknown argument {unknown[0]}. It takes {', '.join(KNOWN_ARGS)}.", flush=True)
+        return 2
     if "--self-test" in argv:
         return self_test()
     steps = [s for s in STEPS if s.quick] if "--quick" in argv else STEPS
