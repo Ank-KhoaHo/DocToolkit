@@ -7,7 +7,8 @@
     python scripts/check.py --self-test the machinery, and that no CI guard is missing here
 
 Any other argument stops the gate with exit code 2. Each step's seconds are printed after it ends,
-and a step past its limit is stopped with everything it started, the test container included.
+with its share of its limit when that is more than 80 %, and such a step is named again after the
+last step. A step past its limit is stopped with everything it started, the test container included.
 
 WHY THIS EXISTS. CI splits this repository's checks across jobs and workflows, and nothing ran
 all of them locally with one command. The guards here are the ones CI runs; the self-test (run in
@@ -51,6 +52,10 @@ RUNNING = "DOCTOOLKIT_GATE_RUNNING"
 PY = sys.executable          # the interpreter running the gate, not whichever is first on PATH
 
 TEST_CONTAINER = "doctoolkit-linux-test-run"
+
+# A step that took more than this percent of its time limit is near its limit, and says so (D53).
+# A whole number, so a step at exactly 80 % is compared without a rounding error.
+NEAR_LIMIT = 80
 
 
 class Step:
@@ -250,21 +255,34 @@ def run_step(step, cwd=ROOT, show=True):
     return True, "", output
 
 
-def run(steps, show=True, cwd=ROOT):
+def run(steps, show=True, cwd=ROOT, clock=time.monotonic):
     """Run the steps in order, stop at the first failure. 0 only when every step passed; a gate
-    with no steps returns 1, because it checked nothing."""
+    with no steps returns 1, because it checked nothing.
+
+    A step that used more than NEAR_LIMIT percent of its time limit says so on its line of seconds, and
+    a run that passed names it again after the last step (D53): the two container steps have
+    1800 s each, and a step at 1700 s passed without a word until a busy day stopped it."""
     if not steps:
         print("check: no steps to run, so nothing was checked.", flush=True)
         return 1
+    near_limit = []
     for position, step in enumerate(steps, start=1):
         print(f"\n== {position}/{len(steps)}  {step.name}", flush=True)
-        started = time.monotonic()
+        started = clock()
         ok, reason, _ = run_step(step, cwd=cwd, show=show)
-        print(f"-- {step.name}: {time.monotonic() - started:.1f} s", flush=True)
+        seconds = clock() - started
+        if seconds * 100 > NEAR_LIMIT * step.timeout:
+            percent = int(seconds * 100 / step.timeout)      # the whole percent, rounded down
+            print(f"-- {step.name}: {seconds:.1f} s, {percent} % of its limit of {step.timeout} s", flush=True)
+            near_limit.append(f"{step.name} ({percent} % of {step.timeout} s)")
+        else:
+            print(f"-- {step.name}: {seconds:.1f} s", flush=True)
         if not ok:
             print(f"\nFAILED at step {position}, {step.name}: {reason}", flush=True)
             return 1
     print(f"\nAll {len(steps)} local checks passed.", flush=True)
+    if near_limit:
+        print(f"Near its limit: {', '.join(near_limit)}.", flush=True)
     return 0
 
 
@@ -318,6 +336,23 @@ def _stop_leftovers(beat):
             os.kill(int(Path(str(beat) + suffix).read_text()), signal.SIGTERM)
         except (OSError, ValueError):
             pass
+
+def _named(name, limit):
+    return Step(name, [PY, "-c", "pass"], limit)
+
+
+def _run_lines(steps, times, cwd):
+    """The lines run() printed, with a clock that returns the given times in turn. An error is
+    returned as its own line, so a case on code without the clock fails instead of crashing."""
+    printed = io.StringIO()
+    ticks = iter(times)
+    try:
+        with contextlib.redirect_stdout(printed):
+            run(steps, show=False, cwd=cwd, clock=lambda: next(ticks))
+    except Exception as error:      # noqa: BLE001 - reported as a failed case, not raised
+        return [f"error: {error!r}"]
+    return [line for line in printed.getvalue().splitlines() if line.strip()]
+
 
 def self_test():
     bad = []
@@ -383,6 +418,19 @@ def self_test():
             run([tiny("pass")], show=False, cwd=tmp)
         expect("each step's seconds are printed after it ends",
                re.search(r"^-- tiny: \d+\.\d s$", printed.getvalue(), re.M) is not None)
+
+        # D53: a step that used more than 80 % of its limit says so, on its own line and after
+        # the last step. The clock is given, so the seconds are exact and the case is not timed.
+        lines = _run_lines([_named("the suite", 1800), _named("the guards", 100)],
+                           [0.0, 1505.0, 2000.0, 2012.3], cwd=tmp)
+        expect("a step at more than 80 % of its limit says so, on its line and after the last step",
+               "-- the suite: 1505.0 s, 83 % of its limit of 1800 s" in lines
+               and "-- the guards: 12.3 s" in lines
+               and lines[-2:] == ["All 2 local checks passed.", "Near its limit: the suite (83 % of 1800 s)."])
+        lines = _run_lines([_named("at the line", 100)], [0.0, 80.0], cwd=tmp)
+        expect("a step at exactly 80 % of its limit says nothing about it",
+               "-- at the line: 80.0 s" in lines and lines[-1] == "All 1 local checks passed."
+               and not any("limit" in line for line in lines))
 
         # D52: an unknown argument is refused. Run as a nested gate, so the old code (which ran
         # every step for '--quik') is refused by the marker instead, and this case still fails.
