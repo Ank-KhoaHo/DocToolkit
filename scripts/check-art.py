@@ -106,6 +106,12 @@ _CASES = [
     ("a large square icon passes", {ICON: _png(512, 512)}, []),
     ("a cover of the wrong size fails", {COVER: _png(1200, 630)}, [f"{COVER} is 1200 by 630"]),
     ("a cover twice the size fails", {COVER: _png(2560, 1280)}, [f"{COVER} is 2560 by 1280"]),
+    # D54: a cover that shares one side with 1280 by 640. Without these, a rule that read the
+    # width alone, or the height alone, passed every case above.
+    ("a cover of the right width and the wrong height fails", {COVER: _png(1280, 630)},
+     [f"{COVER} is 1280 by 630"]),
+    ("a cover of the right height and the wrong width fails", {COVER: _png(1200, 640)},
+     [f"{COVER} is 1200 by 640"]),
     ("a narrow banner fails", {BANNER: _png(900, 300)}, [f"{BANNER} is 900 by 300"]),
     ("a banner at the minimum width passes", {BANNER: _png(960, 320)}, []),
     ("a square banner fails", {BANNER: _png(1280, 1280)}, [f"{BANNER} is 1280 by 1280"]),
